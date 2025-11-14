@@ -120,8 +120,8 @@ void settings_update_power_status() {
   uint32_t now = millis();
 
   // Status basierend auf STROMRICHTUNG (zuverlässiger als isCharging)
-  // NEGATIV = lädt (Netzteil), POSITIV = entlädt (Batterie)
-  bool currentPowered = (batCurrent < -50);
+  // NEGATIV = lädt (Netzteil), ~0 mA = kein Akku/Netzteil, POSITIV = entlädt (Batterie)
+  bool currentPowered = (batCurrent <= 50);
 
   // Hysterese: Nur wechseln wenn mindestens 2 Sekunden vergangen
   if (currentPowered != lastPoweredState) {

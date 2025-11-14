@@ -201,6 +201,9 @@ void loop() {
       // Power Status Update
       settings_update_power_status();
 
+      // Power Mode Update (WiFi Power Saving basierend auf Netzteil/Batterie)
+      powerManager.updatePowerMode();
+
       uiManager.updateStatusbar();
     }
   } else {

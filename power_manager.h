@@ -37,7 +37,14 @@ public:
   // Ermittelt aktuelles Sleep-Timeout basierend auf Batterie/Netzteil
   uint32_t getSleepTimeout() const;
 
+  // Prüft ob am Netzteil (true) oder Batterie (false)
+  bool isPoweredByMains() const;
+
+  // Power Mode Update (WiFi Power Saving, etc.)
+  void updatePowerMode();
+
 private:
+  bool last_power_mode = true;  // true = Netzteil, false = Batterie
   bool is_high_performance = true;
   bool is_display_sleeping = false;
   uint8_t saved_brightness = 150;  // Gespeicherte Helligkeit vor Sleep

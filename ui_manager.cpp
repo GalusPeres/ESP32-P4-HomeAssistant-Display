@@ -200,10 +200,13 @@ lv_obj_t* UIManager::configureNavButton(lv_obj_t *btn, const char *icon_text) {
   lv_obj_set_style_shadow_width(btn, 0, 0);
   lv_obj_set_style_outline_width(btn, 0, 0);
 
-  // PRESSED State: Orange mit 50% Opacity + Animation (größer werden)
-  lv_obj_set_style_bg_opa(btn, LV_OPA_50, LV_STATE_PRESSED);
+  // PRESSED State: Helle Orange Farbe beim Drücken
+  lv_obj_set_style_bg_opa(btn, LV_OPA_30, LV_STATE_PRESSED);  // 30% Deckkraft
   lv_obj_set_style_bg_color(btn, lv_color_hex(0xE38422), LV_STATE_PRESSED);
-  // Standard LVGL Button-Animation ist aktiv (wird größer beim Drücken)
+
+  // Animation komplett deaktivieren
+  lv_obj_set_style_transform_width(btn, 0, LV_STATE_PRESSED);
+  lv_obj_set_style_transform_height(btn, 0, LV_STATE_PRESSED);
 
   lv_obj_set_style_radius(btn, 24, 0);
   lv_obj_set_style_pad_top(btn, 24, 0);

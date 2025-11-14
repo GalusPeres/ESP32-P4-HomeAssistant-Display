@@ -239,3 +239,20 @@ void Tab5NetworkManager::update() {
   was_connected = is_connected;
 }
 
+// ========== WiFi Power Management ==========
+void Tab5NetworkManager::setWifiPowerSaving(bool enable) {
+  if (!isWifiConnected()) return;
+
+  if (enable) {
+    // Batteriemodus: Stromsparen aktivieren
+    WiFi.setSleep(WIFI_PS_MIN_MODEM);  // Light Sleep (spart ~40mA)
+    WiFi.setTxPower(WIFI_POWER_11dBm); // TX Power reduzieren (spart ~20mA)
+    Serial.println("🔋 WiFi Power Saving: Light Sleep + 11dBm");
+  } else {
+    // Netzteilmodus: Volle Performance
+    WiFi.setSleep(WIFI_PS_NONE);       // Kein Sleep
+    WiFi.setTxPower(WIFI_POWER_19_5dBm); // Maximale Reichweite
+    Serial.println("🔌 WiFi Full Power: No Sleep + 19.5dBm");
+  }
+}
+

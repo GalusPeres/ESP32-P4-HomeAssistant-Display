@@ -33,6 +33,9 @@ public:
   const char* getBridgeApplyTopic() const;
   const char* getBridgeRequestTopic() const;
 
+  // WiFi Power Management
+  void setWifiPowerSaving(bool enable);
+
 private:
   WiFiClient net_client;
   PubSubClient mqtt_client;

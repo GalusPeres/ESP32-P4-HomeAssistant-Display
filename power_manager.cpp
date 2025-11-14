@@ -2,6 +2,7 @@
 #include <M5Unified.h>
 #include "display_manager.h"
 #include "config_manager.h"
+#include "network_manager.h"
 
 // Globale Instanz
 PowerManager powerManager;
@@ -61,8 +62,8 @@ void PowerManager::setHighPerformance(bool enable) {
 
 // ========== Ermittelt Sleep-Timeout basierend auf Batterie/Netzteil ==========
 uint32_t PowerManager::getSleepTimeout() const {
-  // Prüfe Ladezustand UND Batteriespannung für bessere Detection
-  bool isCharging = M5.Power.isCharging();
+  // Nutze Stromrichtung für zuverlässige Detection
+  int32_t batCurrent = M5.Power.getBatteryCurrent();
   int batVoltage = M5.Power.getBatteryVoltage();
   int batLevel = M5.Power.getBatteryLevel();
 
@@ -70,14 +71,14 @@ uint32_t PowerManager::getSleepTimeout() const {
   static bool first_call = true;
   if (first_call) {
     Serial.printf("🔌 Power Status:\n");
-    Serial.printf("   isCharging: %s\n", isCharging ? "JA" : "NEIN");
+    Serial.printf("   Current: %d mA\n", batCurrent);
     Serial.printf("   Voltage: %d mV\n", batVoltage);
     Serial.printf("   Level: %d%%\n", batLevel);
     first_call = false;
   }
 
-  // Nutze isCharging() direkt - das ist am zuverlässigsten beim Tab5
-  bool isPowered = isCharging;
+  // Stromrichtung: NEGATIV = lädt (Netzteil), ~0 mA = kein Akku/Netzteil, POSITIV = entlädt (Batterie)
+  bool isPowered = (batCurrent <= 50);
 
   if (!isPowered) {
     // Batteriebetrieb: Fest 30 Sekunden für maximale Akkulaufzeit
@@ -95,6 +96,13 @@ uint32_t PowerManager::getSleepTimeout() const {
     uint32_t timeout_ms = cfg.auto_sleep_minutes * 60 * 1000UL;
     return timeout_ms;
   }
+}
+
+// ========== Prüft ob am Netzteil ==========
+bool PowerManager::isPoweredByMains() const {
+  int32_t batCurrent = M5.Power.getBatteryCurrent();
+  // Stromrichtung: NEGATIV = lädt (Netzteil), ~0 mA = kein Akku/Netzteil, POSITIV = entlädt (Batterie)
+  return (batCurrent <= 50);
 }
 
 // ========== Update (Idle-Detection) ==========
@@ -209,4 +217,24 @@ void PowerManager::wakeFromDisplaySleep() {
   displayManager.resetActivityTimer();
 
   Serial.println("✓ Display wieder aktiv - Aufwachen abgeschlossen\n");
+}
+
+// ========== Power Mode Update ==========
+void PowerManager::updatePowerMode() {
+  bool is_powered = isPoweredByMains();
+
+  // Nur bei Wechsel zwischen Modi reagieren
+  if (is_powered != last_power_mode) {
+    last_power_mode = is_powered;
+
+    if (is_powered) {
+      // NETZTEIL-MODUS: Volle Performance
+      networkManager.setWifiPowerSaving(false);
+      Serial.println("⚡ Netzteil-Modus: WiFi Full Power");
+    } else {
+      // BATTERIE-MODUS: Stromsparen
+      networkManager.setWifiPowerSaving(true);
+      Serial.println("🔋 Batterie-Modus: WiFi Power Saving");
+    }
+  }
 }
