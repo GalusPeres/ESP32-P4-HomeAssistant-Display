@@ -33,11 +33,16 @@ void Tab5NetworkManager::init() {
   WiFi.persistent(false);
   wifi_retry_at = 0;  // Sofortiger Verbindungsversuch
 
-  // MQTT-Setup
-  mqtt_client.setClient(net_client);
-  mqtt_client.setServer(cfg.mqtt_host, cfg.mqtt_port);
-  mqtt_client.setBufferSize(4096);  // Für große History-CSV-Daten
-  mqtt_client.setCallback(mqttCallback);
+  mqtt_enabled = configManager.hasMqttConfig();
+  if (mqtt_enabled) {
+    // MQTT-Setup
+    mqtt_client.setClient(net_client);
+    mqtt_client.setServer(cfg.mqtt_host, cfg.mqtt_port);
+    mqtt_client.setBufferSize(4096);  // Für große History-CSV-Daten
+    mqtt_client.setCallback(mqttCallback);
+  } else {
+    Serial.println("MQTT: keine Konfiguration vorhanden - ueberspringe Verbindung");
+  }
 
   Serial.println("✓ Network Manager initialisiert");
 }
@@ -60,6 +65,7 @@ void Tab5NetworkManager::connectWifi() {
 
 // ========== MQTT verbinden ==========
 void Tab5NetworkManager::connectMqtt() {
+  if (!mqtt_enabled) return;
   mqtt_retry_at = millis() + 3000UL;  // Retry in 3s
 
   if (WiFi.status() != WL_CONNECTED) return;
@@ -217,13 +223,15 @@ void Tab5NetworkManager::update() {
     }
 
     // MQTT verwalten
-    if (!mqtt_client.connected()) {
-      if ((int32_t)(now_ms - mqtt_retry_at) >= 0) {
-        connectMqtt();
+    if (mqtt_enabled) {
+      if (!mqtt_client.connected()) {
+        if ((int32_t)(now_ms - mqtt_retry_at) >= 0) {
+          connectMqtt();
+        }
+      } else {
+        mqtt_client.loop();
+        publishTelemetry();
       }
-    } else {
-      mqtt_client.loop();
-      publishTelemetry();
     }
   }
 

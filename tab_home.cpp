@@ -4,12 +4,14 @@
 #include <ctype.h>
 #include <stdint.h>
 #include <lvgl.h>
+#include "config_manager.h"
 
 /* === Layout-Konstanten === */
-static const int SENSOR_CARD_H = 200;
-static const int SCENE_BTN_H = 150;
-static const int GAP = 24;
-static const int OUTER = 24;
+static const int SENSOR_CARD_H = 175;
+static const int SCENE_BTN_H = 130;
+static const int GAP = 22;
+static const int OUTER = 0;
+static const int GRID_PAD = 22;
 
 /* === Fonts === */
 #if defined(LV_FONT_MONTSERRAT_24) && LV_FONT_MONTSERRAT_24
@@ -210,7 +212,7 @@ static lv_obj_t* make_scene_button(lv_obj_t* parent, int col, int row,
 void build_home_tab(lv_obj_t *parent, scene_publish_cb_t scene_cb) {
   g_scene_cb = scene_cb;
 
-  lv_obj_set_style_bg_color(parent, lv_color_hex(0x111111), 0);
+  lv_obj_set_style_bg_color(parent, lv_color_hex(0x000000), 0);
   lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
   lv_obj_set_scroll_dir(parent, LV_DIR_VER);
   lv_obj_remove_flag(parent, LV_OBJ_FLAG_SCROLL_ELASTIC);
@@ -223,10 +225,13 @@ void build_home_tab(lv_obj_t *parent, scene_publish_cb_t scene_cb) {
   lv_obj_set_style_pad_bottom(parent, OUTER, 0);
 
   g_home_grid = lv_obj_create(parent);
-  lv_obj_set_style_bg_color(g_home_grid, lv_color_hex(0x111111), 0);
+  lv_obj_set_style_bg_color(g_home_grid, lv_color_hex(0x000000), 0);
   lv_obj_set_style_bg_opa(g_home_grid, LV_OPA_COVER, 0);
   lv_obj_set_style_border_width(g_home_grid, 0, 0);
-  lv_obj_set_style_pad_all(g_home_grid, 0, 0);
+  lv_obj_set_style_pad_left(g_home_grid, GRID_PAD, 0);
+  lv_obj_set_style_pad_right(g_home_grid, GRID_PAD, 0);
+  lv_obj_set_style_pad_top(g_home_grid, GRID_PAD, 0);
+  lv_obj_set_style_pad_bottom(g_home_grid, GRID_PAD, 0);
   lv_obj_remove_flag(g_home_grid, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_size(g_home_grid, LV_PCT(100), LV_PCT(100));
   lv_obj_set_style_pad_column(g_home_grid, GAP, 0);
@@ -256,6 +261,29 @@ void home_reload_layout() {
     if (!g_sensor_entities[i].length()) {
       g_sensor_cache[i] = "--";
     }
+  }
+
+  // MQTT-Warnung entfernt - nervt beim Start
+  // if (!configManager.hasMqttConfig()) {
+  //   lv_obj_t* notice = lv_label_create(g_home_grid);
+  //   lv_label_set_text(
+  //       notice,
+  //       LV_SYMBOL_WARNING " MQTT noch nicht konfiguriert\n"
+  //       "Oeffne Einstellungen > WLAN/MQTT um Datenquellen festzulegen.");
+  //   lv_obj_set_style_text_color(notice, lv_color_hex(0xFFC04D), 0);
+  // #if defined(LV_FONT_MONTSERRAT_24) && LV_FONT_MONTSERRAT_24
+  //   lv_obj_set_style_text_font(notice, &lv_font_montserrat_24, 0);
+  // #endif
+  //   lv_obj_set_style_text_align(notice, LV_TEXT_ALIGN_CENTER, 0);
+  //   lv_obj_set_width(notice, LV_PCT(100));
+  //   lv_obj_set_grid_cell(notice,
+  //                        LV_GRID_ALIGN_CENTER, 0, 3,
+  //                        LV_GRID_ALIGN_CENTER, 0, 4);
+  //   return;
+  // }
+
+  if (!configManager.hasMqttConfig()) {
+    return;  // Einfach leeres Home-Tab anzeigen wenn MQTT nicht konfiguriert
   }
 
   const HaBridgeConfigData& cfg = haBridgeConfig.get();

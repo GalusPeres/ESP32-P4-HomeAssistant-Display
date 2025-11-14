@@ -2,6 +2,8 @@
 #include "tab_weather.h"
 
 void build_weather_tab(lv_obj_t *tab) {
+  lv_obj_set_style_bg_color(tab, lv_color_hex(0x000000), 0);
+  lv_obj_set_style_bg_opa(tab, LV_OPA_COVER, 0);
   // Ort
   lv_obj_t *city = lv_label_create(tab);
   lv_label_set_text(city, "Bayerischer Wald");

@@ -5,6 +5,7 @@
 
 #include <M5Unified.h>
 #include <WiFi.h>
+#include <esp32-hal-cpu.h>
 
 // Core-Module
 #include "display_manager.h"
@@ -62,6 +63,8 @@ void setup() {
   Serial.println("\n\n🚀 M5Stack Tab5 Power Management System");
   Serial.println("═══════════════════════════════════════\n");
 
+  setCpuFrequencyMhz(240);
+
   // M5Stack initialisieren
   auto cfg = M5.config();
   M5.begin(cfg);
@@ -83,14 +86,23 @@ void setup() {
   }
 #endif
 
-  // UI aufbauen (mit Scene-Callback und Hotspot-Callback)
-  uiManager.buildUI(mqttPublishScene, start_hotspot_mode);
-  uiManager.updateStatusbar();
-
-  // --- Konfiguration laden ---
+  // --- Konfiguration laden (MUSS VOR UI-Aufbau passieren!) ---
   Serial.println("\n📋 Lade Konfiguration...");
   bool has_config = configManager.load();
   haBridgeConfig.load();
+
+  // Display-Helligkeit anwenden
+  {
+    const DeviceConfig& cfg = configManager.getConfig();
+    M5.Display.setBrightness(cfg.display_brightness);
+    Serial.printf("✓ Display-Helligkeit: %d\n", cfg.display_brightness);
+  }
+
+  // UI aufbauen (mit Scene-Callback und Hotspot-Callback)
+  // Config ist jetzt geladen, Settings-Tab bekommt die richtigen Werte!
+  uiManager.buildUI(mqttPublishScene, start_hotspot_mode);
+  uiManager.updateStatusbar();
+
   TopicSettings topicSettings;
   if (has_config) {
     const DeviceConfig& cfg = configManager.getConfig();
@@ -131,7 +143,18 @@ void loop() {
   // Power Management Update (Idle-Detection)
   powerManager.update(displayManager.getLastActivityTime());
 
-  // M5.update() - Touch, Buttons, etc.
+  // Wenn im Display-Sleep, nur minimal weiter laufen
+  if (powerManager.isInSleep()) {
+    delay(100);  // Langsam pollen
+    // Touch trotzdem checken für Wakeup - aber nur Touch, nicht M5.update()
+    lgfx::touch_point_t tp;
+    if (M5.Display.getTouch(&tp)) {
+      powerManager.wakeFromDisplaySleep();
+    }
+    return;  // Skip Rest der Loop
+  }
+
+  // M5.update() - Touch, Buttons, etc. (nur wenn NICHT im Sleep)
   M5.update();
 
   // LVGL Handler
@@ -174,6 +197,9 @@ void loop() {
       } else {
         settings_update_wifi_status(false, nullptr, nullptr);
       }
+
+      // Power Status Update
+      settings_update_power_status();
 
       uiManager.updateStatusbar();
     }

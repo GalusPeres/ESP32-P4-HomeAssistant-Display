@@ -15,7 +15,10 @@ lv_color_t* DisplayManager::buf2 = nullptr;
 uint32_t DisplayManager::last_activity_time = 0;
 
 // ========== Display Flush Callback ==========
-void DisplayManager::flush_cb(lv_display_t *lv_disp, const lv_area_t *area, uint8_t *px_map) {
+// IRAM_ATTR: Diese Funktion wird SEHR oft aufgerufen (jeder Frame!)
+// Durch IRAM wird sie aus schnellem internen RAM ausgeführt (keine Cache-Misses)
+// -> Deutlich schnellere Display-Updates, besonders beim Scrollen!
+void IRAM_ATTR DisplayManager::flush_cb(lv_display_t *lv_disp, const lv_area_t *area, uint8_t *px_map) {
   const uint32_t w = (area->x2 - area->x1 + 1);
   const uint32_t h = (area->y2 - area->y1 + 1);
   M5.Display.pushImageDMA(area->x1, area->y1, w, h, (uint16_t*)px_map);
@@ -23,7 +26,16 @@ void DisplayManager::flush_cb(lv_display_t *lv_disp, const lv_area_t *area, uint
 }
 
 // ========== Touch Callback ==========
-void DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *data) {
+// IRAM_ATTR: Touch wird häufig abgefragt (jede Loop-Iteration)
+// Schnellere Touch-Response = besseres Scroll-Gefühl!
+void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *data) {
+  // Wenn im Display-Sleep, erstmal aufwecken
+  if (powerManager.isInSleep()) {
+    powerManager.wakeFromDisplaySleep();
+    data->state = LV_INDEV_STATE_RELEASED;
+    return;
+  }
+
   lgfx::touch_point_t tp;
   if (M5.Display.getTouch(&tp)) {
     data->state = LV_INDEV_STATE_PRESSED;
@@ -65,20 +77,52 @@ bool DisplayManager::init() {
   lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
   lv_display_set_antialiasing(disp, false);
 
-  // Große DMA-Puffer (200 Zeilen) → weniger Flushes pro Frame
-  const size_t LINES = 200;
-  const size_t buf_bytes = SCREEN_WIDTH * LINES * sizeof(lv_color_t);
+  // Grosse DMA-Puffer (>=25 % der Bildschirmhoehe) fuer weniger Flushes
+  static constexpr size_t TARGET_LINES   = 240;
+  static constexpr size_t FALLBACK_LINES = 160;
 
-  buf1 = (lv_color_t*)heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
-  buf2 = (lv_color_t*)heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+  auto release_buffers = []() {
+    if (buf1) heap_caps_free(buf1);
+    if (buf2) heap_caps_free(buf2);
+    buf1 = nullptr;
+    buf2 = nullptr;
+  };
 
-  if (!buf1 || !buf2) {
-    Serial.println("❌ DMA-Buffer-Allokation fehlgeschlagen!");
-    return false;
+  auto allocate_buffers = [](size_t lines, uint32_t caps) -> bool {
+    size_t bytes = SCREEN_WIDTH * lines * sizeof(lv_color_t);
+    buf1 = (lv_color_t*)heap_caps_malloc(bytes, caps);
+    buf2 = (lv_color_t*)heap_caps_malloc(bytes, caps);
+    if (!buf1 || !buf2) {
+      if (buf1) heap_caps_free(buf1);
+      if (buf2) heap_caps_free(buf2);
+      buf1 = buf2 = nullptr;
+      return false;
+    }
+    return true;
+  };
+
+  size_t buffer_lines = TARGET_LINES;
+  bool using_psram = false;
+
+  if (!allocate_buffers(buffer_lines, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA)) {
+    release_buffers();
+    buffer_lines = FALLBACK_LINES;
+    if (!allocate_buffers(buffer_lines, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA)) {
+      release_buffers();
+      buffer_lines = TARGET_LINES;
+      if (!allocate_buffers(buffer_lines, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA)) {
+        Serial.println("❌ DMA-Buffer-Allokation fehlgeschlagen!");
+        return false;
+      }
+      using_psram = true;
+    }
   }
 
+  const size_t buf_bytes = SCREEN_WIDTH * buffer_lines * sizeof(lv_color_t);
+
   lv_display_set_buffers(disp, buf1, buf2, buf_bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
-  Serial.printf("✓ DMA-Puffer: 2x %d Bytes (je %d Zeilen)\n", buf_bytes, LINES);
+  Serial.printf("[OK] DMA-Puffer: 2x %d Bytes (je %d Zeilen, %s)\n",
+                buf_bytes, buffer_lines, using_psram ? "PSRAM" : "SRAM");
 
   // Touch-Input
   indev = lv_indev_create();
@@ -86,7 +130,7 @@ bool DisplayManager::init() {
   lv_indev_set_read_cb(indev, touch_cb);
   lv_indev_set_display(indev, disp);
 
-  Serial.println("✓ Display Manager initialisiert");
+  Serial.println("[OK] Display Manager initialisiert");
   return true;
 }
 

@@ -22,6 +22,11 @@ struct DeviceConfig {
   char mqtt_base_topic[CONFIG_MQTT_BASE_MAX];
   char ha_prefix[CONFIG_HA_PREFIX_MAX];
   bool configured;  // Flag ob Konfiguration vorhanden ist
+
+  // Display & Power Settings
+  uint8_t display_brightness;  // 75-255
+  bool auto_sleep_enabled;     // Auto-Sleep aktiv?
+  uint16_t auto_sleep_minutes; // Minuten bis Auto-Sleep (1-60)
 };
 
 class ConfigManager {
@@ -34,11 +39,16 @@ public:
   // Speichert Konfiguration in Flash-Speicher
   bool save(const DeviceConfig& cfg);
 
+  // Speichert nur Display-Einstellungen
+  bool saveDisplaySettings(uint8_t brightness, bool sleep_enabled, uint16_t sleep_minutes);
+
   // Löscht gespeicherte Konfiguration
   void clear();
 
   // Prüft ob eine gültige Konfiguration vorhanden ist
   bool isConfigured() const { return config.configured; }
+  bool hasWifiCredentials() const { return config.wifi_ssid[0] != '\0'; }
+  bool hasMqttConfig() const { return config.mqtt_host[0] != '\0'; }
 
   // Getter für Config-Daten
   const DeviceConfig& getConfig() const { return config; }

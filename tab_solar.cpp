@@ -31,7 +31,7 @@ void build_solar_tab(lv_obj_t *parent) {
     lv_obj_remove_flag(parent, LV_OBJ_FLAG_SCROLL_MOMENTUM);
     lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_anim_duration(parent, 0, 0);
-    lv_obj_set_style_bg_color(parent, lv_color_hex(0x111111), 0);
+    lv_obj_set_style_bg_color(parent, lv_color_hex(0x000000), 0);
     lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
 
     lbl_now = lv_label_create(parent);

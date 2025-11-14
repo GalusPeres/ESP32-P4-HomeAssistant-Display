@@ -8,6 +8,7 @@
 #include "network_manager.h"
 #include "tab_home.h"
 #include "mqtt_handlers.h"
+#include "tab_settings.h"
 
 WebAdminServer webAdminServer;
 
@@ -208,6 +209,8 @@ void WebAdminServer::handleSaveMQTT() {
   }
 
   if (configManager.save(cfg)) {
+    settings_show_mqtt_warning(false);
+    home_reload_layout();
     server.sendHeader("Location", "/");
     server.send(303, "text/plain", "");
   } else {
