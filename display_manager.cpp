@@ -16,7 +16,7 @@ uint32_t DisplayManager::last_activity_time = 0;
 
 // ========== Display Flush Callback ==========
 // IRAM_ATTR: Diese Funktion wird SEHR oft aufgerufen (jeder Frame!)
-// Durch IRAM wird sie aus schnellem internen RAM ausgeführt (keine Cache-Misses)
+// Durch IRAM wird sie aus schnellem internen RAM ausgefuehrt (keine Cache-Misses)
 // -> Deutlich schnellere Display-Updates, besonders beim Scrollen!
 void IRAM_ATTR DisplayManager::flush_cb(lv_display_t *lv_disp, const lv_area_t *area, uint8_t *px_map) {
   const uint32_t w = (area->x2 - area->x1 + 1);
@@ -26,8 +26,8 @@ void IRAM_ATTR DisplayManager::flush_cb(lv_display_t *lv_disp, const lv_area_t *
 }
 
 // ========== Touch Callback ==========
-// IRAM_ATTR: Touch wird häufig abgefragt (jede Loop-Iteration)
-// Schnellere Touch-Response = besseres Scroll-Gefühl!
+// IRAM_ATTR: Touch wird haeufig abgefragt (jede Loop-Iteration)
+// Schnellere Touch-Response = besseres Scroll-Gefuehl!
 void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *data) {
   // Wenn im Display-Sleep, erstmal aufwecken
   if (powerManager.isInSleep()) {
@@ -42,7 +42,7 @@ void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *
     data->point.x = tp.x;
     data->point.y = tp.y;
 
-    // Activity-Timer zurücksetzen und Power Manager aufwecken
+    // Activity-Timer zuruecksetzen und Power Manager aufwecken
     last_activity_time = millis();
     powerManager.setHighPerformance(true);
   } else {
@@ -52,12 +52,12 @@ void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *
 
 // ========== Initialisierung ==========
 bool DisplayManager::init() {
-  Serial.println("🖥️ Initialisiere Display Manager...");
+  Serial.println("[Display] Initialisiere Display Manager...");
 
   // M5Stack Display-Setup
   M5.Display.setRotation(1);  // 1280x720 Querformat
   M5.Display.fillScreen(TFT_BLACK);
-  M5.Display.setBrightness(150);  // Wird später vom Power Manager gesteuert
+  M5.Display.setBrightness(150);  // Wird spaeter vom Power Manager gesteuert
 
   last_activity_time = millis();
 
@@ -67,7 +67,7 @@ bool DisplayManager::init() {
   // Display erstellen
   disp = lv_display_create(SCREEN_WIDTH, SCREEN_HEIGHT);
   if (!disp) {
-    Serial.println("❌ Display-Erstellung fehlgeschlagen!");
+    Serial.println("[Display] Display-Erstellung fehlgeschlagen!");
     return false;
   }
 
@@ -77,9 +77,9 @@ bool DisplayManager::init() {
   lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
   lv_display_set_antialiasing(disp, false);
 
-  // Grosse DMA-Puffer (>=25 % der Bildschirmhoehe) fuer weniger Flushes
-  static constexpr size_t TARGET_LINES   = 240;
-  static constexpr size_t FALLBACK_LINES = 160;
+  // DMA-Puffer konservativ, aber PSRAM als Fallback zulassen
+  static constexpr size_t TARGET_LINES   = 160;
+  static constexpr size_t FALLBACK_LINES = 96;
 
   auto release_buffers = []() {
     if (buf1) heap_caps_free(buf1);
@@ -104,17 +104,27 @@ bool DisplayManager::init() {
   size_t buffer_lines = TARGET_LINES;
   bool using_psram = false;
 
+  // 1) Versuch: interner RAM
   if (!allocate_buffers(buffer_lines, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA)) {
     release_buffers();
-    buffer_lines = FALLBACK_LINES;
-    if (!allocate_buffers(buffer_lines, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA)) {
-      release_buffers();
-      buffer_lines = TARGET_LINES;
-      if (!allocate_buffers(buffer_lines, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA)) {
-        Serial.println("❌ DMA-Buffer-Allokation fehlgeschlagen!");
-        return false;
-      }
+    // 2) Versuch: PSRAM
+    if (allocate_buffers(buffer_lines, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA)) {
       using_psram = true;
+    } else {
+      release_buffers();
+      buffer_lines = FALLBACK_LINES;
+      // 3) Versuch: interner RAM klein
+      if (!allocate_buffers(buffer_lines, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA)) {
+        release_buffers();
+        // 4) Versuch: PSRAM klein
+        if (allocate_buffers(buffer_lines, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA)) {
+          using_psram = true;
+        } else {
+          release_buffers();
+          Serial.println("[Display] DMA-Buffer-Allokation fehlgeschlagen!");
+          return false;
+        }
+      }
     }
   }
 

@@ -87,16 +87,21 @@ void WebConfigServer::handleSave() {
   Serial.println("💾 Speichere WiFi-Konfiguration...");
 
   // Lese POST-Parameter (nur WiFi im AP-Modus!)
-  DeviceConfig cfg;
-
-  // Lade bestehende Config (falls vorhanden) um MQTT-Daten zu behalten
-  if (configManager.isConfigured()) {
-    cfg = configManager.getConfig();
-  } else {
-    memset(&cfg, 0, sizeof(cfg));
-    cfg.mqtt_port = 1883;  // Default
-    strncpy(cfg.mqtt_base_topic, "tab5", CONFIG_MQTT_BASE_MAX - 1);
-    strncpy(cfg.ha_prefix, "ha/statestream", CONFIG_HA_PREFIX_MAX - 1);
+  DeviceConfig cfg = configManager.getConfig();  // enthaelt Defaultwerte (Display, Sleep, MQTT)
+  if (!configManager.isConfigured()) {
+    cfg.mqtt_port = 1883;
+    if (cfg.display_brightness < 75 || cfg.display_brightness > 255) {
+      cfg.display_brightness = 200;  // Sicherstellen, dass das Display nicht dunkel bleibt
+    }
+    if (cfg.auto_sleep_minutes == 0) {
+      cfg.auto_sleep_minutes = 1;
+    }
+    if (cfg.mqtt_base_topic[0] == '\0') {
+      strncpy(cfg.mqtt_base_topic, "tab5", CONFIG_MQTT_BASE_MAX - 1);
+    }
+    if (cfg.ha_prefix[0] == '\0') {
+      strncpy(cfg.ha_prefix, "ha/statestream", CONFIG_HA_PREFIX_MAX - 1);
+    }
   }
 
   // Überschreibe nur WiFi-Daten

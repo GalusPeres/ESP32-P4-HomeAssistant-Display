@@ -52,6 +52,11 @@ bool ConfigManager::load() {
   config.auto_sleep_enabled = prefs.getBool("sleep_en", true);
   config.auto_sleep_minutes = prefs.getUShort("sleep_min", 1);
 
+  // Ungueltige/fehlende Helligkeit abfangen (sonst bleibt das Display dunkel)
+  if (config.display_brightness < 75 || config.display_brightness > 255) {
+    config.display_brightness = 200;
+  }
+
   // Fallback: 0 Minuten korrigieren (kann durch ungültige Speicherung entstehen)
   if (config.auto_sleep_minutes == 0) {
     config.auto_sleep_minutes = 1;
