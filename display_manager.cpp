@@ -77,7 +77,7 @@ bool DisplayManager::init() {
   lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
   lv_display_set_antialiasing(disp, false);
 
-  // DMA-Puffer konservativ, aber PSRAM als Fallback zulassen
+  // Kleinere DMA-Puffer fuer mehr verfuegbaren Heap (wichtig bei vielen Kacheln!)
   static constexpr size_t TARGET_LINES   = 160;
   static constexpr size_t FALLBACK_LINES = 96;
 
@@ -104,27 +104,17 @@ bool DisplayManager::init() {
   size_t buffer_lines = TARGET_LINES;
   bool using_psram = false;
 
-  // 1) Versuch: interner RAM
   if (!allocate_buffers(buffer_lines, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA)) {
     release_buffers();
-    // 2) Versuch: PSRAM
-    if (allocate_buffers(buffer_lines, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA)) {
-      using_psram = true;
-    } else {
+    buffer_lines = FALLBACK_LINES;
+    if (!allocate_buffers(buffer_lines, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA)) {
       release_buffers();
-      buffer_lines = FALLBACK_LINES;
-      // 3) Versuch: interner RAM klein
-      if (!allocate_buffers(buffer_lines, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA)) {
-        release_buffers();
-        // 4) Versuch: PSRAM klein
-        if (allocate_buffers(buffer_lines, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA)) {
-          using_psram = true;
-        } else {
-          release_buffers();
-          Serial.println("[Display] DMA-Buffer-Allokation fehlgeschlagen!");
-          return false;
-        }
+      buffer_lines = TARGET_LINES;
+      if (!allocate_buffers(buffer_lines, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA)) {
+        Serial.println("[Display] DMA-Buffer-Allokation fehlgeschlagen!");
+        return false;
       }
+      using_psram = true;
     }
   }
 

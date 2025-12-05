@@ -53,11 +53,13 @@ bool HaBridgeConfig::save(const HaBridgeConfigData& incoming) {
     return false;
   }
 
-  prefs.putString("ha_sensors", incoming.sensors_text);
-  prefs.putString("ha_scene_alias", incoming.scene_alias_text);
-  prefs.putString("ha_sens_units", incoming.sensor_units_map);
-  prefs.putString("ha_sens_names", incoming.sensor_names_map);
-  prefs.putString("ha_sens_vals", incoming.sensor_values_map);
+  // WICHTIG: Listen NICHT in NVS speichern - die kommen per MQTT-Discovery!
+  // Nur die Zuordnungen (Slots) speichern, sonst wird NVS bei vielen Sensoren zu groß!
+  // prefs.putString("ha_sensors", incoming.sensors_text);
+  // prefs.putString("ha_scene_alias", incoming.scene_alias_text);
+  // prefs.putString("ha_sens_units", incoming.sensor_units_map);
+  // prefs.putString("ha_sens_names", incoming.sensor_names_map);
+  // prefs.putString("ha_sens_vals", incoming.sensor_values_map);
   for (size_t i = 0; i < HA_SENSOR_SLOT_COUNT; ++i) {
     char key[12];
     snprintf(key, sizeof(key), "slot_s%u", static_cast<unsigned>(i));

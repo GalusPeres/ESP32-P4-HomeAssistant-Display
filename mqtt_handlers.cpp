@@ -121,7 +121,7 @@ static bool tryHandleDynamicSensor(const char* topic, const char* payload) {
 }
 
 static constexpr size_t SMALL_BUF = 96;
-static constexpr size_t LARGE_BUF = 40960;  // 10x für große JSON/CSV Payloads
+static constexpr size_t LARGE_BUF = 4096;
 static char small_buf[SMALL_BUF];
 static char large_buf[LARGE_BUF];
 
@@ -129,13 +129,14 @@ static char large_buf[LARGE_BUF];
 void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
   const char* apply_topic = networkManager.getBridgeApplyTopic();
   if (apply_topic && strcmp(topic, apply_topic) == 0) {
-    char* cfg_buf = large_buf;  // nutzt den vergrößerten Puffer
-    size_t buf_len = sizeof(large_buf);
-    size_t copy_len = length < (buf_len - 1) ? length : (buf_len - 1);
+    static char cfg_buf[8192];  // Reduziert fuer mehr verfuegbaren Heap
+    if (length >= sizeof(cfg_buf)) {
+      Serial.printf("[Bridge] WARNUNG: Payload zu gross (%u bytes), wird abgeschnitten!\n", length);
+    }
+    size_t copy_len = length < sizeof(cfg_buf) - 1 ? length : sizeof(cfg_buf) - 1;
     memcpy(cfg_buf, payload, copy_len);
     cfg_buf[copy_len] = '\0';
     Serial.printf("[Bridge] apply-topic hit (%u bytes)\n", (unsigned)copy_len);
-    Serial.printf("[Bridge] payload: %s\n", cfg_buf);
     if (haBridgeConfig.applyJson(cfg_buf)) {
       Serial.println("[Bridge] Konfiguration von HA empfangen");
       networkManager.publishBridgeConfig();

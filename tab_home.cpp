@@ -145,27 +145,17 @@ static SensorTileWidgets make_sensor_card(lv_obj_t* parent, int col, int row,
   lv_label_set_text(t, title);
   lv_obj_align(t, LV_ALIGN_TOP_LEFT, 0, 0);
 
-  lv_obj_t* row_container = lv_obj_create(card);
-  lv_obj_remove_flag(row_container, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_border_width(row_container, 0, 0);
-  lv_obj_set_style_pad_all(row_container, 0, 0);
-  lv_obj_set_style_pad_column(row_container, 14, 0);
-  lv_obj_set_flex_flow(row_container, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(row_container,
-                        LV_FLEX_ALIGN_START,
-                        LV_FLEX_ALIGN_CENTER,
-                        LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_width(row_container, LV_PCT(100));
-  lv_obj_align(row_container, LV_ALIGN_CENTER, 0, 18);
-
-  lv_obj_t* v = lv_label_create(row_container);
+  // Wert-Label direkt auf card (spart 1 Container-Objekt pro Kachel!)
+  lv_obj_t* v = lv_label_create(card);
   set_label_style(v, lv_color_white(), FONT_VALUE);
   lv_label_set_text(v, value);
+  lv_obj_align(v, LV_ALIGN_CENTER, -30, 18);
 
-  lv_obj_t* u = lv_label_create(row_container);
+  // Einheit-Label direkt daneben
+  lv_obj_t* u = lv_label_create(card);
   set_label_style(u, lv_color_hex(0xE6E6E6), FONT_UNIT);
   lv_label_set_text(u, unit ? unit : "");
+  lv_obj_align_to(u, v, LV_ALIGN_OUT_RIGHT_MID, 14, 0);
 
   return {v, u};
 }
@@ -255,6 +245,9 @@ void build_home_tab(lv_obj_t *parent, scene_publish_cb_t scene_cb) {
 void home_reload_layout() {
   if (!g_home_grid) return;
 
+  Serial.printf("[Home] Heap vor reload: free=%u, min-free=%u\n",
+                ESP.getFreeHeap(), ESP.getMinFreeHeap());
+
   lv_obj_clean(g_home_grid);
   for (size_t i = 0; i < HA_SENSOR_SLOT_COUNT; ++i) {
     g_sensor_tiles[i] = {};
@@ -284,6 +277,12 @@ void home_reload_layout() {
 
   if (!configManager.hasMqttConfig()) {
     return;  // Einfach leeres Home-Tab anzeigen wenn MQTT nicht konfiguriert
+  }
+
+  // Prüfen ob HA-Daten verfügbar sind (nach MQTT-Discovery)
+  if (!haBridgeConfig.hasData()) {
+    Serial.println("[Home] Warte auf MQTT-Discovery, keine Kacheln gebaut");
+    return;  // Keine Kacheln bauen, solange keine HA-Daten da sind
   }
 
   const HaBridgeConfigData& cfg = haBridgeConfig.get();
@@ -327,6 +326,9 @@ void home_reload_layout() {
     g_sensor_tiles[i] = make_sensor_card(g_home_grid, col, row, title.c_str(), current, unit.c_str());
   }
 
+  Serial.printf("[Home] Heap nach Sensoren: free=%u, min-free=%u\n",
+                ESP.getFreeHeap(), ESP.getMinFreeHeap());
+
   for (size_t i = 0; i < HA_SCENE_SLOT_COUNT; ++i) {
     uint8_t row = 2 + (i / 3);
     uint8_t col = i % 3;
@@ -341,6 +343,9 @@ void home_reload_layout() {
     }
     make_scene_button(g_home_grid, col, row, title.c_str(), static_cast<uint8_t>(i));
   }
+
+  Serial.printf("[Home] Heap nach Szenen: free=%u, min-free=%u\n",
+                ESP.getFreeHeap(), ESP.getMinFreeHeap());
 }
 
 void home_set_sensor_slot_value(uint8_t slot, const char* value) {
