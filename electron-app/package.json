@@ -1,0 +1,16 @@
+{
+  "name": "tab5-game-controls",
+  "version": "1.0.0",
+  "description": "Tab5 Game Controls - Stream Deck style keyboard controller",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "Tab5 User",
+  "license": "MIT",
+  "dependencies": {
+    "electron": "^28.0.0",
+    "keysender": "2.4.0",
+    "ws": "^8.16.0"
+  }
+}

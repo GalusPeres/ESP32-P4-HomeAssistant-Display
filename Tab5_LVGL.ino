@@ -15,6 +15,7 @@
 #include "web_admin.h"
 #include "tab_settings.h"
 #include "game_controls_config.h"
+#include "game_ws_server.h"
 
 static uint32_t last_status_update = 0;
 
@@ -106,6 +107,13 @@ void setup() {
     Serial.flush();
   }
 
+  // WebSocket Server für Game Controls starten (nach Network Init!)
+  Serial.println("[Setup] Game WebSocket Server...");
+  Serial.flush();
+  gameWSServer.init(8081);  // Port 8081
+  Serial.println("[Setup] Game WebSocket OK");
+  Serial.flush();
+
   Serial.println("\n=== SETUP COMPLETE ===\n");
   Serial.flush();
 }
@@ -145,6 +153,9 @@ void loop() {
   }
 
   if (webAdminServer.isRunning()) webAdminServer.handle();
+
+  // WebSocket Server für Game Controls
+  gameWSServer.handle();
 
   if (configManager.isConfigured()) {
     static uint8_t net_tick = 0;

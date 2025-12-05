@@ -1,5 +1,6 @@
 #include "tab_game.h"
 #include "game_controls_config.h"
+#include "game_ws_server.h"
 #include <Arduino.h>
 
 /* === Layout-Konstanten === */
@@ -64,7 +65,13 @@ static lv_obj_t* make_game_button(lv_obj_t* parent, int col, int row,
                       button.key_code,
                       button.modifier);
 
-        // TODO: MQTT Integration hier hinzufügen
+        // WebSocket Broadcast an alle verbundenen Clients
+        gameWSServer.broadcastButtonPress(
+          static_cast<uint8_t>(slot),
+          button.name.c_str(),
+          button.key_code,
+          button.modifier
+        );
       },
       LV_EVENT_CLICKED,
       reinterpret_cast<void*>(static_cast<uintptr_t>(slot)));
