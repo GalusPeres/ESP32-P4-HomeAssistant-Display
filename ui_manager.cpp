@@ -2,7 +2,7 @@
 
 #include "tab_home.h"
 
-#include "tab_solar.h"
+#include "tab_game.h"
 
 #include "tab_weather.h"
 
@@ -85,7 +85,7 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
 
   const char *tab_icons[TAB_COUNT] = {
     LV_SYMBOL_HOME,
-    LV_SYMBOL_CHARGE,
+    LV_SYMBOL_KEYBOARD,  // Game Controls (USB HID Macro Pad)
     LV_SYMBOL_DOWNLOAD,
     LV_SYMBOL_SETTINGS
   };
@@ -115,7 +115,7 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   tab_panels[3] = createTabPanel(tab_content_container);
 
   build_home_tab(tab_panels[0], scene_cb);
-  build_solar_tab(tab_panels[1]);
+  build_game_tab(tab_panels[1]);
   build_weather_tab(tab_panels[2]);
   build_settings_tab(tab_panels[3], hotspot_cb);
 

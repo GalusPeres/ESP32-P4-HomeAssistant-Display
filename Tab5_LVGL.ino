@@ -1,6 +1,7 @@
 #include <M5Unified.h>
 #include <WiFi.h>
 #include <Wire.h> // Wichtig
+#include <SPI.h>  // Wichtig für M5GFX
 
 #include "display_manager.h"
 #include "power_manager.h"
@@ -13,6 +14,7 @@
 #include "web_config.h"
 #include "web_admin.h"
 #include "tab_settings.h"
+#include "game_controls_config.h"
 
 static uint32_t last_status_update = 0;
 
@@ -24,28 +26,67 @@ static void start_hotspot_mode() {
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
-  
+  delay(2000);
+  Serial.println("\n\n=== TAB5 STARTUP ===");
+  Serial.flush();
+
+  Serial.println("[Setup] M5.begin()...");
+  Serial.flush();
   auto cfg = M5.config();
   M5.begin(cfg);
+  Serial.println("[Setup] M5.begin() OK");
+  Serial.flush();
 
-  // WICHTIG: Touch I2C auf 400kHz beschleunigen (verhindert Ruckeln)
-  Wire.setClock(400000); 
+  Serial.println("[Setup] Wire.setClock(400000)...");
+  Serial.flush();
+  Wire.setClock(400000);
+  Serial.println("[Setup] Wire OK");
+  Serial.flush();
 
-  if (!displayManager.init()) { while(1) delay(1000); }
+  Serial.println("[Setup] displayManager.init()...");
+  Serial.flush();
+  if (!displayManager.init()) {
+    Serial.println("[Setup] Display FEHLER!");
+    while(1) delay(1000);
+  }
+  Serial.println("[Setup] Display OK");
+  Serial.flush();
+
+  Serial.println("[Setup] powerManager.init()...");
+  Serial.flush();
   powerManager.init();
+  Serial.println("[Setup] Power OK");
+  Serial.flush();
 
+  Serial.println("[Setup] Loading configs...");
+  Serial.flush();
   bool has_config = configManager.load();
   haBridgeConfig.load();
+  gameControlsConfig.load();
+  Serial.println("[Setup] Configs OK");
+  Serial.flush();
 
+  Serial.println("[Setup] Setting brightness...");
+  Serial.flush();
   {
     const DeviceConfig& dcfg = configManager.getConfig();
     M5.Display.setBrightness(dcfg.display_brightness);
   }
+  Serial.println("[Setup] Brightness OK");
+  Serial.flush();
 
+  Serial.println("[Setup] Building UI...");
+  Serial.flush();
   uiManager.buildUI(mqttPublishScene, start_hotspot_mode);
-  uiManager.updateStatusbar();
+  Serial.println("[Setup] UI built");
+  Serial.flush();
 
+  uiManager.updateStatusbar();
+  Serial.println("[Setup] Statusbar updated");
+  Serial.flush();
+
+  Serial.println("[Setup] MQTT Topics...");
+  Serial.flush();
   TopicSettings ts;
   if (has_config) {
     const DeviceConfig& dcfg = configManager.getConfig();
@@ -53,11 +94,20 @@ void setup() {
     ts.ha_prefix = dcfg.ha_prefix;
   }
   mqttTopics.begin(ts);
+  Serial.println("[Setup] MQTT Topics OK");
+  Serial.flush();
 
   if (has_config) {
+    Serial.println("[Setup] Network init...");
+    Serial.flush();
     networkManager.init();
     if (WiFi.status() == WL_CONNECTED) uiManager.scheduleNtpSync(0);
+    Serial.println("[Setup] Network OK");
+    Serial.flush();
   }
+
+  Serial.println("\n=== SETUP COMPLETE ===\n");
+  Serial.flush();
 }
 
 void loop() {

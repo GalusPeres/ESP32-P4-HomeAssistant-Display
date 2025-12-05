@@ -9,6 +9,10 @@
 #include "tab_home.h"
 #include "mqtt_handlers.h"
 #include "tab_settings.h"
+#include "game_controls_config.h"
+
+// Forward declaration - kein Include von tab_game.h nötig
+extern void game_reload_layout();
 
 WebAdminServer webAdminServer;
 
@@ -29,6 +33,7 @@ bool WebAdminServer::start() {
   server.on("/status", [this]() { this->handleStatus(); });
   server.on("/bridge_refresh", HTTP_POST, [this]() { this->handleBridgeRefresh(); });
   server.on("/bridge", HTTP_POST, [this]() { this->handleSaveBridge(); });
+  server.on("/game_controls", HTTP_POST, [this]() { this->handleSaveGameControls(); });
   server.on("/restart", HTTP_POST, [this]() { this->handleRestart(); });
 
   server.begin();
@@ -310,6 +315,64 @@ void WebAdminServer::handleSaveBridge() {
   }
 }
 
+void WebAdminServer::handleSaveGameControls() {
+  GameControlsConfigData updated = gameControlsConfig.get();
+  bool changed = false;
+
+  for (size_t i = 0; i < GAME_BUTTON_COUNT; ++i) {
+    // Name
+    String name_field = "game_name";
+    name_field += String((int)i);
+    String name = server.hasArg(name_field) ? server.arg(name_field) : "";
+    name.trim();
+    if (updated.buttons[i].name != name) {
+      updated.buttons[i].name = name;
+      changed = true;
+    }
+
+    // Key Code
+    String key_field = "game_key";
+    key_field += String((int)i);
+    uint8_t key_code = server.hasArg(key_field) ? server.arg(key_field).toInt() : 0;
+    if (updated.buttons[i].key_code != key_code) {
+      updated.buttons[i].key_code = key_code;
+      changed = true;
+    }
+
+    // Modifier (kombiniere CTRL, SHIFT, ALT bits)
+    uint8_t modifier = 0;
+    String mod_ctrl = "game_mod_ctrl";
+    mod_ctrl += String((int)i);
+    String mod_shift = "game_mod_shift";
+    mod_shift += String((int)i);
+    String mod_alt = "game_mod_alt";
+    mod_alt += String((int)i);
+
+    if (server.hasArg(mod_ctrl)) modifier |= 0x01;   // CTRL bit
+    if (server.hasArg(mod_shift)) modifier |= 0x02;  // SHIFT bit
+    if (server.hasArg(mod_alt)) modifier |= 0x04;    // ALT bit
+
+    if (updated.buttons[i].modifier != modifier) {
+      updated.buttons[i].modifier = modifier;
+      changed = true;
+    }
+  }
+
+  if (!changed) {
+    server.sendHeader("Location", "/");
+    server.send(303, "text/plain", "");
+    return;
+  }
+
+  if (gameControlsConfig.save(updated)) {
+    game_reload_layout();
+    server.sendHeader("Location", "/");
+    server.send(303, "text/plain", "");
+  } else {
+    server.send(500, "text/html", "<h1>Speichern fehlgeschlagen</h1>");
+  }
+}
+
 void WebAdminServer::handleBridgeRefresh() {
   if (!networkManager.isMqttConnected()) {
     server.send(503, "text/html",
@@ -575,6 +638,82 @@ String WebAdminServer::getAdminPage() {
   html += R"html(
         </div>
         <button class="btn" type="submit">Layout speichern</button>
+      </form>
+
+      <div class="section-title">Game Controls - USB HID Macro Pad</div>
+      <p class="hint">Konfiguriere 12 Buttons für USB-Tastatur-Makros (z.B. Star Citizen). Gerät muss per USB am PC angeschlossen sein.</p>
+      <form action="/game_controls" method="POST">
+        <div class="layout-grid">
+)html";
+
+  // Game Controls - 12 Buttons
+  const GameControlsConfigData& gameData = gameControlsConfig.get();
+  for (size_t i = 0; i < GAME_BUTTON_COUNT; ++i) {
+    html += "<div class=\"slot\" style=\"background:#f0fdf4;border-color:#bbf7d0;\"><div class=\"slot-label\">Button ";
+    html += String((int)i + 1);
+    html += "</div><input type=\"text\" name=\"game_name";
+    html += String((int)i);
+    html += "\" placeholder=\"z.B. Landing Gear\" value=\"";
+    appendHtmlEscaped(html, gameData.buttons[i].name);
+    html += "\"><select name=\"game_key";
+    html += String((int)i);
+    html += "\"><option value=\"0\"";
+    if (gameData.buttons[i].key_code == 0) html += " selected";
+    html += ">Keine Taste</option>";
+
+    // Häufig verwendete Tasten für Star Citizen (USB HID Scan Codes)
+    const struct { uint8_t code; const char* label; } keys[] = {
+      {0x11, "N - Landing Gear"},         // USB HID: N
+      {0x0F, "L - Lights"},               // USB HID: L
+      {0x18, "U - Quantum Drive"},        // USB HID: U
+      {0x17, "T - Target"},               // USB HID: T
+      {0x09, "F - Interact"},             // USB HID: F
+      {0x0A, "G - Doors"},                // USB HID: G
+      {0x19, "V - VTOL"},                 // USB HID: V
+      {0x0D, "J - Quantum Travel"},       // USB HID: J
+      {0x0C, "I - Inventory"},            // USB HID: I
+      {0x10, "M - Mobiglas"},             // USB HID: M
+      {0x15, "R - Reload/Rearm"},         // USB HID: R
+      {0x08, "E - Use"},                  // USB HID: E
+      {0x14, "Q - Roll Left"},            // USB HID: Q
+      {0x1D, "Z - Missile Lock"},         // USB HID: Z
+      {0x1B, "X - Look Back"},            // USB HID: X
+      {0x06, "C - Crouch"},               // USB HID: C
+      {0x2C, "SPACE - Brake"},            // USB HID: SPACE
+      {0x28, "ENTER - Chat"},             // USB HID: ENTER
+      {0x1E, "1 - Power Triangle 1"},     // USB HID: 1
+      {0x1F, "2 - Power Triangle 2"},     // USB HID: 2
+      {0x20, "3 - Power Triangle 3"}      // USB HID: 3
+    };
+
+    for (const auto& k : keys) {
+      html += "<option value=\"";
+      html += String(k.code);
+      html += "\"";
+      if (gameData.buttons[i].key_code == k.code) html += " selected";
+      html += ">";
+      html += k.label;
+      html += "</option>";
+    }
+
+    html += "</select><div style=\"margin-top:8px;font-size:12px;color:#64748b;\"><label><input type=\"checkbox\" name=\"game_mod_ctrl";
+    html += String((int)i);
+    html += "\" value=\"1\"";
+    if (gameData.buttons[i].modifier & 0x01) html += " checked";
+    html += "> CTRL</label>&nbsp;&nbsp;<label><input type=\"checkbox\" name=\"game_mod_shift";
+    html += String((int)i);
+    html += "\" value=\"1\"";
+    if (gameData.buttons[i].modifier & 0x02) html += " checked";
+    html += "> SHIFT</label>&nbsp;&nbsp;<label><input type=\"checkbox\" name=\"game_mod_alt";
+    html += String((int)i);
+    html += "\" value=\"1\"";
+    if (gameData.buttons[i].modifier & 0x04) html += " checked";
+    html += "> ALT</label></div></div>";
+  }
+
+  html += R"html(
+        </div>
+        <button class="btn" type="submit">Game Controls speichern</button>
       </form>
 
       <div class="section-title">Home Assistant Bridge</div>
