@@ -146,27 +146,41 @@ void WebAdminServer::handleSaveGameControls() {
       changed = true;
     }
 
-    // Key Code
-    String key_field = "game_key";
-    key_field += String((int)i);
-    uint8_t key_code = server.hasArg(key_field) ? server.arg(key_field).toInt() : 0;
+    // Makro-String parsen (z.B. "g" oder "ctrl+g" oder "ctrl+shift+a")
+    String macro_field = "game_macro";
+    macro_field += String((int)i);
+    String macro = server.hasArg(macro_field) ? server.arg(macro_field) : "";
+    macro.trim();
+    macro.toLowerCase();
+
+    // Parse Makro → key_code + modifier
+    uint8_t key_code = 0;
+    uint8_t modifier = 0;
+
+    if (macro.length() > 0) {
+      // Modifier extrahieren
+      if (macro.indexOf("ctrl+") >= 0) { modifier |= 0x01; macro.replace("ctrl+", ""); }
+      if (macro.indexOf("shift+") >= 0) { modifier |= 0x02; macro.replace("shift+", ""); }
+      if (macro.indexOf("alt+") >= 0) { modifier |= 0x04; macro.replace("alt+", ""); }
+
+      // Taste zu Scancode konvertieren
+      macro.trim();
+      if (macro.length() == 1 && macro[0] >= 'a' && macro[0] <= 'z') {
+        key_code = 0x04 + (macro[0] - 'a');  // a=0x04, b=0x05, ..., z=0x1D
+      } else if (macro.length() == 1 && macro[0] >= '0' && macro[0] <= '9') {
+        key_code = 0x1E + (macro[0] - '0');  // 0=0x27, 1=0x1E, ..., 9=0x26
+      } else if (macro == "space") key_code = 0x2C;
+      else if (macro == "enter") key_code = 0x28;
+      else if (macro == "backspace") key_code = 0x2A;
+      else if (macro == "tab") key_code = 0x2B;
+      else if (macro == "esc" || macro == "escape") key_code = 0x29;
+      // sonst 0 (keine Taste)
+    }
+
     if (updated.buttons[i].key_code != key_code) {
       updated.buttons[i].key_code = key_code;
       changed = true;
     }
-
-    // Modifier (kombiniere CTRL, SHIFT, ALT bits)
-    uint8_t modifier = 0;
-    String mod_ctrl = "game_mod_ctrl";
-    mod_ctrl += String((int)i);
-    String mod_shift = "game_mod_shift";
-    mod_shift += String((int)i);
-    String mod_alt = "game_mod_alt";
-    mod_alt += String((int)i);
-
-    if (server.hasArg(mod_ctrl)) modifier |= 0x01;   // CTRL bit
-    if (server.hasArg(mod_shift)) modifier |= 0x02;  // SHIFT bit
-    if (server.hasArg(mod_alt)) modifier |= 0x04;    // ALT bit
 
     if (updated.buttons[i].modifier != modifier) {
       updated.buttons[i].modifier = modifier;

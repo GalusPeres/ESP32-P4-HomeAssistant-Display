@@ -200,16 +200,17 @@ async function simulateKeyPress(scancode, modifier) {
   log(`⌨️ Simulating: ${modifiers.join('+')} ${key}`);
 
   try {
-    // keysender Hardware API
+    // keysender Hardware API - braucht ein Array mit allen Tasten
     if (modifiers.length > 0) {
-      // Mit Modifiern
-      await kb.keyboard.sendKey(modifiers, key);
+      // Mit Modifiern: ['alt', 'n'] oder ['ctrl', 'shift', 'a']
+      const keyCombo = [...modifiers, key];
+      await kb.keyboard.sendKey(keyCombo);
+      log(`✅ Key pressed: ${keyCombo.join('+')}`);
     } else {
       // Ohne Modifier
       await kb.keyboard.sendKey(key);
+      log(`✅ Key pressed: ${key}`);
     }
-
-    log(`✅ Key pressed: ${key}`);
   } catch (err) {
     log(`❌ Error: ${err.message}`);
   }

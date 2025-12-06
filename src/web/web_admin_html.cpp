@@ -322,60 +322,32 @@ String WebAdminServer::getAdminPage() {
     html += String((int)i);
     html += "\" placeholder=\"z.B. Landing Gear\" value=\"";
     appendHtmlEscaped(html, gameData.buttons[i].name);
-    html += "\"><select name=\"game_key";
+    html += "\" style=\"margin-bottom:8px;\"><input type=\"text\" name=\"game_macro";
     html += String((int)i);
-    html += "\"><option value=\"0\"";
-    if (gameData.buttons[i].key_code == 0) html += " selected";
-    html += ">Keine Taste</option>";
+    html += "\" placeholder=\"z.B. g oder ctrl+g oder ctrl+shift+a\" value=\"";
 
-    // Häufig verwendete Tasten für Star Citizen (USB HID Scan Codes)
-    const struct { uint8_t code; const char* label; } keys[] = {
-      {0x11, "N - Landing Gear"},         // USB HID: N
-      {0x0F, "L - Lights"},               // USB HID: L
-      {0x18, "U - Quantum Drive"},        // USB HID: U
-      {0x17, "T - Target"},               // USB HID: T
-      {0x09, "F - Interact"},             // USB HID: F
-      {0x0A, "G - Doors"},                // USB HID: G
-      {0x19, "V - VTOL"},                 // USB HID: V
-      {0x0D, "J - Quantum Travel"},       // USB HID: J
-      {0x0C, "I - Inventory"},            // USB HID: I
-      {0x10, "M - Mobiglas"},             // USB HID: M
-      {0x15, "R - Reload/Rearm"},         // USB HID: R
-      {0x08, "E - Use"},                  // USB HID: E
-      {0x14, "Q - Roll Left"},            // USB HID: Q
-      {0x1D, "Z - Missile Lock"},         // USB HID: Z
-      {0x1B, "X - Look Back"},            // USB HID: X
-      {0x06, "C - Crouch"},               // USB HID: C
-      {0x2C, "SPACE - Brake"},            // USB HID: SPACE
-      {0x28, "ENTER - Chat"},             // USB HID: ENTER
-      {0x1E, "1 - Power Triangle 1"},     // USB HID: 1
-      {0x1F, "2 - Power Triangle 2"},     // USB HID: 2
-      {0x20, "3 - Power Triangle 3"}      // USB HID: 3
-    };
+    // Aktuelles Makro anzeigen (aus key_code + modifier rekonstruieren)
+    String currentMacro = "";
+    if (gameData.buttons[i].key_code != 0) {
+      // Modifier hinzufügen
+      if (gameData.buttons[i].modifier & 0x01) currentMacro += "ctrl+";
+      if (gameData.buttons[i].modifier & 0x02) currentMacro += "shift+";
+      if (gameData.buttons[i].modifier & 0x04) currentMacro += "alt+";
 
-    for (const auto& k : keys) {
-      html += "<option value=\"";
-      html += String(k.code);
-      html += "\"";
-      if (gameData.buttons[i].key_code == k.code) html += " selected";
-      html += ">";
-      html += k.label;
-      html += "</option>";
+      // Taste hinzufügen (Scancode zu Buchstabe konvertieren)
+      uint8_t code = gameData.buttons[i].key_code;
+      if (code >= 0x04 && code <= 0x1D) currentMacro += (char)('a' + (code - 0x04));
+      else if (code >= 0x1E && code <= 0x27) currentMacro += (char)('1' + (code - 0x1E));
+      else if (code == 0x2C) currentMacro += "space";
+      else if (code == 0x28) currentMacro += "enter";
+      else if (code == 0x2A) currentMacro += "backspace";
+      else if (code == 0x2B) currentMacro += "tab";
+      else if (code == 0x29) currentMacro += "esc";
+      else currentMacro += "?";
     }
 
-    html += "</select><div style=\"margin-top:8px;font-size:12px;color:#64748b;\"><label><input type=\"checkbox\" name=\"game_mod_ctrl";
-    html += String((int)i);
-    html += "\" value=\"1\"";
-    if (gameData.buttons[i].modifier & 0x01) html += " checked";
-    html += "> CTRL</label>&nbsp;&nbsp;<label><input type=\"checkbox\" name=\"game_mod_shift";
-    html += String((int)i);
-    html += "\" value=\"1\"";
-    if (gameData.buttons[i].modifier & 0x02) html += " checked";
-    html += "> SHIFT</label>&nbsp;&nbsp;<label><input type=\"checkbox\" name=\"game_mod_alt";
-    html += String((int)i);
-    html += "\" value=\"1\"";
-    if (gameData.buttons[i].modifier & 0x04) html += " checked";
-    html += "> ALT</label></div></div>";
+    appendHtmlEscaped(html, currentMacro);
+    html += "\"><div style=\"margin-top:6px;font-size:11px;color:#64748b;\">Beispiele: g, ctrl+g, ctrl+shift+a, space, enter</div></div>";
   }
 
   html += R"html(
