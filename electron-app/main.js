@@ -31,6 +31,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 500,
     height: 700,
+    show: false, // Nicht sofort anzeigen
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
@@ -39,6 +40,14 @@ function createWindow() {
   });
 
   mainWindow.loadFile('index.html');
+
+  // Fenster anzeigen wenn bereit (oder im Tray lassen)
+  mainWindow.once('ready-to-show', () => {
+    // Nur anzeigen wenn kein Tray Icon existiert
+    if (!tray) {
+      mainWindow.show();
+    }
+  });
 
   mainWindow.on('close', (event) => {
     if (!app.isQuitting) {
@@ -65,18 +74,30 @@ function createTray() {
   tray = new Tray(iconPath);
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Show', click: () => mainWindow.show() },
-    { label: 'Quit', click: () => {
-      app.isQuitting = true;
-      app.quit();
-    }}
+    {
+      label: 'Show Window',
+      click: () => {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        app.isQuitting = true;
+        app.quit();
+      }
+    }
   ]);
 
   tray.setContextMenu(contextMenu);
-  tray.setToolTip('Tab5 Game Controls');
+  tray.setToolTip('Tab5 Game Controls - Click to open');
 
-  tray.on('click', () => {
+  // Doppelklick auf Tray Icon öffnet Fenster
+  tray.on('double-click', () => {
     mainWindow.show();
+    mainWindow.focus();
   });
 }
 
@@ -206,8 +227,8 @@ ipcMain.on('set-tab5-ip', (event, ip) => {
 
 // App Lifecycle
 app.whenReady().then(() => {
-  createWindow();
-  createTray();
+  createTray();    // Tray zuerst erstellen
+  createWindow();  // Dann Window (startet minimiert wenn Tray existiert)
 
   // KEIN Auto-Connect mehr - User muss manuell connecten
   // setTimeout(() => {
