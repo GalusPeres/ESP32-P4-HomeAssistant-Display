@@ -3,19 +3,17 @@
 #include <Wire.h> // Wichtig
 #include <SPI.h>  // Wichtig für M5GFX
 
-#include "display_manager.h"
-#include "power_manager.h"
-#include "ui_manager.h"
-#include "network_manager.h"
-#include "mqtt_handlers.h"
-#include "ha_bridge_config.h"
-#include "mqtt_topics.h"
-#include "config_manager.h"
-#include "web_config.h"
-#include "web_admin.h"
-#include "tab_settings.h"
-#include "game_controls_config.h"
-#include "game_ws_server.h"
+#include "src/core/display_manager.h"
+#include "src/core/power_manager.h"
+#include "src/ui/ui_manager.h"
+#include "src/network/network_manager.h"
+#include "src/network/mqtt_handlers.h"
+#include "src/network/mqtt_topics.h"
+#include "src/web/web_config.h"
+#include "src/web/web_admin.h"
+#include "src/ui/tab_settings.h"
+#include "src/game/game_controls_config.h"
+#include "src/game/game_ws_server.h"
 
 static uint32_t last_status_update = 0;
 

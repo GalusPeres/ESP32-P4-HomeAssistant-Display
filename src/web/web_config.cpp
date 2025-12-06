@@ -1,0 +1,368 @@
+#include "src/web/web_config.h"
+#include <WiFi.h>
+
+// Globale Instanz
+WebConfigServer webConfigServer;
+
+// Hotspot Einstellungen
+static const char* AP_SSID = "Tab5_Config";
+static const char* AP_PASS = "12345678";  // Mindestens 8 Zeichen für WPA2
+static const IPAddress AP_IP(192, 168, 4, 1);
+static const IPAddress AP_GATEWAY(192, 168, 4, 1);
+static const IPAddress AP_SUBNET(255, 255, 255, 0);
+
+WebConfigServer::WebConfigServer() : server(80), running(false), config_saved(false) {
+}
+
+bool WebConfigServer::start() {
+  if (running) {
+    Serial.println("⚠️ WebConfigServer läuft bereits");
+    return true;
+  }
+
+  Serial.println("\n🌐 Starte WiFi-Konfigurationsmodus...");
+
+  // Stoppe bisherige WiFi-Verbindung
+  WiFi.disconnect();
+  delay(100);
+
+  // Starte Access Point
+  WiFi.mode(WIFI_AP);
+  WiFi.softAPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
+
+  bool ap_ok = WiFi.softAP(AP_SSID, AP_PASS);
+  if (!ap_ok) {
+    Serial.println("❌ Access Point konnte nicht gestartet werden!");
+    return false;
+  }
+
+  delay(500);
+
+  IPAddress ip = WiFi.softAPIP();
+  Serial.printf("✓ Access Point gestartet: %s\n", AP_SSID);
+  Serial.printf("  Passwort: %s\n", AP_PASS);
+  Serial.printf("  IP-Adresse: %s\n", ip.toString().c_str());
+
+  // DNS Server für Captive Portal (alle DNS-Anfragen zu uns umleiten)
+  dnsServer.start(53, "*", AP_IP);
+
+  // Webserver Routes
+  server.on("/", [this]() { this->handleRoot(); });
+  server.on("/save", HTTP_POST, [this]() { this->handleSave(); });
+  server.onNotFound([this]() { this->handleNotFound(); });
+
+  server.begin();
+  Serial.println("✓ Webserver gestartet auf http://192.168.4.1");
+  Serial.println("  Verbinde dich mit WiFi 'Tab5_Config' und öffne Browser");
+
+  running = true;
+  config_saved = false;
+  return true;
+}
+
+void WebConfigServer::stop() {
+  if (!running) return;
+
+  dnsServer.stop();
+  server.stop();
+  WiFi.softAPdisconnect(true);
+  WiFi.mode(WIFI_STA);
+
+  running = false;
+  Serial.println("✓ WebConfigServer gestoppt");
+}
+
+void WebConfigServer::handle() {
+  if (!running) return;
+  dnsServer.processNextRequest();
+  server.handleClient();
+}
+
+void WebConfigServer::handleRoot() {
+  Serial.println("📄 Config-Seite angefordert");
+  server.send(200, "text/html", getConfigPage());
+}
+
+void WebConfigServer::handleSave() {
+  Serial.println("💾 Speichere WiFi-Konfiguration...");
+
+  // Lese POST-Parameter (nur WiFi im AP-Modus!)
+  DeviceConfig cfg = configManager.getConfig();  // enthaelt Defaultwerte (Display, Sleep, MQTT)
+  if (!configManager.isConfigured()) {
+    cfg.mqtt_port = 1883;
+    if (cfg.display_brightness < 75 || cfg.display_brightness > 255) {
+      cfg.display_brightness = 200;  // Sicherstellen, dass das Display nicht dunkel bleibt
+    }
+    if (cfg.auto_sleep_minutes == 0) {
+      cfg.auto_sleep_minutes = 1;
+    }
+    if (cfg.mqtt_base_topic[0] == '\0') {
+      strncpy(cfg.mqtt_base_topic, "tab5", CONFIG_MQTT_BASE_MAX - 1);
+    }
+    if (cfg.ha_prefix[0] == '\0') {
+      strncpy(cfg.ha_prefix, "ha/statestream", CONFIG_HA_PREFIX_MAX - 1);
+    }
+  }
+
+  // Überschreibe nur WiFi-Daten
+  if (server.hasArg("wifi_ssid")) {
+    String ssid = server.arg("wifi_ssid");
+    strncpy(cfg.wifi_ssid, ssid.c_str(), CONFIG_WIFI_SSID_MAX - 1);
+  }
+
+  if (server.hasArg("wifi_pass")) {
+    String pass = server.arg("wifi_pass");
+    strncpy(cfg.wifi_pass, pass.c_str(), CONFIG_WIFI_PASS_MAX - 1);
+  }
+
+  // Validierung
+  if (strlen(cfg.wifi_ssid) == 0) {
+    server.send(400, "text/html", "<h1>Fehler: WiFi SSID ist erforderlich!</h1>");
+    return;
+  }
+
+  // Speichere Konfiguration (MQTT-Daten bleiben erhalten!)
+  if (configManager.save(cfg)) {
+    Serial.println("✓ WiFi-Konfiguration erfolgreich gespeichert");
+    config_saved = true;
+    server.send(200, "text/html", getSuccessPage());
+  } else {
+    Serial.println("❌ Fehler beim Speichern der Konfiguration");
+    server.send(500, "text/html", "<h1>Fehler beim Speichern!</h1>");
+  }
+}
+
+void WebConfigServer::handleNotFound() {
+  // Captive Portal: Alle unbekannten Anfragen zur Hauptseite umleiten
+  server.sendHeader("Location", "/", true);
+  server.send(302, "text/plain", "");
+}
+
+String WebConfigServer::getConfigPage() {
+  // Lade bestehende Konfiguration wenn vorhanden
+  const DeviceConfig& cfg = configManager.getConfig();
+
+  String html = R"html(
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tab5 WiFi-Konfiguration</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 500px;
+      width: 100%;
+      padding: 40px;
+    }
+    h1 {
+      color: #2d3748;
+      font-size: 28px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .subtitle {
+      color: #718096;
+      text-align: center;
+      margin-bottom: 32px;
+      font-size: 14px;
+    }
+    .section {
+      margin-bottom: 24px;
+    }
+    .section-title {
+      color: #667eea;
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      color: #4a5568;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 15px;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    input::placeholder {
+      color: #a0aec0;
+    }
+    .hint {
+      color: #a0aec0;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    .btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-top: 8px;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+    }
+    .btn:active {
+      transform: translateY(0);
+    }
+    .icon {
+      font-size: 48px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">📶</div>
+    <h1>WiFi-Konfiguration</h1>
+    <p class="subtitle">Schritt 1: Mit WLAN verbinden</p>
+
+    <form action="/save" method="POST">
+      <div class="section">
+        <div class="section-title">📶 WiFi-Verbindung</div>
+        <div class="form-group">
+          <label for="wifi_ssid">SSID (Netzwerkname)</label>
+          <input type="text" id="wifi_ssid" name="wifi_ssid" placeholder="Mein WiFi" value=")html" + String(cfg.wifi_ssid) + R"html(" required>
+        </div>
+        <div class="form-group">
+          <label for="wifi_pass">Passwort</label>
+          <input type="password" id="wifi_pass" name="wifi_pass" placeholder="Passwort" value=")html" + String(cfg.wifi_pass) + R"html(">
+          <div class="hint">Leer lassen für offenes Netzwerk</div>
+        </div>
+      </div>
+
+      <div class="info" style="background: #fff3cd; border-left: 4px solid #ffc107; color: #856404; margin-bottom: 20px;">
+        ℹ️ <strong>Hinweis:</strong> Nach erfolgreicher WLAN-Verbindung kannst du über das Webinterface im normalen Netzwerk die MQTT-Einstellungen konfigurieren.
+      </div>
+
+      <button type="submit" class="btn">💾 Speichern & Verbinden</button>
+    </form>
+  </div>
+</body>
+</html>
+)html";
+
+  return html;
+}
+
+String WebConfigServer::getSuccessPage() {
+  String html = R"html(
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Konfiguration gespeichert</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 500px;
+      width: 100%;
+      padding: 40px;
+      text-align: center;
+    }
+    .icon {
+      font-size: 72px;
+      margin-bottom: 24px;
+      animation: bounce 0.6s;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
+    }
+    h1 {
+      color: #2d3748;
+      font-size: 28px;
+      margin-bottom: 16px;
+    }
+    p {
+      color: #718096;
+      font-size: 16px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .info {
+      background: #f7fafc;
+      border-left: 4px solid #667eea;
+      padding: 16px;
+      border-radius: 8px;
+      text-align: left;
+      color: #4a5568;
+      font-size: 14px;
+    }
+  </style>
+  <script>
+    setTimeout(function() {
+      window.location.href = '/';
+    }, 10000);
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">✅</div>
+    <h1>Erfolgreich gespeichert!</h1>
+    <p>Die Konfiguration wurde erfolgreich gespeichert.<br>Das Gerät wird jetzt neu gestartet und versucht sich mit dem WiFi zu verbinden.</p>
+    <div class="info">
+      ℹ️ Du wirst in 10 Sekunden automatisch weitergeleitet.<br>
+      Falls die Verbindung nicht klappt, aktiviere den Hotspot-Modus erneut über die Einstellungen.
+    </div>
+  </div>
+</body>
+</html>
+)html";
+
+  return html;
+}
