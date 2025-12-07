@@ -161,8 +161,17 @@ void loop() {
   if (first_run) Serial.println("[Loop] process_sensor_update_queue()...");
   process_sensor_update_queue();  // WICHTIG: VOR lv_timer_handler()!
 
-  if (first_run) Serial.println("[Loop] lv_timer_handler()...");
+  if (first_run) {
+    Serial.println("[Loop] lv_timer_handler()...");
+    Serial.flush();
+  }
+  yield();  // Watchdog füttern
   lv_timer_handler();
+  yield();  // Watchdog füttern
+  if (first_run) {
+    Serial.println("[Loop] lv_timer_handler() KOMPLETT!");
+    Serial.flush();
+  }
 
   // Nur 1ms Pause fÃ¼r maximale FPS
   delay(1);

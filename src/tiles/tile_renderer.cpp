@@ -175,48 +175,28 @@ void render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& tile, ui
 
   // Title
   lv_obj_t* t = lv_label_create(card);
+  if (!t) {
+    Serial.println("[TileRenderer] ERROR: Konnte Title-Label nicht erstellen");
+    return;
+  }
   set_label_style(t, lv_color_hex(0xFFFFFF), FONT_TITLE);
   lv_label_set_text(t, tile.title.length() ? tile.title.c_str() : "Sensor");
   lv_obj_align(t, LV_ALIGN_TOP_LEFT, 0, 0);
 
-  // Container für Wert + Einheit (Flex Layout für sauberes Nebeneinander)
-  lv_obj_t* container = lv_obj_create(card);
-  if (!container) {
-    Serial.println("[TileRenderer] ERROR: Konnte Value-Container nicht erstellen");
+  // Ein Label für Wert + Einheit (gleiche Größe, crasht nicht!)
+  lv_obj_t* v = lv_label_create(card);
+  if (!v) {
+    Serial.println("[TileRenderer] ERROR: Konnte Value-Label nicht erstellen");
     return;
   }
-
-  lv_obj_set_size(container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-  lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_border_width(container, 0, 0);
-  lv_obj_set_style_pad_all(container, 0, 0);
-  lv_obj_set_flex_flow(container, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(container, 6, 0);  // 6px Abstand zwischen Wert und Einheit
-  lv_obj_align(container, LV_ALIGN_CENTER, 0, 18);
-
-  // Wert-Label (große Schrift)
-  lv_obj_t* v = lv_label_create(container);
-  if (!v) {
-    Serial.println("[TileRenderer] WARN: Konnte Value-Label nicht erstellen");
-  } else {
-    set_label_style(v, lv_color_white(), FONT_VALUE);
-    lv_label_set_text(v, "--");
-  }
-
-  // Einheit-Label (kleinere Schrift)
-  lv_obj_t* u = lv_label_create(container);
-  if (!u) {
-    Serial.println("[TileRenderer] WARN: Konnte Unit-Label nicht erstellen");
-  } else {
-    set_label_style(u, lv_color_hex(0xE6E6E6), FONT_UNIT);
-    lv_label_set_text(u, "");
-  }
+  set_label_style(v, lv_color_white(), FONT_VALUE);
+  lv_label_set_text(v, "--");
+  lv_obj_align(v, LV_ALIGN_CENTER, 0, 18);
 
   // Speichern für spätere Updates
   SensorTileWidgets* target = (grid_type == GridType::HOME) ? g_home_sensors : g_game_sensors;
   target[index].value_label = v;
-  target[index].unit_label = u;
+  target[index].unit_label = nullptr;  // Keine separate Unit (würde crashen!)
 }
 
 struct SceneEventData {
@@ -357,16 +337,12 @@ void update_sensor_tile_value(uint8_t grid_index, const char* value, const char*
       displayValue = "--";
     }
 
-    // Setze Wert (große Schrift)
-    lv_label_set_text(g_home_sensors[grid_index].value_label, displayValue.c_str());
-
-    // Setze Einheit (kleine Schrift, separates Label)
-    if (g_home_sensors[grid_index].unit_label) {
-      if (unit && strlen(unit) > 0 && displayValue != "--") {
-        lv_label_set_text(g_home_sensors[grid_index].unit_label, unit);
-      } else {
-        lv_label_set_text(g_home_sensors[grid_index].unit_label, "");
-      }
+    // Kombiniere Wert + Einheit in einem Label (gleiche Größe)
+    String combined = displayValue;
+    if (unit && strlen(unit) > 0 && displayValue != "--") {
+      combined += " ";
+      combined += unit;
     }
+    lv_label_set_text(g_home_sensors[grid_index].value_label, combined.c_str());
   }
 }
