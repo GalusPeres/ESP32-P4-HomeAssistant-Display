@@ -403,7 +403,8 @@ void UIManager::updateStatusbar() {
 
   } else {
 
-    snprintf(buf, sizeof(buf), "--:--");
+    // Kein valider Zeitstempel: neutrales Fallback aus Ziffern, damit keine fehlenden Glyphen
+    snprintf(buf, sizeof(buf), "00:00");
 
   }
 
@@ -417,7 +418,8 @@ void UIManager::updateStatusbar() {
 
   } else {
 
-    snprintf(buf, sizeof(buf), "--.--.----");
+    // Fallback ohne fehlende Glyphen
+    snprintf(buf, sizeof(buf), "00.00.0000");
 
   }
 
