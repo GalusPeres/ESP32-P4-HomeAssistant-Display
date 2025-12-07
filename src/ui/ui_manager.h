@@ -16,6 +16,8 @@ public:
 
   // Statusbar
   void updateStatusbar();
+  // Systemzeit aus externer RTC übernehmen (falls plausibel)
+  void syncSystemTimeFromRtc();
 
   // NTP Sync
   void scheduleNtpSync(uint32_t delay_ms = 0);

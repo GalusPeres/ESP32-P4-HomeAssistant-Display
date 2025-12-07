@@ -77,6 +77,9 @@ void setup() {
   Serial.println("[Setup] Brightness OK");
   Serial.flush();
 
+  // Systemzeit initial aus RTC übernehmen (falls vorhanden)
+  uiManager.syncSystemTimeFromRtc();
+
   Serial.println("[Setup] Building UI...");
   Serial.flush();
   uiManager.buildUI(mqttPublishScene, start_hotspot_mode);

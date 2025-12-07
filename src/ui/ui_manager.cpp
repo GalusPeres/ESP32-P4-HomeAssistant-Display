@@ -14,6 +14,7 @@
 #include <WiFi.h>
 
 #include <time.h>
+#include <sys/time.h>
 
 #include <M5Unified.h>
 
@@ -28,6 +29,16 @@ UIManager uiManager;
 // Timezone
 
 const char* UIManager::TZ_EUROPE_BERLIN = "CET-1CEST,M3.5.0/02,M10.5.0/03";
+
+static bool is_valid_datetime(int y, int m, int d, int h, int min) {
+  return (y >= 2023 && y <= 2099) &&
+         (m >= 1 && m <= 12) &&
+         (d >= 1 && d <= 31) &&
+         (h >= 0 && h < 24) &&
+         (min >= 0 && min < 60);
+}
+
+static uint32_t g_last_rtc_set_ms = 0;
 
 
 
@@ -299,6 +310,44 @@ void UIManager::nav_button_event_cb(lv_event_t *e) {
   }
 }
 
+// ========== Systemzeit aus RTC übernehmen ==========
+void UIManager::syncSystemTimeFromRtc() {
+  if (!M5.Rtc.isEnabled()) return;
+
+  m5::rtc_datetime_t dt;
+  if (!M5.Rtc.getDateTime(&dt)) return;
+
+  int year = dt.date.year;
+  int month = dt.date.month;
+  int day = dt.date.date;
+  int hour = dt.time.hours;
+  int minute = dt.time.minutes;
+
+  if (!is_valid_datetime(year, month, day, hour, minute)) {
+    return;
+  }
+
+  // Timezone anwenden, damit mktime lokale Zeit korrekt interpretiert
+  setenv("TZ", TZ_EUROPE_BERLIN, 1);
+  tzset();
+
+  struct tm tm_time = {};
+  tm_time.tm_year = year - 1900;
+  tm_time.tm_mon = month - 1;
+  tm_time.tm_mday = day;
+  tm_time.tm_hour = hour;
+  tm_time.tm_min = minute;
+  tm_time.tm_isdst = -1;
+
+  time_t epoch = mktime(&tm_time);
+  if (epoch <= 0) return;
+
+  struct timeval tv = { .tv_sec = epoch, .tv_usec = 0 };
+  settimeofday(&tv, nullptr);
+
+  Serial.printf("[RTC] Systemzeit gesetzt: %04d-%02d-%02d %02d:%02d\n", year, month, day, hour, minute);
+}
+
 // ========== Statusbar aktualisieren ==========
 void UIManager::updateStatusbar() {
   if (!status_time_label || !status_date_label) return;
@@ -308,14 +357,6 @@ void UIManager::updateStatusbar() {
   bool have_time = false;
 
   int hour = 0, minute = 0, day = 0, month = 0, year = 0;
-
-  auto is_valid_datetime = [](int y, int m, int d, int h, int min) {
-    return (y >= 2023 && y <= 2099) &&
-           (m >= 1 && m <= 12) &&
-           (d >= 1 && d <= 31) &&
-           (h >= 0 && h < 24) &&
-           (min >= 0 && min < 60);
-  };
 
   struct tm timeinfo;
 
@@ -339,6 +380,21 @@ void UIManager::updateStatusbar() {
     }
   }
 
+  // RTC regelmäßig mit Systemzeit abgleichen (nach NTP)
+  if (have_time && M5.Rtc.isEnabled()) {
+    uint32_t now_ms = millis();
+    if (g_last_rtc_set_ms == 0 || (int32_t)(now_ms - g_last_rtc_set_ms) > 60000) {
+      m5::rtc_datetime_t dt = {};
+      dt.date.year = year;
+      dt.date.month = month;
+      dt.date.date = day;
+      dt.time.hours = hour;
+      dt.time.minutes = minute;
+      dt.time.seconds = 0;
+      M5.Rtc.setDateTime(&dt);
+      g_last_rtc_set_ms = now_ms;
+    }
+  }
 
 
   if (have_time) {
