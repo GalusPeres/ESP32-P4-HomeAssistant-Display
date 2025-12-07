@@ -65,6 +65,7 @@ String WebAdminServer::getAdminPage() {
     form { display:grid; gap:16px; margin-bottom:32px; }
     label { font-size:13px; font-weight:600; color:#475569; display:block; margin-bottom:6px; }
     input { width:100%; padding:12px; border:1px solid #cbd5f5; border-radius:10px; font-size:15px; box-sizing:border-box; }
+    select { max-width:100%; }
     .btn { padding:12px 18px; border:none; border-radius:10px; background:#4f46e5; color:#fff; font-size:16px; cursor:pointer; transition:background 0.2s; }
     .btn:hover { background:#4338ca; }
     .btn-secondary { background:#94a3b8; margin-top:12px; width:100%; }
@@ -107,6 +108,16 @@ String WebAdminServer::getAdminPage() {
       padding:12px 10px;
       position:relative;
       box-sizing:border-box;
+      overflow:hidden;
+      background-clip:padding-box;
+      clip-path: inset(0 round 11px);
+    }
+    .tile:hover:not(.active) {
+      border:3px dashed rgba(74,158,255,0.6);
+      box-shadow:0 0 0 2px rgba(74,158,255,0.12) inset;
+      border-radius:11px;
+      background-clip:padding-box;
+      clip-path: inset(0 round 11px);
     }
     /* Sensor tiles: Grid-Layout fÃƒÂ¼r Title + Value */
     .tile.sensor {
@@ -124,15 +135,28 @@ String WebAdminServer::getAdminPage() {
     .tile.active {
       border:3px solid #4A9EFF;
       box-shadow:0 0 12px rgba(74,158,255,0.6);
+      border-radius:11px;
+      background-clip:padding-box;
+      clip-path: inset(0 round 11px);
     }
     .tile.dragging {
       opacity:0.6;
       border:3px dashed #4A9EFF;
+      border-radius:11px;
+      background-clip:padding-box;
+      clip-path: inset(0 round 11px);
     }
     .tile.drop-target {
        border:3px dashed #4A9EFF;
        background:rgba(74,158,255,0.12);
        box-shadow:0 0 0 2px rgba(74,158,255,0.2) inset;
+       border-radius:11px;
+       background-clip:padding-box;
+       clip-path: inset(0 round 11px);
+    }
+    .tile.empty.drop-target {
+       border:3px dashed #4A9EFF;
+       background:rgba(74,158,255,0.08);
     }
     .tile.active:hover {
       opacity:1;
@@ -315,7 +339,9 @@ String WebAdminServer::getAdminPage() {
       currentTileTab = tab;
 
       // Remove active class from all tiles
-      document.querySelectorAll('.tile').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tile').forEach(t => {
+        t.classList.remove('active', 'drop-target', 'dragging');
+      });
 
       // Add active class to selected tile
       const tileId = tab + '-tile-' + index;
@@ -604,6 +630,8 @@ String WebAdminServer::getAdminPage() {
           console.log('Kachel gespeichert:', {tab, index: currentTileIndex});
           showNotification('Kachel gespeichert & Display aktualisiert!');
           clearDraft(tab, currentTileIndex);
+          // Werte sofort neu laden, damit UI und Vorschau aktuell sind
+          loadSensorValues();
         } else {
           console.error('Save failed:', data.error);
           showNotification('Fehler: ' + (data.error || 'Unbekannt'), false);
@@ -624,6 +652,52 @@ String WebAdminServer::getAdminPage() {
       return parseInt(hex.replace('#', ''), 16);
     }
 
+    function renderTileFromData(tab, index, tile, sensorValues) {
+      const el = document.getElementById(tab + '-tile-' + index);
+      if (!el) return;
+      el.dataset.index = index.toString();
+
+      // Klassen setzen
+      let cls = ['tile'];
+      if (tile.type === 1) cls.push('sensor');
+      else if (tile.type === 2) cls.push('scene');
+      else if (tile.type === 3) cls.push('key');
+      else cls.push('empty');
+      el.className = cls.join(' ');
+
+      // Hintergrund setzen
+      if (tile.type === 0) {
+        el.style.background = 'transparent';
+      } else if (tile.type === 1) {
+        el.style.background = tile.bg_color ? ('#' + ('000000' + tile.bg_color.toString(16)).slice(-6)) : '#2A2A2A';
+      } else {
+        el.style.background = tile.bg_color ? ('#' + ('000000' + tile.bg_color.toString(16)).slice(-6)) : '#353535';
+      }
+
+      // Inhalt aufbauen
+      if (tile.type === 0) {
+        el.innerHTML = '';
+      } else {
+        let title = tile.title && tile.title.length ? tile.title : (tile.type === 1 ? 'Sensor' : tile.type === 2 ? 'Szene' : 'Key');
+        let html = '<div class="tile-title" id="' + tab + '-tile-' + index + '-title">' + title + '</div>';
+        if (tile.type === 1) {
+          let value = '--';
+          if (tile.sensor_entity) {
+            value = sensorValues[tile.sensor_entity] || '--';
+            if (typeof value === 'string' && value.toLowerCase() === 'unavailable') value = '--';
+          }
+          const unit = tile.sensor_unit || '';
+          html += '<div class="tile-value" id="' + tab + '-tile-' + index + '-value">' + value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '') + '</div>';
+        }
+        el.innerHTML = html;
+      }
+
+      // Aktive Auswahl respektieren
+      if (currentTileTab === tab && currentTileIndex === index) {
+        el.classList.add('active');
+      }
+    }
+
     // Load and update sensor values - efficient version
     function loadSensorValues() {
       // Fetch all data in parallel: sensor values + tile configs
@@ -635,37 +709,10 @@ String WebAdminServer::getAdminPage() {
       .then(([sensorValues, homeTiles, gameTiles]) => {
         homeTilesData = homeTiles;
         gameTilesData = gameTiles;
-        console.log('Sensorwerte geladen:', sensorValues);
-        console.log('Home Tiles:', homeTiles);
-        console.log('Game Tiles:', gameTiles);
 
-        // Update home tiles
-        homeTiles.forEach((tile, index) => {
-          if (tile.type === 1 && tile.sensor_entity) {
-            const valueElem = document.getElementById('home-tile-' + index + '-value');
-            if (valueElem) {
-              let value = sensorValues[tile.sensor_entity] || '--';
-              if (value.toLowerCase() === 'unavailable') value = '--';
-              const unit = tile.sensor_unit || '';
-              valueElem.innerHTML = value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '');
-              console.log('Home Tile', index, ':', tile.sensor_entity, '=', value);
-            }
-          }
-        });
-
-        // Update game tiles
-        gameTiles.forEach((tile, index) => {
-          if (tile.type === 1 && tile.sensor_entity) {
-            const valueElem = document.getElementById('game-tile-' + index + '-value');
-            if (valueElem) {
-              let value = sensorValues[tile.sensor_entity] || '--';
-              if (value.toLowerCase() === 'unavailable') value = '--';
-              const unit = tile.sensor_unit || '';
-              valueElem.innerHTML = value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '');
-              console.log('Game Tile', index, ':', tile.sensor_entity, '=', value);
-            }
-          }
-        });
+        // Tiles vollstaendig aus den Serverdaten rendern
+        homeTiles.forEach((tile, idx) => renderTileFromData('home', idx, tile, sensorValues));
+        gameTiles.forEach((tile, idx) => renderTileFromData('game', idx, tile, sensorValues));
       })
       .catch(err => console.error('Fehler beim Laden der Sensorwerte:', err));
 
@@ -682,6 +729,25 @@ String WebAdminServer::getAdminPage() {
 
     // Drag & Drop Swap (Tile reorder)
     let dragSource = null;
+    let dragPreview = null;
+
+    function createDragPreview(tile) {
+      const clone = tile.cloneNode(true);
+      const rect = tile.getBoundingClientRect();
+      clone.style.position = 'absolute';
+      clone.style.top = '-9999px';
+      clone.style.left = '-9999px';
+      clone.style.width = rect.width + 'px';
+      clone.style.height = rect.height + 'px';
+      clone.style.opacity = '0.9';
+      clone.style.pointerEvents = 'none';
+      clone.style.boxShadow = '0 10px 30px rgba(0,0,0,0.35)';
+      clone.style.backgroundClip = 'padding-box';
+      clone.style.clipPath = 'inset(0 round 11px)';
+      clone.style.display = 'block';
+      document.body.appendChild(clone);
+      return clone;
+    }
 
     function enableTileDrag(tab) {
       const tiles = document.querySelectorAll('#tab-tiles-' + tab + ' .tile');
@@ -689,14 +755,23 @@ String WebAdminServer::getAdminPage() {
         tile.addEventListener('dragstart', (e) => {
           dragSource = { tab, index: parseInt(tile.dataset.index) };
           e.dataTransfer.effectAllowed = 'move';
+          // Mark source tile as active immediately while dragging
+          if (!isNaN(dragSource.index)) {
+            selectTile(dragSource.index, tab);
+          }
           tile.classList.add('dragging');
           if (e.dataTransfer.setDragImage) {
-            e.dataTransfer.setDragImage(tile, tile.clientWidth / 2, tile.clientHeight / 2);
+            dragPreview = createDragPreview(tile);
+            e.dataTransfer.setDragImage(dragPreview, tile.clientWidth / 2, tile.clientHeight / 2);
           }
         });
         tile.addEventListener('dragend', () => {
           tile.classList.remove('dragging');
           tiles.forEach(t => t.classList.remove('drop-target'));
+          if (dragPreview && dragPreview.parentNode) {
+            dragPreview.parentNode.removeChild(dragPreview);
+          }
+          dragPreview = null;
           dragSource = null;
         });
         tile.addEventListener('dragenter', (e) => {
@@ -713,6 +788,11 @@ String WebAdminServer::getAdminPage() {
         tile.addEventListener('drop', (e) => {
           e.preventDefault();
           tile.classList.remove('drop-target');
+          document.querySelectorAll('#tab-tiles-' + tab + ' .tile').forEach(t => t.classList.remove('dragging'));
+          if (dragPreview && dragPreview.parentNode) {
+            dragPreview.parentNode.removeChild(dragPreview);
+          }
+          dragPreview = null;
           if (!dragSource || dragSource.tab !== tab) return;
           const targetIndex = parseInt(tile.dataset.index);
           if (isNaN(targetIndex) || targetIndex === dragSource.index) return;
@@ -765,6 +845,10 @@ String WebAdminServer::getAdminPage() {
         // DOM umsortieren und Werte neu laden
         applyDomSwap(tab, fromIndex, toIndex);
         loadSensorValues();
+        // Auswahl auf neue Position setzen
+        currentTileIndex = toIndex;
+        currentTileTab = tab;
+        selectTile(toIndex, tab);
         showNotification('Reihenfolge gespeichert');
       }).catch(() => {
         showNotification('Tausch fehlgeschlagen', true);
@@ -1137,9 +1221,7 @@ String WebAdminServer::getAdminPage() {
     html += String(i);
     html += "\" style=\"";
     html += tileStyle;
-    html += "\" onclick=\"selectTile(";
-    html += String(i);
-    html += ", 'home')\">";
+    html += "\" onclick=\"selectTile(parseInt(this.dataset.index), 'home')\">";
 
     // Title - nur wenn nicht EMPTY
     if (tile.type != TILE_EMPTY) {
@@ -1327,9 +1409,7 @@ String WebAdminServer::getAdminPage() {
     html += String(i);
     html += "\" style=\"";
     html += tileStyle;
-    html += "\" onclick=\"selectTile(";
-    html += String(i);
-    html += ", 'game')\">";
+    html += "\" onclick=\"selectTile(parseInt(this.dataset.index), 'game')\">";
 
     // Title - nur wenn nicht EMPTY
     if (tile.type != TILE_EMPTY) {

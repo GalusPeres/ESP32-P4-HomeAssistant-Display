@@ -469,6 +469,7 @@ void WebAdminServer::handleReorderTiles() {
 
   bool success = tileConfig.save(tileConfig.getHomeGrid(), tileConfig.getGameGrid());
   if (success) {
+    mqttReloadDynamicSlots();
     if (tab == "home") {
       tiles_home_reload_layout();
     } else {
