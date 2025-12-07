@@ -97,9 +97,6 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
                 TILES_PER_GRID, heap_before / 1024, psram_before / 1024);
 
   for (int i = 0; i < TILES_PER_GRID; ++i) {
-    // Watchdog füttern (verhindert Timeout bei vielen Tiles)
-    yield();
-
     int row = i / 3;
     int col = i % 3;
 
@@ -109,12 +106,17 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
       return;
     }
 
+    Serial.printf("[TileRenderer] Erstelle Tile %d/%d...\n", i + 1, TILES_PER_GRID);
+
     render_tile(parent, col, row, config.tiles[i], i, grid_type, scene_cb);
 
-    // Kleine Pause nach jedem Tile (verhindert Heap-Überlastung)
-    if (i < TILES_PER_GRID - 1) {
-      delay(5);
-    }
+    // PROGRESSIVES RENDERING: Nach jedem Tile LVGL verarbeiten lassen!
+    yield();                    // Watchdog füttern
+    lv_timer_handler();        // LVGL verarbeitet das neue Tile
+    delay(50);                 // 50ms Pause (statt 5ms) für LVGL Processing
+    yield();                   // Nochmal Watchdog
+
+    Serial.printf("[TileRenderer] ✓ Tile %d/%d fertig\n", i + 1, TILES_PER_GRID);
   }
 
   // Memory Monitoring - Nachher
@@ -173,7 +175,7 @@ void render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& tile, ui
       LV_GRID_ALIGN_STRETCH, col, 1,
       LV_GRID_ALIGN_STRETCH, row, 1);
 
-  // Title
+  // Title Label
   lv_obj_t* t = lv_label_create(card);
   if (!t) {
     Serial.println("[TileRenderer] ERROR: Konnte Title-Label nicht erstellen");
@@ -183,7 +185,7 @@ void render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& tile, ui
   lv_label_set_text(t, tile.title.length() ? tile.title.c_str() : "Sensor");
   lv_obj_align(t, LV_ALIGN_TOP_LEFT, 0, 0);
 
-  // Ein Label für Wert + Einheit (gleiche Größe, crasht nicht!)
+  // Value Label (Wert + Einheit kombiniert)
   lv_obj_t* v = lv_label_create(card);
   if (!v) {
     Serial.println("[TileRenderer] ERROR: Konnte Value-Label nicht erstellen");
@@ -196,7 +198,7 @@ void render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& tile, ui
   // Speichern für spätere Updates
   SensorTileWidgets* target = (grid_type == GridType::HOME) ? g_home_sensors : g_game_sensors;
   target[index].value_label = v;
-  target[index].unit_label = nullptr;  // Keine separate Unit (würde crashen!)
+  target[index].unit_label = nullptr;
 }
 
 struct SceneEventData {
