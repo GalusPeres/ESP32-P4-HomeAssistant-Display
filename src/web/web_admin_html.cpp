@@ -716,33 +716,11 @@ String WebAdminServer::getAdminPage() {
       });
     }
 
-    function applyDomSwap(tab, fromIndex, toIndex) {
-      const grid = document.querySelector('#tab-tiles-' + tab + ' .tile-grid');
-      if (!grid) return;
-      const tiles = Array.from(grid.children);
-      const a = tiles[fromIndex];
-      const b = tiles[toIndex];
-      if (!a || !b) return;
-      // Swap nodes
-      const sibling = b.nextSibling;
-      grid.insertBefore(b, a);
-      grid.insertBefore(a, sibling);
-      // Reindex ids/datasets to keep previews/updates consistent
-      Array.from(grid.children).forEach((el, idx) => {
-        el.dataset.index = idx.toString();
-        el.id = tab + '-tile-' + idx;
-        const title = el.querySelector('.tile-title');
-        if (title) title.id = tab + '-tile-' + idx + '-title';
-        const value = el.querySelector('.tile-value');
-        if (value) value.id = tab + '-tile-' + idx + '-value';
-      });
-    }
-
-    function swapTilesOnServer(tab, fromIndex, toIndex) {
-      const fd = new FormData();
-      fd.append('tab', tab);
-      fd.append('from', fromIndex);
-      fd.append('to', toIndex);
+  function swapTilesOnServer(tab, fromIndex, toIndex) {
+    const fd = new FormData();
+    fd.append('tab', tab);
+    fd.append('from', fromIndex);
+    fd.append('to', toIndex);
       fetch('/api/tiles/reorder', {
         method: 'POST',
         body: fd
@@ -750,21 +728,14 @@ String WebAdminServer::getAdminPage() {
         if (!res.ok) throw new Error('http');
         return res.json();
       }).then(() => {
-        // Lokale Arrays und DOM tauschen, dann Sensorwerte neu laden
-        try {
-          if (tab === 'home' && Array.isArray(homeTiles)) {
-            [homeTiles[fromIndex], homeTiles[toIndex]] = [homeTiles[toIndex], homeTiles[fromIndex]];
-          } else if (tab === 'game' && Array.isArray(gameTiles)) {
-            [gameTiles[fromIndex], gameTiles[toIndex]] = [gameTiles[toIndex], gameTiles[fromIndex]];
-          }
-        } catch (e) {}
-        applyDomSwap(tab, fromIndex, toIndex);
-        loadSensorValues();
         showNotification('Reihenfolge gespeichert');
+        // Aktivierten Tab merken, dann hart reloaden damit alle Werte neu geladen werden
+        try { localStorage.setItem('activeAdminTab', 'tab-tiles-' + tab); } catch (e) {}
+        setTimeout(() => location.reload(), 150);
       }).catch(() => {
         showNotification('Tausch fehlgeschlagen', true);
       });
-    }
+  }
 
     window.onload = function() {
       loadDraftsFromStorage();
