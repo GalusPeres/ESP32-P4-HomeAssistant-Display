@@ -1,4 +1,4 @@
-﻿#include "src/ui/ui_manager.h"
+#include "src/ui/ui_manager.h"
 
 #include "src/ui/tab_tiles_home.h"
 #include "src/ui/tab_home.h"
@@ -39,28 +39,6 @@ static bool is_valid_datetime(int y, int m, int d, int h, int min) {
 }
 
 static uint32_t g_last_rtc_set_ms = 0;
-
-static void update_rtc_if_needed(int year, int month, int day, int hour, int minute) {
-  if (!M5.Rtc.isEnabled()) return;
-  if (!is_valid_datetime(year, month, day, hour, minute)) return;
-
-  uint32_t now_ms = millis();
-  if (g_last_rtc_set_ms != 0 && (int32_t)(now_ms - g_last_rtc_set_ms) <= 60000) {
-    return;  // Max einmal pro Minute
-  }
-
-  m5::rtc_datetime_t dt = {};
-  dt.date.year = year;
-  dt.date.month = month;
-  dt.date.date = day;
-  dt.time.hours = hour;
-  dt.time.minutes = minute;
-  dt.time.seconds = 0;
-  if (M5.Rtc.setDateTime(&dt)) {
-    g_last_rtc_set_ms = now_ms;
-    Serial.printf("[RTC] geschrieben: %04d-%02d-%02d %02d:%02d\n", year, month, day, hour, minute);
-  }
-}
 
 
 
@@ -126,7 +104,7 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   };
 
   for (uint8_t i = 0; i < TAB_COUNT; ++i) {
-    // Echte LVGL Buttons fÃ¼r Standard-Animation (grÃ¶ÃŸer werden beim DrÃ¼cken)
+    // Echte LVGL Buttons für Standard-Animation (größer werden beim Drücken)
     lv_obj_t *btn = lv_button_create(nav_container);
     tab_labels[i] = configureNavButton(btn, tab_icons[i]);
     lv_obj_set_flex_grow(btn, 1);
@@ -154,7 +132,7 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   lv_timer_handler();          // Sidebar zeichnen (mit Platzhalter --:--)
   delay(100);                  // Sicherstellen dass Sidebar fertig ist
   Serial.println("[UI] Sidebar fertig, lade nun Tiles...");
-  // updateStatusbar() wird spÃ¤ter in Loop aufgerufen wenn Fonts geladen sind
+  // updateStatusbar() wird später in Loop aufgerufen wenn Fonts geladen sind
 
   build_tiles_home_tab(tab_panels[0], scene_cb);
   build_tiles_game_tab(tab_panels[1], scene_cb);
@@ -233,7 +211,7 @@ lv_obj_t* UIManager::configureNavButton(lv_obj_t *btn, const char *icon_text) {
   if (!btn) return nullptr;
 
   // NICHT remove_style_all() verwenden - das entfernt die Button-Animationen!
-  // Stattdessen nur die gewÃ¼nschten Styles Ã¼berschreiben
+  // Stattdessen nur die gewünschten Styles überschreiben
   lv_obj_set_width(btn, LV_PCT(100));
   lv_obj_set_height(btn, 100);
 
@@ -244,7 +222,7 @@ lv_obj_t* UIManager::configureNavButton(lv_obj_t *btn, const char *icon_text) {
   lv_obj_set_style_shadow_width(btn, 0, 0);
   lv_obj_set_style_outline_width(btn, 0, 0);
 
-  // PRESSED State: Helle Orange Farbe beim DrÃ¼cken
+  // PRESSED State: Helle Orange Farbe beim Drücken
   lv_obj_set_style_bg_opa(btn, LV_OPA_30, LV_STATE_PRESSED);  // 30% Deckkraft
   lv_obj_set_style_bg_color(btn, lv_color_hex(0xE38422), LV_STATE_PRESSED);
 
@@ -298,7 +276,7 @@ void UIManager::switchToTab(uint8_t index) {
     if (tab_buttons[active_tab_index]) {
       lv_obj_set_style_bg_opa(tab_buttons[active_tab_index], LV_OPA_TRANSP, 0);
     }
-    // Label bleibt IMMER weiÃŸ - nicht Ã¤ndern!
+    // Label bleibt IMMER weiß - nicht ändern!
   }
 
   // Neuen Tab aktivieren
@@ -308,7 +286,7 @@ void UIManager::switchToTab(uint8_t index) {
   if (tab_buttons[index]) {
     lv_obj_set_style_bg_opa(tab_buttons[index], LV_OPA_COVER, 0);
   }
-  // Label bleibt IMMER weiÃŸ - nicht Ã¤ndern!
+  // Label bleibt IMMER weiß - nicht ändern!
 
   active_tab_index = index;
 }
@@ -332,7 +310,7 @@ void UIManager::nav_button_event_cb(lv_event_t *e) {
   }
 }
 
-// ========== Systemzeit aus RTC Ã¼bernehmen ==========
+// ========== Systemzeit aus RTC übernehmen ==========
 void UIManager::syncSystemTimeFromRtc() {
   if (!M5.Rtc.isEnabled()) return;
 
@@ -373,9 +351,6 @@ void UIManager::syncSystemTimeFromRtc() {
   settimeofday(&tv, nullptr);
 
   Serial.printf("[RTC] Systemzeit gesetzt: %04d-%02d-%02d %02d:%02d\n", year, month, day, hour, minute);
-
-  // RTC direkt mit Ã¼bernehmen, damit sie beim nÃ¤chsten Boot stimmt
-  update_rtc_if_needed(year, month, day, hour, minute);
 }
 
 // ========== Statusbar aktualisieren ==========
@@ -410,9 +385,20 @@ void UIManager::updateStatusbar() {
     }
   }
 
-  // RTC regelmÃ¤ÃŸig mit Systemzeit abgleichen (nach NTP)
+  // RTC regelmäßig mit Systemzeit abgleichen (nach NTP)
   if (have_time && M5.Rtc.isEnabled()) {
-    update_rtc_if_needed(year, month, day, hour, minute);
+    uint32_t now_ms = millis();
+    if (g_last_rtc_set_ms == 0 || (int32_t)(now_ms - g_last_rtc_set_ms) > 60000) {
+      m5::rtc_datetime_t dt = {};
+      dt.date.year = year;
+      dt.date.month = month;
+      dt.date.date = day;
+      dt.time.hours = hour;
+      dt.time.minutes = minute;
+      dt.time.seconds = 0;
+      M5.Rtc.setDateTime(&dt);
+      g_last_rtc_set_ms = now_ms;
+    }
   }
 
 
@@ -472,28 +458,21 @@ void UIManager::serviceNtpSync() {
 
   if (WiFi.status() != WL_CONNECTED) return;
 
+
+
   uint32_t now_ms = millis();
+
   if ((int32_t)(now_ms - next_ntp_sync_ms) < 0) return;
 
+
+
   configTzTime(TZ_EUROPE_BERLIN, "pool.ntp.org", "time.nist.gov", "time.cloudflare.com");
+
   tz_configured = true;
-  next_ntp_sync_ms = now_ms + 3600000UL; // Stuendlich neu syncen
 
-  // Wenn Zeit bereits verfuegbar, RTC nachziehen
-  struct tm timeinfo;
-  if (getLocalTime(&timeinfo, 0)) {
-    int year = timeinfo.tm_year + 1900;
-    int month = timeinfo.tm_mon + 1;
-    int day = timeinfo.tm_mday;
-    int hour = timeinfo.tm_hour;
-    int minute = timeinfo.tm_min;
-    if (is_valid_datetime(year, month, day, hour, minute)) {
-      update_rtc_if_needed(year, month, day, hour, minute);
-    }
-  }
+  next_ntp_sync_ms = now_ms + 3600000UL; // Stündlich neu syncen
+
 }
-
-
 
 
 
