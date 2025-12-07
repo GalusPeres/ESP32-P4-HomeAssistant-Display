@@ -125,6 +125,10 @@ String WebAdminServer::getAdminPage() {
       border:3px solid #4A9EFF;
       box-shadow:0 0 12px rgba(74,158,255,0.6);
     }
+    .tile.dragging {
+      opacity:0.6;
+      border:3px dashed #4A9EFF;
+    }
     .tile.active:hover {
       opacity:1;
       filter:none;
@@ -672,6 +676,11 @@ String WebAdminServer::getAdminPage() {
         tile.addEventListener('dragstart', (e) => {
           dragSource = { tab, index: parseInt(tile.dataset.index) };
           e.dataTransfer.effectAllowed = 'move';
+          tile.classList.add('dragging');
+        });
+        tile.addEventListener('dragend', () => {
+          tile.classList.remove('dragging');
+          dragSource = null;
         });
         tile.addEventListener('dragover', (e) => {
           e.preventDefault();
@@ -699,7 +708,7 @@ String WebAdminServer::getAdminPage() {
         return res.json();
       }).then(() => {
         showNotification('Reihenfolge gespeichert');
-        setTimeout(() => location.reload(), 400);
+        setTimeout(() => location.reload(), 300);
       }).catch(() => {
         showNotification('Tausch fehlgeschlagen', true);
       });
