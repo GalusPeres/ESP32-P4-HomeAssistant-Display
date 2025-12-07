@@ -126,6 +126,7 @@ void setup() {
 
 void loop() {
   static bool first_run = true;
+  static bool was_asleep = false;
   if (first_run) {
     Serial.println("[Loop] ERSTE ITERATION!");
     Serial.flush();
@@ -146,16 +147,22 @@ void loop() {
 
   // --- SLEEP ---
   if (powerManager.isInSleep()) {
-    Serial.println("[Loop] SLEEP MODE AKTIV!");
+    if (!was_asleep) {
+      Serial.println("[Loop] SLEEP MODE AKTIV!");
+      was_asleep = true;
+    }
     if (configManager.isConfigured()) networkManager.update();
     lgfx::touch_point_t tp;
     if (M5.Display.getTouch(&tp)) {
       powerManager.wakeFromDisplaySleep();
+      was_asleep = false;
       return; 
     }
     delay(150); 
     return;
   }
+  // Zurück im aktiven Modus
+  was_asleep = false;
 
   // --- ACTIVE ---
   if (first_run) Serial.println("[Loop] M5.update()...");
