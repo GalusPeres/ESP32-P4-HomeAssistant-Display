@@ -131,6 +131,8 @@ String WebAdminServer::getAdminPage() {
     }
     .tile.drop-target {
        border:3px dashed #4A9EFF;
+       background:rgba(74,158,255,0.12);
+       box-shadow:0 0 0 2px rgba(74,158,255,0.2) inset;
     }
     .tile.active:hover {
       opacity:1;
@@ -691,6 +693,10 @@ String WebAdminServer::getAdminPage() {
           tile.classList.remove('dragging');
           tiles.forEach(t => t.classList.remove('drop-target'));
           dragSource = null;
+        });
+        tile.addEventListener('dragenter', (e) => {
+          e.preventDefault();
+          tile.classList.add('drop-target');
         });
         tile.addEventListener('dragover', (e) => {
           e.preventDefault();
