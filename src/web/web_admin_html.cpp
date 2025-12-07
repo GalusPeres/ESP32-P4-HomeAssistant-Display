@@ -732,9 +732,9 @@ String WebAdminServer::getAdminPage() {
       if (!res.ok) throw new Error('http');
       return res.json();
     }).then(() => {
-      applyDomSwap(tab, fromIndex, toIndex);
-      loadSensorValues();
+      // Neu laden, damit Entities/Indices aus dem gespeicherten Grid stimmen
       showNotification('Reihenfolge gespeichert');
+      setTimeout(() => location.reload(), 200);
     }).catch(() => {
       showNotification('Tausch fehlgeschlagen', true);
     });
