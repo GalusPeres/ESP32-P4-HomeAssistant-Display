@@ -358,6 +358,22 @@ String WebAdminServer::getAdminPage() {
       setupLivePreview(tab);
     }
 
+    function maybeFillTitleFromScene(tab) {
+      const typeSel = document.getElementById((tab === 'home' ? 'home' : 'game') + '_tile_type');
+      const titleInput = document.getElementById((tab === 'home' ? 'home' : 'game') + '_tile_title');
+      const sceneSel = document.getElementById((tab === 'home' ? 'home' : 'game') + '_scene_alias');
+      if (!typeSel || !titleInput || !sceneSel) return;
+      if (typeSel.value !== '2') return; // only for scene
+      if (titleInput.value && titleInput.value.trim().length) return; // already set
+      const opt = sceneSel.selectedOptions && sceneSel.selectedOptions[0];
+      if (!opt) return;
+      const label = opt.textContent || opt.innerText || '';
+      const title = label.split(' - ')[0] || opt.value || '';
+      if (title.trim().length) {
+        titleInput.value = title.trim();
+      }
+    }
+
     // Setup live preview event listeners
     function setupLivePreview(tab) {
       const prefix = tab === 'home' ? 'home' : 'game';
@@ -389,29 +405,35 @@ String WebAdminServer::getAdminPage() {
       const keyInput = document.getElementById(prefix + '_key_macro');
 
       if (titleInput) {
-        titleInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); });
+        titleInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
       }
       if (colorInput) {
-        colorInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); });
+        colorInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
       }
       if (typeSelect) {
-        typeSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); });
+        typeSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
       }
       if (entitySelect) {
         entitySelect.addEventListener('change', () => {
           updateTilePreview(tab);
           updateSensorValuePreview(tab);
           updateDraft(tab);
+          scheduleAutoSave(tab);
         });
       }
       if (unitInput) {
-        unitInput.addEventListener('input', () => { updateSensorValuePreview(tab); updateDraft(tab); });
+        unitInput.addEventListener('input', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
       }
       if (sceneInput) {
-        sceneInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); });
+        sceneInput.addEventListener('input', () => {
+          maybeFillTitleFromScene(tab);
+          updateTilePreview(tab);
+          updateDraft(tab);
+          scheduleAutoSave(tab);
+        });
       }
       if (keyInput) {
-        keyInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); });
+        keyInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
       }
     }
 
@@ -550,18 +572,26 @@ String WebAdminServer::getAdminPage() {
           if (data.type === 1) { // Sensor
             document.getElementById(prefix + '_sensor_entity').value = data.sensor_entity || '';
             document.getElementById(prefix + '_sensor_unit').value = data.sensor_unit || '';
-          } else if (data.type === 2) { // Scene
-            document.getElementById(prefix + '_scene_alias').value = data.scene_alias || '';
-          } else if (data.type === 3) { // Key
-            document.getElementById(prefix + '_key_macro').value = data.key_macro || '';
-          }
+      } else if (data.type === 2) { // Scene
+        document.getElementById(prefix + '_scene_alias').value = data.scene_alias || '';
+        maybeFillTitleFromScene(tab);
+      } else if (data.type === 3) { // Key
+        document.getElementById(prefix + '_key_macro').value = data.key_macro || '';
+      }
 
           // Ensure selection stays highlighted after async load
           const tileElem = document.getElementById(tab + '-tile-' + index);
           if (tileElem) tileElem.classList.add('active');
 
-          // Apply unsaved draft if present
-          if (!applyDraft(tab, index)) {
+          // Apply unsaved draft nur, wenn er zum aktuellen Typ passt
+          const draft = (drafts[tab] || {})[index];
+          if (draft && String(draft.type) === String(data.type)) {
+            applyDraft(tab, index);
+          } else {
+            if (draft && data.type === 0 && draft.type !== data.type) {
+              // Draft passt nicht zu leerem Tile -> verwerfen
+              clearDraft(tab, index);
+            }
             updateTilePreview(tab);
           }
         });
@@ -579,7 +609,7 @@ String WebAdminServer::getAdminPage() {
       if (typeValue === '1') {
         document.getElementById(prefix + '_sensor_fields').classList.add('show');
       } else if (typeValue === '2') {
-        document.getElementById(prefix + '_scene_fields').classList.add('show');
+            document.getElementById(prefix + '_scene_fields').classList.add('show');
       } else if (typeValue === '3') {
         document.getElementById(prefix + '_key_fields').classList.add('show');
       }
@@ -597,8 +627,14 @@ String WebAdminServer::getAdminPage() {
       }, 3000);
     }
 
+    let autoSaveTimers = { home: null, game: null };
+    function scheduleAutoSave(tab) {
+      if (autoSaveTimers[tab]) clearTimeout(autoSaveTimers[tab]);
+      autoSaveTimers[tab] = setTimeout(() => saveTile(tab, true), 250);
+    }
+
     // Save tile configuration
-    function saveTile(tab) {
+    function saveTile(tab, silent = false) {
       if (currentTileIndex === -1) return;
 
       const prefix = tab === 'home' ? 'home' : 'game';
@@ -628,7 +664,7 @@ String WebAdminServer::getAdminPage() {
       .then(data => {
         if (data.success) {
           console.log('Kachel gespeichert:', {tab, index: currentTileIndex});
-          showNotification('Kachel gespeichert & Display aktualisiert!');
+          if (!silent) showNotification('Kachel gespeichert & Display aktualisiert!');
           clearDraft(tab, currentTileIndex);
           // Werte sofort neu laden, damit UI und Vorschau aktuell sind
           loadSensorValues();
@@ -1341,8 +1377,7 @@ String WebAdminServer::getAdminPage() {
               <input type="text" id="home_key_macro" placeholder="z.B. ctrl+g">
               <div style="font-size:11px;color:#64748b;margin-top:4px;">Beispiele: g, ctrl+g, ctrl+shift+a</div>
             </div>
-
-            <button class="btn" onclick="saveTile('home')" style="margin-top:16px;width:100%;">Speichern</button>
+            <div style="font-size:12px;color:#64748b;margin-top:8px;">Änderungen werden automatisch gespeichert.</div>
           </div>
         </div>
       </div>
@@ -1529,8 +1564,7 @@ String WebAdminServer::getAdminPage() {
               <input type="text" id="game_key_macro" placeholder="z.B. ctrl+g">
               <div style="font-size:11px;color:#64748b;margin-top:4px;">Beispiele: g, ctrl+g, ctrl+shift+a</div>
             </div>
-
-            <button class="btn" onclick="saveTile('game')" style="margin-top:16px;width:100%;">Speichern</button>
+            <div style="font-size:12px;color:#64748b;margin-top:8px;">Änderungen werden automatisch gespeichert.</div>
           </div>
         </div>
       </div>
