@@ -31,28 +31,6 @@ String WebAdminServer::getAdminPage() {
     return String(f, static_cast<unsigned int>(d));
   };
 
-  auto appendList = [&](String& target, const String& raw) {
-    if (!raw.length()) {
-      target += "<p class=\"hint\">Keine Eintraege.</p>";
-      return;
-    }
-    target += "<ul class=\"list\">";
-    int start = 0;
-    while (start < raw.length()) {
-      int end = raw.indexOf('\n', start);
-      if (end < 0) end = raw.length();
-      String line = raw.substring(start, end);
-      line.trim();
-      if (line.length()) {
-        target += "<li>";
-        appendHtmlEscaped(target, line);
-        target += "</li>";
-      }
-      start = end + 1;
-    }
-    target += "</ul>";
-  };
-
   String html;
   html.reserve(12000);
   html += R"html(
@@ -1010,8 +988,6 @@ String WebAdminServer::getAdminPage() {
         <button class="tab-btn" onclick="switchTab('tab-network')">Network</button>
         <button class="tab-btn" onclick="switchTab('tab-tiles-home')">Tiles Home</button>
         <button class="tab-btn" onclick="switchTab('tab-tiles-game')">Tiles Game</button>
-        <button class="tab-btn" onclick="switchTab('tab-home')">Legacy Slots (Alt)</button>
-        <button class="tab-btn" onclick="switchTab('tab-game')">Game (Alt)</button>
       </div>
 
       <!-- Tab 1: Network (MQTT Configuration) -->
@@ -1057,214 +1033,7 @@ String WebAdminServer::getAdminPage() {
         </form>
       </div>
 
-      <!-- Tab 2: Home (6 Sensors + 6 Scenes) -->
-      <div id="tab-home" class="tab-content">
-        <div class="legacy-block">
-          <strong>Legacy Slot-Editor</strong>
-          <p class="hint" style="margin:6px 0 0;">Nur nutzen, wenn du noch die alten 6 Sensor/6 Szenen-Slots brauchst. F&uuml;r neue Kacheln bitte den Tile-Editor verwenden.</p>
-        </div>
-        <p class="hint">Ordne hier die 3x4 Kacheln zu. Die oberen zwei Reihen zeigen Sensoren, die unteren zwei Reihen Szenen. Auswahl &quot;Keine&quot; blendet eine Kachel aus.</p>
-        <form action="/bridge" method="POST">
-          <div class="layout-grid">
-)html";
-
-  auto appendSlot = [&](bool sensor, size_t index, const String& current) {
-    const char* labels_sensor[] = {
-      "Sensor 1 (oben links)",
-      "Sensor 2",
-      "Sensor 3",
-      "Sensor 4",
-      "Sensor 5",
-      "Sensor 6"
-    };
-    const char* labels_scene[] = {
-      "Szene 1",
-      "Szene 2",
-      "Szene 3",
-      "Szene 4",
-      "Szene 5",
-      "Szene 6"
-    };
-    String field = sensor ? "sensor_slot" : "scene_slot";
-    field += static_cast<int>(index);
-    html += "<div class=\"slot ";
-    html += sensor ? "slot-sensor" : "slot-scene";
-    html += "\"><div class=\"slot-label\">";
-    html += sensor ? labels_sensor[index] : labels_scene[index];
-    html += "</div><select name=\"";
-    html += field;
-    html += "\"><option value=\"\"";
-    if (!current.length()) html += " selected";
-    html += ">Keine</option>";
-
-    if (sensor) {
-      for (const auto& opt : sensorOptions) {
-        bool selected = current.equalsIgnoreCase(opt);
-        html += "<option value=\"";
-        appendHtmlEscaped(html, opt);
-        html += "\"";
-        if (selected) html += " selected";
-        html += ">";
-        String label = humanizeIdentifier(opt, true) + " - " + opt;
-        appendHtmlEscaped(html, label);
-        html += "</option>";
-      }
-    } else {
-      for (const auto& opt : sceneOptions) {
-        bool selected = current.equalsIgnoreCase(opt.alias);
-        html += "<option value=\"";
-        appendHtmlEscaped(html, opt.alias);
-        html += "\"";
-        if (selected) html += " selected";
-        html += ">";
-        String label = humanizeIdentifier(opt.alias, false) + " - " + opt.entity;
-        appendHtmlEscaped(html, label);
-        html += "</option>";
-      }
-    }
-    html += "</select>";
-
-    String custom_value = sensor ? ha.sensor_titles[index] : ha.scene_titles[index];
-    String placeholder;
-    if (sensor && current.length()) {
-      placeholder = lookupKeyValue(ha.sensor_names_map, current);
-      if (!placeholder.length()) {
-        placeholder = humanizeIdentifier(current, true);
-      }
-    } else if (!sensor && current.length()) {
-      placeholder = humanizeIdentifier(current, false);
-    }
-    String input_name = sensor ? "sensor_label" : "scene_label";
-    input_name += static_cast<int>(index);
-      html += "<input type=\"text\" name=\"";
-      html += input_name;
-      html += "\" placeholder=\"";
-      if (placeholder.length()) {
-        appendHtmlEscaped(html, String("Standard: ") + placeholder);
-      } else {
-      html += "Eigener Titel";
-    }
-    html += "\" value=\"";
-    appendHtmlEscaped(html, custom_value);
-    html += "\">";
-
-    if (sensor) {
-      String unit_input = "sensor_unit";
-      unit_input += static_cast<int>(index);
-      String unit_value = ha.sensor_custom_units[index];
-      html += "<input type=\"text\" name=\"";
-      html += unit_input;
-      html += "\" maxlength=\"10\" placeholder=\"Einheit z.B. &deg;C\" value=\"";
-      appendHtmlEscaped(html, unit_value);
-      html += "\">";
-    }
-
-    // Color Picker
-    html += "<div style=\"margin-top:12px;\"><label style=\"font-size:12px;color:#64748b;margin-bottom:4px;display:block;\">Farbe:</label><input type=\"color\" name=\"";
-    html += sensor ? "sensor_color" : "scene_color";
-    html += String((int)index);
-    html += "\" value=\"#";
-
-    // Aktuelle Farbe anzeigen (oder Standard)
-    uint32_t current_color = sensor ? ha.sensor_colors[index] : ha.scene_colors[index];
-    if (current_color == 0) {
-      current_color = sensor ? 0x2A2A2A : 0x353535;  // Standard-Farben
-    }
-    char colorHex[7];
-    snprintf(colorHex, sizeof(colorHex), "%06X", (unsigned int)current_color);
-    html += colorHex;
-    html += "\" style=\"width:100%;height:40px;cursor:pointer;\"></div>";
-
-    html += "</div>";
-  };
-
-  for (size_t i = 0; i < HA_SENSOR_SLOT_COUNT; ++i) {
-    appendSlot(true, i, ha.sensor_slots[i]);
-  }
-  for (size_t i = 0; i < HA_SCENE_SLOT_COUNT; ++i) {
-    appendSlot(false, i, ha.scene_slots[i]);
-  }
-
-  html += R"html(
-          </div>
-          <button class="btn" type="submit">Layout speichern</button>
-        </form>
-
-        <div class="section-title">Home Assistant Bridge</div>
-        <p class="hint">Konfiguration erfolgt in Home Assistant - diese Liste dient nur zur Anzeige.</p>
-        <div class="list-block">
-          <strong>Sensoren</strong>)html";
-  appendList(html, ha.sensors_text);
-  html += R"html(
-          <strong>Szenen</strong>)html";
-  appendList(html, ha.scene_alias_text);
-  html += R"html(
-        </div>
-      </div>
-
-      <!-- Tab 3: Game Controls (12 Buttons) -->
-      <div id="tab-game" class="tab-content">
-        <p class="hint">Konfiguriere 12 Buttons fÃƒÂ¼r USB-Tastatur-Makros (z.B. Star Citizen). GerÃƒÂ¤t muss per USB am PC angeschlossen sein.</p>
-        <form action="/game_controls" method="POST">
-          <div class="layout-grid">
-)html";
-
-  // Game Controls - 12 Buttons
-  const GameControlsConfigData& gameData = gameControlsConfig.get();
-  for (size_t i = 0; i < GAME_BUTTON_COUNT; ++i) {
-    html += "<div class=\"slot\" style=\"background:#f0fdf4;border-color:#bbf7d0;\"><div class=\"slot-label\">Button ";
-    html += String((int)i + 1);
-    html += "</div><input type=\"text\" name=\"game_name";
-    html += String((int)i);
-    html += "\" placeholder=\"z.B. Landing Gear\" value=\"";
-    appendHtmlEscaped(html, gameData.buttons[i].name);
-    html += "\" style=\"margin-bottom:8px;\"><input type=\"text\" name=\"game_macro";
-    html += String((int)i);
-    html += "\" placeholder=\"z.B. g oder ctrl+g oder ctrl+shift+a\" value=\"";
-
-    // Aktuelles Makro anzeigen (aus key_code + modifier rekonstruieren)
-    String currentMacro = "";
-    if (gameData.buttons[i].key_code != 0) {
-      // Modifier hinzufÃƒÂ¼gen
-      if (gameData.buttons[i].modifier & 0x01) currentMacro += "ctrl+";
-      if (gameData.buttons[i].modifier & 0x02) currentMacro += "shift+";
-      if (gameData.buttons[i].modifier & 0x04) currentMacro += "alt+";
-
-      // Taste hinzufÃƒÂ¼gen (Scancode zu Buchstabe konvertieren)
-      uint8_t code = gameData.buttons[i].key_code;
-      if (code >= 0x04 && code <= 0x1D) currentMacro += (char)('a' + (code - 0x04));
-      else if (code >= 0x1E && code <= 0x27) currentMacro += (char)('1' + (code - 0x1E));
-      else if (code == 0x2C) currentMacro += "space";
-      else if (code == 0x28) currentMacro += "enter";
-      else if (code == 0x2A) currentMacro += "backspace";
-      else if (code == 0x2B) currentMacro += "tab";
-      else if (code == 0x29) currentMacro += "esc";
-      else currentMacro += "?";
-    }
-
-    appendHtmlEscaped(html, currentMacro);
-    html += "\"><div style=\"margin-top:6px;font-size:11px;color:#64748b;\">Beispiele: g, ctrl+g, ctrl+shift+a, space, enter</div>";
-
-    // Color Picker
-    html += "<div style=\"margin-top:12px;\"><label style=\"font-size:12px;color:#64748b;margin-bottom:4px;display:block;\">Farbe:</label><input type=\"color\" name=\"game_color";
-    html += String((int)i);
-    html += "\" value=\"#";
-
-    // Aktuelle Farbe anzeigen (oder Standard)
-    uint32_t btn_color = (gameData.buttons[i].color != 0) ? gameData.buttons[i].color : 0x353535;
-    char colorHex[7];
-    snprintf(colorHex, sizeof(colorHex), "%06X", (unsigned int)btn_color);
-    html += colorHex;
-    html += "\" style=\"width:100%;height:40px;cursor:pointer;\"></div></div>";
-  }
-
-  html += R"html(
-          </div>
-          <button class="btn" type="submit">Game Controls speichern</button>
-        </form>
-      </div>
-
-      <!-- Tab 4: Tiles Home Editor -->
+      <!-- Tab 2: Tiles Home Editor -->
       <div id="tab-tiles-home" class="tab-content">
         <p class="hint">Klicke auf eine Kachel, um sie zu bearbeiten. WÃƒÂ¤hle den Typ (Sensor/Szene/Key) und passe die Einstellungen an.</p>
         <div class="tile-editor">
@@ -1732,5 +1501,6 @@ String WebAdminServer::getStatusJSON() {
   json += "}";
   return json;
 }
+
 
 
