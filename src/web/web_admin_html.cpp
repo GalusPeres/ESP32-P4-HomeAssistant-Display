@@ -57,6 +57,14 @@ String WebAdminServer::getAdminPage() {
       <h1>Tab5 Admin-Panel</h1>
       <p class="subtitle">Konfiguration &amp; Uebersicht</p>
 
+      <!-- Tab Navigation -->
+      <div class="tab-nav">
+        <button class="tab-btn" onclick="switchTab('tab-network')">Network</button>
+        <button class="tab-btn" onclick="switchTab('tab-tiles-home')">Tiles Home</button>
+        <button class="tab-btn" onclick="switchTab('tab-tiles-game')">Tiles Game</button>
+        <button class="tab-btn" onclick="switchTab('tab-tiles-weather')">Tiles Weather</button>
+      </div>
+
       <!-- WiFi Status at top -->
       <div class="status">
         <div>
