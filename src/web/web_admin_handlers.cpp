@@ -566,3 +566,51 @@ void WebAdminServer::handleGetSensorValues() {
   Serial.println(json);
   server.send(200, "application/json", json);
 }
+
+// ========== Tab Names API ==========
+
+void WebAdminServer::handleGetTabs() {
+  String json = "{\"tabs\":[";
+  json += "{\"id\":0,\"name\":\"";
+  json += tileConfig.getTabName(0);
+  json += "\",\"type\":\"home\"},";
+  json += "{\"id\":1,\"name\":\"";
+  json += tileConfig.getTabName(1);
+  json += "\",\"type\":\"game\"},";
+  json += "{\"id\":2,\"name\":\"";
+  json += tileConfig.getTabName(2);
+  json += "\",\"type\":\"weather\"}";
+  json += "]}";
+  server.send(200, "application/json", json);
+  Serial.println("[WebAdmin] Tab names sent");
+}
+
+void WebAdminServer::handleRenameTab() {
+  if (!server.hasArg("tab") || !server.hasArg("name")) {
+    server.send(400, "application/json", "{\"error\":\"Missing tab or name parameter\"}");
+    return;
+  }
+
+  String tab = server.arg("tab");
+  String name = server.arg("name");
+
+  uint8_t tab_index = 255;
+  if (tab == "home" || tab == "0") {
+    tab_index = 0;
+  } else if (tab == "game" || tab == "1") {
+    tab_index = 1;
+  } else if (tab == "weather" || tab == "2") {
+    tab_index = 2;
+  }
+
+  if (tab_index == 255) {
+    server.send(400, "application/json", "{\"error\":\"Invalid tab\"}");
+    return;
+  }
+
+  tileConfig.setTabName(tab_index, name.c_str());
+  tileConfig.saveTabNames();
+
+  server.send(200, "application/json", "{\"success\":true}");
+  Serial.printf("[WebAdmin] Tab %u renamed to: %s\n", tab_index, name.c_str());
+}

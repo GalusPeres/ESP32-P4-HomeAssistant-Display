@@ -18,6 +18,8 @@ void appendAdminStyles(String& html) {
     .tab-btn { padding:12px 24px; border:none; background:transparent; color:#64748b; font-size:15px; font-weight:600; cursor:pointer; border-bottom:3px solid transparent; transition:all 0.3s; }
     .tab-btn:hover { color:#4f46e5; background:#f8fafc; }
     .tab-btn.active { color:#4f46e5; border-bottom-color:#4f46e5; }
+    .edit-icon { font-size:12px; margin-left:6px; opacity:0.5; cursor:pointer; transition:opacity 0.2s; }
+    .edit-icon:hover { opacity:1; }
     .tab-content { display:none; }
     .tab-content.active { display:block; }
 
@@ -42,6 +44,16 @@ void appendAdminStyles(String& html) {
     .slot select { padding:10px; border:1px solid #cbd5f5; border-radius:10px; font-size:15px; background:#fff; margin-bottom:8px; }
     .slot input { padding:9px; border:1px solid #d6defa; border-radius:10px; font-size:13px; margin-bottom:6px; }
     .legacy-block { border:1px dashed #cbd5f5; background:#f8fafc; border-radius:12px; padding:12px; margin-bottom:16px; }
+
+    /* Tab Settings Above Grid */
+    .tab-settings-top {
+      background:#f8fafc;
+      border-radius:12px;
+      padding:16px;
+      margin-bottom:20px;
+      border:1px solid #e2e8f0;
+      max-width:600px;
+    }
 
     /* Tile Editor - M5Stack Tab5: Content 1100x720 (50% Web-Skalierung) */
     /* Original: Tile 335x150px, Gap 24px  Web: Tile 168x75px, Gap 12px */

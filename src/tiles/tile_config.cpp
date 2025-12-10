@@ -161,6 +161,7 @@ bool TileConfig::load() {
   bool home_ok = loadGrid("home", home_grid);
   bool game_ok = loadGrid("game", game_grid);
   bool weather_ok = loadGrid("weather", weather_grid);
+  loadTabNames();  // Load custom tab names
   return home_ok && game_ok && weather_ok;
 }
 
@@ -271,5 +272,75 @@ bool TileConfig::saveGrid(const char* prefix, const TileGridConfig& grid) {
 
   Serial.printf("[TileConfig] Grid '%s' gespeichert (blob, %u bytes)\n",
                 prefix, static_cast<unsigned>(written));
+  return true;
+}
+
+// ========== Tab Names (configurable via web interface) ==========
+
+const char* TileConfig::getTabName(uint8_t tab_index) const {
+  if (tab_index >= 3) return "Tab";
+
+  // Return custom name if set
+  if (tab_configs[tab_index].name[0] != '\0') {
+    return tab_configs[tab_index].name;
+  }
+
+  // Default names
+  static const char* defaults[3] = {"Tab 1", "Tab 2", "Tab 3"};
+  return defaults[tab_index];
+}
+
+void TileConfig::setTabName(uint8_t tab_index, const char* name) {
+  if (tab_index >= 3 || !name) return;
+
+  size_t len = strlen(name);
+  if (len >= sizeof(tab_configs[0].name)) {
+    len = sizeof(tab_configs[0].name) - 1;
+  }
+
+  memcpy(tab_configs[tab_index].name, name, len);
+  tab_configs[tab_index].name[len] = '\0';
+}
+
+bool TileConfig::loadTabNames() {
+  Preferences prefs;
+  if (!prefs.begin("tab5_config", true)) {  // Read-only
+    return false;
+  }
+
+  for (uint8_t i = 0; i < 3; i++) {
+    char key[16];
+    snprintf(key, sizeof(key), "tab_name_%u", i);
+
+    String name = prefs.getString(key, "");
+    if (name.length() > 0) {
+      setTabName(i, name.c_str());
+    }
+  }
+
+  prefs.end();
+  Serial.println("[TileConfig] Tab-Namen geladen");
+  return true;
+}
+
+bool TileConfig::saveTabNames() {
+  Preferences prefs;
+  if (!prefs.begin("tab5_config", false)) {  // Read-write
+    return false;
+  }
+
+  for (uint8_t i = 0; i < 3; i++) {
+    char key[16];
+    snprintf(key, sizeof(key), "tab_name_%u", i);
+
+    if (tab_configs[i].name[0] != '\0') {
+      prefs.putString(key, tab_configs[i].name);
+    } else {
+      prefs.remove(key);  // Remove if empty (use default)
+    }
+  }
+
+  prefs.end();
+  Serial.println("[TileConfig] Tab-Namen gespeichert");
   return true;
 }

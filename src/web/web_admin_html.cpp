@@ -60,14 +60,36 @@ String WebAdminServer::getAdminPage() {
       <!-- Tab Navigation -->
       <div class="tab-nav">
         <button class="tab-btn" onclick="switchTab('tab-network')">Network</button>
-        <button class="tab-btn" onclick="switchTab('tab-tiles-home')">Tiles Home</button>
-        <button class="tab-btn" onclick="switchTab('tab-tiles-game')">Tiles Game</button>
-        <button class="tab-btn" onclick="switchTab('tab-tiles-weather')">Tiles Weather</button>
+        <button class="tab-btn" onclick="switchTab('tab-tiles-home')">
+          <span id="tab-name-0">)html";
+  html += tileConfig.getTabName(0);
+  html += R"html(</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('tab-tiles-game')">
+          <span id="tab-name-1">)html";
+  html += tileConfig.getTabName(1);
+  html += R"html(</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('tab-tiles-weather')">
+          <span id="tab-name-2">)html";
+  html += tileConfig.getTabName(2);
+  html += R"html(</span>
+        </button>
       </div>
 
       <!-- Tab 6: Tiles Weather Editor -->
       <div id="tab-tiles-weather" class="tab-content">
         <p class="hint">Klicke auf eine Kachel, um sie zu bearbeiten. Wähle den Typ (Sensor/Szene/Key) und passe die Einstellungen an.</p>
+
+        <!-- Tab Settings (Above Grid) -->
+        <div class="tab-settings-top">
+          <h3 style="margin:0 0 12px;font-size:14px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Tab Einstellungen</h3>
+          <label style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">Tab-Name</label>
+          <input type="text" id="weather_tab_name" placeholder="Tab 3" value=")html";
+  html += tileConfig.getTabName(2);
+  html += R"html(" onchange="saveTabName(2, this.value)" style="width:100%;max-width:300px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;box-sizing:border-box;">
+        </div>
+
         <div class="tile-editor">
           <!-- Grid Preview -->
           <div class="tile-grid">
@@ -170,8 +192,10 @@ String WebAdminServer::getAdminPage() {
           </div>
 
           <!-- Settings Panel -->
-          <div class="tile-settings hidden" id="weatherSettings">
-            <h3 style="margin-top:0;">Kachel Einstellungen</h3>
+          <div class="tile-settings" id="weatherSettings">
+            <!-- Tile Settings (Visible only when tile selected) -->
+            <div class="tile-specific-settings hidden">
+              <h3 style="margin-top:0;">Kachel Einstellungen</h3>
 
             <label>Typ</label>
             <select id="weather_tile_type" onchange="updateTileType('weather')">
@@ -241,6 +265,7 @@ String WebAdminServer::getAdminPage() {
               <span>Aenderungen werden automatisch gespeichert.</span>
               <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="resetTile('weather')">Löschen</button>
             </div>
+            </div><!-- /tile-specific-settings -->
           </div>
         </div>
       </div>
@@ -312,6 +337,16 @@ String WebAdminServer::getAdminPage() {
       <!-- Tab 2: Tiles Home Editor -->
       <div id="tab-tiles-home" class="tab-content">
         <p class="hint">Klicke auf eine Kachel, um sie zu bearbeiten. WÃƒÂ¤hle den Typ (Sensor/Szene/Key) und passe die Einstellungen an.</p>
+
+        <!-- Tab Settings (Above Grid) -->
+        <div class="tab-settings-top">
+          <h3 style="margin:0 0 12px;font-size:14px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Tab Einstellungen</h3>
+          <label style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">Tab-Name</label>
+          <input type="text" id="home_tab_name" placeholder="Tab 1" value=")html";
+  html += tileConfig.getTabName(0);
+  html += R"html(" onchange="saveTabName(0, this.value)" style="width:100%;max-width:300px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;box-sizing:border-box;">
+        </div>
+
         <div class="tile-editor">
           <!-- Grid Preview -->
           <div class="tile-grid">
@@ -426,8 +461,10 @@ String WebAdminServer::getAdminPage() {
           </div>
 
           <!-- Settings Panel -->
-          <div class="tile-settings hidden" id="homeSettings">
-            <h3 style="margin-top:0;">Kachel Einstellungen</h3>
+          <div class="tile-settings" id="homeSettings">
+            <!-- Tile Settings (Visible only when tile selected) -->
+            <div class="tile-specific-settings hidden">
+              <h3 style="margin-top:0;">Kachel Einstellungen</h3>
 
             <label>Typ</label>
             <select id="home_tile_type" onchange="updateTileType('home')">
@@ -499,6 +536,7 @@ String WebAdminServer::getAdminPage() {
               <span>Änderungen werden automatisch gespeichert.</span>
               <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="resetTile('home')">Löschen</button>
             </div>
+            </div><!-- /tile-specific-settings -->
           </div>
         </div>
       </div>
@@ -506,6 +544,16 @@ String WebAdminServer::getAdminPage() {
       <!-- Tab 5: Tiles Game Editor -->
       <div id="tab-tiles-game" class="tab-content">
         <p class="hint">Klicke auf eine Kachel, um sie zu bearbeiten. WÃƒÂ¤hle den Typ (Sensor/Szene/Key) und passe die Einstellungen an.</p>
+
+        <!-- Tab Settings (Above Grid) -->
+        <div class="tab-settings-top">
+          <h3 style="margin:0 0 12px;font-size:14px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Tab Einstellungen</h3>
+          <label style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">Tab-Name</label>
+          <input type="text" id="game_tab_name" placeholder="Tab 2" value=")html";
+  html += tileConfig.getTabName(1);
+  html += R"html(" onchange="saveTabName(1, this.value)" style="width:100%;max-width:300px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;box-sizing:border-box;">
+        </div>
+
         <div class="tile-editor">
           <!-- Grid Preview -->
           <div class="tile-grid">
@@ -620,8 +668,10 @@ String WebAdminServer::getAdminPage() {
           </div>
 
           <!-- Settings Panel -->
-          <div class="tile-settings hidden" id="gameSettings">
-            <h3 style="margin-top:0;">Kachel Einstellungen</h3>
+          <div class="tile-settings" id="gameSettings">
+            <!-- Tile Settings (Visible only when tile selected) -->
+            <div class="tile-specific-settings hidden">
+              <h3 style="margin-top:0;">Kachel Einstellungen</h3>
 
             <label>Typ</label>
             <select id="game_tile_type" onchange="updateTileType('game')">
@@ -693,6 +743,7 @@ String WebAdminServer::getAdminPage() {
               <span>Änderungen werden automatisch gespeichert.</span>
               <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="resetTile('game')">Löschen</button>
             </div>
+            </div><!-- /tile-specific-settings -->
           </div>
         </div>
       </div>

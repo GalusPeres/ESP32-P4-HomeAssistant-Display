@@ -15,6 +15,31 @@ void appendAdminScripts(String& html) {
     try { localStorage.setItem('activeAdminTab', tabName); } catch (e) {}
   }
 
+  function saveTabName(tabIndex, newName) {
+    if (!newName || newName.trim().length === 0) return;
+    const trimmedName = newName.trim();
+
+    fetch('/api/tabs/rename', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'tab=' + tabIndex + '&name=' + encodeURIComponent(trimmedName)
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        document.getElementById('tab-name-' + tabIndex).textContent = trimmedName;
+        console.log('Tab ' + tabIndex + ' renamed to: ' + trimmedName);
+      } else {
+        console.error('Error renaming tab:', data.error);
+        alert('Fehler beim Umbenennen: ' + (data.error || 'Unbekannt'));
+      }
+    })
+    .catch(e => {
+      console.error('Error renaming tab:', e);
+      alert('Fehler beim Umbenennen: ' + e);
+    });
+  }
+
   // Tile Editor State
   const tileTabs = ['home', 'game', 'weather'];
   let currentTileTab = 'home';
@@ -97,7 +122,11 @@ void appendAdminScripts(String& html) {
     const tileId = tab + '-tile-' + index;
     document.getElementById(tileId)?.classList.add('active');
     const settingsId = tab + 'Settings';
-    document.getElementById(settingsId)?.classList.remove('hidden');
+    const settingsPanel = document.getElementById(settingsId);
+    if (settingsPanel) {
+      const tileSpecific = settingsPanel.querySelector('.tile-specific-settings');
+      if (tileSpecific) tileSpecific.classList.remove('hidden');
+    }
     loadTileData(index, tab);
     setupLivePreview(tab);
   }

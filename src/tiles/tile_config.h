@@ -42,6 +42,14 @@ struct TileGridConfig {
   Tile tiles[TILES_PER_GRID];
 };
 
+struct TabConfig {
+  char name[32];  // Custom tab name (empty = use default)
+
+  TabConfig() {
+    name[0] = '\0';  // Empty = use default
+  }
+};
+
 class TileConfig {
 public:
   TileConfig();
@@ -58,10 +66,18 @@ public:
   TileGridConfig& getGameGrid() { return game_grid; }
   TileGridConfig& getWeatherGrid() { return weather_grid; }
 
+  // Tab names (configurable via web interface)
+  const char* getTabName(uint8_t tab_index) const;
+  void setTabName(uint8_t tab_index, const char* name);
+  bool loadTabNames();
+  bool saveTabNames();
+
 private:
   TileGridConfig home_grid;
   TileGridConfig game_grid;
   TileGridConfig weather_grid;
+
+  TabConfig tab_configs[3];  // [0]=Home, [1]=Game, [2]=Weather
 
   bool loadGrid(const char* prefix, TileGridConfig& grid);
   bool saveGrid(const char* prefix, const TileGridConfig& grid);

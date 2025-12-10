@@ -26,6 +26,8 @@ bool WebAdminServer::start() {
   server.on("/api/tiles", HTTP_GET, [this]() { this->handleGetTiles(); });
   server.on("/api/tiles", HTTP_POST, [this]() { this->handleSaveTiles(); });
   server.on("/api/tiles/reorder", HTTP_POST, [this]() { this->handleReorderTiles(); });
+  server.on("/api/tabs", HTTP_GET, [this]() { this->handleGetTabs(); });
+  server.on("/api/tabs/rename", HTTP_POST, [this]() { this->handleRenameTab(); });
   server.on("/api/sensor_values", HTTP_GET, [this]() { this->handleGetSensorValues(); });
 
   server.begin();
