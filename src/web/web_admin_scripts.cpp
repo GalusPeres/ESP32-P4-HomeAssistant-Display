@@ -78,6 +78,7 @@ void appendAdminScripts(String& html) {
 
   function updateDraft(tab) {
     if (currentTileIndex === -1) return;
+    if (!drafts[tab]) drafts[tab] = {};
     const prefix = tab;
     const d = {
       type: document.getElementById(prefix + '_tile_type')?.value || '0',

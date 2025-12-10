@@ -560,13 +560,13 @@ void WebAdminServer::handleGetTabs() {
   String json = "{\"tabs\":[";
   json += "{\"id\":0,\"name\":\"";
   json += tileConfig.getTabName(0);
-  json += "\",\"type\":\"home\"},";
+  json += "\",\"type\":\"tab0\"},";
   json += "{\"id\":1,\"name\":\"";
   json += tileConfig.getTabName(1);
-  json += "\",\"type\":\"game\"},";
+  json += "\",\"type\":\"tab1\"},";
   json += "{\"id\":2,\"name\":\"";
   json += tileConfig.getTabName(2);
-  json += "\",\"type\":\"weather\"}";
+  json += "\",\"type\":\"tab2\"}";
   json += "]}";
   server.send(200, "application/json", json);
   Serial.println("[WebAdmin] Tab names sent");
