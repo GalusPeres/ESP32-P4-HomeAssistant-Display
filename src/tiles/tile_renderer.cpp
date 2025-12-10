@@ -40,9 +40,12 @@ struct SensorTileWidgets {
 
 static SensorTileWidgets g_home_sensors[TILES_PER_GRID];
 static SensorTileWidgets g_game_sensors[TILES_PER_GRID];
+static SensorTileWidgets g_weather_sensors[TILES_PER_GRID];
 
 static void clear_sensor_widgets(GridType grid_type) {
-  SensorTileWidgets* target = (grid_type == GridType::GAME) ? g_game_sensors : g_home_sensors;
+  SensorTileWidgets* target = g_home_sensors;
+  if (grid_type == GridType::GAME) target = g_game_sensors;
+  else if (grid_type == GridType::WEATHER) target = g_weather_sensors;
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     target[i].value_label = nullptr;
     target[i].unit_label = nullptr;
@@ -51,7 +54,9 @@ static void clear_sensor_widgets(GridType grid_type) {
 
 void reset_sensor_widget(GridType grid_type, uint8_t grid_index) {
   if (grid_index >= TILES_PER_GRID) return;
-  SensorTileWidgets* target = (grid_type == GridType::GAME) ? g_game_sensors : g_home_sensors;
+  SensorTileWidgets* target = g_home_sensors;
+  if (grid_type == GridType::GAME) target = g_game_sensors;
+  else if (grid_type == GridType::WEATHER) target = g_weather_sensors;
   target[grid_index] = {};
 }
 
@@ -78,7 +83,7 @@ static uint8_t get_sensor_decimals(GridType grid_type, uint8_t grid_index) {
   if (grid_index >= TILES_PER_GRID) return 0xFF;
   const TileGridConfig& grid = (grid_type == GridType::GAME)
                                  ? tileConfig.getGameGrid()
-                                 : tileConfig.getHomeGrid();
+                                 : (grid_type == GridType::WEATHER ? tileConfig.getWeatherGrid() : tileConfig.getHomeGrid());
   return grid.tiles[grid_index].sensor_decimals;
 }
 
@@ -264,6 +269,7 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
 
   // Speichern für spätere Updates
   SensorTileWidgets* target = (grid_type == GridType::HOME) ? g_home_sensors : g_game_sensors;
+  if (grid_type == GridType::WEATHER) target = g_weather_sensors;
   target[index].value_label = v;
   target[index].unit_label = nullptr;
 
@@ -408,6 +414,7 @@ void update_sensor_tile_value(GridType grid_type, uint8_t grid_index, const char
   }
 
   SensorTileWidgets* target = (grid_type == GridType::GAME) ? g_game_sensors : g_home_sensors;
+  if (grid_type == GridType::WEATHER) target = g_weather_sensors;
   lv_obj_t* value_label = target[grid_index].value_label;
   if (!value_label) {
     return;

@@ -16,11 +16,13 @@ void appendAdminScripts(String& html) {
   }
 
   // Tile Editor State
+  const tileTabs = ['home', 'game', 'weather'];
   let currentTileTab = 'home';
   let currentTileIndex = -1;
-  let drafts = { home: {}, game: {} };
+  let drafts = { home: {}, game: {}, weather: {} };
   let homeTilesData = [];
   let gameTilesData = [];
+  let weatherTilesData = [];
 
   function persistDrafts() { try { localStorage.setItem('tileDrafts', JSON.stringify(drafts)); } catch (e) {} }
   function loadDraftsFromStorage() {
@@ -28,7 +30,7 @@ void appendAdminScripts(String& html) {
       const raw = localStorage.getItem('tileDrafts');
       if (raw) drafts = JSON.parse(raw);
     } catch (e) {
-      drafts = { home: {}, game: {} };
+      drafts = { home: {}, game: {}, weather: {} };
     }
   }
   function clearDraft(tab, index) {
@@ -51,7 +53,7 @@ void appendAdminScripts(String& html) {
 
   function updateDraft(tab) {
     if (currentTileIndex === -1) return;
-    const prefix = tab === 'home' ? 'home' : 'game';
+    const prefix = tab;
     const d = {
       type: document.getElementById(prefix + '_tile_type')?.value || '0',
       title: document.getElementById(prefix + '_tile_title')?.value || '',
@@ -69,7 +71,7 @@ void appendAdminScripts(String& html) {
   function applyDraft(tab, index) {
     const d = drafts[tab] && drafts[tab][index];
     if (!d) return false;
-    const prefix = tab === 'home' ? 'home' : 'game';
+    const prefix = tab;
     document.getElementById(prefix + '_tile_type').value = d.type || '0';
     updateTileType(tab);
     document.getElementById(prefix + '_tile_title').value = d.title || '';
@@ -94,14 +96,14 @@ void appendAdminScripts(String& html) {
     document.querySelectorAll('.tile').forEach(t => t.classList.remove('active', 'drop-target', 'dragging'));
     const tileId = tab + '-tile-' + index;
     document.getElementById(tileId)?.classList.add('active');
-    const settingsId = tab === 'home' ? 'homeSettings' : 'gameSettings';
+    const settingsId = tab + 'Settings';
     document.getElementById(settingsId)?.classList.remove('hidden');
     loadTileData(index, tab);
     setupLivePreview(tab);
   }
 
   function maybeFillTitleFromScene(tab) {
-    const prefix = tab === 'home' ? 'home' : 'game';
+    const prefix = tab;
     const typeSel = document.getElementById(prefix + '_tile_type');
     const titleInput = document.getElementById(prefix + '_tile_title');
     const sceneSel = document.getElementById(prefix + '_scene_alias');
@@ -116,7 +118,7 @@ void appendAdminScripts(String& html) {
   }
 
   function setupLivePreview(tab) {
-    const prefix = tab === 'home' ? 'home' : 'game';
+    const prefix = tab;
     const fields = [
       '_tile_title','_tile_color','_tile_type','_sensor_entity','_sensor_unit',
       '_sensor_decimals','_scene_alias','_key_macro'
@@ -160,7 +162,7 @@ void appendAdminScripts(String& html) {
 
   function updateSensorValuePreview(tab) {
     if (currentTileIndex === -1) return;
-    const prefix = tab === 'home' ? 'home' : 'game';
+    const prefix = tab;
     const entitySelect = document.getElementById(prefix + '_sensor_entity');
     const unitInput = document.getElementById(prefix + '_sensor_unit');
     const decimalsInput = document.getElementById(prefix + '_sensor_decimals');
@@ -190,7 +192,7 @@ void appendAdminScripts(String& html) {
 
   function updateTilePreview(tab) {
     if (currentTileIndex === -1) return;
-    const prefix = tab === 'home' ? 'home' : 'game';
+    const prefix = tab;
     const tileId = tab + '-tile-' + currentTileIndex;
     const tileElem = document.getElementById(tileId);
     if (!tileElem) return;
@@ -241,20 +243,20 @@ void appendAdminScripts(String& html) {
       }
     }
 
-    tileElem.innerHTML = html;
-    if (wasActive) tileElem.classList.add('active');
-    if (typeWas !== type && wasActive) {
-      tileElem.classList.add('active');
-      const settingsId = tab === 'home' ? 'homeSettings' : 'gameSettings';
-      document.getElementById(settingsId)?.classList.remove('hidden');
-    }
+  tileElem.innerHTML = html;
+  if (wasActive) tileElem.classList.add('active');
+  if (typeWas !== type && wasActive) {
+    tileElem.classList.add('active');
+    const settingsId = tab + 'Settings';
+    document.getElementById(settingsId)?.classList.remove('hidden');
   }
+}
 
   function loadTileData(index, tab) {
     fetch('/api/tiles?tab=' + tab + '&index=' + index)
       .then(res => res.json())
       .then(data => {
-        const prefix = tab === 'home' ? 'home' : 'game';
+        const prefix = tab;
         document.getElementById(prefix + '_tile_type').value = data.type || 0;
         updateTileType(tab);
         document.getElementById(prefix + '_tile_title').value = data.title || '';
@@ -285,7 +287,7 @@ void appendAdminScripts(String& html) {
   }
 
   function updateTileType(tab) {
-    const prefix = tab === 'home' ? 'home' : 'game';
+    const prefix = tab;
     const typeValue = document.getElementById(prefix + '_tile_type').value;
     document.querySelectorAll('#' + prefix + 'Settings .type-fields').forEach(f => f.classList.remove('show'));
     if (typeValue === '1') document.getElementById(prefix + '_sensor_fields').classList.add('show');
@@ -301,7 +303,7 @@ void appendAdminScripts(String& html) {
     setTimeout(() => { notification.classList.remove('show'); }, 3000);
   }
 
-  let autoSaveTimers = { home: null, game: null };
+  let autoSaveTimers = { home: null, game: null, weather: null };
   function scheduleAutoSave(tab) {
     if (autoSaveTimers[tab]) clearTimeout(autoSaveTimers[tab]);
     autoSaveTimers[tab] = setTimeout(() => saveTile(tab, true), 250);
@@ -309,7 +311,7 @@ void appendAdminScripts(String& html) {
 
   function resetTile(tab) {
     if (currentTileIndex === -1) return;
-    const prefix = tab === 'home' ? 'home' : 'game';
+    const prefix = tab;
     document.getElementById(prefix + '_tile_type').value = '0';
     document.getElementById(prefix + '_tile_title').value = '';
     document.getElementById(prefix + '_tile_color').value = '#2A2A2A';
@@ -325,7 +327,7 @@ void appendAdminScripts(String& html) {
 
   function saveTile(tab, silent = false) {
     if (currentTileIndex === -1) return;
-    const prefix = tab === 'home' ? 'home' : 'game';
+    const prefix = tab;
     const formData = new FormData();
     formData.append('tab', tab);
     formData.append('index', currentTileIndex);
@@ -388,16 +390,19 @@ void appendAdminScripts(String& html) {
     Promise.all([
       fetch('/api/sensor_values').then(res => res.json()),
       fetch('/api/tiles?tab=home').then(res => res.json()),
-      fetch('/api/tiles?tab=game').then(res => res.json())
+      fetch('/api/tiles?tab=game').then(res => res.json()),
+      fetch('/api/tiles?tab=weather').then(res => res.json())
     ])
-    .then(([sensorValues, homeTiles, gameTiles]) => {
+    .then(([sensorValues, homeTiles, gameTiles, weatherTiles]) => {
       homeTilesData = homeTiles;
       gameTilesData = gameTiles;
+      weatherTilesData = weatherTiles;
       homeTiles.forEach((tile, idx) => renderTileFromData('home', idx, tile, sensorValues));
       gameTiles.forEach((tile, idx) => renderTileFromData('game', idx, tile, sensorValues));
+      weatherTiles.forEach((tile, idx) => renderTileFromData('weather', idx, tile, sensorValues));
       if (currentTileIndex !== -1) {
-        const tab = currentTileTab === 'game' ? 'game' : 'home';
-        const settingsId = tab === 'home' ? 'homeSettings' : 'gameSettings';
+        const tab = currentTileTab;
+        const settingsId = tab + 'Settings';
         document.getElementById(settingsId)?.classList.remove('hidden');
         const activeTile = document.getElementById(tab + '-tile-' + currentTileIndex);
         if (activeTile) activeTile.classList.add('active');
@@ -498,6 +503,7 @@ void appendAdminScripts(String& html) {
     setInterval(loadSensorValues, 5000);
     enableTileDrag('home');
     enableTileDrag('game');
+    enableTileDrag('weather');
   });
   </script>
 )html";

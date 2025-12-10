@@ -160,16 +160,19 @@ bool TileConfig::load() {
   clearAllLegacyKeys();  // AufrÃ¤umen von Altlasten (vorherige Key/Value-Layouts)
   bool home_ok = loadGrid("home", home_grid);
   bool game_ok = loadGrid("game", game_grid);
-  return home_ok && game_ok;
+  bool weather_ok = loadGrid("weather", weather_grid);
+  return home_ok && game_ok && weather_ok;
 }
 
-bool TileConfig::save(const TileGridConfig& home, const TileGridConfig& game) {
+bool TileConfig::save(const TileGridConfig& home, const TileGridConfig& game, const TileGridConfig& weather) {
   bool home_ok = saveGrid("home", home);
   bool game_ok = saveGrid("game", game);
+  bool weather_ok = saveGrid("weather", weather);
 
-  if (home_ok && game_ok) {
+  if (home_ok && game_ok && weather_ok) {
     home_grid = home;
     game_grid = game;
+    weather_grid = weather;
     Serial.println("[TileConfig] Konfiguration gespeichert");
     return true;
   }
@@ -189,6 +192,9 @@ bool TileConfig::saveSingleGrid(const char* grid_name, const TileGridConfig& gri
   } else if (strcmp(grid_name, "game") == 0) {
     ok = saveGrid("game", grid);
     if (ok) game_grid = grid;
+  } else if (strcmp(grid_name, "weather") == 0) {
+    ok = saveGrid("weather", grid);
+    if (ok) weather_grid = grid;
   } else {
     return false;
   }

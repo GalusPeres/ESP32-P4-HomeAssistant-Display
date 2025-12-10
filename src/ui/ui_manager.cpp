@@ -6,7 +6,7 @@
 #include "src/ui/tab_tiles_game.h"
 #include "src/ui/tab_game.h"
 
-#include "src/ui/tab_weather.h"
+#include "src/ui/tab_tiles_weather.h"
 
 #include "src/ui/tab_settings.h"
 #include "font_roboto_mono_digits_48.h"
@@ -125,7 +125,7 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
 
   build_tiles_home_tab(tab_panels[0], scene_cb);
   build_tiles_game_tab(tab_panels[1], scene_cb);
-  build_weather_tab(tab_panels[2]);
+  build_tiles_weather_tab(tab_panels[2], scene_cb);
   build_settings_tab(tab_panels[3], hotspot_cb);
 
   for (uint8_t i = 0; i < TAB_COUNT; ++i) {

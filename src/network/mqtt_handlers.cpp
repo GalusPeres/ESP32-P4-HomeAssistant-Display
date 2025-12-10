@@ -7,6 +7,7 @@
 #include "src/ui/tab_tiles_game.h"
 #include "src/ui/tab_solar.h"
 #include "src/tiles/tile_config.h"
+#include "src/ui/tab_tiles_weather.h"
 #include <PubSubClient.h>
 #include <algorithm>
 #include <vector>
@@ -137,6 +138,7 @@ static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
   };
   add_grid_entities(tileConfig.getHomeGrid());
   add_grid_entities(tileConfig.getGameGrid());
+   add_grid_entities(tileConfig.getWeatherGrid());
 }
 
 static bool tryHandleDynamicSensor(const char* topic, const char* payload) {
@@ -149,6 +151,7 @@ static bool tryHandleDynamicSensor(const char* topic, const char* payload) {
       // Update new tile-based system (display)
       tiles_home_update_sensor_by_entity(route.entity_id.c_str(), payload);
       tiles_game_update_sensor_by_entity(route.entity_id.c_str(), payload);
+      tiles_weather_update_sensor_by_entity(route.entity_id.c_str(), payload);
       // Update sensor values map (for web interface)
       haBridgeConfig.updateSensorValue(route.entity_id, payload);
       return true;

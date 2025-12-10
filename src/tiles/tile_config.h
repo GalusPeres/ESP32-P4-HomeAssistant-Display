@@ -47,18 +47,21 @@ public:
   TileConfig();
 
   bool load();
-  bool save(const TileGridConfig& home, const TileGridConfig& game);
+  bool save(const TileGridConfig& home, const TileGridConfig& game, const TileGridConfig& weather);
   bool saveSingleGrid(const char* grid_name, const TileGridConfig& grid);
 
   const TileGridConfig& getHomeGrid() const { return home_grid; }
   const TileGridConfig& getGameGrid() const { return game_grid; }
+  const TileGridConfig& getWeatherGrid() const { return weather_grid; }
 
   TileGridConfig& getHomeGrid() { return home_grid; }
   TileGridConfig& getGameGrid() { return game_grid; }
+  TileGridConfig& getWeatherGrid() { return weather_grid; }
 
 private:
   TileGridConfig home_grid;
   TileGridConfig game_grid;
+  TileGridConfig weather_grid;
 
   bool loadGrid(const char* prefix, TileGridConfig& grid);
   bool saveGrid(const char* prefix, const TileGridConfig& grid);

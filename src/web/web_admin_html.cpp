@@ -79,11 +79,192 @@ String WebAdminServer::getAdminPage() {
         </div>
       </div>
 
+      <!-- Tab 6: Tiles Weather Editor -->
+      <div id="tab-tiles-weather" class="tab-content">
+        <p class="hint">Klicke auf eine Kachel, um sie zu bearbeiten. Wähle den Typ (Sensor/Szene/Key) und passe die Einstellungen an.</p>
+        <div class="tile-editor">
+          <!-- Grid Preview -->
+          <div class="tile-grid">
+)html";
+
+  // Generate 12 tiles for Weather
+  for (int i = 0; i < 12; i++) {
+    const Tile& tile = tileConfig.getWeatherGrid().tiles[i];
+
+    String cssClass = "tile";
+    String tileStyle = "";
+
+    if (tile.type == TILE_EMPTY) {
+      cssClass += " empty";
+    } else if (tile.type == TILE_SENSOR) {
+      cssClass += " sensor";
+      if (tile.bg_color != 0) {
+        char colorHex[8];
+        snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
+        tileStyle = "background:";
+        tileStyle += colorHex;
+      } else {
+        tileStyle = "background:#2A2A2A";
+      }
+    } else if (tile.type == TILE_SCENE) {
+      cssClass += " scene";
+      if (tile.bg_color != 0) {
+        char colorHex[8];
+        snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
+        tileStyle = "background:";
+        tileStyle += colorHex;
+      } else {
+        tileStyle = "background:#353535";
+      }
+    } else if (tile.type == TILE_KEY) {
+      cssClass += " key";
+      if (tile.bg_color != 0) {
+        char colorHex[8];
+        snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
+        tileStyle = "background:";
+        tileStyle += colorHex;
+      } else {
+        tileStyle = "background:#353535";
+      }
+    }
+
+    html += "<div class=\"";
+    html += cssClass;
+    html += "\" data-index=\"";
+    html += String(i);
+    html += "\" draggable=\"true\" id=\"weather-tile-";
+    html += String(i);
+    html += "\" style=\"";
+    html += tileStyle;
+    html += "\" onclick=\"selectTile(parseInt(this.dataset.index), 'weather')\">";
+
+    if (tile.type != TILE_EMPTY) {
+      html += "<div class=\"tile-title\" id=\"weather-tile-";
+      html += String(i);
+      html += "-title\">";
+      if (tile.title.length()) {
+        appendHtmlEscaped(html, tile.title);
+      } else if (tile.type == TILE_SENSOR) {
+        html += "Sensor";
+      } else if (tile.type == TILE_SCENE) {
+        html += "Szene";
+      } else if (tile.type == TILE_KEY) {
+        html += "Key";
+      }
+      html += "</div>";
+    }
+
+    if (tile.type == TILE_SENSOR) {
+      html += "<div class=\"tile-value\" id=\"weather-tile-";
+      html += String(i);
+      html += "-value\">";
+
+      String sensorValue = "--";
+      if (tile.sensor_entity.length()) {
+        sensorValue = haBridgeConfig.findSensorInitialValue(tile.sensor_entity);
+        sensorValue = formatSensorValue(sensorValue, tile.sensor_decimals);
+        if (sensorValue.length() == 0) {
+          sensorValue = "--";
+        }
+      }
+      appendHtmlEscaped(html, sensorValue);
+
+      if (tile.sensor_unit.length()) {
+        html += "<span class=\"tile-unit\">";
+        appendHtmlEscaped(html, tile.sensor_unit);
+        html += "</span>";
+      }
+      html += "</div>";
+    }
+
+    html += "</div>";
+  }
+
+  html += R"html(
+          </div>
+
+          <!-- Settings Panel -->
+          <div class="tile-settings hidden" id="weatherSettings">
+            <h3 style="margin-top:0;">Kachel Einstellungen</h3>
+
+            <label>Typ</label>
+            <select id="weather_tile_type" onchange="updateTileType('weather')">
+              <option value="0">Leer</option>
+              <option value="1">Sensor</option>
+              <option value="2">Szene</option>
+              <option value="3">Key</option>
+            </select>
+
+            <label>Titel</label>
+            <input type="text" id="weather_tile_title" placeholder="Kachel-Titel">
+
+            <label>Farbe</label>
+            <input type="color" id="weather_tile_color" value="#2A2A2A" style="height:40px;">
+
+            <!-- Sensor Fields -->
+            <div id="weather_sensor_fields" class="type-fields">
+              <label>Sensor Entity</label>
+              <select id="weather_sensor_entity">
+                <option value="">Keine Auswahl</option>
+)html";
+
+  for (const auto& opt : sensorOptions) {
+    html += "<option value=\"";
+    appendHtmlEscaped(html, opt);
+    html += "\">";
+    String label = humanizeIdentifier(opt, true) + " - " + opt;
+    appendHtmlEscaped(html, label);
+    html += "</option>";
+  }
+
+  html += R"html(
+              </select>
+              <label>Einheit</label>
+              <input type="text" id="weather_sensor_unit" placeholder="z.B. C">
+              <label>Nachkommastellen (leer = Originalwert)</label>
+              <input type="number" id="weather_sensor_decimals" min="0" max="6" step="1" placeholder="z.B. 1">
+            </div>
+
+            <!-- Scene Fields -->
+            <div id="weather_scene_fields" class="type-fields">
+              <label>Szene</label>
+              <select id="weather_scene_alias">
+                <option value="">Keine Auswahl</option>
+)html";
+
+  for (const auto& opt : sceneOptions) {
+    html += "<option value=\"";
+    appendHtmlEscaped(html, opt.alias);
+    html += "\">";
+    String label = humanizeIdentifier(opt.alias, false) + " - " + opt.entity;
+    appendHtmlEscaped(html, label);
+    html += "</option>";
+  }
+
+  html += R"html(
+              </select>
+            </div>
+
+            <!-- Key Fields -->
+            <div id="weather_key_fields" class="type-fields">
+              <label>Makro</label>
+              <input type="text" id="weather_key_macro" placeholder="z.B. ctrl+g">
+              <div style="font-size:11px;color:#64748b;margin-top:4px;">Beispiele: g, ctrl+g, ctrl+shift+a</div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#64748b;">
+              <span>Aenderungen werden automatisch gespeichert.</span>
+              <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="resetTile('weather')">Löschen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Tab Navigation -->
       <div class="tab-nav">
         <button class="tab-btn" onclick="switchTab('tab-network')">Network</button>
         <button class="tab-btn" onclick="switchTab('tab-tiles-home')">Tiles Home</button>
         <button class="tab-btn" onclick="switchTab('tab-tiles-game')">Tiles Game</button>
+        <button class="tab-btn" onclick="switchTab('tab-tiles-weather')">Tiles Weather</button>
       </div>
 
       <!-- Tab 1: Network (MQTT Configuration) -->

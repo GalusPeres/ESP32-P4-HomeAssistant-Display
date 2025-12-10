@@ -8,6 +8,7 @@
 #include "src/tiles/tile_config.h"
 #include "src/ui/tab_tiles_home.h"
 #include "src/ui/tab_tiles_game.h"
+#include "src/ui/tab_tiles_weather.h"
 #include <algorithm>
 
 // Forward declaration - kein Include von tab_game.h nötig
@@ -281,7 +282,7 @@ void WebAdminServer::handleRestart() {
 }
 
 void WebAdminServer::handleGetTiles() {
-  // GET /api/tiles?tab=home|game[&index=0-11]
+  // GET /api/tiles?tab=home|game|weather[&index=0-11]
   // If index is omitted, return all tiles as array
   if (!server.hasArg("tab")) {
     server.send(400, "application/json", "{\"error\":\"Missing tab parameter\"}");
@@ -289,12 +290,12 @@ void WebAdminServer::handleGetTiles() {
   }
 
   String tab = server.arg("tab");
-  if (tab != "home" && tab != "game") {
+  if (tab != "home" && tab != "game" && tab != "weather") {
     server.send(400, "application/json", "{\"error\":\"Invalid tab\"}");
     return;
   }
 
-  const TileGridConfig& grid = (tab == "home") ? tileConfig.getHomeGrid() : tileConfig.getGameGrid();
+  const TileGridConfig& grid = (tab == "home") ? tileConfig.getHomeGrid() : (tab == "game" ? tileConfig.getGameGrid() : tileConfig.getWeatherGrid());
 
   // Single tile request
   if (server.hasArg("index")) {
@@ -371,13 +372,13 @@ void WebAdminServer::handleSaveTiles() {
   int index = server.arg("index").toInt();
   int type = server.arg("type").toInt();
 
-  if ((tab != "home" && tab != "game") || index < 0 || index >= TILES_PER_GRID) {
+  if ((tab != "home" && tab != "game" && tab != "weather") || index < 0 || index >= TILES_PER_GRID) {
     server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid parameters\"}");
     return;
   }
 
   // Get current grid (mutable reference)
-  TileGridConfig& grid = (tab == "home") ? tileConfig.getHomeGrid() : tileConfig.getGameGrid();
+  TileGridConfig& grid = (tab == "home") ? tileConfig.getHomeGrid() : (tab == "game" ? tileConfig.getGameGrid() : tileConfig.getWeatherGrid());
   Tile& tile = grid.tiles[index];
 
   // Update tile data
@@ -444,7 +445,8 @@ void WebAdminServer::handleSaveTiles() {
   }
 
   // Save to NVS (nur das betroffene Grid)
-  bool success = tileConfig.saveSingleGrid(tab == "home" ? "home" : "game", grid);
+  const char* grid_name = (tab == "home") ? "home" : (tab == "game" ? "game" : "weather");
+  bool success = tileConfig.saveSingleGrid(grid_name, grid);
 
   if (success) {
     Serial.printf("[WebAdmin] Tile %s[%d] gespeichert - Type: %d\n", tab.c_str(), index, type);
@@ -457,9 +459,12 @@ void WebAdminServer::handleSaveTiles() {
     if (tab == "home") {
       tiles_home_update_tile(static_cast<uint8_t>(index));
       Serial.println("[WebAdmin] Home Tile aktualisiert");
-    } else {
+    } else if (tab == "game") {
       tiles_game_update_tile(static_cast<uint8_t>(index));
       Serial.println("[WebAdmin] Game Tile aktualisiert");
+    } else {
+      tiles_weather_update_tile(static_cast<uint8_t>(index));
+      Serial.println("[WebAdmin] Weather Tile aktualisiert");
     }
 
     server.send(200, "application/json", "{\"success\":true}");
@@ -470,7 +475,7 @@ void WebAdminServer::handleSaveTiles() {
 }
 
 void WebAdminServer::handleReorderTiles() {
-  // POST /api/tiles/reorder with tab=home|game, from, to
+  // POST /api/tiles/reorder with tab=home|game|weather, from, to
   if (!server.hasArg("tab") || !server.hasArg("from") || !server.hasArg("to")) {
     server.send(400, "application/json", "{\"success\":false,\"error\":\"Missing parameters\"}");
     return;
@@ -480,23 +485,27 @@ void WebAdminServer::handleReorderTiles() {
   int from = server.arg("from").toInt();
   int to = server.arg("to").toInt();
 
-  if ((tab != "home" && tab != "game") || from < 0 || from >= TILES_PER_GRID || to < 0 || to >= TILES_PER_GRID) {
+  if ((tab != "home" && tab != "game" && tab != "weather") || from < 0 || from >= TILES_PER_GRID || to < 0 || to >= TILES_PER_GRID) {
     server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid parameters\"}");
     return;
   }
 
-  TileGridConfig& grid = (tab == "home") ? tileConfig.getHomeGrid() : tileConfig.getGameGrid();
+  TileGridConfig& grid = (tab == "home") ? tileConfig.getHomeGrid() : (tab == "game" ? tileConfig.getGameGrid() : tileConfig.getWeatherGrid());
   std::swap(grid.tiles[from], grid.tiles[to]);
 
-  bool success = tileConfig.saveSingleGrid(tab == "home" ? "home" : "game", grid);
+  const char* grid_name = (tab == "home") ? "home" : (tab == "game" ? "game" : "weather");
+  bool success = tileConfig.saveSingleGrid(grid_name, grid);
   if (success) {
     mqttReloadDynamicSlots();
     if (tab == "home") {
       tiles_home_update_tile(static_cast<uint8_t>(from));
       tiles_home_update_tile(static_cast<uint8_t>(to));
-    } else {
+    } else if (tab == "game") {
       tiles_game_update_tile(static_cast<uint8_t>(from));
       tiles_game_update_tile(static_cast<uint8_t>(to));
+    } else {
+      tiles_weather_update_tile(static_cast<uint8_t>(from));
+      tiles_weather_update_tile(static_cast<uint8_t>(to));
     }
     server.send(200, "application/json", "{\"success\":true}");
   } else {
