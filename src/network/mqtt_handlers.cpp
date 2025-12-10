@@ -119,18 +119,18 @@ static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
       }
     }
   };
-  add_grid_entities(tileConfig.getHomeGrid());
-  add_grid_entities(tileConfig.getGameGrid());
-   add_grid_entities(tileConfig.getWeatherGrid());
+  add_grid_entities(tileConfig.getTab0Grid());
+  add_grid_entities(tileConfig.getTab1Grid());
+   add_grid_entities(tileConfig.getTab2Grid());
 }
 
 static bool tryHandleDynamicSensor(const char* topic, const char* payload) {
   for (const auto& route : g_dynamic_routes) {
     if (route.topic == topic) {
       // Update tile-based system (display) - all grids
-      tiles_update_sensor_by_entity(GridType::HOME, route.entity_id.c_str(), payload);
-      tiles_update_sensor_by_entity(GridType::GAME, route.entity_id.c_str(), payload);
-      tiles_update_sensor_by_entity(GridType::WEATHER, route.entity_id.c_str(), payload);
+      tiles_update_sensor_by_entity(GridType::TAB0, route.entity_id.c_str(), payload);
+      tiles_update_sensor_by_entity(GridType::TAB1, route.entity_id.c_str(), payload);
+      tiles_update_sensor_by_entity(GridType::TAB2, route.entity_id.c_str(), payload);
       // Update sensor values map (for web interface)
       haBridgeConfig.updateSensorValue(route.entity_id, payload);
       return true;
@@ -165,9 +165,9 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
       networkManager.publishBridgeConfig();
       yield();  // Nach Publish
       // Reload all tile grids
-      tiles_reload_layout(GridType::HOME);
-      tiles_reload_layout(GridType::GAME);
-      tiles_reload_layout(GridType::WEATHER);
+      tiles_reload_layout(GridType::TAB0);
+      tiles_reload_layout(GridType::TAB1);
+      tiles_reload_layout(GridType::TAB2);
       yield();  // Nach Layout Reload
       mqttReloadDynamicSlots();
     } else {

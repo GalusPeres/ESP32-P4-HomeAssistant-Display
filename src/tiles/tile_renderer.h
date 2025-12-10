@@ -8,9 +8,9 @@
 typedef void (*scene_publish_cb_t)(const char* scene_alias);
 
 enum class GridType : uint8_t {
-  HOME = 0,
-  GAME = 1,
-  WEATHER = 2
+  TAB0 = 0,
+  TAB1 = 1,
+  TAB2 = 2
 };
 
 // Rendert ein komplettes Tile-Grid (12 Kacheln, 3×4)

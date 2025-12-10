@@ -116,9 +116,9 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   Serial.println("[UI] Sidebar fertig, lade nun Tiles...");
   // updateStatusbar() wird später in Loop aufgerufen wenn Fonts geladen sind
 
-  build_tiles_tab(tab_panels[0], GridType::HOME, scene_cb);
-  build_tiles_tab(tab_panels[1], GridType::GAME, scene_cb);
-  build_tiles_tab(tab_panels[2], GridType::WEATHER, scene_cb);
+  build_tiles_tab(tab_panels[0], GridType::TAB0, scene_cb);
+  build_tiles_tab(tab_panels[1], GridType::TAB1, scene_cb);
+  build_tiles_tab(tab_panels[2], GridType::TAB2, scene_cb);
   build_settings_tab(tab_panels[3], hotspot_cb);
 
   for (uint8_t i = 0; i < TAB_COUNT; ++i) {

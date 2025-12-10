@@ -150,30 +150,30 @@ static void clearAllLegacyKeys() {
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     return;
   }
-  clearLegacyKeys(prefs, "home");
-  clearLegacyKeys(prefs, "game");
-  clearLegacyKeys(prefs, "weather");  // Altlasten falls vorhanden
+  clearLegacyKeys(prefs, "tab0");
+  clearLegacyKeys(prefs, "tab1");
+  clearLegacyKeys(prefs, "tab2");
   prefs.end();
 }
 
 bool TileConfig::load() {
-  clearAllLegacyKeys();  // AufrÃ¤umen von Altlasten (vorherige Key/Value-Layouts)
-  bool home_ok = loadGrid("home", home_grid);
-  bool game_ok = loadGrid("game", game_grid);
-  bool weather_ok = loadGrid("weather", weather_grid);
+  clearAllLegacyKeys();  // Aufräumen von Altlasten (vorherige Key/Value-Layouts)
+  bool tab0_ok = loadGrid("tab0", tab0_grid);
+  bool tab1_ok = loadGrid("tab1", tab1_grid);
+  bool tab2_ok = loadGrid("tab2", tab2_grid);
   loadTabNames();  // Load custom tab names
-  return home_ok && game_ok && weather_ok;
+  return tab0_ok && tab1_ok && tab2_ok;
 }
 
-bool TileConfig::save(const TileGridConfig& home, const TileGridConfig& game, const TileGridConfig& weather) {
-  bool home_ok = saveGrid("home", home);
-  bool game_ok = saveGrid("game", game);
-  bool weather_ok = saveGrid("weather", weather);
+bool TileConfig::save(const TileGridConfig& tab0, const TileGridConfig& tab1, const TileGridConfig& tab2) {
+  bool tab0_ok = saveGrid("tab0", tab0);
+  bool tab1_ok = saveGrid("tab1", tab1);
+  bool tab2_ok = saveGrid("tab2", tab2);
 
-  if (home_ok && game_ok && weather_ok) {
-    home_grid = home;
-    game_grid = game;
-    weather_grid = weather;
+  if (tab0_ok && tab1_ok && tab2_ok) {
+    tab0_grid = tab0;
+    tab1_grid = tab1;
+    tab2_grid = tab2;
     Serial.println("[TileConfig] Konfiguration gespeichert");
     return true;
   }
@@ -187,15 +187,15 @@ bool TileConfig::saveSingleGrid(const char* grid_name, const TileGridConfig& gri
   }
 
   bool ok = false;
-  if (strcmp(grid_name, "home") == 0) {
-    ok = saveGrid("home", grid);
-    if (ok) home_grid = grid;
-  } else if (strcmp(grid_name, "game") == 0) {
-    ok = saveGrid("game", grid);
-    if (ok) game_grid = grid;
-  } else if (strcmp(grid_name, "weather") == 0) {
-    ok = saveGrid("weather", grid);
-    if (ok) weather_grid = grid;
+  if (strcmp(grid_name, "tab0") == 0) {
+    ok = saveGrid("tab0", grid);
+    if (ok) tab0_grid = grid;
+  } else if (strcmp(grid_name, "tab1") == 0) {
+    ok = saveGrid("tab1", grid);
+    if (ok) tab1_grid = grid;
+  } else if (strcmp(grid_name, "tab2") == 0) {
+    ok = saveGrid("tab2", grid);
+    if (ok) tab2_grid = grid;
   } else {
     return false;
   }

@@ -9,26 +9,26 @@ static const int OUTER = 0;
 static const int GRID_PAD = 24;
 
 /* === Globale State (unified for all 3 grids) === */
-static lv_obj_t* g_tiles_grids[3] = {nullptr};           // [HOME, GAME, WEATHER]
+static lv_obj_t* g_tiles_grids[3] = {nullptr};           // [TAB0, TAB1, TAB2]
 static scene_publish_cb_t g_tiles_scene_cbs[3] = {nullptr};
 static lv_obj_t* g_tiles_objs[3][TILES_PER_GRID] = {nullptr};
 
 /* === Helper: Get grid config by type === */
 static const TileGridConfig& getGridConfig(GridType type) {
   switch(type) {
-    case GridType::HOME:    return tileConfig.getHomeGrid();
-    case GridType::GAME:    return tileConfig.getGameGrid();
-    case GridType::WEATHER: return tileConfig.getWeatherGrid();
-    default:                return tileConfig.getHomeGrid();
+    case GridType::TAB0:    return tileConfig.getTab0Grid();
+    case GridType::TAB1:    return tileConfig.getTab1Grid();
+    case GridType::TAB2:    return tileConfig.getTab2Grid();
+    default:                return tileConfig.getTab0Grid();
   }
 }
 
 /* === Helper: Get grid name for logging === */
 static const char* getGridName(GridType type) {
   switch(type) {
-    case GridType::HOME:    return "TilesHome";
-    case GridType::GAME:    return "TilesGame";
-    case GridType::WEATHER: return "TilesWeather";
+    case GridType::TAB0:    return "TilesTab0";
+    case GridType::TAB1:    return "TilesTab1";
+    case GridType::TAB2:    return "TilesTab2";
     default:                return "TilesUnknown";
   }
 }

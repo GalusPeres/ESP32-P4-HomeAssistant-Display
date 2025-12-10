@@ -332,9 +332,9 @@ String WebAdminServer::getAdminPage() {
 )html";
 
   // Generate three unified tile tabs
-  appendTileTabHTML(html, 0, tileConfig.getHomeGrid(), sensorOptions, sceneOptions, formatSensorValue);
-  appendTileTabHTML(html, 1, tileConfig.getGameGrid(), sensorOptions, sceneOptions, formatSensorValue);
-  appendTileTabHTML(html, 2, tileConfig.getWeatherGrid(), sensorOptions, sceneOptions, formatSensorValue);
+  appendTileTabHTML(html, 0, tileConfig.getTab0Grid(), sensorOptions, sceneOptions, formatSensorValue);
+  appendTileTabHTML(html, 1, tileConfig.getTab1Grid(), sensorOptions, sceneOptions, formatSensorValue);
+  appendTileTabHTML(html, 2, tileConfig.getTab2Grid(), sensorOptions, sceneOptions, formatSensorValue);
 
   html += R"html(
       <!-- Tab 1: Network (MQTT Configuration) -->

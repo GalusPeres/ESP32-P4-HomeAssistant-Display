@@ -55,16 +55,16 @@ public:
   TileConfig();
 
   bool load();
-  bool save(const TileGridConfig& home, const TileGridConfig& game, const TileGridConfig& weather);
+  bool save(const TileGridConfig& tab0, const TileGridConfig& tab1, const TileGridConfig& tab2);
   bool saveSingleGrid(const char* grid_name, const TileGridConfig& grid);
 
-  const TileGridConfig& getHomeGrid() const { return home_grid; }
-  const TileGridConfig& getGameGrid() const { return game_grid; }
-  const TileGridConfig& getWeatherGrid() const { return weather_grid; }
+  const TileGridConfig& getTab0Grid() const { return tab0_grid; }
+  const TileGridConfig& getTab1Grid() const { return tab1_grid; }
+  const TileGridConfig& getTab2Grid() const { return tab2_grid; }
 
-  TileGridConfig& getHomeGrid() { return home_grid; }
-  TileGridConfig& getGameGrid() { return game_grid; }
-  TileGridConfig& getWeatherGrid() { return weather_grid; }
+  TileGridConfig& getTab0Grid() { return tab0_grid; }
+  TileGridConfig& getTab1Grid() { return tab1_grid; }
+  TileGridConfig& getTab2Grid() { return tab2_grid; }
 
   // Tab names (configurable via web interface)
   const char* getTabName(uint8_t tab_index) const;
@@ -73,11 +73,11 @@ public:
   bool saveTabNames();
 
 private:
-  TileGridConfig home_grid;
-  TileGridConfig game_grid;
-  TileGridConfig weather_grid;
+  TileGridConfig tab0_grid;
+  TileGridConfig tab1_grid;
+  TileGridConfig tab2_grid;
 
-  TabConfig tab_configs[3];  // [0]=Home, [1]=Game, [2]=Weather
+  TabConfig tab_configs[3];  // [0]=Tab0, [1]=Tab1, [2]=Tab2
 
   bool loadGrid(const char* prefix, TileGridConfig& grid);
   bool saveGrid(const char* prefix, const TileGridConfig& grid);
