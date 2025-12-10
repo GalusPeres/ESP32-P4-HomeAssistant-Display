@@ -22,6 +22,7 @@ bool WebAdminServer::start() {
   server.on("/bridge", HTTP_POST, [this]() { this->handleSaveBridge(); });
   server.on("/game_controls", HTTP_POST, [this]() { this->handleSaveGameControls(); });
   server.on("/restart", HTTP_POST, [this]() { this->handleRestart(); });
+  server.on("/api/status", [this]() { this->handleStatus(); });
   server.on("/api/tiles", HTTP_GET, [this]() { this->handleGetTiles(); });
   server.on("/api/tiles", HTTP_POST, [this]() { this->handleSaveTiles(); });
   server.on("/api/tiles/reorder", HTTP_POST, [this]() { this->handleReorderTiles(); });

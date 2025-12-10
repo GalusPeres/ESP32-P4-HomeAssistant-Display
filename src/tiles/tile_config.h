@@ -48,6 +48,7 @@ public:
 
   bool load();
   bool save(const TileGridConfig& home, const TileGridConfig& game);
+  bool saveSingleGrid(const char* grid_name, const TileGridConfig& grid);
 
   const TileGridConfig& getHomeGrid() const { return home_grid; }
   const TileGridConfig& getGameGrid() const { return game_grid; }

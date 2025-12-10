@@ -3,6 +3,8 @@
 #include <WiFi.h>
 #include <math.h>
 #include <stdlib.h>
+#include <nvs.h>
+#include <nvs_flash.h>
 #include "src/core/config_manager.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/game/game_controls_config.h"
@@ -581,6 +583,9 @@ String WebAdminServer::getBridgeSuccessPage() {
 
 String WebAdminServer::getStatusJSON() {
   const DeviceConfig& cfg = configManager.getConfig();
+  nvs_stats_t stats{};
+  bool stats_ok = (nvs_get_stats(nullptr, &stats) == ESP_OK);
+
   String json = "{";
   json += "\"wifi_connected\":";
   json += (WiFi.status() == WL_CONNECTED) ? "true" : "false";
@@ -592,6 +597,9 @@ String WebAdminServer::getStatusJSON() {
   json += ",\"ha_prefix\":\"" + String(cfg.ha_prefix) + "\"";
   json += ",\"bridge_configured\":" + String(haBridgeConfig.hasData() ? "true" : "false");
   json += ",\"free_heap\":" + String(ESP.getFreeHeap());
+  json += ",\"nvs_used_entries\":" + String(stats_ok ? stats.used_entries : -1);
+  json += ",\"nvs_free_entries\":" + String(stats_ok ? stats.free_entries : -1);
+  json += ",\"nvs_namespace_count\":" + String(stats_ok ? stats.namespace_count : -1);
   json += "}";
   return json;
 }

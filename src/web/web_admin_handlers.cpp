@@ -443,8 +443,8 @@ void WebAdminServer::handleSaveTiles() {
     tile.sensor_decimals = 0xFF;
   }
 
-  // Save to NVS
-  bool success = tileConfig.save(tileConfig.getHomeGrid(), tileConfig.getGameGrid());
+  // Save to NVS (nur das betroffene Grid)
+  bool success = tileConfig.saveSingleGrid(tab == "home" ? "home" : "game", grid);
 
   if (success) {
     Serial.printf("[WebAdmin] Tile %s[%d] gespeichert - Type: %d\n", tab.c_str(), index, type);
@@ -488,7 +488,7 @@ void WebAdminServer::handleReorderTiles() {
   TileGridConfig& grid = (tab == "home") ? tileConfig.getHomeGrid() : tileConfig.getGameGrid();
   std::swap(grid.tiles[from], grid.tiles[to]);
 
-  bool success = tileConfig.save(tileConfig.getHomeGrid(), tileConfig.getGameGrid());
+  bool success = tileConfig.saveSingleGrid(tab == "home" ? "home" : "game", grid);
   if (success) {
     mqttReloadDynamicSlots();
     if (tab == "home") {
