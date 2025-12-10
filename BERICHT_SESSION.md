@@ -402,3 +402,9 @@ src/web/web_admin_scripts.cpp   (3-tab JavaScript)
 - Legacy-Keys pro Grid werden beim Speichern/Laden entfernt; Weather-Altlasten werden beim Laden mit aufgeräumt.
 - `/api/status` zeigt jetzt auch `nvs_tab5_tiles_used` und `nvs_tab5_config_used`.
 - Aktueller Stand mit leeren Tiles: `nvs_used_entries≈241`, davon `tiles_used≈146` (Blob ~2.2 KB ≈ ~70 Einträge pro Grid) und `config_used≈91`; ausreichend freier Platz (`nvs_free_entries≈389`).
+
+## Update 2025-12-10 (Weather-Grid reaktiviert)
+
+- Weather-Grid wieder aktiv und nutzt denselben Tile-Renderer wie Home/Game.
+- Web-Admin erweitert um dritten Tiles-Tab (Weather) inkl. Drag&Drop, Auto-Save und API-Support (`tab=weather` in /api/tiles und /api/tiles/reorder).
+- MQTT-Dynamik erweitert: Sensor-Updates werden auch ins Weather-Grid gemappt.
