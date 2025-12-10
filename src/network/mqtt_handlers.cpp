@@ -3,7 +3,6 @@
 #include "src/network/network_manager.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/ui/tab_tiles_unified.h"
-#include "src/ui/tab_solar.h"
 #include "src/tiles/tile_config.h"
 #include <PubSubClient.h>
 #include <algorithm>
@@ -51,25 +50,12 @@ static void handleHaWohnTemp(const char* payload, size_t) {
   Serial.printf("HA Wohnbereich Temperatur: %s -> %.2f C\n", payload, v);
 }
 
-static void handleHaPvGarage(const char* payload, size_t) {
-  float v = atof(payload);
-  Serial.printf("HA PV Garage: %s -> %.0f W\n", payload, v);
-  solar_update_power(v);
-}
-
-static void handlePvHistory(const char* payload, size_t len) {
-  Serial.printf("HA PV Garage History: %u bytes\n", static_cast<unsigned>(len));
-  solar_set_history_csv(payload);
-}
-
 static const TopicRoute kRoutes[] = {
   {TopicKey::SENSOR_OUT, handleOutside, false},
   {TopicKey::SENSOR_IN, handleInside, false},
   {TopicKey::SENSOR_SOC, handleSoc, false},
   {TopicKey::SCENE_CMND, handleSceneCommand, false},
   {TopicKey::HA_WOHN_TEMP, handleHaWohnTemp, false},
-  {TopicKey::HA_PV_GARAGE, handleHaPvGarage, false},
-  {TopicKey::HA_PV_GARAGE_HISTORY, handlePvHistory, true},
 };
 
 static String buildHaStatestreamTopic(const String& entity_id) {
