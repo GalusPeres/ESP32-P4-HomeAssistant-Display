@@ -21,6 +21,10 @@ public:
   void resetActivityTimer();
   uint32_t getLastActivityTime() { return last_activity_time; }
 
+  // Touch-Guard nach Wake
+  void armWakeTouchGuard();
+  void setInputEnabled(bool enable);
+
 private:
   static lv_display_t *disp;
   static lv_indev_t *indev;

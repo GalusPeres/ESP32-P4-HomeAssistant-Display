@@ -80,6 +80,7 @@ void PowerManager::enterDisplaySleep() {
   saved_brightness = M5.Display.getBrightness();
   M5.update();
   M5.Display.setBrightness(0);
+  displayManager.setInputEnabled(false);
 
 #if LV_VERSION_MAJOR >= 9
     if (disp) {
@@ -96,6 +97,7 @@ void PowerManager::enterDisplaySleep() {
 void PowerManager::wakeFromDisplaySleep() {
   if (!is_display_sleeping) return;
 
+  displayManager.setInputEnabled(true);
   M5.Display.setBrightness(saved_brightness);
   
 #if LV_VERSION_MAJOR >= 9
@@ -113,6 +115,7 @@ void PowerManager::wakeFromDisplaySleep() {
   
   if (isPoweredByMains()) networkManager.setWifiPowerSaving(false);
   displayManager.resetActivityTimer();
+  displayManager.armWakeTouchGuard();
 }
 
 void PowerManager::updatePowerMode() {

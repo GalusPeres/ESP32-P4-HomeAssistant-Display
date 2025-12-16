@@ -14,6 +14,7 @@ lv_color_t* DisplayManager::buf1 = nullptr;
 lv_color_t* DisplayManager::buf2 = nullptr;
 uint32_t DisplayManager::last_activity_time = 0;
 static bool g_ignore_touch_until_release = false;
+static bool g_input_enabled = true;
 
 // ========== Display Flush Callback ==========
 // IRAM_ATTR: Diese Funktion wird SEHR oft aufgerufen (jeder Frame!)
@@ -34,6 +35,12 @@ void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *
   if (powerManager.isInSleep()) {
     powerManager.wakeFromDisplaySleep();
     g_ignore_touch_until_release = true;  // Erst loslassen, dann wieder reagieren
+    data->state = LV_INDEV_STATE_RELEASED;
+    return;
+  }
+
+  // Eingaben blockieren? (z.B. Sleep aktiv, Touch gesperrt)
+  if (!g_input_enabled) {
     data->state = LV_INDEV_STATE_RELEASED;
     return;
   }
@@ -149,4 +156,18 @@ bool DisplayManager::init() {
 
 void DisplayManager::resetActivityTimer() {
   last_activity_time = millis();
+}
+
+void DisplayManager::armWakeTouchGuard() {
+  g_ignore_touch_until_release = true;
+}
+
+void DisplayManager::setInputEnabled(bool enable) {
+  g_input_enabled = enable;
+  if (indev) {
+    lv_indev_enable(indev, enable);
+    if (!enable) {
+      lv_indev_reset(indev, nullptr);
+    }
+  }
 }
