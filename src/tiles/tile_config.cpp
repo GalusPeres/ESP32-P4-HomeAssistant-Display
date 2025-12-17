@@ -7,6 +7,7 @@ static constexpr uint8_t PACKED_GRID_VERSION = 1;
 
 // Feste Längen für gepackte Strings (inkl. Nullterminator)
 static constexpr size_t TITLE_MAX     = 32;
+static constexpr size_t ICON_MAX      = 32;  // MDI Icon Name (z.B. "thermometer")
 static constexpr size_t ENTITY_MAX    = 64;
 static constexpr size_t UNIT_MAX      = 16;
 static constexpr size_t SCENE_MAX     = 32;
@@ -19,6 +20,7 @@ struct PackedTile {
   uint8_t key_modifier;
   uint32_t bg_color;
   char title[TITLE_MAX];
+  char icon_name[ICON_MAX];        // MDI Icon Name
   char sensor_entity[ENTITY_MAX];
   char sensor_unit[UNIT_MAX];
   char scene_alias[SCENE_MAX];
@@ -58,6 +60,7 @@ static void packTile(const Tile& in, PackedTile& out) {
   out.key_modifier = in.key_modifier;
   out.bg_color = in.bg_color;
   copyString(in.title, out.title, sizeof(out.title));
+  copyString(in.icon_name, out.icon_name, sizeof(out.icon_name));
   copyString(in.sensor_entity, out.sensor_entity, sizeof(out.sensor_entity));
   copyString(in.sensor_unit, out.sensor_unit, sizeof(out.sensor_unit));
   copyString(in.scene_alias, out.scene_alias, sizeof(out.scene_alias));
@@ -71,6 +74,7 @@ static void unpackTile(const PackedTile& in, Tile& out) {
   out.key_code = in.key_code;
   out.key_modifier = in.key_modifier;
   out.title = String(in.title);
+  out.icon_name = String(in.icon_name);
   out.sensor_entity = String(in.sensor_entity);
   out.sensor_unit = String(in.sensor_unit);
   out.scene_alias = String(in.scene_alias);
