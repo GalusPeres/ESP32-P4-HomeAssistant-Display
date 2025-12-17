@@ -162,6 +162,7 @@ void appendAdminScripts(String& html) {
     });
 
     const titleInput = document.getElementById(prefix + '_tile_title');
+    const iconInput = document.getElementById(prefix + '_tile_icon');
     const colorInput = document.getElementById(prefix + '_tile_color');
     const typeSelect = document.getElementById(prefix + '_tile_type');
     const entitySelect = document.getElementById(prefix + '_sensor_entity');
@@ -171,6 +172,7 @@ void appendAdminScripts(String& html) {
     const keyInput = document.getElementById(prefix + '_key_macro');
 
     if (titleInput) titleInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    if (iconInput) iconInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (colorInput) colorInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (typeSelect) typeSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (entitySelect) entitySelect.addEventListener('change', () => { updateTilePreview(tab); updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
