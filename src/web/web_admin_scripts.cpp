@@ -239,6 +239,12 @@ void appendAdminScripts(String& html) {
     const title = document.getElementById(prefix + '_tile_title').value;
     const color = document.getElementById(prefix + '_tile_color').value;
     const type = document.getElementById(prefix + '_tile_type').value;
+    const iconInput = document.getElementById(prefix + '_tile_icon');
+    let iconName = iconInput ? iconInput.value.trim().toLowerCase() : '';
+
+    // Normalize icon name (remove mdi: or mdi- prefix)
+    if (iconName.startsWith('mdi:')) iconName = iconName.substring(4);
+    else if (iconName.startsWith('mdi-')) iconName = iconName.substring(4);
 
     tileElem.className = 'tile';
     tileElem.style.background = '';
@@ -259,8 +265,20 @@ void appendAdminScripts(String& html) {
       tileElem.style.background = color || '#353535';
     }
 
+    let html = '';
+
+    // Icon (optional)
+    if (iconName) {
+      html += '<i class="mdi mdi-' + iconName + ' tile-icon"></i>';
+    }
+
+    // Title
     let titleText = title || (type === '1' ? 'Sensor' : type === '2' ? 'Szene' : 'Key');
-    let html = '<div class="tile-title" id="' + tileId + '-title">' + titleText + '</div>';
+    html += '<div class="tile-title';
+    if (iconName && type === '1') {
+      html += ' with-icon';
+    }
+    html += '" id="' + tileId + '-title">' + titleText + '</div>';
 
     if (type === '1') {
       const entitySelect = document.getElementById(prefix + '_sensor_entity');

@@ -2,6 +2,7 @@
 
 void appendAdminStyles(String& html) {
   html += R"html(
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
   <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; background:#eef2ff; margin:0; padding:0; }
     .wrapper { max-width:1200px; margin:20px auto; padding:20px; }
@@ -149,6 +150,29 @@ void appendAdminStyles(String& html) {
       margin-top:9px;
     }
     .tile-unit { color:#e6e6e6; font-size:14px; opacity:0.95; margin-left:7px; }
+
+    /* Tile Icons (MDI) */
+    .tile-icon {
+      color:#fff;
+      font-size:24px;
+      line-height:1;
+    }
+    /* Sensor: Icon links vom Titel */
+    .tile.sensor .tile-icon {
+      position:absolute;
+      top:10px;
+      left:8px;
+    }
+    .tile.sensor .tile-title.with-icon {
+      margin-left:32px;
+    }
+    /* Scene/Key: Icon oben-mittig */
+    .tile.scene .tile-icon,
+    .tile.key .tile-icon {
+      display:block;
+      text-align:center;
+      margin-bottom:8px;
+    }
 
     /* Settings Panel */
     .tile-settings {

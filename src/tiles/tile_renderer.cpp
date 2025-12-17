@@ -273,7 +273,7 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
   }
   set_label_style(t, lv_color_hex(0xFFFFFF), FONT_TITLE);
   lv_label_set_text(t, tile.title.length() ? tile.title.c_str() : "Sensor");
-  lv_obj_align(t, LV_ALIGN_TOP_LEFT, title_x_offset, 6);  // Y-mittig zum Icon
+  lv_obj_align(t, LV_ALIGN_TOP_LEFT, title_x_offset, 4);  // Y-mittig zum Icon
 
   // Value Label (Wert + Einheit kombiniert)
   lv_obj_t* v = lv_label_create(card);

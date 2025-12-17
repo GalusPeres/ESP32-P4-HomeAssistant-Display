@@ -108,7 +108,26 @@ static void appendTileTabHTML(
     html += "')\">";
 
     if (tile.type != TILE_EMPTY) {
-      html += "<div class=\"tile-title\" id=\"";
+      // Icon (optional) - normalize icon name (lowercase, trim, remove mdi: prefix)
+      String iconName = tile.icon_name;
+      iconName.toLowerCase();
+      iconName.trim();
+      if (iconName.startsWith("mdi:")) iconName.remove(0, 4);
+      else if (iconName.startsWith("mdi-")) iconName.remove(0, 4);
+
+      bool hasIcon = iconName.length() > 0;
+
+      if (hasIcon) {
+        html += "<i class=\"mdi mdi-";
+        appendHtmlEscaped(html, iconName);
+        html += " tile-icon\"></i>";
+      }
+
+      html += "<div class=\"tile-title";
+      if (hasIcon && tile.type == TILE_SENSOR) {
+        html += " with-icon";
+      }
+      html += "\" id=\"";
       html += tab_id;
       html += "-tile-";
       html += String(i);
