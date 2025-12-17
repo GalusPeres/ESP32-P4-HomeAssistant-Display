@@ -1,0 +1,12 @@
+{
+  "name": "mdi-extractor",
+  "version": "1.0.0",
+  "description": "Extract MDI icon mappings for ESP32",
+  "main": "extract.js",
+  "scripts": {
+    "extract": "node extract.js"
+  },
+  "dependencies": {
+    "@mdi/font": "^7.4.47"
+  }
+}
