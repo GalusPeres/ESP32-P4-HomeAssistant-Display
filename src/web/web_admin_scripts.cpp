@@ -274,11 +274,7 @@ void appendAdminScripts(String& html) {
 
     // Title (nur wenn vorhanden)
     if (title) {
-      html += '<div class="tile-title';
-      if (iconName && type === '1') {
-        html += ' with-icon';
-      }
-      html += '" id="' + tileId + '-title">' + title + '</div>';
+      html += '<div class="tile-title" id="' + tileId + '-title">' + title + '</div>';
     }
 
     if (type === '1') {
@@ -444,11 +440,7 @@ void appendAdminScripts(String& html) {
 
       // Title (nur wenn vorhanden)
       if (tile.title && tile.title.length) {
-        html += '<div class="tile-title';
-        if (iconName && tile.type === 1) {
-          html += ' with-icon';
-        }
-        html += '" id="' + tab + '-tile-' + index + '-title">' + tile.title + '</div>';
+        html += '<div class="tile-title" id="' + tab + '-tile-' + index + '-title">' + tile.title + '</div>';
       }
 
       // Sensor value

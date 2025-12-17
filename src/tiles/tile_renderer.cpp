@@ -265,13 +265,13 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
     }
   }
 
-  // Title Label (nur anzeigen wenn Titel vorhanden)
+  // Title Label (nur anzeigen wenn Titel vorhanden) - rechtsbündig
   if (tile.title.length() > 0) {
     lv_obj_t* t = lv_label_create(card);
     if (t) {
       set_label_style(t, lv_color_hex(0xFFFFFF), FONT_TITLE);
       lv_label_set_text(t, tile.title.c_str());
-      lv_obj_align(t, LV_ALIGN_TOP_LEFT, title_x_offset, 4);
+      lv_obj_align(t, LV_ALIGN_TOP_RIGHT, 0, 4);  // Rechtsbündig
     }
   }
 

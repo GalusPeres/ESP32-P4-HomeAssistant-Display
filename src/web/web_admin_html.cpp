@@ -125,11 +125,7 @@ static void appendTileTabHTML(
 
       // Title nur anzeigen wenn vorhanden
       if (tile.title.length()) {
-        html += "<div class=\"tile-title";
-        if (hasIcon && tile.type == TILE_SENSOR) {
-          html += " with-icon";
-        }
-        html += "\" id=\"";
+        html += "<div class=\"tile-title\" id=\"";
         html += tab_id;
         html += "-tile-";
         html += String(i);
