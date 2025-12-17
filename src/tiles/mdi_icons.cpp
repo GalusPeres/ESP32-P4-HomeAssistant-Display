@@ -18,11 +18,12 @@ struct IconMapping {
 static const IconMapping iconMap[] PROGMEM = {
   // ============================================================
   // 🔴 LISTE HIER EINFÜGEN (von icons.txt) 🔴
+  // WICHTIG: Muss alphabetisch sortiert sein für Binary Search!
   // ============================================================
-  {"home", 0xF02DC},           // Beispiel 1
-  {"thermometer", 0xF0500},    // Beispiel 2
-  {"lightbulb", 0xF0335},      // Beispiel 3
-  // ... HIER KOMMEN ALLE ICONS HIN ...
+  {"home", 0xF02DC},           // Beispiel (alphabetisch sortiert)
+  {"lightbulb", 0xF0335},      // Beispiel
+  {"thermometer", 0xF0500},    // Beispiel
+  // ... HIER KOMMEN ALLE ICONS HIN (sortiert!) ...
   // ============================================================
 };
 
@@ -55,7 +56,10 @@ static int32_t findIconIndex(const char* name) {
 
 // Gibt den Codepoint für einen Icon-Namen zurück
 uint32_t getMdiCodepoint(const String& iconName) {
-  if (iconName.length() == 0) return 0;
+  if (iconName.length() == 0) {
+    Serial.println("[MDI] Icon name is empty");
+    return 0;
+  }
 
   String searchName = iconName;
   searchName.toLowerCase();
@@ -68,13 +72,19 @@ uint32_t getMdiCodepoint(const String& iconName) {
     searchName.remove(0, 4);
   }
 
+  Serial.printf("[MDI] Looking up icon: '%s' (from '%s', count=%d)\n",
+                searchName.c_str(), iconName.c_str(), ICON_COUNT);
+
   int32_t index = findIconIndex(searchName.c_str());
 
   if (index >= 0) {
-    return pgm_read_dword(&iconMap[index].codepoint);
+    uint32_t codepoint = pgm_read_dword(&iconMap[index].codepoint);
+    Serial.printf("[MDI] Found icon at index %d, codepoint=0x%X\n", index, codepoint);
+    return codepoint;
   }
 
   // Fallback: Fragezeichen-Icon
+  Serial.printf("[MDI] Icon '%s' not found, using fallback\n", searchName.c_str());
   return 0xF02D8;
 }
 
