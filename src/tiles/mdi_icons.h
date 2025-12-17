@@ -2,6 +2,7 @@
 #define MDI_ICONS_H
 
 #include <Arduino.h>
+#include <lvgl.h>
 
 // Font-Deklaration (muss extern definiert werden, z.B. in main .ino)
 extern const lv_font_t mdi_icons_48;
