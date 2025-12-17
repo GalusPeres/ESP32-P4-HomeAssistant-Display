@@ -2,6 +2,7 @@
 #include "src/network/ha_bridge_config.h"
 #include "src/game/game_ws_server.h"
 #include "src/tiles/tile_config.h"
+#include "src/tiles/mdi_icons.h"
 #include <Arduino.h>
 #include <math.h>
 #include <stdlib.h>
@@ -247,6 +248,23 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
       LV_GRID_ALIGN_STRETCH, col, 1,
       LV_GRID_ALIGN_STRETCH, row, 1);
 
+  // Icon Label (optional, falls icon_name vorhanden)
+  lv_obj_t* icon_lbl = nullptr;
+  int title_x_offset = 0;
+
+  if (tile.icon_name.length() > 0 && FONT_MDI_ICONS != nullptr) {
+    String iconChar = getMdiChar(tile.icon_name);
+    if (iconChar.length() > 0) {
+      icon_lbl = lv_label_create(card);
+      if (icon_lbl) {
+        set_label_style(icon_lbl, lv_color_white(), FONT_MDI_ICONS);
+        lv_label_set_text(icon_lbl, iconChar.c_str());
+        lv_obj_align(icon_lbl, LV_ALIGN_TOP_LEFT, 0, -4);  // -4 für bessere optische Zentrierung
+        title_x_offset = 56;  // 48px Icon + 8px Abstand
+      }
+    }
+  }
+
   // Title Label
   lv_obj_t* t = lv_label_create(card);
   if (!t) {
@@ -255,7 +273,7 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
   }
   set_label_style(t, lv_color_hex(0xFFFFFF), FONT_TITLE);
   lv_label_set_text(t, tile.title.length() ? tile.title.c_str() : "Sensor");
-  lv_obj_align(t, LV_ALIGN_TOP_LEFT, 0, 0);
+  lv_obj_align(t, LV_ALIGN_TOP_LEFT, title_x_offset, 0);
 
   // Value Label (Wert + Einheit kombiniert)
   lv_obj_t* v = lv_label_create(card);
@@ -302,10 +320,31 @@ lv_obj_t* render_scene_tile(lv_obj_t* parent, int col, int row, const Tile& tile
       LV_GRID_ALIGN_STRETCH, col, 1,
       LV_GRID_ALIGN_STRETCH, row, 1);
 
+  // Icon Label (optional, falls icon_name vorhanden)
+  lv_obj_t* icon_lbl = nullptr;
+  if (tile.icon_name.length() > 0 && FONT_MDI_ICONS != nullptr) {
+    String iconChar = getMdiChar(tile.icon_name);
+    if (iconChar.length() > 0) {
+      icon_lbl = lv_label_create(btn);
+      if (icon_lbl) {
+        set_label_style(icon_lbl, lv_color_white(), FONT_MDI_ICONS);
+        lv_label_set_text(icon_lbl, iconChar.c_str());
+        lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0, -20);  // Icon oben-zentriert
+      }
+    }
+  }
+
+  // Title Label
   lv_obj_t* l = lv_label_create(btn);
   set_label_style(l, lv_color_white(), FONT_TITLE);
   lv_label_set_text(l, tile.title.length() ? tile.title.c_str() : "Szene");
-  lv_obj_center(l);
+
+  // Position abhängig von Icon: mit Icon unten, ohne Icon zentriert
+  if (icon_lbl) {
+    lv_obj_align(l, LV_ALIGN_CENTER, 0, 35);  // Text unten unter Icon
+  } else {
+    lv_obj_center(l);  // Text zentriert (wie bisher)
+  }
 
   // Event-Handler für Scene-Aktivierung
   if (scene_cb && tile.scene_alias.length()) {

@@ -16,6 +16,10 @@
 #include "src/game/game_ws_server.h"
 #include "src/tiles/tile_config.h"
 #include "src/tiles/tile_renderer.h"  // Für process_sensor_update_queue()
+#include "src/tiles/mdi_icons.h"      // MDI Icon Mapping
+
+// MDI Icons Font (48px, 4bpp) - definiert in mdi_icons_48.c
+LV_FONT_DECLARE(mdi_icons_48);
 
 static uint32_t last_status_update = 0;
 

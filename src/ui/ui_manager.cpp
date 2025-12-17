@@ -121,6 +121,23 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   build_tiles_tab(tab_panels[2], GridType::TAB2, scene_cb);
   build_settings_tab(tab_panels[3], hotspot_cb);
 
+  // Settings Warm-up: Tab kurz rendern lassen, dann verstecken
+  // Verhindert Freeze beim ersten Öffnen durch Vor-Rendering
+  Serial.println("[UI] Settings-Warm-up...");
+  if (tab_panels[3]) {
+    lv_obj_clear_flag(tab_panels[3], LV_OBJ_FLAG_HIDDEN);  // Kurz zeigen
+    yield();
+    lv_timer_handler();  // Render 1
+    delay(10);
+    yield();
+    lv_timer_handler();  // Render 2
+    delay(10);
+    yield();
+    lv_timer_handler();  // Render 3
+    lv_obj_add_flag(tab_panels[3], LV_OBJ_FLAG_HIDDEN);    // Wieder verstecken
+    Serial.println("[UI] Settings-Warm-up fertig");
+  }
+
   for (uint8_t i = 0; i < TAB_COUNT; ++i) {
     if (tab_panels[i]) {
       lv_obj_add_flag(tab_panels[i], LV_OBJ_FLAG_HIDDEN);
