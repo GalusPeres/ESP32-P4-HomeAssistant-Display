@@ -429,8 +429,27 @@ void appendAdminScripts(String& html) {
     else el.style.background = tile.bg_color ? ('#' + ('000000' + tile.bg_color.toString(16)).slice(-6)) : '#353535';
     if (tile.type === 0) { el.innerHTML = ''; }
     else {
+      // Icon (optional) - normalize icon name
+      let iconName = (tile.icon_name || '').trim().toLowerCase();
+      if (iconName.startsWith('mdi:')) iconName = iconName.substring(4);
+      else if (iconName.startsWith('mdi-')) iconName = iconName.substring(4);
+
+      let html = '';
+
+      // Icon (if exists)
+      if (iconName) {
+        html += '<i class="mdi mdi-' + iconName + ' tile-icon"></i>';
+      }
+
+      // Title
       let title = tile.title && tile.title.length ? tile.title : (tile.type === 1 ? 'Sensor' : tile.type === 2 ? 'Szene' : 'Key');
-      let html = '<div class="tile-title" id="' + tab + '-tile-' + index + '-title">' + title + '</div>';
+      html += '<div class="tile-title';
+      if (iconName && tile.type === 1) {
+        html += ' with-icon';
+      }
+      html += '" id="' + tab + '-tile-' + index + '-title">' + title + '</div>';
+
+      // Sensor value
       if (tile.type === 1) {
         let value = '--';
         if (tile.sensor_entity) value = formatSensorValue(sensorValues[tile.sensor_entity] ?? '--', tile.sensor_decimals);
