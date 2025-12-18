@@ -84,14 +84,15 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   for (uint8_t i = 0; i < TAB_COUNT; ++i) {
     lv_obj_t *btn = lv_button_create(nav_container);
 
-    if (i < 3) {
-      // Tabs 0, 1, 2: Icon + Name aus tileConfig
-      const char* tabName = tileConfig.getTabName(i);
-      const char* iconName = tileConfig.getTabIcon(i);
-      tab_labels[i] = setupTabButton(btn, i, iconName, tabName);
+    // Alle Tabs (0-3) sind konfigurierbar
+    const char* tabName = tileConfig.getTabName(i);
+    const char* iconName = tileConfig.getTabIcon(i);
+
+    // Fallback für Tab 3: "Settings" nur wenn BEIDE leer
+    if (i == 3 && (!tabName || strlen(tabName) == 0) && (!iconName || strlen(iconName) == 0)) {
+      tab_labels[i] = setupTabButton(btn, i, "", "Settings");
     } else {
-      // Tab 3: Settings (fixiert)
-      tab_labels[i] = setupTabButton(btn, i, nullptr, "Settings");
+      tab_labels[i] = setupTabButton(btn, i, iconName, tabName);
     }
 
     lv_obj_set_flex_grow(btn, 1);
@@ -267,12 +268,17 @@ lv_obj_t* UIManager::setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char
     lv_label_set_long_mode(text_label, LV_LABEL_LONG_DOT);
     lv_obj_set_width(text_label, LV_PCT(90));
     lv_obj_set_style_text_align(text_label, LV_TEXT_ALIGN_CENTER, 0);
-  } else if (!has_icon && tab_index < 3) {
-    // Fallback: Wenn beides leer, zeige Nummer "1", "2", "3"
+  } else if (!has_icon) {
+    // Fallback: Wenn beides leer
     text_label = lv_label_create(btn);
-    char fallback[2];
-    snprintf(fallback, sizeof(fallback), "%d", tab_index + 1);
-    lv_label_set_text(text_label, fallback);
+    const char* fallback = (tab_index == 3) ? "Settings" : "";
+    if (fallback[0] == '\0') {
+      char num_fallback[2];
+      snprintf(num_fallback, sizeof(num_fallback), "%d", tab_index + 1);
+      lv_label_set_text(text_label, num_fallback);
+    } else {
+      lv_label_set_text(text_label, fallback);
+    }
     lv_obj_set_style_text_color(text_label, lv_color_white(), 0);
     lv_obj_set_style_text_font(text_label, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_align(text_label, LV_TEXT_ALIGN_CENTER, 0);
@@ -475,8 +481,8 @@ void UIManager::serviceNtpSync() {
 
 // ========== Tab-Button Live-Update ==========
 void UIManager::refreshTabButton(uint8_t tab_index) {
-  // Nur Tabs 0-2 sind konfigurierbar (Tab 3 = Settings ist fixiert)
-  if (tab_index >= 3) return;
+  // Alle Tabs 0-3 sind konfigurierbar
+  if (tab_index >= 4) return;
   if (!tab_buttons[tab_index]) return;
 
   lv_obj_t *btn = tab_buttons[tab_index];
@@ -519,12 +525,17 @@ void UIManager::refreshTabButton(uint8_t tab_index) {
 
     // Update tab_labels array für potenzielle spätere Verwendung
     tab_labels[tab_index] = text_label;
-  } else if (!has_icon && tab_index < 3) {
-    // Fallback: Wenn beides leer, zeige Nummer "1", "2", "3"
+  } else if (!has_icon) {
+    // Fallback: Wenn beides leer
     lv_obj_t *text_label = lv_label_create(btn);
-    char fallback[2];
-    snprintf(fallback, sizeof(fallback), "%d", tab_index + 1);
-    lv_label_set_text(text_label, fallback);
+    const char* fallback = (tab_index == 3) ? "Settings" : "";
+    if (fallback[0] == '\0') {
+      char num_fallback[2];
+      snprintf(num_fallback, sizeof(num_fallback), "%d", tab_index + 1);
+      lv_label_set_text(text_label, num_fallback);
+    } else {
+      lv_label_set_text(text_label, fallback);
+    }
     lv_obj_set_style_text_color(text_label, lv_color_white(), 0);
     lv_obj_set_style_text_font(text_label, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_align(text_label, LV_TEXT_ALIGN_CENTER, 0);

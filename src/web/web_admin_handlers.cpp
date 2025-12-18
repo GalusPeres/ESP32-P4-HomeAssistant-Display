@@ -578,7 +578,12 @@ void WebAdminServer::handleGetTabs() {
   json += tileConfig.getTabName(2);
   json += "\",\"icon_name\":\"";
   json += tileConfig.getTabIcon(2);
-  json += "\",\"type\":\"tab2\"}";
+  json += "\",\"type\":\"tab2\"},";
+  json += "{\"id\":3,\"name\":\"";
+  json += tileConfig.getTabName(3);
+  json += "\",\"icon_name\":\"";
+  json += tileConfig.getTabIcon(3);
+  json += "\",\"type\":\"tab3\"}";
   json += "]}";
   server.send(200, "application/json", json);
   Serial.println("[WebAdmin] Tab names and icons sent");
@@ -601,6 +606,8 @@ void WebAdminServer::handleRenameTab() {
     tab_index = 1;
   } else if (tab == "weather" || tab == "2" || tab == "tab2") {
     tab_index = 2;
+  } else if (tab == "3" || tab == "tab3") {
+    tab_index = 3;
   }
 
   if (tab_index == 255) {

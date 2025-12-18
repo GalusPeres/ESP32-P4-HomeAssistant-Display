@@ -325,14 +325,14 @@ bool TileConfig::saveGrid(const char* prefix, const TileGridConfig& grid) {
 // ========== Tab Names (configurable via web interface) ==========
 
 const char* TileConfig::getTabName(uint8_t tab_index) const {
-  if (tab_index >= 3) return "";
+  if (tab_index >= 4) return "";
 
   // Return custom name (kann auch leer sein)
   return tab_configs[tab_index].name;
 }
 
 void TileConfig::setTabName(uint8_t tab_index, const char* name) {
-  if (tab_index >= 3 || !name) return;
+  if (tab_index >= 4 || !name) return;
 
   size_t len = strlen(name);
   if (len >= sizeof(tab_configs[0].name)) {
@@ -344,12 +344,12 @@ void TileConfig::setTabName(uint8_t tab_index, const char* name) {
 }
 
 const char* TileConfig::getTabIcon(uint8_t tab_index) const {
-  if (tab_index >= 3) return "";
+  if (tab_index >= 4) return "";
   return tab_configs[tab_index].icon_name;
 }
 
 void TileConfig::setTabIcon(uint8_t tab_index, const char* icon_name) {
-  if (tab_index >= 3 || !icon_name) return;
+  if (tab_index >= 4 || !icon_name) return;
 
   size_t len = strlen(icon_name);
   if (len >= sizeof(tab_configs[0].icon_name)) {
@@ -366,7 +366,7 @@ bool TileConfig::loadTabNames() {
     return false;
   }
 
-  for (uint8_t i = 0; i < 3; i++) {
+  for (uint8_t i = 0; i < 4; i++) {
     char key[16];
 
     // Load tab name
@@ -395,7 +395,7 @@ bool TileConfig::saveTabNames() {
     return false;
   }
 
-  for (uint8_t i = 0; i < 3; i++) {
+  for (uint8_t i = 0; i < 4; i++) {
     char key[16];
 
     // Save tab name

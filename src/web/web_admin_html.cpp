@@ -336,7 +336,6 @@ String WebAdminServer::getAdminPage() {
 
       <!-- Tab Navigation -->
       <div class="tab-nav">
-        <button class="tab-btn" onclick="switchTab('tab-network')">Network</button>
         <button class="tab-btn" onclick="switchTab('tab-tiles-tab0')">)html";
 
   // Tab 0 - Icon + Name (oder Fallback "1")
@@ -421,6 +420,34 @@ String WebAdminServer::getAdminPage() {
   }
   html += R"html(</span>
         </button>
+        <button class="tab-btn" onclick="switchTab('tab-network')">)html";
+
+  // Tab 3 (Settings) - Icon + Name (oder Fallback "Settings")
+  String icon3 = String(tileConfig.getTabIcon(3));
+  String name3 = String(tileConfig.getTabName(3));
+  bool has_icon3 = (icon3.length() > 0);
+  bool has_name3 = (name3.length() > 0);
+
+  if (has_icon3) {
+    icon3.trim();
+    icon3.toLowerCase();
+    if (icon3.startsWith("mdi:")) icon3 = icon3.substring(4);
+    else if (icon3.startsWith("mdi-")) icon3 = icon3.substring(4);
+
+    html += R"html(
+          <i class="mdi mdi-)html";
+    html += icon3;
+    html += R"html(" style="font-size:24px;"></i>)html";
+  }
+  html += R"html(
+          <span id="tab-name-3" style="font-size:14px;font-weight:600;">)html";
+  if (has_name3) {
+    html += name3;
+  } else if (!has_icon3) {
+    html += "Settings";  // Fallback
+  }
+  html += R"html(</span>
+        </button>
       </div>
 )html";
 
@@ -430,8 +457,21 @@ String WebAdminServer::getAdminPage() {
   appendTileTabHTML(html, 2, tileConfig.getTab2Grid(), sensorOptions, sceneOptions, formatSensorValue);
 
   html += R"html(
-      <!-- Tab 1: Network (MQTT Configuration) -->
+      <!-- Tab 3: Settings (Network/MQTT Configuration) -->
       <div id="tab-network" class="tab-content">
+        <!-- Tab Settings (Above Content) -->
+        <div class="tab-settings-top">
+          <h3 style="margin:0 0 12px;font-size:14px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Tab Einstellungen</h3>
+          <label style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">Tab-Name</label>
+          <input type="text" id="tab3_tab_name" placeholder="Leer = Settings" value=")html";
+  html += tileConfig.getTabName(3);
+  html += R"html(" oninput="debouncedSaveTabName(3, this.value)" style="width:100%;max-width:300px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:12px;">
+          <label style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">Tab-Icon</label>
+          <input type="text" id="tab3_tab_icon" placeholder="Leer = kein Icon, z.B. cog" value=")html";
+  html += tileConfig.getTabIcon(3);
+  html += R"html(" oninput="debouncedSaveTabIcon(3, this.value)" style="width:100%;max-width:300px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:20px;">
+        </div>
+
         <div class="status">
           <div>
             <div class="status-label">WiFi Status</div>

@@ -85,7 +85,7 @@ private:
   TileGridConfig tab1_grid;
   TileGridConfig tab2_grid;
 
-  TabConfig tab_configs[3];  // [0]=Tab0, [1]=Tab1, [2]=Tab2
+  TabConfig tab_configs[4];  // [0]=Tab0, [1]=Tab1, [2]=Tab2, [3]=Tab3(Settings)
 
   bool loadGrid(const char* prefix, TileGridConfig& grid);
   bool saveGrid(const char* prefix, const TileGridConfig& grid);

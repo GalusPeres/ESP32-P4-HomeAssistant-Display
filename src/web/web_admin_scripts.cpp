@@ -20,13 +20,14 @@ void appendAdminScripts(String& html) {
   const savedTabData = {
     0: {name: '', icon: ''},
     1: {name: '', icon: ''},
-    2: {name: '', icon: ''}
+    2: {name: '', icon: ''},
+    3: {name: '', icon: ''}
   };
 
   // Initialisierung beim Laden der Seite
   function initSavedTabData() {
     console.log('[DEBUG] initSavedTabData() called');
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       const nameInput = document.getElementById('tab' + i + '_tab_name');
       const iconInput = document.getElementById('tab' + i + '_tab_icon');
       if (nameInput) savedTabData[i].name = nameInput.value.trim();
