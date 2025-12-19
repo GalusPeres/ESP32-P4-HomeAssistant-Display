@@ -7,6 +7,8 @@ const MqttTopicRegistry::TopicDescriptor MqttTopicRegistry::kDescriptors[] = {
   {TopicKey::SENSOR_IN, TopicDomain::Sensor, "inside_c"},
   {TopicKey::SENSOR_SOC, TopicDomain::Sensor, "soc_pct"},
   {TopicKey::SCENE_CMND, TopicDomain::Command, "scene"},
+  {TopicKey::LIGHT_CMND, TopicDomain::Command, "light"},
+  {TopicKey::SWITCH_CMND, TopicDomain::Command, "switch"},
   {TopicKey::STAT_CONN, TopicDomain::State, "connected"},
   {TopicKey::TELE_UP, TopicDomain::Telemetry, "uptime"},
   {TopicKey::HA_WOHN_TEMP, TopicDomain::HaStatestream, "sensor/og_wohnbereich_sensor_temperatur/state"},

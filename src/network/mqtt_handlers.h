@@ -8,6 +8,7 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length);
 void mqttSubscribeTopics();
 void mqttPublishDiscovery();
 void mqttPublishScene(const char* scene_name);
+void mqttPublishSwitchCommand(const char* entity_id, const char* state);
 void mqttPublishHomeSnapshot();
 void mqttReloadDynamicSlots();
 

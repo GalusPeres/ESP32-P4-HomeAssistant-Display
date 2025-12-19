@@ -454,6 +454,10 @@ void WebAdminServer::handleSaveTiles() {
     int targetValue = argValue.toInt();
     Serial.printf("[DEBUG] Navigate Backend - hasArg=%d, argValue='%s', targetValue=%d\n", hasArg, argValue.c_str(), targetValue);
     tile.sensor_decimals = hasArg ? targetValue : 0;
+  } else if (type == TILE_SWITCH) {
+    // Element-Pool: sensor_entity = target entity for switch/light
+    tile.sensor_entity = server.hasArg("switch_entity") ? server.arg("switch_entity") : "";
+    tile.sensor_decimals = 0xFF;
   } else {
     tile.sensor_decimals = 0xFF;
   }

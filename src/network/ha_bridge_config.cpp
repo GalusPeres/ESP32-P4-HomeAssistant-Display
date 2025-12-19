@@ -22,6 +22,8 @@ bool HaBridgeConfig::load() {
   }
 
   data.sensors_text = prefs.getString("ha_sensors", "");
+  data.lights_text = "";
+  data.switches_text = "";
   data.scene_alias_text = prefs.getString("ha_scene_alias", "");
   data.sensor_units_map = prefs.getString("ha_sens_units", "");
   data.sensor_names_map = prefs.getString("ha_sens_names", "");
@@ -92,6 +94,8 @@ bool HaBridgeConfig::save(const HaBridgeConfigData& incoming) {
 
 bool HaBridgeConfig::hasData() const {
   return data.sensors_text.length() > 0 ||
+         data.lights_text.length() > 0 ||
+         data.switches_text.length() > 0 ||
          data.scene_alias_text.length() > 0;
 }
 
@@ -276,6 +280,16 @@ bool HaBridgeConfig::applyJson(const char* json_payload) {
     parseArraySection(json.substring(sensors_idx), merged.sensors_text);
   }
 
+  int lights_idx = json.indexOf("\"lights\"");
+  if (lights_idx >= 0) {
+    parseArraySection(json.substring(lights_idx), merged.lights_text);
+  }
+
+  int switches_idx = json.indexOf("\"switches\"");
+  if (switches_idx >= 0) {
+    parseArraySection(json.substring(switches_idx), merged.switches_text);
+  }
+
   int scene_idx = json.indexOf("\"scene_map\"");
   if (scene_idx >= 0) {
     parseObjectSection(json.substring(scene_idx), merged.scene_alias_text);
@@ -303,6 +317,8 @@ bool HaBridgeConfig::applyJson(const char* json_payload) {
   if (ok) {
     Serial.println("[Bridge] Konfiguration aus Home Assistant uebernommen");
     logList("Sensoren", data.sensors_text);
+    logList("Lichter", data.lights_text);
+    logList("Schalter", data.switches_text);
     logList("Szenen", data.scene_alias_text);
   }
   return ok;

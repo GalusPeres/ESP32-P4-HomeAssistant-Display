@@ -114,7 +114,7 @@ static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
   auto add_grid_entities = [&](const TileGridConfig& grid) {
     for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
       const Tile& tile = grid.tiles[i];
-      if (tile.type == TILE_SENSOR && tile.sensor_entity.length()) {
+      if ((tile.type == TILE_SENSOR || tile.type == TILE_SWITCH) && tile.sensor_entity.length()) {
         add_route(tile.sensor_entity, -1);
       }
     }
@@ -252,6 +252,35 @@ void mqttPublishScene(const char* scene_name) {
 
   bool ok = mqtt.publish(mqttTopics.topic(TopicKey::SCENE_CMND), scene_name, false);
   Serial.printf("Scene command -> MQTT '%s' (%s)\n", scene_name, ok ? "ok" : "fail");
+}
+
+// ========== Light/Switch Command publizieren ==========
+void mqttPublishSwitchCommand(const char* entity_id, const char* state) {
+  if (!entity_id || !*entity_id) return;
+
+  PubSubClient& mqtt = networkManager.getMqttClient();
+  if (!mqtt.connected()) {
+    Serial.printf("Switch command skipped (MQTT offline): %s\n", entity_id);
+    return;
+  }
+
+  const char* action = (state && *state) ? state : "toggle";
+  const char* topic = nullptr;
+  if (strncmp(entity_id, "light.", 6) == 0) {
+    topic = mqttTopics.topic(TopicKey::LIGHT_CMND);
+  } else {
+    topic = mqttTopics.topic(TopicKey::SWITCH_CMND);
+  }
+
+  if (!topic || !*topic) {
+    Serial.printf("Switch command skipped (no topic): %s\n", entity_id);
+    return;
+  }
+
+  char payload[256];
+  snprintf(payload, sizeof(payload), "{\"entity_id\":\"%s\",\"state\":\"%s\"}", entity_id, action);
+  bool ok = mqtt.publish(topic, payload, false);
+  Serial.printf("Switch command -> MQTT '%s' (%s)\n", topic, ok ? "ok" : "fail");
 }
 
 // ========== Home Assistant MQTT Discovery ==========

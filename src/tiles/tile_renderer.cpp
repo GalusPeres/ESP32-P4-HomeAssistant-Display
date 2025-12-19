@@ -1,5 +1,6 @@
 #include "src/tiles/tile_renderer.h"
 #include "src/network/ha_bridge_config.h"
+#include "src/network/mqtt_handlers.h"
 #include "src/game/game_ws_server.h"
 #include "src/tiles/tile_config.h"
 #include "src/tiles/mdi_icons.h"
@@ -217,6 +218,8 @@ lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint
       return render_key_tile(parent, col, row, tile, index, grid_type);
     case TILE_NAVIGATE:
       return render_navigate_tile(parent, col, row, tile, index);
+    case TILE_SWITCH:
+      return render_switch_tile(parent, col, row, tile, index);
     default:
       return render_empty_tile(parent, col, row);
   }
@@ -575,6 +578,93 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
         event_data);
   } else {
     Serial.printf("[Navigate] WARNUNG: target_tab=%d ist ungültig (>2), Event-Handler NICHT registriert!\n", target_tab);
+  }
+
+  return btn;
+}
+
+struct SwitchEventData {
+  String entity_id;
+  String title;
+};
+
+lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index) {
+  lv_obj_t* btn = lv_button_create(parent);
+  lv_obj_set_style_radius(btn, 22, 0);
+  lv_obj_set_style_border_width(btn, 0, 0);
+
+  // Farbe verwenden (Standard: 0x353535 wenn color = 0)
+  uint32_t btn_color = (tile.bg_color != 0) ? tile.bg_color : 0x353535;
+  lv_obj_set_style_bg_color(btn, lv_color_hex(btn_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+
+  // Pressed-State: 10% heller
+  uint32_t pressed_color = btn_color + 0x101010;
+  lv_obj_set_style_bg_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
+  lv_obj_set_style_shadow_width(btn, 0, 0);
+  lv_obj_set_height(btn, CARD_H);
+  lv_obj_remove_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_set_grid_cell(btn,
+      LV_GRID_ALIGN_STRETCH, col, 1,
+      LV_GRID_ALIGN_STRETCH, row, 1);
+
+  // Icon Label (optional, falls icon_name vorhanden)
+  lv_obj_t* icon_lbl = nullptr;
+  bool has_icon = tile.icon_name.length() > 0;
+  bool has_title = tile.title.length() > 0;
+
+  if (has_icon && FONT_MDI_ICONS != nullptr) {
+    String iconChar = getMdiChar(tile.icon_name);
+    if (iconChar.length() > 0) {
+      icon_lbl = lv_label_create(btn);
+      if (icon_lbl) {
+        set_label_style(icon_lbl, lv_color_white(), FONT_MDI_ICONS);
+        lv_label_set_text(icon_lbl, iconChar.c_str());
+
+        // Flexible Positionierung: Icon + Title = 2 Zeilen mittig, nur Icon = 1 Zeile mittig
+        if (has_title) {
+          lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0, -20);
+        } else {
+          lv_obj_center(icon_lbl);
+        }
+      }
+    }
+  }
+
+  // Title Label (nur anzeigen wenn Titel vorhanden)
+  if (has_title) {
+    lv_obj_t* l = lv_label_create(btn);
+    if (l) {
+      set_label_style(l, lv_color_white(), FONT_TITLE);
+      lv_label_set_text(l, tile.title.c_str());
+
+      // Flexible Positionierung: mit Icon unten, ohne Icon mittig
+      if (icon_lbl) {
+        lv_obj_align(l, LV_ALIGN_CENTER, 0, 35);
+      } else {
+        lv_obj_center(l);
+      }
+    }
+  }
+
+  if (tile.sensor_entity.length()) {
+    SwitchEventData* event_data = new SwitchEventData{
+      tile.sensor_entity,
+      tile.title
+    };
+
+    lv_obj_add_event_cb(
+        btn,
+        [](lv_event_t* e) {
+          if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+          SwitchEventData* data = static_cast<SwitchEventData*>(lv_event_get_user_data(e));
+          if (!data) return;
+          Serial.printf("[Tile] Switch toggle: %s\n", data->entity_id.c_str());
+          mqttPublishSwitchCommand(data->entity_id.c_str(), "toggle");
+        },
+        LV_EVENT_CLICKED,
+        event_data);
   }
 
   return btn;

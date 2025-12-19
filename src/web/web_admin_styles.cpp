@@ -110,7 +110,8 @@ void appendAdminStyles(String& html) {
     .tile.sensor { display:grid; grid-template-rows:auto 1fr; grid-template-columns:1fr; }
     .tile.scene,
     .tile.key,
-    .tile.navigate { display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    .tile.navigate,
+    .tile.switch { display:flex; flex-direction:column; align-items:center; justify-content:center; }
     .tile.active {
       border:3px solid #4A9EFF;
       box-shadow:0 0 12px rgba(74,158,255,0.6);
@@ -158,7 +159,8 @@ void appendAdminStyles(String& html) {
     }
     .tile.scene .tile-title,
     .tile.key .tile-title,
-    .tile.navigate .tile-title { text-align:center; align-self:auto; width:100%; }
+    .tile.navigate .tile-title,
+    .tile.switch .tile-title { text-align:center; align-self:auto; width:100%; }
     .tile-value {
       color:#fff;
       font-size:24px;
@@ -188,12 +190,14 @@ void appendAdminStyles(String& html) {
     /* Scene/Key/Navigate: Icon oben-mittig (flexbox zentriert automatisch) */
     .tile.scene .tile-icon,
     .tile.key .tile-icon,
-    .tile.navigate .tile-icon {
+    .tile.navigate .tile-icon,
+    .tile.switch .tile-icon {
       margin-bottom:4px;
     }
     .tile.scene .tile-title,
     .tile.key .tile-title,
-    .tile.navigate .tile-title {
+    .tile.navigate .tile-title,
+    .tile.switch .tile-title {
       margin-top:4px;
     }
 

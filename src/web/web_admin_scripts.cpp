@@ -209,7 +209,8 @@ void appendAdminScripts(String& html) {
       sensor_unit: document.getElementById(prefix + '_sensor_unit')?.value || '',
       sensor_decimals: document.getElementById(prefix + '_sensor_decimals')?.value || '',
       scene_alias: document.getElementById(prefix + '_scene_alias')?.value || '',
-      key_macro: document.getElementById(prefix + '_key_macro')?.value || ''
+      key_macro: document.getElementById(prefix + '_key_macro')?.value || '',
+      switch_entity: document.getElementById(prefix + '_switch_entity')?.value || ''
     };
     drafts[tab][currentTileIndex] = d;
     persistDrafts();
@@ -233,6 +234,8 @@ void appendAdminScripts(String& html) {
       document.getElementById(prefix + '_scene_alias').value = d.scene_alias || '';
     } else if (d.type === '3') {
       document.getElementById(prefix + '_key_macro').value = d.key_macro || '';
+    } else if (d.type === '5') {
+      document.getElementById(prefix + '_switch_entity').value = d.switch_entity || '';
     }
     updateTilePreview(tab);
     return true;
@@ -273,7 +276,7 @@ void appendAdminScripts(String& html) {
     const prefix = tab;
     const fields = [
       '_tile_title','_tile_color','_tile_type','_sensor_entity','_sensor_unit',
-      '_sensor_decimals','_scene_alias','_key_macro','_navigate_target'
+      '_sensor_decimals','_scene_alias','_key_macro','_navigate_target','_switch_entity'
     ];
     fields.forEach(id => {
       const el = document.getElementById(prefix + id);
@@ -290,6 +293,7 @@ void appendAdminScripts(String& html) {
     const sceneInput = document.getElementById(prefix + '_scene_alias');
     const keyInput = document.getElementById(prefix + '_key_macro');
     const navigateSelect = document.getElementById(prefix + '_navigate_target');
+    const switchSelect = document.getElementById(prefix + '_switch_entity');
 
     if (titleInput) titleInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (iconInput) iconInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -301,6 +305,7 @@ void appendAdminScripts(String& html) {
     if (sceneInput) sceneInput.addEventListener('input', () => { maybeFillTitleFromScene(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (keyInput) keyInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (navigateSelect) navigateSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    if (switchSelect) switchSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
   }
 
   function formatSensorValue(value, decimals) {
@@ -357,7 +362,8 @@ void appendAdminScripts(String& html) {
     const typeWas = tileElem.classList.contains('sensor')   ? '1' :
                     tileElem.classList.contains('scene')    ? '2' :
                     tileElem.classList.contains('key')      ? '3' :
-                    tileElem.classList.contains('navigate') ? '4' : '0';
+                    tileElem.classList.contains('navigate') ? '4' :
+                    tileElem.classList.contains('switch')   ? '5' : '0';
     const title = document.getElementById(prefix + '_tile_title').value;
     const color = document.getElementById(prefix + '_tile_color').value;
     const type = document.getElementById(prefix + '_tile_type').value;
@@ -387,6 +393,9 @@ void appendAdminScripts(String& html) {
       tileElem.style.background = color || '#353535';
     } else if (type === '4') {
       tileElem.classList.add('navigate');
+      tileElem.style.background = color || '#353535';
+    } else if (type === '5') {
+      tileElem.classList.add('switch');
       tileElem.style.background = color || '#353535';
     }
 
@@ -450,6 +459,8 @@ void appendAdminScripts(String& html) {
         } else if (data.type === 4) {
           const navEl = document.getElementById(prefix + '_navigate_target');
           if (navEl) navEl.value = (data.sensor_decimals !== undefined && data.sensor_decimals <= 2) ? data.sensor_decimals : '0';
+        } else if (data.type === 5) {
+          document.getElementById(prefix + '_switch_entity').value = data.sensor_entity || '';
         }
         const decEl = document.getElementById(prefix + '_sensor_decimals');
         if (data.type !== 1 && decEl) decEl.value = '';
@@ -473,6 +484,7 @@ void appendAdminScripts(String& html) {
     else if (typeValue === '2') document.getElementById(prefix + '_scene_fields').classList.add('show');
     else if (typeValue === '3') document.getElementById(prefix + '_key_fields').classList.add('show');
     else if (typeValue === '4') document.getElementById(prefix + '_navigate_fields').classList.add('show');
+    else if (typeValue === '5') document.getElementById(prefix + '_switch_fields').classList.add('show');
   }
 
   function showNotification(message, success = true) {
@@ -496,7 +508,7 @@ void appendAdminScripts(String& html) {
     document.getElementById(prefix + '_tile_title').value = '';
     document.getElementById(prefix + '_tile_icon').value = '';
     document.getElementById(prefix + '_tile_color').value = '#2A2A2A';
-    ['_sensor_entity','_sensor_unit','_sensor_decimals','_scene_alias','_key_macro'].forEach(suf => {
+    ['_sensor_entity','_sensor_unit','_sensor_decimals','_scene_alias','_key_macro','_switch_entity'].forEach(suf => {
       const el = document.getElementById(prefix + suf);
       if (el) el.value = '';
     });
@@ -530,6 +542,8 @@ void appendAdminScripts(String& html) {
       const navTargetValue = navTargetElement ? navTargetElement.value : 'ELEMENT_NOT_FOUND';
       console.log('[DEBUG] Navigate Target - Element:', navTargetElement, 'Value:', navTargetValue, 'Prefix:', prefix);
       formData.append('navigate_target', navTargetValue);
+    } else if (typeValue === '5') {
+      formData.append('switch_entity', document.getElementById(prefix + '_switch_entity').value);
     }
     fetch('/api/tiles', { method:'POST', body:formData })
       .then(res => res.json())
@@ -557,6 +571,7 @@ void appendAdminScripts(String& html) {
     else if (tile.type === 2) cls.push('scene');
     else if (tile.type === 3) cls.push('key');
     else if (tile.type === 4) cls.push('navigate');
+    else if (tile.type === 5) cls.push('switch');
     else cls.push('empty');
     el.className = cls.join(' ');
     if (tile.type === 0) el.style.background = 'transparent';

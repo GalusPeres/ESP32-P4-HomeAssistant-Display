@@ -10,7 +10,8 @@ enum TileType : uint8_t {
   TILE_SENSOR = 1,
   TILE_SCENE = 2,
   TILE_KEY = 3,
-  TILE_NAVIGATE = 4
+  TILE_NAVIGATE = 4,
+  TILE_SWITCH = 5
 };
 
 struct Tile {

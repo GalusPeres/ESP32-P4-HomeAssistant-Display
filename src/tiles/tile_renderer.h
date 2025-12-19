@@ -24,6 +24,7 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
 lv_obj_t* render_scene_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, scene_publish_cb_t scene_cb);
 lv_obj_t* render_key_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type);
 lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index);
+lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index);
 lv_obj_t* render_empty_tile(lv_obj_t* parent, int col, int row);
 
 // Update-Funktionen (für Sensoren)

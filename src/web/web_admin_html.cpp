@@ -19,6 +19,7 @@ static void appendTileTabHTML(
     const TileGridConfig& grid,
     const std::vector<String>& sensorOptions,
     const std::vector<SceneOption>& sceneOptions,
+    const std::vector<String>& switchOptions,
     const std::function<String(const String&, uint8_t)>& formatSensorValue
 ) {
   String tab_id = "tab" + String(tab_index);
@@ -31,7 +32,7 @@ static void appendTileTabHTML(
       <div id="tab-tiles-)html";
   html += tab_id;
   html += R"html(" class="tab-content">
-        <p class="hint">Klicke auf eine Kachel, um sie zu bearbeiten. Wähle den Typ (Sensor/Szene/Key) und passe die Einstellungen an.</p>
+        <p class="hint">Klicke auf eine Kachel, um sie zu bearbeiten. Waehle den Typ (Sensor/Szene/Key/Navigation/Switch) und passe die Einstellungen an.</p>
 
         <!-- Tab Settings (Above Grid) -->
         <div class="tab-settings-top">
@@ -99,6 +100,16 @@ static void appendTileTabHTML(
       }
     } else if (tile.type == TILE_NAVIGATE) {
       cssClass += " navigate";
+      if (tile.bg_color != 0) {
+        char colorHex[8];
+        snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
+        tileStyle = "background:";
+        tileStyle += colorHex;
+      } else {
+        tileStyle = "background:#353535";
+      }
+    } else if (tile.type == TILE_SWITCH) {
+      cssClass += " switch";
       if (tile.bg_color != 0) {
         char colorHex[8];
         snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
@@ -201,6 +212,7 @@ static void appendTileTabHTML(
               <option value="2">Szene</option>
               <option value="3">Key</option>
               <option value="4">Navigation</option>
+              <option value="5">Schalter</option>
             </select>
 
             <label>Titel</label>
@@ -307,6 +319,30 @@ static void appendTileTabHTML(
   html += R"html(</option>
               </select>
             </div>
+
+            <!-- Switch Fields -->
+            <div id=")html";
+  html += tab_id;
+  html += R"html(_switch_fields" class="type-fields">
+              <label>Schalter/Licht</label>
+              <select id=")html";
+  html += tab_id;
+  html += R"html(_switch_entity">
+                <option value="">Keine Auswahl</option>
+)html";
+
+  for (const auto& opt : switchOptions) {
+    html += "<option value=\"";
+    appendHtmlEscaped(html, opt);
+    html += "\">";
+    String label = humanizeIdentifier(opt, true) + " - " + opt;
+    appendHtmlEscaped(html, label);
+    html += "</option>";
+  }
+
+  html += R"html(
+              </select>
+            </div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#64748b;">
               <span>Änderungen werden automatisch gespeichert.</span>
               <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="resetTile(')html";
@@ -325,6 +361,25 @@ String WebAdminServer::getAdminPage() {
   const HaBridgeConfigData& ha = haBridgeConfig.get();
   const auto sensorOptions = parseSensorList(ha.sensors_text);
   const auto sceneOptions = parseSceneList(ha.scene_alias_text);
+  const auto lightOptions = parseSensorList(ha.lights_text);
+  const auto switchOptionsRaw = parseSensorList(ha.switches_text);
+  std::vector<String> switchOptions;
+  switchOptions.reserve(lightOptions.size() + switchOptionsRaw.size());
+  auto addSwitchOption = [&](const String& entry) {
+    if (!entry.length()) return;
+    for (const auto& existing : switchOptions) {
+      if (existing.equalsIgnoreCase(entry)) {
+        return;
+      }
+    }
+    switchOptions.push_back(entry);
+  };
+  for (const auto& opt : lightOptions) {
+    addSwitchOption(opt);
+  }
+  for (const auto& opt : switchOptionsRaw) {
+    addSwitchOption(opt);
+  }
   auto formatSensorValue = [](const String& raw, uint8_t decimals) -> String {
     String v = raw;
     v.trim();
@@ -483,9 +538,9 @@ String WebAdminServer::getAdminPage() {
 )html";
 
   // Generate three unified tile tabs
-  appendTileTabHTML(html, 0, tileConfig.getTab0Grid(), sensorOptions, sceneOptions, formatSensorValue);
-  appendTileTabHTML(html, 1, tileConfig.getTab1Grid(), sensorOptions, sceneOptions, formatSensorValue);
-  appendTileTabHTML(html, 2, tileConfig.getTab2Grid(), sensorOptions, sceneOptions, formatSensorValue);
+  appendTileTabHTML(html, 0, tileConfig.getTab0Grid(), sensorOptions, sceneOptions, switchOptions, formatSensorValue);
+  appendTileTabHTML(html, 1, tileConfig.getTab1Grid(), sensorOptions, sceneOptions, switchOptions, formatSensorValue);
+  appendTileTabHTML(html, 2, tileConfig.getTab2Grid(), sensorOptions, sceneOptions, switchOptions, formatSensorValue);
 
   html += R"html(
       <!-- Tab 3: Settings (Network/MQTT Configuration) -->

@@ -13,6 +13,8 @@ enum class TopicKey : uint8_t {
   SENSOR_IN,
   SENSOR_SOC,
   SCENE_CMND,
+  LIGHT_CMND,
+  SWITCH_CMND,
   STAT_CONN,
   TELE_UP,
   HA_WOHN_TEMP,
