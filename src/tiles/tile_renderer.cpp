@@ -44,6 +44,7 @@ struct SensorTileWidgets {
 struct SwitchTileWidgets {
   lv_obj_t* icon_label = nullptr;
   lv_obj_t* title_label = nullptr;
+  lv_obj_t* switch_obj = nullptr;
 };
 
 static SensorTileWidgets g_tab0_sensors[TILES_PER_GRID];
@@ -83,6 +84,7 @@ static void clear_switch_widgets(GridType grid_type) {
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     target[i].icon_label = nullptr;
     target[i].title_label = nullptr;
+    target[i].switch_obj = nullptr;
   }
 }
 
@@ -405,7 +407,7 @@ static void update_switch_tile_state(GridType grid_type, uint8_t grid_index, con
   else if (grid_type == GridType::TAB2) target = g_tab2_switches;
 
   SwitchTileWidgets& widgets = target[grid_index];
-  if (!widgets.icon_label && !widgets.title_label) return;
+  if (!widgets.icon_label && !widgets.title_label && !widgets.switch_obj) return;
 
   SwitchState state = parse_switch_payload(payload);
   if (!state.has_state && !state.has_color) return;
@@ -423,6 +425,16 @@ static void update_switch_tile_state(GridType grid_type, uint8_t grid_index, con
     lv_obj_set_style_text_color(widgets.icon_label, lv_color, 0);
   } else if (widgets.title_label) {
     lv_obj_set_style_text_color(widgets.title_label, lv_color, 0);
+  }
+
+  if (widgets.switch_obj) {
+    if (!state.has_state || state.is_on) {
+      lv_obj_add_state(widgets.switch_obj, LV_STATE_CHECKED);
+    } else {
+      lv_obj_remove_state(widgets.switch_obj, LV_STATE_CHECKED);
+    }
+    lv_obj_set_style_bg_color(widgets.switch_obj, lv_color_hex(kIconOff), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(widgets.switch_obj, lv_color_hex(icon_color), LV_PART_INDICATOR | LV_STATE_CHECKED);
   }
 }
 
@@ -901,24 +913,40 @@ struct SwitchEventData {
   String title;
 };
 
+struct SwitchWidgetEventData {
+  String entity_id;
+};
+
+static bool is_switch_widget_tile(const Tile& tile) {
+  return tile.sensor_decimals == 1;
+}
+
 lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type) {
-  lv_obj_t* btn = lv_button_create(parent);
-  lv_obj_set_style_radius(btn, 22, 0);
-  lv_obj_set_style_border_width(btn, 0, 0);
+  const bool use_switch_widget = is_switch_widget_tile(tile);
+  lv_obj_t* container = use_switch_widget ? lv_obj_create(parent) : lv_button_create(parent);
+  lv_obj_set_style_radius(container, 22, 0);
+  lv_obj_set_style_border_width(container, 0, 0);
 
   // Farbe verwenden (Standard: 0x353535 wenn color = 0)
-  uint32_t btn_color = (tile.bg_color != 0) ? tile.bg_color : 0x353535;
-  lv_obj_set_style_bg_color(btn, lv_color_hex(btn_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+  uint32_t tile_color = (tile.bg_color != 0) ? tile.bg_color : 0x353535;
+  lv_obj_set_style_bg_color(container, lv_color_hex(tile_color), LV_PART_MAIN | LV_STATE_DEFAULT);
 
-  // Pressed-State: 10% heller
-  uint32_t pressed_color = btn_color + 0x101010;
-  lv_obj_set_style_bg_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
-  lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
-  lv_obj_set_style_shadow_width(btn, 0, 0);
-  lv_obj_set_height(btn, CARD_H);
-  lv_obj_remove_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+  if (!use_switch_widget) {
+    // Pressed-State: 10% heller
+    uint32_t pressed_color = tile_color + 0x101010;
+    lv_obj_set_style_bg_color(container, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+  }
 
-  lv_obj_set_grid_cell(btn,
+  lv_obj_set_style_bg_opa(container, LV_OPA_COVER, 0);
+  lv_obj_set_style_shadow_width(container, 0, 0);
+  if (use_switch_widget) {
+    lv_obj_set_style_pad_hor(container, 20, 0);
+    lv_obj_set_style_pad_ver(container, 24, 0);
+  }
+  lv_obj_set_height(container, CARD_H);
+  lv_obj_remove_flag(container, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_set_grid_cell(container,
       LV_GRID_ALIGN_STRETCH, col, 1,
       LV_GRID_ALIGN_STRETCH, row, 1);
 
@@ -931,16 +959,20 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
   if (has_icon && FONT_MDI_ICONS != nullptr) {
     String iconChar = getMdiChar(tile.icon_name);
     if (iconChar.length() > 0) {
-      icon_lbl = lv_label_create(btn);
+      icon_lbl = lv_label_create(container);
       if (icon_lbl) {
         set_label_style(icon_lbl, lv_color_white(), FONT_MDI_ICONS);
         lv_label_set_text(icon_lbl, iconChar.c_str());
 
-        // Flexible Positionierung: Icon + Title = 2 Zeilen mittig, nur Icon = 1 Zeile mittig
-        if (has_title) {
-          lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0, -20);
+        if (use_switch_widget) {
+          lv_obj_align(icon_lbl, LV_ALIGN_TOP_RIGHT, 4, -8);
         } else {
-          lv_obj_center(icon_lbl);
+          // Flexible Positionierung: Icon + Title = 2 Zeilen mittig, nur Icon = 1 Zeile mittig
+          if (has_title) {
+            lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0, -20);
+          } else {
+            lv_obj_center(icon_lbl);
+          }
         }
       }
     }
@@ -948,17 +980,44 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
 
   // Title Label (nur anzeigen wenn Titel vorhanden)
   if (has_title) {
-    title_lbl = lv_label_create(btn);
+    title_lbl = lv_label_create(container);
     if (title_lbl) {
       set_label_style(title_lbl, lv_color_white(), FONT_TITLE);
       lv_label_set_text(title_lbl, tile.title.c_str());
 
-      // Flexible Positionierung: mit Icon unten, ohne Icon mittig
-      if (icon_lbl) {
-        lv_obj_align(title_lbl, LV_ALIGN_CENTER, 0, 35);
+      if (use_switch_widget) {
+        lv_obj_align(title_lbl, LV_ALIGN_TOP_LEFT, 0, 4);
       } else {
-        lv_obj_center(title_lbl);
+        // Flexible Positionierung: mit Icon unten, ohne Icon mittig
+        if (icon_lbl) {
+          lv_obj_align(title_lbl, LV_ALIGN_CENTER, 0, 35);
+        } else {
+          lv_obj_center(title_lbl);
+        }
       }
+    }
+  }
+
+  lv_obj_t* switch_obj = nullptr;
+  if (use_switch_widget) {
+    switch_obj = lv_switch_create(container);
+    if (switch_obj) {
+      lv_obj_set_size(switch_obj, 90, 44);
+      lv_obj_align(switch_obj, LV_ALIGN_CENTER, 0, 28);
+      lv_obj_set_style_bg_color(switch_obj, lv_color_hex(0xB0B0B0), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+      lv_obj_set_style_bg_color(switch_obj, lv_color_hex(0xFFD54F), LV_PART_INDICATOR | LV_STATE_CHECKED);
+      lv_obj_add_event_cb(
+          switch_obj,
+          [](lv_event_t* e) {
+            if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+            SwitchWidgetEventData* data = static_cast<SwitchWidgetEventData*>(lv_event_get_user_data(e));
+            if (!data || !data->entity_id.length()) return;
+            lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
+            bool is_on = target && lv_obj_has_state(target, LV_STATE_CHECKED);
+            mqttPublishSwitchCommand(data->entity_id.c_str(), is_on ? "on" : "off");
+          },
+          LV_EVENT_VALUE_CHANGED,
+          new SwitchWidgetEventData{tile.sensor_entity});
     }
   }
 
@@ -968,6 +1027,7 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
   if (index < TILES_PER_GRID) {
     target[index].icon_label = icon_lbl;
     target[index].title_label = title_lbl;
+    target[index].switch_obj = switch_obj;
   }
 
   if (tile.sensor_entity.length()) {
@@ -977,14 +1037,14 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
     }
   }
 
-  if (tile.sensor_entity.length()) {
+  if (!use_switch_widget && tile.sensor_entity.length()) {
     SwitchEventData* event_data = new SwitchEventData{
       tile.sensor_entity,
       tile.title
     };
 
     lv_obj_add_event_cb(
-        btn,
+        container,
         [](lv_event_t* e) {
           if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
           SwitchEventData* data = static_cast<SwitchEventData*>(lv_event_get_user_data(e));
@@ -996,7 +1056,7 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
         event_data);
   }
 
-  return btn;
+  return container;
 }
 
 lv_obj_t* render_empty_tile(lv_obj_t* parent, int col, int row) {

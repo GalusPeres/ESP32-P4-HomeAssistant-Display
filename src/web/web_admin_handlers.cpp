@@ -329,6 +329,8 @@ void WebAdminServer::handleGetTiles() {
     json += tile.key_macro;
     json += "\",\"key_code\":" + String(tile.key_code) + ",";
     json += "\"key_modifier\":" + String(tile.key_modifier);
+    json += ",\"switch_style\":";
+    json += String((tile.type == TILE_SWITCH && tile.sensor_decimals == 1) ? 1 : 0);
     json += "}";
 
     server.send(200, "application/json", json);
@@ -360,6 +362,8 @@ void WebAdminServer::handleGetTiles() {
     json += tile.key_macro;
     json += "\",\"key_code\":" + String(tile.key_code) + ",";
     json += "\"key_modifier\":" + String(tile.key_modifier);
+    json += ",\"switch_style\":";
+    json += String((tile.type == TILE_SWITCH && tile.sensor_decimals == 1) ? 1 : 0);
     json += "}";
   }
   json += "]";
@@ -457,7 +461,12 @@ void WebAdminServer::handleSaveTiles() {
   } else if (type == TILE_SWITCH) {
     // Element-Pool: sensor_entity = target entity for switch/light
     tile.sensor_entity = server.hasArg("switch_entity") ? server.arg("switch_entity") : "";
-    tile.sensor_decimals = 0xFF;
+    uint8_t style = 0;
+    if (server.hasArg("switch_style")) {
+      int raw = server.arg("switch_style").toInt();
+      style = (raw == 1) ? 1 : 0;
+    }
+    tile.sensor_decimals = style;
   } else {
     tile.sensor_decimals = 0xFF;
   }

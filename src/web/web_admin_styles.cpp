@@ -200,6 +200,32 @@ void appendAdminStyles(String& html) {
     .tile.switch .tile-title {
       margin-top:4px;
     }
+    .tile.switch.switch-toggle { display:grid; grid-template-rows:auto 1fr; grid-template-columns:1fr; }
+    .tile.switch.switch-toggle .tile-title { text-align:left; align-self:start; width:100%; margin-top:0; }
+    .tile.switch.switch-toggle .tile-icon { position:absolute; top:10px; right:8px; margin:0; }
+    .tile-switch {
+      width:58px;
+      height:28px;
+      border-radius:999px;
+      background:#555;
+      position:relative;
+      align-self:center;
+      justify-self:center;
+      margin-top:10px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2);
+    }
+    .tile-switch .tile-switch-knob {
+      position:absolute;
+      top:3px;
+      left:3px;
+      width:22px;
+      height:22px;
+      border-radius:50%;
+      background:#f8fafc;
+      transition:transform 0.15s ease, background 0.15s ease;
+    }
+    .tile-switch.is-on { background: var(--switch-on-color, #FFD54F); }
+    .tile-switch.is-on .tile-switch-knob { transform: translateX(30px); }
 
     /* Settings Panel */
     .tile-settings {

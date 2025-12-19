@@ -342,6 +342,13 @@ static void appendTileTabHTML(
 
   html += R"html(
               </select>
+              <label>Anzeige</label>
+              <select id=")html";
+  html += tab_id;
+  html += R"html(_switch_style">
+                <option value="0">Icon Button</option>
+                <option value="1">LVGL Switch</option>
+              </select>
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#64748b;">
               <span>Änderungen werden automatisch gespeichert.</span>

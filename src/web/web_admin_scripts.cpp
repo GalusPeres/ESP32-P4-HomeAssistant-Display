@@ -210,7 +210,8 @@ void appendAdminScripts(String& html) {
       sensor_decimals: document.getElementById(prefix + '_sensor_decimals')?.value || '',
       scene_alias: document.getElementById(prefix + '_scene_alias')?.value || '',
       key_macro: document.getElementById(prefix + '_key_macro')?.value || '',
-      switch_entity: document.getElementById(prefix + '_switch_entity')?.value || ''
+      switch_entity: document.getElementById(prefix + '_switch_entity')?.value || '',
+      switch_style: document.getElementById(prefix + '_switch_style')?.value || '0'
     };
     drafts[tab][currentTileIndex] = d;
     persistDrafts();
@@ -236,6 +237,8 @@ void appendAdminScripts(String& html) {
       document.getElementById(prefix + '_key_macro').value = d.key_macro || '';
     } else if (d.type === '5') {
       document.getElementById(prefix + '_switch_entity').value = d.switch_entity || '';
+      const styleEl = document.getElementById(prefix + '_switch_style');
+      if (styleEl) styleEl.value = d.switch_style || '0';
     }
     updateTilePreview(tab);
     return true;
@@ -276,7 +279,7 @@ void appendAdminScripts(String& html) {
     const prefix = tab;
     const fields = [
       '_tile_title','_tile_color','_tile_type','_sensor_entity','_sensor_unit',
-      '_sensor_decimals','_scene_alias','_key_macro','_navigate_target','_switch_entity'
+      '_sensor_decimals','_scene_alias','_key_macro','_navigate_target','_switch_entity','_switch_style'
     ];
     fields.forEach(id => {
       const el = document.getElementById(prefix + id);
@@ -294,6 +297,7 @@ void appendAdminScripts(String& html) {
     const keyInput = document.getElementById(prefix + '_key_macro');
     const navigateSelect = document.getElementById(prefix + '_navigate_target');
     const switchSelect = document.getElementById(prefix + '_switch_entity');
+    const switchStyleSelect = document.getElementById(prefix + '_switch_style');
 
     if (titleInput) titleInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (iconInput) iconInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -306,6 +310,7 @@ void appendAdminScripts(String& html) {
     if (keyInput) keyInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (navigateSelect) navigateSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (switchSelect) switchSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    if (switchStyleSelect) switchStyleSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
   }
 
   function formatSensorValue(value, decimals) {
@@ -319,6 +324,143 @@ void appendAdminScripts(String& html) {
     if (isNaN(num) || !isFinite(num)) return text;
     const d = Math.max(0, Math.min(6, parseInt(decimals, 10) || 0));
     return num.toFixed(d);
+  }
+
+  const SWITCH_ICON_ON = '#FFD54F';
+  const SWITCH_ICON_OFF = '#B0B0B0';
+
+  function parseOnOff(text) {
+    const lower = String(text || '').trim().toLowerCase();
+    if (['on', 'true', '1', 'yes'].includes(lower)) return true;
+    if (['off', 'false', '0', 'no'].includes(lower)) return false;
+    return null;
+  }
+
+  function parseHexColor(text) {
+    let t = String(text || '').trim();
+    if (t.startsWith('#')) t = t.substring(1);
+    if (t.startsWith('0x') || t.startsWith('0X')) t = t.substring(2);
+    if (t.length !== 6) return null;
+    if (!/^[0-9a-fA-F]{6}$/.test(t)) return null;
+    return '#' + t.toLowerCase();
+  }
+
+  function rgbToHexColor(r, g, b) {
+    const clamp = (v) => Math.max(0, Math.min(255, v));
+    const rr = clamp(r).toString(16).padStart(2, '0');
+    const gg = clamp(g).toString(16).padStart(2, '0');
+    const bb = clamp(b).toString(16).padStart(2, '0');
+    return '#' + rr + gg + bb;
+  }
+
+  function parseRgbList(list) {
+    if (Array.isArray(list) && list.length >= 3) {
+      return rgbToHexColor(Number(list[0]), Number(list[1]), Number(list[2]));
+    }
+    const parts = String(list || '').split(',');
+    if (parts.length < 3) return null;
+    return rgbToHexColor(parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(parts[2], 10));
+  }
+
+  function hsToRgb(h, s) {
+    const hh = ((h % 360) + 360) % 360;
+    const sat = Math.max(0, Math.min(100, s)) / 100;
+    const c = sat;
+    const x = c * (1 - Math.abs((hh / 60) % 2 - 1));
+    const m = 1 - c;
+    let r1 = 0, g1 = 0, b1 = 0;
+    if (hh < 60) { r1 = c; g1 = x; b1 = 0; }
+    else if (hh < 120) { r1 = x; g1 = c; b1 = 0; }
+    else if (hh < 180) { r1 = 0; g1 = c; b1 = x; }
+    else if (hh < 240) { r1 = 0; g1 = x; b1 = c; }
+    else if (hh < 300) { r1 = x; g1 = 0; b1 = c; }
+    else { r1 = c; g1 = 0; b1 = x; }
+    return rgbToHexColor(Math.round((r1 + m) * 255), Math.round((g1 + m) * 255), Math.round((b1 + m) * 255));
+  }
+
+  function parseSwitchPayload(value) {
+    const out = { hasState: false, isOn: false, hasColor: false, color: null };
+    if (value === undefined || value === null) return out;
+    const text = String(value).trim();
+    if (!text.length) return out;
+
+    if (text.startsWith('{')) {
+      try {
+        const obj = JSON.parse(text);
+        if (obj && typeof obj === 'object') {
+          if (obj.state !== undefined) {
+            const on = parseOnOff(obj.state);
+            if (on !== null) {
+              out.hasState = true;
+              out.isOn = on;
+            }
+          }
+          if (obj.color) {
+            const hex = parseHexColor(obj.color);
+            if (hex) {
+              out.hasColor = true;
+              out.color = hex;
+            }
+          }
+          if (!out.hasColor && obj.rgb_color) {
+            const hex = parseRgbList(obj.rgb_color);
+            if (hex) {
+              out.hasColor = true;
+              out.color = hex;
+            }
+          }
+          if (!out.hasColor && obj.hs_color && Array.isArray(obj.hs_color) && obj.hs_color.length >= 2) {
+            out.hasColor = true;
+            out.color = hsToRgb(Number(obj.hs_color[0]), Number(obj.hs_color[1]));
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (!out.hasState) {
+      const on = parseOnOff(text);
+      if (on !== null) {
+        out.hasState = true;
+        out.isOn = on;
+      }
+    }
+
+    if (!out.hasColor) {
+      const hex = parseHexColor(text);
+      if (hex) {
+        out.hasColor = true;
+        out.color = hex;
+      } else if (text.startsWith('rgb(') && text.endsWith(')')) {
+        const hexRgb = parseRgbList(text.substring(4, text.length - 1));
+        if (hexRgb) {
+          out.hasColor = true;
+          out.color = hexRgb;
+        }
+      }
+    }
+
+    if (!out.hasState && out.hasColor) {
+      out.hasState = true;
+      out.isOn = true;
+    }
+    return out;
+  }
+
+  function applySwitchPreviewState(tileElem, state) {
+    if (!tileElem) return;
+    if (!state.hasState && !state.hasColor) return;
+    const iconEl = tileElem.querySelector('.tile-icon');
+    const switchEl = tileElem.querySelector('.tile-switch');
+    let isOn = state.hasState ? state.isOn : state.hasColor;
+    let color = SWITCH_ICON_OFF;
+    if (isOn) color = state.hasColor ? state.color : SWITCH_ICON_ON;
+    if (iconEl) iconEl.style.color = color;
+    if (switchEl) {
+      if (isOn) switchEl.classList.add('is-on');
+      else switchEl.classList.remove('is-on');
+      if (isOn && state.hasColor) switchEl.style.setProperty('--switch-on-color', state.color);
+      else switchEl.style.removeProperty('--switch-on-color');
+    }
   }
 
   function updateSensorValuePreview(tab) {
@@ -351,6 +493,23 @@ void appendAdminScripts(String& html) {
       .catch(err => console.error('Fehler beim Laden des Sensorwerts:', err));
   }
 
+  function updateSwitchValuePreview(tab) {
+    if (currentTileIndex === -1) return;
+    const prefix = tab;
+    const entitySelect = document.getElementById(prefix + '_switch_entity');
+    if (!entitySelect) return;
+    const entity = entitySelect.value;
+    const tileElem = document.getElementById(tab + '-tile-' + currentTileIndex);
+    if (!entity || !tileElem) return;
+    fetch('/api/sensor_values')
+      .then(res => res.json())
+      .then(values => {
+        const state = parseSwitchPayload(values[entity] ?? '');
+        applySwitchPreviewState(tileElem, state);
+      })
+      .catch(err => console.error('Fehler beim Laden des Switch-Status:', err));
+  }
+
   function updateTilePreview(tab) {
     if (currentTileIndex === -1) return;
     const prefix = tab;
@@ -368,6 +527,7 @@ void appendAdminScripts(String& html) {
     const color = document.getElementById(prefix + '_tile_color').value;
     const type = document.getElementById(prefix + '_tile_type').value;
     const iconInput = document.getElementById(prefix + '_tile_icon');
+    const switchStyle = document.getElementById(prefix + '_switch_style')?.value || '0';
     let iconName = iconInput ? iconInput.value.trim().toLowerCase() : '';
 
     // Normalize icon name (remove mdi: or mdi- prefix)
@@ -396,6 +556,7 @@ void appendAdminScripts(String& html) {
       tileElem.style.background = color || '#353535';
     } else if (type === '5') {
       tileElem.classList.add('switch');
+      if (switchStyle === '1') tileElem.classList.add('switch-toggle');
       tileElem.style.background = color || '#353535';
     }
 
@@ -427,13 +588,18 @@ void appendAdminScripts(String& html) {
       }
     }
 
-  tileElem.innerHTML = html;
-  if (wasActive) tileElem.classList.add('active');
-  if (typeWas !== type && wasActive) {
-    tileElem.classList.add('active');
-    const settingsId = tab + 'Settings';
-    document.getElementById(settingsId)?.classList.remove('hidden');
-  }
+    if (type === '5' && switchStyle === '1') {
+      html += '<div class="tile-switch" id="' + tileId + '-switch"><div class="tile-switch-knob"></div></div>';
+    }
+
+    tileElem.innerHTML = html;
+    if (wasActive) tileElem.classList.add('active');
+    if (typeWas !== type && wasActive) {
+      tileElem.classList.add('active');
+      const settingsId = tab + 'Settings';
+      document.getElementById(settingsId)?.classList.remove('hidden');
+    }
+    if (type === '5') updateSwitchValuePreview(tab);
 }
 
   function loadTileData(index, tab) {
@@ -461,6 +627,8 @@ void appendAdminScripts(String& html) {
           if (navEl) navEl.value = (data.sensor_decimals !== undefined && data.sensor_decimals <= 2) ? data.sensor_decimals : '0';
         } else if (data.type === 5) {
           document.getElementById(prefix + '_switch_entity').value = data.sensor_entity || '';
+          const styleEl = document.getElementById(prefix + '_switch_style');
+          if (styleEl) styleEl.value = (data.switch_style !== undefined) ? String(data.switch_style) : '0';
         }
         const decEl = document.getElementById(prefix + '_sensor_decimals');
         if (data.type !== 1 && decEl) decEl.value = '';
@@ -508,9 +676,9 @@ void appendAdminScripts(String& html) {
     document.getElementById(prefix + '_tile_title').value = '';
     document.getElementById(prefix + '_tile_icon').value = '';
     document.getElementById(prefix + '_tile_color').value = '#2A2A2A';
-    ['_sensor_entity','_sensor_unit','_sensor_decimals','_scene_alias','_key_macro','_switch_entity'].forEach(suf => {
+    ['_sensor_entity','_sensor_unit','_sensor_decimals','_scene_alias','_key_macro','_switch_entity','_switch_style'].forEach(suf => {
       const el = document.getElementById(prefix + suf);
-      if (el) el.value = '';
+      if (el) el.value = (suf === '_switch_style') ? '0' : '';
     });
     updateTileType(tab);
     updateTilePreview(tab);
@@ -544,6 +712,8 @@ void appendAdminScripts(String& html) {
       formData.append('navigate_target', navTargetValue);
     } else if (typeValue === '5') {
       formData.append('switch_entity', document.getElementById(prefix + '_switch_entity').value);
+      const styleEl = document.getElementById(prefix + '_switch_style');
+      formData.append('switch_style', styleEl ? styleEl.value : '0');
     }
     fetch('/api/tiles', { method:'POST', body:formData })
       .then(res => res.json())
@@ -571,8 +741,10 @@ void appendAdminScripts(String& html) {
     else if (tile.type === 2) cls.push('scene');
     else if (tile.type === 3) cls.push('key');
     else if (tile.type === 4) cls.push('navigate');
-    else if (tile.type === 5) cls.push('switch');
-    else cls.push('empty');
+    else if (tile.type === 5) {
+      cls.push('switch');
+      if (tile.switch_style === 1) cls.push('switch-toggle');
+    } else cls.push('empty');
     el.className = cls.join(' ');
     if (tile.type === 0) el.style.background = 'transparent';
     else if (tile.type === 1) el.style.background = tile.bg_color ? ('#' + ('000000' + tile.bg_color.toString(16)).slice(-6)) : '#2A2A2A';
@@ -603,9 +775,16 @@ void appendAdminScripts(String& html) {
         const unit = tile.sensor_unit || '';
         html += '<div class="tile-value" id="' + tab + '-tile-' + index + '-value">' + value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '') + '</div>';
       }
+      if (tile.type === 5 && tile.switch_style === 1) {
+        html += '<div class="tile-switch" id="' + tab + '-tile-' + index + '-switch"><div class="tile-switch-knob"></div></div>';
+      }
       el.innerHTML = html;
     }
     if (currentTileTab === tab && currentTileIndex === index) el.classList.add('active');
+    if (tile.type === 5 && tile.sensor_entity) {
+      const state = parseSwitchPayload(sensorValues[tile.sensor_entity] ?? '');
+      applySwitchPreviewState(el, state);
+    }
   }
 
   function loadSensorValues() {
