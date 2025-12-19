@@ -84,6 +84,7 @@ void tiles_reload_layout(GridType grid_type) {
   if (!g_tiles_grids[idx]) return;
 
   reset_sensor_widgets(grid_type);
+  reset_switch_widgets(grid_type);
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     g_tiles_objs[idx][i] = nullptr;
   }
@@ -108,6 +109,7 @@ void tiles_update_tile(GridType grid_type, uint8_t index) {
 
   const TileGridConfig& config = getGridConfig(grid_type);
   reset_sensor_widget(grid_type, index);
+  reset_switch_widget(grid_type, index);
   int row = index / 3;
   int col = index % 3;
   lv_obj_t* old_tile = g_tiles_objs[idx][index];
@@ -131,6 +133,10 @@ void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, co
       const char* unit = tile.sensor_unit.length() > 0 ? tile.sensor_unit.c_str() : nullptr;
       queue_sensor_tile_update(grid_type, i, value, unit);
       Serial.printf("[%s] Sensor %s@%u queued: %s %s\n", getGridName(grid_type), entity_id, i, value, unit ? unit : "");
+    }
+    if (tile.type == TILE_SWITCH && tile.sensor_entity.equalsIgnoreCase(entity_id)) {
+      queue_switch_tile_update(grid_type, i, value);
+      Serial.printf("[%s] Switch %s@%u queued: %s\n", getGridName(grid_type), entity_id, i, value);
     }
   }
 }

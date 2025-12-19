@@ -41,9 +41,18 @@ struct SensorTileWidgets {
   lv_obj_t* unit_label = nullptr;
 };
 
+struct SwitchTileWidgets {
+  lv_obj_t* icon_label = nullptr;
+  lv_obj_t* title_label = nullptr;
+};
+
 static SensorTileWidgets g_tab0_sensors[TILES_PER_GRID];
 static SensorTileWidgets g_tab1_sensors[TILES_PER_GRID];
 static SensorTileWidgets g_tab2_sensors[TILES_PER_GRID];
+
+static SwitchTileWidgets g_tab0_switches[TILES_PER_GRID];
+static SwitchTileWidgets g_tab1_switches[TILES_PER_GRID];
+static SwitchTileWidgets g_tab2_switches[TILES_PER_GRID];
 
 static void clear_sensor_widgets(GridType grid_type) {
   SensorTileWidgets* target = g_tab0_sensors;
@@ -65,6 +74,28 @@ void reset_sensor_widget(GridType grid_type, uint8_t grid_index) {
 
 void reset_sensor_widgets(GridType grid_type) {
   clear_sensor_widgets(grid_type);
+}
+
+static void clear_switch_widgets(GridType grid_type) {
+  SwitchTileWidgets* target = g_tab0_switches;
+  if (grid_type == GridType::TAB1) target = g_tab1_switches;
+  else if (grid_type == GridType::TAB2) target = g_tab2_switches;
+  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+    target[i].icon_label = nullptr;
+    target[i].title_label = nullptr;
+  }
+}
+
+void reset_switch_widget(GridType grid_type, uint8_t grid_index) {
+  if (grid_index >= TILES_PER_GRID) return;
+  SwitchTileWidgets* target = g_tab0_switches;
+  if (grid_type == GridType::TAB1) target = g_tab1_switches;
+  else if (grid_type == GridType::TAB2) target = g_tab2_switches;
+  target[grid_index] = {};
+}
+
+void reset_switch_widgets(GridType grid_type) {
+  clear_switch_widgets(grid_type);
 }
 
 /* === Thread-Safe Update Queue (MQTT → Main Loop) === */
@@ -157,6 +188,287 @@ void process_sensor_update_queue() {
   }
 }
 
+/* === Thread-Safe Update Queue (MQTT -> Main Loop) fuer Switches === */
+struct SwitchUpdate {
+  GridType grid_type;
+  uint8_t grid_index;
+  String payload;
+  bool valid;
+};
+
+static const uint8_t SWITCH_QUEUE_SIZE = 32;
+static SwitchUpdate g_switch_queue[SWITCH_QUEUE_SIZE];
+static volatile uint8_t g_switch_head = 0;
+static volatile uint8_t g_switch_tail = 0;
+static uint32_t g_switch_overflow_count = 0;
+
+struct SwitchState {
+  bool has_state = false;
+  bool is_on = false;
+  bool has_color = false;
+  uint32_t color = 0;
+};
+
+static uint32_t clamp_rgb(int r, int g, int b) {
+  auto clamp = [](int v) { return v < 0 ? 0 : (v > 255 ? 255 : v); };
+  return (static_cast<uint32_t>(clamp(r)) << 16) |
+         (static_cast<uint32_t>(clamp(g)) << 8) |
+         static_cast<uint32_t>(clamp(b));
+}
+
+static bool parse_on_off(const String& text, bool& is_on) {
+  String lower = text;
+  lower.trim();
+  lower.toLowerCase();
+  if (lower == "on" || lower == "true" || lower == "1" || lower == "yes") {
+    is_on = true;
+    return true;
+  }
+  if (lower == "off" || lower == "false" || lower == "0" || lower == "no") {
+    is_on = false;
+    return true;
+  }
+  return false;
+}
+
+static bool parse_hex_color(const String& text, uint32_t& color) {
+  String t = text;
+  t.trim();
+  if (t.startsWith("#")) t.remove(0, 1);
+  if (t.startsWith("0x") || t.startsWith("0X")) t.remove(0, 2);
+  if (t.length() != 6) return false;
+  char* end = nullptr;
+  long val = strtol(t.c_str(), &end, 16);
+  if (!end || end == t.c_str() || *end != '\0') return false;
+  color = static_cast<uint32_t>(val) & 0xFFFFFF;
+  return true;
+}
+
+static bool parse_rgb_list(const String& list, int& r, int& g, int& b) {
+  const char* ptr = list.c_str();
+  char* end = nullptr;
+  long vals[3];
+  for (int i = 0; i < 3; ++i) {
+    while (*ptr && (*ptr == ' ' || *ptr == ',')) ++ptr;
+    if (!*ptr) return false;
+    vals[i] = strtol(ptr, &end, 10);
+    if (!end || end == ptr) return false;
+    ptr = end;
+  }
+  r = static_cast<int>(vals[0]);
+  g = static_cast<int>(vals[1]);
+  b = static_cast<int>(vals[2]);
+  return true;
+}
+
+static bool parse_hs_list(const String& list, float& h, float& s) {
+  const char* ptr = list.c_str();
+  char* end = nullptr;
+  float vals[2];
+  for (int i = 0; i < 2; ++i) {
+    while (*ptr && (*ptr == ' ' || *ptr == ',')) ++ptr;
+    if (!*ptr) return false;
+    vals[i] = strtof(ptr, &end);
+    if (!end || end == ptr) return false;
+    ptr = end;
+  }
+  h = vals[0];
+  s = vals[1];
+  return true;
+}
+
+static uint32_t hs_to_rgb(float h, float s) {
+  float hh = fmodf(h, 360.0f);
+  if (hh < 0) hh += 360.0f;
+  float sat = s / 100.0f;
+  float c = sat;
+  float x = c * (1.0f - fabsf(fmodf(hh / 60.0f, 2.0f) - 1.0f));
+  float m = 1.0f - c;
+  float r1 = 0, g1 = 0, b1 = 0;
+  if (hh < 60.0f) { r1 = c; g1 = x; b1 = 0; }
+  else if (hh < 120.0f) { r1 = x; g1 = c; b1 = 0; }
+  else if (hh < 180.0f) { r1 = 0; g1 = c; b1 = x; }
+  else if (hh < 240.0f) { r1 = 0; g1 = x; b1 = c; }
+  else if (hh < 300.0f) { r1 = x; g1 = 0; b1 = c; }
+  else { r1 = c; g1 = 0; b1 = x; }
+  int r = static_cast<int>((r1 + m) * 255.0f);
+  int g = static_cast<int>((g1 + m) * 255.0f);
+  int b = static_cast<int>((b1 + m) * 255.0f);
+  return clamp_rgb(r, g, b);
+}
+
+static bool extract_json_string_field(const String& src, const char* key, String& out) {
+  if (!key || !*key) return false;
+  String pattern = String("\"") + key + "\"";
+  int idx = src.indexOf(pattern);
+  if (idx < 0) return false;
+  int colon = src.indexOf(':', idx);
+  if (colon < 0) return false;
+  int q1 = src.indexOf('"', colon);
+  if (q1 < 0) return false;
+  int q2 = src.indexOf('"', q1 + 1);
+  if (q2 < 0) return false;
+  out = src.substring(q1 + 1, q2);
+  out.trim();
+  return out.length() > 0;
+}
+
+static bool extract_json_array_field(const String& src, const char* key, String& out) {
+  if (!key || !*key) return false;
+  String pattern = String("\"") + key + "\"";
+  int idx = src.indexOf(pattern);
+  if (idx < 0) return false;
+  int start = src.indexOf('[', idx);
+  int end = src.indexOf(']', start);
+  if (start < 0 || end < start) return false;
+  out = src.substring(start + 1, end);
+  out.trim();
+  return out.length() > 0;
+}
+
+static SwitchState parse_switch_payload(const char* payload) {
+  SwitchState out;
+  if (!payload) return out;
+  String text = payload;
+  text.trim();
+  if (!text.length()) return out;
+
+  if (text.startsWith("{")) {
+    String state;
+    if (extract_json_string_field(text, "state", state)) {
+      out.has_state = parse_on_off(state, out.is_on);
+    }
+
+    String color_text;
+    if (extract_json_string_field(text, "color", color_text)) {
+      uint32_t color = 0;
+      if (parse_hex_color(color_text, color)) {
+        out.has_color = true;
+        out.color = color;
+      }
+    }
+
+    if (!out.has_color) {
+      String rgb_list;
+      if (extract_json_array_field(text, "rgb_color", rgb_list)) {
+        int r = 0, g = 0, b = 0;
+        if (parse_rgb_list(rgb_list, r, g, b)) {
+          out.has_color = true;
+          out.color = clamp_rgb(r, g, b);
+        }
+      }
+    }
+
+    if (!out.has_color) {
+      String hs_list;
+      if (extract_json_array_field(text, "hs_color", hs_list)) {
+        float h = 0.0f, s = 0.0f;
+        if (parse_hs_list(hs_list, h, s)) {
+          out.has_color = true;
+          out.color = hs_to_rgb(h, s);
+        }
+      }
+    }
+  }
+
+  if (!out.has_state) {
+    out.has_state = parse_on_off(text, out.is_on);
+  }
+
+  if (!out.has_color) {
+    uint32_t color = 0;
+    if (parse_hex_color(text, color)) {
+      out.has_color = true;
+      out.color = color;
+    } else if (text.startsWith("rgb(") && text.endsWith(")")) {
+      String list = text.substring(4, text.length() - 1);
+      int r = 0, g = 0, b = 0;
+      if (parse_rgb_list(list, r, g, b)) {
+        out.has_color = true;
+        out.color = clamp_rgb(r, g, b);
+      }
+    }
+  }
+
+  if (!out.has_state && out.has_color) {
+    out.has_state = true;
+    out.is_on = true;
+  }
+
+  return out;
+}
+
+static void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char* payload) {
+  if (grid_index >= TILES_PER_GRID || !payload) return;
+  SwitchTileWidgets* target = g_tab0_switches;
+  if (grid_type == GridType::TAB1) target = g_tab1_switches;
+  else if (grid_type == GridType::TAB2) target = g_tab2_switches;
+
+  SwitchTileWidgets& widgets = target[grid_index];
+  if (!widgets.icon_label && !widgets.title_label) return;
+
+  SwitchState state = parse_switch_payload(payload);
+  if (!state.has_state && !state.has_color) return;
+
+  static const uint32_t kIconOn = 0xFFD54F;
+  static const uint32_t kIconOff = 0xB0B0B0;
+
+  uint32_t icon_color = kIconOff;
+  if (!state.has_state || state.is_on) {
+    icon_color = state.has_color ? state.color : kIconOn;
+  }
+
+  lv_color_t lv_color = lv_color_hex(icon_color);
+  if (widgets.icon_label) {
+    lv_obj_set_style_text_color(widgets.icon_label, lv_color, 0);
+  } else if (widgets.title_label) {
+    lv_obj_set_style_text_color(widgets.title_label, lv_color, 0);
+  }
+}
+
+void queue_switch_tile_update(GridType grid_type, uint8_t grid_index, const char* payload) {
+  if (grid_index >= TILES_PER_GRID || !payload) {
+    return;
+  }
+
+  uint8_t idx = g_switch_tail;
+  while (idx != g_switch_head) {
+    SwitchUpdate& pending = g_switch_queue[idx];
+    if (pending.valid &&
+        pending.grid_type == grid_type &&
+        pending.grid_index == grid_index) {
+      pending.payload = String(payload);
+      return;
+    }
+    idx = (idx + 1) % SWITCH_QUEUE_SIZE;
+  }
+
+  uint8_t next_head = (g_switch_head + 1) % SWITCH_QUEUE_SIZE;
+  if (next_head == g_switch_tail) {
+    if ((g_switch_overflow_count++ % 10) == 0) {
+      Serial.println("[Queue] VOLL! Aeltestes Switch-Update wird ueberschrieben");
+    }
+    g_switch_tail = (g_switch_tail + 1) % SWITCH_QUEUE_SIZE;
+  }
+
+  g_switch_queue[g_switch_head].grid_type = grid_type;
+  g_switch_queue[g_switch_head].grid_index = grid_index;
+  g_switch_queue[g_switch_head].payload = String(payload);
+  g_switch_queue[g_switch_head].valid = true;
+  g_switch_head = next_head;
+}
+
+void process_switch_update_queue() {
+  while (g_switch_tail != g_switch_head) {
+    SwitchUpdate& upd = g_switch_queue[g_switch_tail];
+    if (upd.valid) {
+      update_switch_tile_state(upd.grid_type, upd.grid_index, upd.payload.c_str());
+      upd.valid = false;
+    }
+    g_switch_tail = (g_switch_tail + 1) % SWITCH_QUEUE_SIZE;
+  }
+}
+
 /* === Helfer === */
 static void set_label_style(lv_obj_t* lbl, lv_color_t c, const lv_font_t* f) {
   lv_obj_set_style_text_color(lbl, c, 0);
@@ -172,6 +484,7 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
 
   // Reset sensor widget pointers for this grid to avoid stale references
   clear_sensor_widgets(grid_type);
+  clear_switch_widgets(grid_type);
 
   for (int i = 0; i < TILES_PER_GRID; ++i) {
     int row = i / 3;
@@ -219,7 +532,7 @@ lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint
     case TILE_NAVIGATE:
       return render_navigate_tile(parent, col, row, tile, index);
     case TILE_SWITCH:
-      return render_switch_tile(parent, col, row, tile, index);
+      return render_switch_tile(parent, col, row, tile, index, grid_type);
     default:
       return render_empty_tile(parent, col, row);
   }
@@ -588,7 +901,7 @@ struct SwitchEventData {
   String title;
 };
 
-lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index) {
+lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type) {
   lv_obj_t* btn = lv_button_create(parent);
   lv_obj_set_style_radius(btn, 22, 0);
   lv_obj_set_style_border_width(btn, 0, 0);
@@ -611,6 +924,7 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
 
   // Icon Label (optional, falls icon_name vorhanden)
   lv_obj_t* icon_lbl = nullptr;
+  lv_obj_t* title_lbl = nullptr;
   bool has_icon = tile.icon_name.length() > 0;
   bool has_title = tile.title.length() > 0;
 
@@ -634,17 +948,32 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
 
   // Title Label (nur anzeigen wenn Titel vorhanden)
   if (has_title) {
-    lv_obj_t* l = lv_label_create(btn);
-    if (l) {
-      set_label_style(l, lv_color_white(), FONT_TITLE);
-      lv_label_set_text(l, tile.title.c_str());
+    title_lbl = lv_label_create(btn);
+    if (title_lbl) {
+      set_label_style(title_lbl, lv_color_white(), FONT_TITLE);
+      lv_label_set_text(title_lbl, tile.title.c_str());
 
       // Flexible Positionierung: mit Icon unten, ohne Icon mittig
       if (icon_lbl) {
-        lv_obj_align(l, LV_ALIGN_CENTER, 0, 35);
+        lv_obj_align(title_lbl, LV_ALIGN_CENTER, 0, 35);
       } else {
-        lv_obj_center(l);
+        lv_obj_center(title_lbl);
       }
+    }
+  }
+
+  SwitchTileWidgets* target = g_tab0_switches;
+  if (grid_type == GridType::TAB1) target = g_tab1_switches;
+  else if (grid_type == GridType::TAB2) target = g_tab2_switches;
+  if (index < TILES_PER_GRID) {
+    target[index].icon_label = icon_lbl;
+    target[index].title_label = title_lbl;
+  }
+
+  if (tile.sensor_entity.length()) {
+    String initial = haBridgeConfig.findSensorInitialValue(tile.sensor_entity);
+    if (initial.length()) {
+      update_switch_tile_state(grid_type, index, initial.c_str());
     }
   }
 
