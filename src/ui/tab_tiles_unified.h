@@ -10,6 +10,12 @@ void tiles_reload_layout(GridType grid_type);
 void tiles_release_layout(GridType grid_type);
 void tiles_release_all();
 bool tiles_is_loaded(GridType grid_type);
+void tiles_request_reload(GridType grid_type);
+void tiles_request_reload_if_loaded(GridType grid_type);
+void tiles_request_reload_all();
+void tiles_request_release(GridType grid_type);
+void tiles_request_release_all();
+void tiles_process_reload_requests();
 void tiles_update_tile(GridType grid_type, uint8_t index);
 void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, const char* value);
 

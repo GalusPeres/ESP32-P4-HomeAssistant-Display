@@ -164,11 +164,9 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
       yield();  // Nach JSON Parse
       networkManager.publishBridgeConfig();
       yield();  // Nach Publish
-      // Reload all tile grids
-      tiles_reload_layout(GridType::TAB0);
-      tiles_reload_layout(GridType::TAB1);
-      tiles_reload_layout(GridType::TAB2);
-      yield();  // Nach Layout Reload
+      // Reload grids im Loop (nicht im MQTT-Callback)
+      tiles_request_reload_all();
+      yield();  // Nach Reload-Request
       mqttReloadDynamicSlots();
     } else {
       Serial.println("[Bridge] Ungueltige Bridge-Konfiguration empfangen");

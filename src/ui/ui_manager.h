@@ -43,7 +43,6 @@ private:
   lv_obj_t *tab_content_container = nullptr;
   lv_obj_t *nav_container = nullptr;
   uint8_t active_tab_index = UINT8_MAX;
-
   // NTP-Sync
   uint32_t next_ntp_sync_ms = 0;
   bool tz_configured = false;

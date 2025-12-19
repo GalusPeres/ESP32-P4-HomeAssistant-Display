@@ -13,6 +13,58 @@ static lv_obj_t* g_tiles_grids[3] = {nullptr};           // [TAB0, TAB1, TAB2]
 static scene_publish_cb_t g_tiles_scene_cbs[3] = {nullptr};
 static lv_obj_t* g_tiles_objs[3][TILES_PER_GRID] = {nullptr};
 static bool g_tiles_loaded[3] = {false, false, false};
+static bool g_tiles_reload_requested[3] = {false, false, false};
+static bool g_tiles_reload_only_if_loaded[3] = {true, true, true};
+static bool g_tiles_release_requested[3] = {false, false, false};
+
+/* === Entity-State Cache (for lazy-loaded tabs) === */
+struct EntityCacheEntry {
+  String entity_id;
+  String payload;
+  bool valid = false;
+};
+
+static constexpr size_t kEntityCacheSize = TILES_PER_GRID * 3;
+static EntityCacheEntry g_entity_cache[kEntityCacheSize];
+static size_t g_entity_cache_cursor = 0;
+
+static void cache_entity_payload(const char* entity_id, const char* payload) {
+  if (!entity_id || !payload || entity_id[0] == '\0') return;
+
+  for (size_t i = 0; i < kEntityCacheSize; ++i) {
+    EntityCacheEntry& entry = g_entity_cache[i];
+    if (entry.valid && entry.entity_id.equalsIgnoreCase(entity_id)) {
+      entry.payload = payload;
+      return;
+    }
+  }
+
+  for (size_t i = 0; i < kEntityCacheSize; ++i) {
+    if (!g_entity_cache[i].valid) {
+      g_entity_cache[i].entity_id = entity_id;
+      g_entity_cache[i].payload = payload;
+      g_entity_cache[i].valid = true;
+      return;
+    }
+  }
+
+  size_t idx = g_entity_cache_cursor++ % kEntityCacheSize;
+  g_entity_cache[idx].entity_id = entity_id;
+  g_entity_cache[idx].payload = payload;
+  g_entity_cache[idx].valid = true;
+}
+
+static bool get_cached_entity_payload(const char* entity_id, String& out) {
+  if (!entity_id || entity_id[0] == '\0') return false;
+  for (size_t i = 0; i < kEntityCacheSize; ++i) {
+    const EntityCacheEntry& entry = g_entity_cache[i];
+    if (entry.valid && entry.entity_id.equalsIgnoreCase(entity_id)) {
+      out = entry.payload;
+      return true;
+    }
+  }
+  return false;
+}
 
 /* === Helper: Get grid config by type === */
 static const TileGridConfig& getGridConfig(GridType type) {
@@ -61,6 +113,24 @@ static lv_obj_t* create_tiles_grid(lv_obj_t* parent) {
   return grid;
 }
 
+static void apply_cached_states(GridType grid_type, const TileGridConfig& config) {
+  for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
+    const Tile& tile = config.tiles[i];
+    if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH) continue;
+    if (tile.sensor_entity.length() == 0) continue;
+
+    String payload;
+    if (!get_cached_entity_payload(tile.sensor_entity.c_str(), payload)) continue;
+
+    if (tile.type == TILE_SENSOR) {
+      const char* unit = tile.sensor_unit.length() > 0 ? tile.sensor_unit.c_str() : nullptr;
+      queue_sensor_tile_update(grid_type, i, payload.c_str(), unit);
+    } else if (tile.type == TILE_SWITCH) {
+      queue_switch_tile_update(grid_type, i, payload.c_str());
+    }
+  }
+}
+
 /* === Aufbau Tiles-Tab (unified) === */
 void build_tiles_tab(lv_obj_t *parent, GridType grid_type, scene_publish_cb_t scene_cb) {
   uint8_t idx = (uint8_t)grid_type;
@@ -76,7 +146,11 @@ void build_tiles_tab(lv_obj_t *parent, GridType grid_type, scene_publish_cb_t sc
   lv_obj_set_style_pad_all(parent, OUTER, 0);
 
   g_tiles_grids[idx] = create_tiles_grid(parent);
-  tiles_reload_layout(grid_type);
+  if (grid_type == GridType::TAB0) {
+    tiles_reload_layout(grid_type);
+  } else {
+    g_tiles_loaded[idx] = false;
+  }
 }
 
 /* === Reload layout (unified) === */
@@ -97,9 +171,14 @@ void tiles_reload_layout(GridType grid_type) {
     int row = i / 3;
     int col = i % 3;
     g_tiles_objs[idx][i] = render_tile(g_tiles_grids[idx], col, row, config.tiles[i], i, grid_type, g_tiles_scene_cbs[idx]);
+    if ((i % 3) == 2) {
+      yield();
+      delay(1);
+    }
   }
 
   g_tiles_loaded[idx] = true;
+  apply_cached_states(grid_type, config);
   Serial.printf("[%s] Layout neu geladen\n", getGridName(grid_type));
 }
 
@@ -130,6 +209,82 @@ bool tiles_is_loaded(GridType grid_type) {
   return g_tiles_loaded[idx];
 }
 
+void tiles_request_reload(GridType grid_type) {
+  uint8_t idx = (uint8_t)grid_type;
+  if (idx >= 3) return;
+  g_tiles_reload_requested[idx] = true;
+  g_tiles_reload_only_if_loaded[idx] = false;
+}
+
+void tiles_request_reload_if_loaded(GridType grid_type) {
+  uint8_t idx = (uint8_t)grid_type;
+  if (idx >= 3) return;
+  if (!g_tiles_reload_requested[idx]) {
+    g_tiles_reload_only_if_loaded[idx] = true;
+  }
+  g_tiles_reload_requested[idx] = true;
+}
+
+void tiles_request_reload_all() {
+  for (uint8_t i = 0; i < 3; ++i) {
+    if (!g_tiles_reload_requested[i]) {
+      g_tiles_reload_only_if_loaded[i] = true;
+    }
+    g_tiles_reload_requested[i] = true;
+  }
+}
+
+void tiles_request_release(GridType grid_type) {
+  uint8_t idx = (uint8_t)grid_type;
+  if (idx >= 3) return;
+  g_tiles_release_requested[idx] = true;
+}
+
+void tiles_request_release_all() {
+  for (uint8_t i = 0; i < 3; ++i) {
+    g_tiles_release_requested[i] = true;
+  }
+}
+
+void tiles_process_reload_requests() {
+  for (uint8_t i = 0; i < 3; ++i) {
+    if (!g_tiles_release_requested[i]) continue;
+    g_tiles_release_requested[i] = false;
+    GridType grid_type = static_cast<GridType>(i);
+    if (g_tiles_grids[i] && g_tiles_loaded[i]) {
+      tiles_release_layout(grid_type);
+    }
+    return;  // nur ein Release pro Loop
+  }
+
+  for (uint8_t i = 0; i < 3; ++i) {
+    if (!g_tiles_reload_requested[i]) continue;
+    GridType grid_type = static_cast<GridType>(i);
+    bool only_if_loaded = g_tiles_reload_only_if_loaded[i];
+    if (only_if_loaded && !g_tiles_loaded[i]) {
+      g_tiles_reload_requested[i] = false;
+      g_tiles_reload_only_if_loaded[i] = true;
+      continue;
+    }
+    bool need_load = !g_tiles_loaded[i];
+    if (need_load) {
+      for (uint8_t j = 0; j < 3; ++j) {
+        if (j == i) continue;
+        if (g_tiles_grids[j] && g_tiles_loaded[j]) {
+          tiles_release_layout(static_cast<GridType>(j));
+          return;  // erst releasen, reload im naechsten Loop
+        }
+      }
+    }
+    g_tiles_reload_requested[i] = false;
+    g_tiles_reload_only_if_loaded[i] = true;
+    if (g_tiles_grids[i]) {
+      tiles_reload_layout(grid_type);
+    }
+    break;  // nur ein Reload pro Loop
+  }
+}
+
 /* === Update single tile (unified) === */
 void tiles_update_tile(GridType grid_type, uint8_t index) {
   uint8_t idx = (uint8_t)grid_type;
@@ -138,13 +293,25 @@ void tiles_update_tile(GridType grid_type, uint8_t index) {
   if (index >= TILES_PER_GRID) return;
 
   const TileGridConfig& config = getGridConfig(grid_type);
+  const Tile& tile = config.tiles[index];
   reset_sensor_widget(grid_type, index);
   reset_switch_widget(grid_type, index);
   int row = index / 3;
   int col = index % 3;
   lv_obj_t* old_tile = g_tiles_objs[idx][index];
-  lv_obj_t* new_tile = render_tile(g_tiles_grids[idx], col, row, config.tiles[index], index, grid_type, g_tiles_scene_cbs[idx]);
+  lv_obj_t* new_tile = render_tile(g_tiles_grids[idx], col, row, tile, index, grid_type, g_tiles_scene_cbs[idx]);
   g_tiles_objs[idx][index] = new_tile;
+  if (tile.type == TILE_SENSOR || tile.type == TILE_SWITCH) {
+    String payload;
+    if (get_cached_entity_payload(tile.sensor_entity.c_str(), payload)) {
+      if (tile.type == TILE_SENSOR) {
+        const char* unit = tile.sensor_unit.length() > 0 ? tile.sensor_unit.c_str() : nullptr;
+        queue_sensor_tile_update(grid_type, index, payload.c_str(), unit);
+      } else {
+        queue_switch_tile_update(grid_type, index, payload.c_str());
+      }
+    }
+  }
   if (old_tile) {
     lv_obj_del_async(old_tile);
   }
@@ -153,6 +320,9 @@ void tiles_update_tile(GridType grid_type, uint8_t index) {
 /* === Update sensor by entity (unified) === */
 void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, const char* value) {
   if (!entity_id || !value) return;
+
+  cache_entity_payload(entity_id, value);
+  if (!tiles_is_loaded(grid_type)) return;
 
   const TileGridConfig& config = getGridConfig(grid_type);
 

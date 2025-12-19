@@ -53,10 +53,8 @@ void WebAdminServer::handleSaveMQTT() {
 
   if (configManager.save(cfg)) {
     settings_show_mqtt_warning(false);
-    // Reload all tile grids after MQTT config change
-    tiles_reload_layout(GridType::TAB0);
-    tiles_reload_layout(GridType::TAB1);
-    tiles_reload_layout(GridType::TAB2);
+    // Reload grids im Loop (nicht im Web-Handler)
+    tiles_request_reload_all();
     server.sendHeader("Location", "/");
     server.send(303, "text/plain", "");
   } else {
@@ -159,10 +157,8 @@ void WebAdminServer::handleSaveBridge() {
   }
 
   if (haBridgeConfig.save(updated)) {
-    // Reload all tile grids after bridge config change
-    tiles_reload_layout(GridType::TAB0);
-    tiles_reload_layout(GridType::TAB1);
-    tiles_reload_layout(GridType::TAB2);
+    // Reload grids im Loop (nicht im Web-Handler)
+    tiles_request_reload_all();
     mqttReloadDynamicSlots();
     server.sendHeader("Location", "/");
     server.send(303, "text/plain", "");
@@ -252,8 +248,8 @@ void WebAdminServer::handleSaveGameControls() {
   }
 
   if (gameControlsConfig.save(updated)) {
-    // Reload game tile grid after game controls change
-    tiles_reload_layout(GridType::TAB1);
+    // Reload im Loop (nicht im Web-Handler)
+    tiles_request_reload_if_loaded(GridType::TAB1);
     server.sendHeader("Location", "/");
     server.send(303, "text/plain", "");
   } else {

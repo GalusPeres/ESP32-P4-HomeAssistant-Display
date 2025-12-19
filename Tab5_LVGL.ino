@@ -12,6 +12,7 @@
 #include "src/web/web_config.h"
 #include "src/web/web_admin.h"
 #include "src/ui/tab_settings.h"
+#include "src/ui/tab_tiles_unified.h"
 #include "src/game/game_controls_config.h"
 #include "src/game/game_ws_server.h"
 #include "src/tiles/tile_config.h"
@@ -174,6 +175,7 @@ void loop() {
   if (first_run) Serial.println("[Loop] process_sensor_update_queue()...");
   process_sensor_update_queue();  // WICHTIG: VOR lv_timer_handler()!
   process_switch_update_queue();
+  tiles_process_reload_requests();
 
   if (first_run) {
     Serial.println("[Loop] lv_timer_handler()...");
