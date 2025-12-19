@@ -266,16 +266,6 @@ void tiles_process_reload_requests() {
       g_tiles_reload_only_if_loaded[i] = true;
       continue;
     }
-    bool need_load = !g_tiles_loaded[i];
-    if (need_load) {
-      for (uint8_t j = 0; j < 3; ++j) {
-        if (j == i) continue;
-        if (g_tiles_grids[j] && g_tiles_loaded[j]) {
-          tiles_release_layout(static_cast<GridType>(j));
-          return;  // erst releasen, reload im naechsten Loop
-        }
-      }
-    }
     g_tiles_reload_requested[i] = false;
     g_tiles_reload_only_if_loaded[i] = true;
     if (g_tiles_grids[i]) {

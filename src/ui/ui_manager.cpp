@@ -301,11 +301,11 @@ void UIManager::switchToTab(uint8_t index) {
     tiles_request_release_all();
   } else if (index <= 2) {
     GridType grid_type = static_cast<GridType>(index);
+    for (uint8_t i = 0; i < 3; ++i) {
+      if (i == index) continue;
+      tiles_request_release(static_cast<GridType>(i));
+    }
     if (!tiles_is_loaded(grid_type)) {
-      for (uint8_t i = 0; i < 3; ++i) {
-        if (i == index) continue;
-        tiles_request_release(static_cast<GridType>(i));
-      }
       tiles_request_reload(grid_type);
     }
   }
