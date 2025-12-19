@@ -93,9 +93,13 @@ void WebConfigServer::handleSave() {
     if (cfg.display_brightness < 75 || cfg.display_brightness > 255) {
       cfg.display_brightness = 200;  // Sicherstellen, dass das Display nicht dunkel bleibt
     }
-    if (cfg.auto_sleep_minutes == 0) {
-      cfg.auto_sleep_minutes = 1;
+    if (cfg.auto_sleep_seconds == 0) {
+      cfg.auto_sleep_seconds = 60;
     }
+    if (cfg.auto_sleep_battery_seconds == 0) {
+      cfg.auto_sleep_battery_seconds = cfg.auto_sleep_seconds;
+    }
+    cfg.auto_sleep_battery_enabled = cfg.auto_sleep_enabled;
     if (cfg.mqtt_base_topic[0] == '\0') {
       strncpy(cfg.mqtt_base_topic, "tab5", CONFIG_MQTT_BASE_MAX - 1);
     }

@@ -12,6 +12,7 @@ static const int GRID_PAD = 24;
 static lv_obj_t* g_tiles_grids[3] = {nullptr};           // [TAB0, TAB1, TAB2]
 static scene_publish_cb_t g_tiles_scene_cbs[3] = {nullptr};
 static lv_obj_t* g_tiles_objs[3][TILES_PER_GRID] = {nullptr};
+static bool g_tiles_loaded[3] = {false, false, false};
 
 /* === Helper: Get grid config by type === */
 static const TileGridConfig& getGridConfig(GridType type) {
@@ -98,13 +99,42 @@ void tiles_reload_layout(GridType grid_type) {
     g_tiles_objs[idx][i] = render_tile(g_tiles_grids[idx], col, row, config.tiles[i], i, grid_type, g_tiles_scene_cbs[idx]);
   }
 
+  g_tiles_loaded[idx] = true;
   Serial.printf("[%s] Layout neu geladen\n", getGridName(grid_type));
+}
+
+void tiles_release_layout(GridType grid_type) {
+  uint8_t idx = (uint8_t)grid_type;
+  if (!g_tiles_grids[idx] || !g_tiles_loaded[idx]) return;
+
+  reset_sensor_widgets(grid_type);
+  reset_switch_widgets(grid_type);
+  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+    g_tiles_objs[idx][i] = nullptr;
+  }
+  lv_obj_clean(g_tiles_grids[idx]);
+  g_tiles_loaded[idx] = false;
+
+  Serial.printf("[%s] Layout freigegeben\n", getGridName(grid_type));
+}
+
+void tiles_release_all() {
+  tiles_release_layout(GridType::TAB0);
+  tiles_release_layout(GridType::TAB1);
+  tiles_release_layout(GridType::TAB2);
+}
+
+bool tiles_is_loaded(GridType grid_type) {
+  uint8_t idx = (uint8_t)grid_type;
+  if (idx >= 3) return false;
+  return g_tiles_loaded[idx];
 }
 
 /* === Update single tile (unified) === */
 void tiles_update_tile(GridType grid_type, uint8_t index) {
   uint8_t idx = (uint8_t)grid_type;
   if (!g_tiles_grids[idx]) return;
+  if (!g_tiles_loaded[idx]) return;
   if (index >= TILES_PER_GRID) return;
 
   const TileGridConfig& config = getGridConfig(grid_type);

@@ -26,6 +26,10 @@ static lv_obj_t *sleep_checkbox = nullptr;
 static lv_obj_t *sleep_slider = nullptr;
 static lv_obj_t *sleep_time_label = nullptr;
 static lv_obj_t *sleep_label = nullptr;
+static lv_obj_t *sleep_battery_checkbox = nullptr;
+static lv_obj_t *sleep_battery_slider = nullptr;
+static lv_obj_t *sleep_battery_time_label = nullptr;
+static lv_obj_t *sleep_battery_label = nullptr;
 
 // Power Status Labels
 static lv_obj_t *power_status_label = nullptr;
@@ -37,6 +41,39 @@ static void show_network_page();
 static void show_display_page();
 static void show_energy_page();
 static void show_main_menu();
+
+static uint16_t sleep_seconds_from_index(int32_t index) {
+  if (index < 0) {
+    index = 0;
+  } else if (index >= static_cast<int32_t>(kSleepOptionsSecCount)) {
+    index = static_cast<int32_t>(kSleepOptionsSecCount) - 1;
+  }
+  return kSleepOptionsSec[index];
+}
+
+static int32_t sleep_index_from_seconds(uint16_t seconds) {
+  uint16_t closest = kSleepOptionsSec[0];
+  int32_t closest_index = 0;
+  uint16_t best_diff = (seconds > closest) ? (seconds - closest) : (closest - seconds);
+  for (size_t i = 1; i < kSleepOptionsSecCount; ++i) {
+    uint16_t option = kSleepOptionsSec[i];
+    uint16_t diff = (seconds > option) ? (seconds - option) : (option - seconds);
+    if (diff < best_diff) {
+      best_diff = diff;
+      closest = option;
+      closest_index = static_cast<int32_t>(i);
+    }
+  }
+  return closest_index;
+}
+
+static void format_sleep_label(char* buf, size_t len, uint16_t seconds) {
+  if (seconds <= 60) {
+    snprintf(buf, len, "%u s", static_cast<unsigned>(seconds));
+  } else {
+    snprintf(buf, len, "%u min", static_cast<unsigned>(seconds / 60));
+  }
+}
 
 static void on_brightness(lv_event_t *e) {
   lv_obj_t *slider = (lv_obj_t*)lv_event_get_target(e);
@@ -54,7 +91,25 @@ static void on_brightness(lv_event_t *e) {
   // Config NUR beim Loslassen speichern (nicht bei jeder Bewegung!)
   if (code == LV_EVENT_RELEASED) {
     const DeviceConfig& cfg = configManager.getConfig();
-    configManager.saveDisplaySettings(value, cfg.auto_sleep_enabled, cfg.auto_sleep_minutes);
+    configManager.saveDisplaySettings(
+        value,
+        cfg.auto_sleep_enabled,
+        cfg.auto_sleep_seconds,
+        cfg.auto_sleep_battery_enabled,
+        cfg.auto_sleep_battery_seconds);
+  }
+}
+
+static void toggle_sleep_controls(lv_obj_t* slider, lv_obj_t* time_label, lv_obj_t* label, bool enabled) {
+  if (!slider || !time_label || !label) return;
+  if (enabled) {
+    lv_obj_clear_flag(slider, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(time_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    lv_obj_add_flag(slider, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(time_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
   }
 }
 
@@ -62,38 +117,74 @@ static void on_sleep_checkbox(lv_event_t *e) {
   lv_obj_t *cb = (lv_obj_t*)lv_event_get_target(e);
   bool enabled = lv_obj_get_state(cb) & LV_STATE_CHECKED;
 
-  // Zeige/verstecke Sleep-Slider + Labels
-  if (sleep_slider && sleep_time_label && sleep_label) {
-    if (enabled) {
-      lv_obj_clear_flag(sleep_slider, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_clear_flag(sleep_time_label, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_clear_flag(sleep_label, LV_OBJ_FLAG_HIDDEN);
-    } else {
-      lv_obj_add_flag(sleep_slider, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_add_flag(sleep_time_label, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_add_flag(sleep_label, LV_OBJ_FLAG_HIDDEN);
-    }
-  }
+  toggle_sleep_controls(sleep_slider, sleep_time_label, sleep_label, enabled);
 
   // Speichere in Config
   const DeviceConfig& cfg = configManager.getConfig();
-  configManager.saveDisplaySettings(cfg.display_brightness, enabled, cfg.auto_sleep_minutes);
+  configManager.saveDisplaySettings(
+      cfg.display_brightness,
+      enabled,
+      cfg.auto_sleep_seconds,
+      cfg.auto_sleep_battery_enabled,
+      cfg.auto_sleep_battery_seconds);
 }
 
 static void on_sleep_slider(lv_event_t *e) {
   lv_obj_t *slider = (lv_obj_t*)lv_event_get_target(e);
   lv_event_code_t code = lv_event_get_code(e);
-  int32_t minutes = lv_slider_get_value(slider);
+  int32_t index = lv_slider_get_value(slider);
+  uint16_t seconds = sleep_seconds_from_index(index);
 
   // Label sofort updaten
   static char buf[16];
-  snprintf(buf, sizeof(buf), "%d min", (int)minutes);
+  format_sleep_label(buf, sizeof(buf), seconds);
   if (sleep_time_label) lv_label_set_text(sleep_time_label, buf);
 
   // Config NUR beim Loslassen speichern (nicht bei jeder Bewegung!)
   if (code == LV_EVENT_RELEASED) {
     const DeviceConfig& cfg = configManager.getConfig();
-    configManager.saveDisplaySettings(cfg.display_brightness, cfg.auto_sleep_enabled, minutes);
+    configManager.saveDisplaySettings(
+        cfg.display_brightness,
+        cfg.auto_sleep_enabled,
+        seconds,
+        cfg.auto_sleep_battery_enabled,
+        cfg.auto_sleep_battery_seconds);
+  }
+}
+
+static void on_sleep_battery_checkbox(lv_event_t *e) {
+  lv_obj_t *cb = (lv_obj_t*)lv_event_get_target(e);
+  bool enabled = lv_obj_get_state(cb) & LV_STATE_CHECKED;
+
+  toggle_sleep_controls(sleep_battery_slider, sleep_battery_time_label, sleep_battery_label, enabled);
+
+  const DeviceConfig& cfg = configManager.getConfig();
+  configManager.saveDisplaySettings(
+      cfg.display_brightness,
+      cfg.auto_sleep_enabled,
+      cfg.auto_sleep_seconds,
+      enabled,
+      cfg.auto_sleep_battery_seconds);
+}
+
+static void on_sleep_battery_slider(lv_event_t *e) {
+  lv_obj_t *slider = (lv_obj_t*)lv_event_get_target(e);
+  lv_event_code_t code = lv_event_get_code(e);
+  int32_t index = lv_slider_get_value(slider);
+  uint16_t seconds = sleep_seconds_from_index(index);
+
+  static char buf[16];
+  format_sleep_label(buf, sizeof(buf), seconds);
+  if (sleep_battery_time_label) lv_label_set_text(sleep_battery_time_label, buf);
+
+  if (code == LV_EVENT_RELEASED) {
+    const DeviceConfig& cfg = configManager.getConfig();
+    configManager.saveDisplaySettings(
+        cfg.display_brightness,
+        cfg.auto_sleep_enabled,
+        cfg.auto_sleep_seconds,
+        cfg.auto_sleep_battery_enabled,
+        seconds);
   }
 }
 
@@ -509,12 +600,12 @@ static void create_energy_page(lv_obj_t *parent) {
   lv_obj_set_style_radius(content, 22, 0);
   lv_obj_set_style_pad_all(content, 20, 0);
 
-  // Title
-  lv_obj_t *title = lv_label_create(content);
-  lv_label_set_text(title, LV_SYMBOL_BATTERY_FULL " Stromsparen");
-  lv_obj_set_style_text_font(title, &lv_font_montserrat_24, 0);
-  lv_obj_set_style_text_color(title, lv_color_white(), 0);
-  lv_obj_align(title, LV_ALIGN_TOP_LEFT, 0, 0);
+  // Netzteilbetrieb
+  lv_obj_t *mains_title = lv_label_create(content);
+  lv_label_set_text(mains_title, LV_SYMBOL_POWER " Netzteilbetrieb");
+  lv_obj_set_style_text_font(mains_title, &lv_font_montserrat_24, 0);
+  lv_obj_set_style_text_color(mains_title, lv_color_white(), 0);
+  lv_obj_align(mains_title, LV_ALIGN_TOP_LEFT, 0, 0);
 
   const DeviceConfig& cfg = configManager.getConfig();
 
@@ -526,7 +617,7 @@ static void create_energy_page(lv_obj_t *parent) {
   lv_obj_set_style_pad_column(sleep_checkbox, 20, 0);  // Abstand zwischen Checkbox und Text
   lv_obj_set_width(sleep_checkbox, LV_SIZE_CONTENT);
   lv_obj_set_height(sleep_checkbox, LV_SIZE_CONTENT);
-  lv_obj_align(sleep_checkbox, LV_ALIGN_TOP_LEFT, 0, 50);
+  lv_obj_align(sleep_checkbox, LV_ALIGN_TOP_LEFT, 0, 40);
 
   // Checkbox-Indicator richtig groß machen (100x100)
   lv_obj_set_style_width(sleep_checkbox, 100, LV_PART_INDICATOR);
@@ -542,25 +633,27 @@ static void create_energy_page(lv_obj_t *parent) {
   lv_label_set_text(sleep_label, "Sleep nach:");
   lv_obj_set_style_text_color(sleep_label, lv_color_white(), 0);
   lv_obj_set_style_text_font(sleep_label, &lv_font_montserrat_24, 0);
-  lv_obj_align(sleep_label, LV_ALIGN_TOP_LEFT, 0, 170);
+  lv_obj_align(sleep_label, LV_ALIGN_TOP_LEFT, 0, 110);
 
   // Standard Slider
   sleep_slider = lv_slider_create(content);
   lv_obj_set_size(sleep_slider, 400, 20);
-  lv_obj_align(sleep_slider, LV_ALIGN_TOP_LEFT, 150, 175);
-  lv_slider_set_range(sleep_slider, 1, 60);
-  lv_slider_set_value(sleep_slider, cfg.auto_sleep_minutes, LV_ANIM_OFF);
+  lv_obj_align(sleep_slider, LV_ALIGN_TOP_LEFT, 150, 115);
+  lv_slider_set_range(sleep_slider, 0, static_cast<int32_t>(kSleepOptionsSecCount) - 1);
+  int32_t sleep_index = sleep_index_from_seconds(cfg.auto_sleep_seconds);
+  uint16_t sleep_seconds = sleep_seconds_from_index(sleep_index);
+  lv_slider_set_value(sleep_slider, sleep_index, LV_ANIM_OFF);
   lv_obj_add_event_cb(sleep_slider, on_sleep_slider, LV_EVENT_VALUE_CHANGED, nullptr);
   lv_obj_add_event_cb(sleep_slider, on_sleep_slider, LV_EVENT_RELEASED, nullptr);
 
   // Value Label (rechts)
   sleep_time_label = lv_label_create(content);
   static char sleep_buf[16];
-  snprintf(sleep_buf, sizeof(sleep_buf), "%d min", cfg.auto_sleep_minutes);
+  format_sleep_label(sleep_buf, sizeof(sleep_buf), sleep_seconds);
   lv_label_set_text(sleep_time_label, sleep_buf);
   lv_obj_set_style_text_color(sleep_time_label, lv_color_white(), 0);
   lv_obj_set_style_text_font(sleep_time_label, &lv_font_montserrat_24, 0);
-  lv_obj_align(sleep_time_label, LV_ALIGN_TOP_LEFT, 570, 170);
+  lv_obj_align(sleep_time_label, LV_ALIGN_TOP_LEFT, 570, 110);
 
   // Verstecke Slider + Labels wenn deaktiviert
   if (!cfg.auto_sleep_enabled) {
@@ -569,28 +662,82 @@ static void create_energy_page(lv_obj_t *parent) {
     lv_obj_add_flag(sleep_label, LV_OBJ_FLAG_HIDDEN);
   }
 
+  // Batteriebetrieb
+  lv_obj_t *battery_title = lv_label_create(content);
+  lv_label_set_text(battery_title, LV_SYMBOL_BATTERY_FULL " Batteriebetrieb");
+  lv_obj_set_style_text_font(battery_title, &lv_font_montserrat_24, 0);
+  lv_obj_set_style_text_color(battery_title, lv_color_white(), 0);
+  lv_obj_align(battery_title, LV_ALIGN_TOP_LEFT, 0, 180);
+
+  sleep_battery_checkbox = lv_checkbox_create(content);
+  lv_checkbox_set_text(sleep_battery_checkbox, "Auto-Sleep aktiviert");
+  lv_obj_set_style_text_font(sleep_battery_checkbox, &lv_font_montserrat_24, 0);
+  lv_obj_set_style_text_color(sleep_battery_checkbox, lv_color_white(), 0);
+  lv_obj_set_style_pad_column(sleep_battery_checkbox, 20, 0);
+  lv_obj_set_width(sleep_battery_checkbox, LV_SIZE_CONTENT);
+  lv_obj_set_height(sleep_battery_checkbox, LV_SIZE_CONTENT);
+  lv_obj_align(sleep_battery_checkbox, LV_ALIGN_TOP_LEFT, 0, 220);
+
+  lv_obj_set_style_width(sleep_battery_checkbox, 100, LV_PART_INDICATOR);
+  lv_obj_set_style_height(sleep_battery_checkbox, 100, LV_PART_INDICATOR);
+
+  if (cfg.auto_sleep_battery_enabled) {
+    lv_obj_add_state(sleep_battery_checkbox, LV_STATE_CHECKED);
+  }
+  lv_obj_add_event_cb(sleep_battery_checkbox, on_sleep_battery_checkbox, LV_EVENT_VALUE_CHANGED, nullptr);
+
+  sleep_battery_label = lv_label_create(content);
+  lv_label_set_text(sleep_battery_label, "Sleep nach:");
+  lv_obj_set_style_text_color(sleep_battery_label, lv_color_white(), 0);
+  lv_obj_set_style_text_font(sleep_battery_label, &lv_font_montserrat_24, 0);
+  lv_obj_align(sleep_battery_label, LV_ALIGN_TOP_LEFT, 0, 290);
+
+  sleep_battery_slider = lv_slider_create(content);
+  lv_obj_set_size(sleep_battery_slider, 400, 20);
+  lv_obj_align(sleep_battery_slider, LV_ALIGN_TOP_LEFT, 150, 295);
+  lv_slider_set_range(sleep_battery_slider, 0, static_cast<int32_t>(kSleepOptionsSecCount) - 1);
+  int32_t sleep_battery_index = sleep_index_from_seconds(cfg.auto_sleep_battery_seconds);
+  uint16_t sleep_battery_seconds = sleep_seconds_from_index(sleep_battery_index);
+  lv_slider_set_value(sleep_battery_slider, sleep_battery_index, LV_ANIM_OFF);
+  lv_obj_add_event_cb(sleep_battery_slider, on_sleep_battery_slider, LV_EVENT_VALUE_CHANGED, nullptr);
+  lv_obj_add_event_cb(sleep_battery_slider, on_sleep_battery_slider, LV_EVENT_RELEASED, nullptr);
+
+  sleep_battery_time_label = lv_label_create(content);
+  static char sleep_battery_buf[16];
+  format_sleep_label(sleep_battery_buf, sizeof(sleep_battery_buf), sleep_battery_seconds);
+  lv_label_set_text(sleep_battery_time_label, sleep_battery_buf);
+  lv_obj_set_style_text_color(sleep_battery_time_label, lv_color_white(), 0);
+  lv_obj_set_style_text_font(sleep_battery_time_label, &lv_font_montserrat_24, 0);
+  lv_obj_align(sleep_battery_time_label, LV_ALIGN_TOP_LEFT, 570, 290);
+
+  if (!cfg.auto_sleep_battery_enabled) {
+    lv_obj_add_flag(sleep_battery_slider, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(sleep_battery_time_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(sleep_battery_label, LV_OBJ_FLAG_HIDDEN);
+  }
+
   // Power Status Anzeige (kompakt)
   lv_obj_t *power_title = lv_label_create(content);
   lv_label_set_text(power_title, LV_SYMBOL_CHARGE " Batterie-Status");
   lv_obj_set_style_text_font(power_title, &lv_font_montserrat_24, 0);
   lv_obj_set_style_text_color(power_title, lv_color_hex(0xFFA726), 0);
-  lv_obj_align(power_title, LV_ALIGN_TOP_LEFT, 0, 240);
+  lv_obj_align(power_title, LV_ALIGN_TOP_LEFT, 0, 360);
 
   // Status Labels (direkt im content, nicht in eigenem Container)
   power_status_label = lv_label_create(content);
   lv_obj_set_style_text_font(power_status_label, &lv_font_montserrat_20, 0);
   lv_obj_set_style_text_color(power_status_label, lv_color_white(), 0);
-  lv_obj_align(power_status_label, LV_ALIGN_TOP_LEFT, 0, 280);
+  lv_obj_align(power_status_label, LV_ALIGN_TOP_LEFT, 0, 400);
 
   power_voltage_label = lv_label_create(content);
   lv_obj_set_style_text_font(power_voltage_label, &lv_font_montserrat_20, 0);
   lv_obj_set_style_text_color(power_voltage_label, lv_color_white(), 0);
-  lv_obj_align(power_voltage_label, LV_ALIGN_TOP_LEFT, 0, 310);
+  lv_obj_align(power_voltage_label, LV_ALIGN_TOP_LEFT, 0, 430);
 
   power_level_label = lv_label_create(content);
   lv_obj_set_style_text_font(power_level_label, &lv_font_montserrat_20, 0);
   lv_obj_set_style_text_color(power_level_label, lv_color_white(), 0);
-  lv_obj_align(power_level_label, LV_ALIGN_TOP_LEFT, 0, 340);
+  lv_obj_align(power_level_label, LV_ALIGN_TOP_LEFT, 0, 460);
 
   // Initial update
   settings_update_power_status();

@@ -14,6 +14,9 @@
 #define CONFIG_MQTT_BASE_MAX     32
 #define CONFIG_HA_PREFIX_MAX     48
 
+static constexpr uint16_t kSleepOptionsSec[] = {5, 15, 30, 60, 300, 900, 1800, 3600};
+static constexpr size_t kSleepOptionsSecCount = sizeof(kSleepOptionsSec) / sizeof(kSleepOptionsSec[0]);
+
 struct DeviceConfig {
   char wifi_ssid[CONFIG_WIFI_SSID_MAX];
   char wifi_pass[CONFIG_WIFI_PASS_MAX];
@@ -28,7 +31,9 @@ struct DeviceConfig {
   // Display & Power Settings
   uint8_t display_brightness;  // 75-255
   bool auto_sleep_enabled;     // Auto-Sleep aktiv?
-  uint16_t auto_sleep_minutes; // Minuten bis Auto-Sleep (1-60)
+  uint16_t auto_sleep_seconds; // Seconds until auto-sleep (5-3600)
+  bool auto_sleep_battery_enabled;     // Auto-Sleep aktiv im Batteriebetrieb?
+  uint16_t auto_sleep_battery_seconds; // Seconds until auto-sleep (5-3600)
 };
 
 class ConfigManager {
@@ -42,7 +47,11 @@ public:
   bool save(const DeviceConfig& cfg);
 
   // Speichert nur Display-Einstellungen
-  bool saveDisplaySettings(uint8_t brightness, bool sleep_enabled, uint16_t sleep_minutes);
+  bool saveDisplaySettings(uint8_t brightness,
+                           bool sleep_enabled,
+                           uint16_t sleep_seconds,
+                           bool sleep_battery_enabled,
+                           uint16_t sleep_battery_seconds);
 
   // Löscht gespeicherte Konfiguration
   void clear();

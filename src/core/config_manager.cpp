@@ -7,6 +7,20 @@ ConfigManager configManager;
 // Preferences namespace
 static const char* PREF_NAMESPACE = "tab5_config";
 
+static uint16_t normalize_sleep_seconds(uint16_t seconds) {
+  uint16_t closest = kSleepOptionsSec[0];
+  uint16_t best_diff = (seconds > closest) ? (seconds - closest) : (closest - seconds);
+  for (size_t i = 1; i < kSleepOptionsSecCount; ++i) {
+    uint16_t option = kSleepOptionsSec[i];
+    uint16_t diff = (seconds > option) ? (seconds - option) : (option - seconds);
+    if (diff < best_diff) {
+      best_diff = diff;
+      closest = option;
+    }
+  }
+  return closest;
+}
+
 ConfigManager::ConfigManager() {
   memset(&config, 0, sizeof(config));
   config.configured = false;
@@ -17,7 +31,9 @@ ConfigManager::ConfigManager() {
   // Display & Power Defaults
   config.display_brightness = 200;
   config.auto_sleep_enabled = true;
-  config.auto_sleep_minutes = 1;  // 1 Minute Standard
+  config.auto_sleep_seconds = 60;
+  config.auto_sleep_battery_enabled = true;
+  config.auto_sleep_battery_seconds = config.auto_sleep_seconds;
 }
 
 bool ConfigManager::load() {
@@ -50,17 +66,37 @@ bool ConfigManager::load() {
   // Display & Power Settings laden
   config.display_brightness = prefs.getUChar("disp_bright", 200);
   config.auto_sleep_enabled = prefs.getBool("sleep_en", true);
-  config.auto_sleep_minutes = prefs.getUShort("sleep_min", 1);
+  uint16_t sleep_seconds = 60;
+  if (prefs.isKey("sleep_sec")) {
+    sleep_seconds = prefs.getUShort("sleep_sec", 60);
+  } else {
+    uint16_t sleep_minutes = prefs.getUShort("sleep_min", 1);
+    if (sleep_minutes == 0) {
+      sleep_minutes = 1;
+    }
+    sleep_seconds = sleep_minutes * 60;
+  }
+  config.auto_sleep_seconds = normalize_sleep_seconds(sleep_seconds);
+  config.auto_sleep_battery_enabled = prefs.isKey("sleep_bat_en")
+                                      ? prefs.getBool("sleep_bat_en", config.auto_sleep_enabled)
+                                      : config.auto_sleep_enabled;
+  uint16_t sleep_bat_seconds = config.auto_sleep_seconds;
+  if (prefs.isKey("sleep_bat_sec")) {
+    sleep_bat_seconds = prefs.getUShort("sleep_bat_sec", config.auto_sleep_seconds);
+  } else if (prefs.isKey("sleep_bat_min")) {
+    uint16_t sleep_bat_minutes = prefs.getUShort("sleep_bat_min", (sleep_seconds / 60));
+    if (sleep_bat_minutes == 0) {
+      sleep_bat_minutes = 1;
+    }
+    sleep_bat_seconds = sleep_bat_minutes * 60;
+  }
+  config.auto_sleep_battery_seconds = normalize_sleep_seconds(sleep_bat_seconds);
 
   if (config.display_brightness < 75 || config.display_brightness > 255) {
     config.display_brightness = 200;
   }
 
   // Fallback: 0 Minuten korrigieren (kann durch ungültige Speicherung entstehen)
-  if (config.auto_sleep_minutes == 0) {
-    config.auto_sleep_minutes = 1;
-  }
-
   if (config.mqtt_base_topic[0] == '\0') {
     strncpy(config.mqtt_base_topic, "tab5", CONFIG_MQTT_BASE_MAX - 1);
   }
@@ -99,7 +135,21 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   // Display & Power Settings speichern
   prefs.putUChar("disp_bright", cfg.display_brightness);
   prefs.putBool("sleep_en", cfg.auto_sleep_enabled);
-  prefs.putUShort("sleep_min", cfg.auto_sleep_minutes);
+  prefs.putUShort("sleep_sec", cfg.auto_sleep_seconds);
+  prefs.putBool("sleep_bat_en", cfg.auto_sleep_battery_enabled);
+  prefs.putUShort("sleep_bat_sec", cfg.auto_sleep_battery_seconds);
+
+  uint16_t sleep_minutes = (cfg.auto_sleep_seconds + 59) / 60;
+  if (sleep_minutes == 0) {
+    sleep_minutes = 1;
+  }
+  prefs.putUShort("sleep_min", sleep_minutes);
+
+  uint16_t sleep_bat_minutes = (cfg.auto_sleep_battery_seconds + 59) / 60;
+  if (sleep_bat_minutes == 0) {
+    sleep_bat_minutes = 1;
+  }
+  prefs.putUShort("sleep_bat_min", sleep_bat_minutes);
 
   prefs.putBool("configured", true);
 
@@ -116,7 +166,11 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   return true;
 }
 
-bool ConfigManager::saveDisplaySettings(uint8_t brightness, bool sleep_enabled, uint16_t sleep_minutes) {
+bool ConfigManager::saveDisplaySettings(uint8_t brightness,
+                                        bool sleep_enabled,
+                                        uint16_t sleep_seconds,
+                                        bool sleep_battery_enabled,
+                                        uint16_t sleep_battery_seconds) {
   Preferences prefs;
 
   if (!prefs.begin(PREF_NAMESPACE, false)) {
@@ -125,16 +179,35 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness, bool sleep_enabled, 
   }
 
   // Speichere nur Display-Settings
+  uint16_t normalized_sleep_seconds = normalize_sleep_seconds(sleep_seconds);
+  uint16_t normalized_bat_seconds = normalize_sleep_seconds(sleep_battery_seconds);
+
   prefs.putUChar("disp_bright", brightness);
   prefs.putBool("sleep_en", sleep_enabled);
+  prefs.putUShort("sleep_sec", normalized_sleep_seconds);
+  prefs.putBool("sleep_bat_en", sleep_battery_enabled);
+  prefs.putUShort("sleep_bat_sec", normalized_bat_seconds);
+
+  uint16_t sleep_minutes = (normalized_sleep_seconds + 59) / 60;
+  if (sleep_minutes == 0) {
+    sleep_minutes = 1;
+  }
   prefs.putUShort("sleep_min", sleep_minutes);
+
+  uint16_t sleep_bat_minutes = (normalized_bat_seconds + 59) / 60;
+  if (sleep_bat_minutes == 0) {
+    sleep_bat_minutes = 1;
+  }
+  prefs.putUShort("sleep_bat_min", sleep_bat_minutes);
 
   prefs.end();
 
   // Update lokale Kopie
   config.display_brightness = brightness;
   config.auto_sleep_enabled = sleep_enabled;
-  config.auto_sleep_minutes = sleep_minutes;
+  config.auto_sleep_seconds = normalized_sleep_seconds;
+  config.auto_sleep_battery_enabled = sleep_battery_enabled;
+  config.auto_sleep_battery_seconds = normalized_bat_seconds;
 
   Serial.println("✓ ConfigManager: Display-Einstellungen gespeichert");
   return true;

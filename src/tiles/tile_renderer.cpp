@@ -703,6 +703,15 @@ lv_obj_t* render_scene_tile(lv_obj_t* parent, int col, int row, const Tile& tile
         },
         LV_EVENT_CLICKED,
         event_data);
+    lv_obj_add_event_cb(
+        btn,
+        [](lv_event_t* e) {
+          if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
+          SceneEventData* data = static_cast<SceneEventData*>(lv_event_get_user_data(e));
+          delete data;
+        },
+        LV_EVENT_DELETE,
+        event_data);
   }
 
   return btn;
@@ -805,6 +814,15 @@ lv_obj_t* render_key_tile(lv_obj_t* parent, int col, int row, const Tile& tile, 
         },
         LV_EVENT_CLICKED,
         event_data);
+    lv_obj_add_event_cb(
+        btn,
+        [](lv_event_t* e) {
+          if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
+          KeyEventData* data = static_cast<KeyEventData*>(lv_event_get_user_data(e));
+          delete data;
+        },
+        LV_EVENT_DELETE,
+        event_data);
   }
 
   return btn;
@@ -900,6 +918,15 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
           }
         },
         LV_EVENT_CLICKED,
+        event_data);
+    lv_obj_add_event_cb(
+        btn,
+        [](lv_event_t* e) {
+          if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
+          NavigateEventData* data = static_cast<NavigateEventData*>(lv_event_get_user_data(e));
+          delete data;
+        },
+        LV_EVENT_DELETE,
         event_data);
   } else {
     Serial.printf("[Navigate] WARNUNG: target_tab=%d ist ungültig (>2), Event-Handler NICHT registriert!\n", target_tab);
@@ -1006,6 +1033,7 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
       lv_obj_align(switch_obj, LV_ALIGN_CENTER, 0, 28);
       lv_obj_set_style_bg_color(switch_obj, lv_color_hex(0xB0B0B0), LV_PART_INDICATOR | LV_STATE_DEFAULT);
       lv_obj_set_style_bg_color(switch_obj, lv_color_hex(0xFFD54F), LV_PART_INDICATOR | LV_STATE_CHECKED);
+      SwitchWidgetEventData* widget_data = new SwitchWidgetEventData{tile.sensor_entity};
       lv_obj_add_event_cb(
           switch_obj,
           [](lv_event_t* e) {
@@ -1017,7 +1045,16 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
             mqttPublishSwitchCommand(data->entity_id.c_str(), is_on ? "on" : "off");
           },
           LV_EVENT_VALUE_CHANGED,
-          new SwitchWidgetEventData{tile.sensor_entity});
+          widget_data);
+      lv_obj_add_event_cb(
+          switch_obj,
+          [](lv_event_t* e) {
+            if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
+            SwitchWidgetEventData* data = static_cast<SwitchWidgetEventData*>(lv_event_get_user_data(e));
+            delete data;
+          },
+          LV_EVENT_DELETE,
+          widget_data);
     }
   }
 
@@ -1053,6 +1090,15 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
           mqttPublishSwitchCommand(data->entity_id.c_str(), "toggle");
         },
         LV_EVENT_CLICKED,
+        event_data);
+    lv_obj_add_event_cb(
+        container,
+        [](lv_event_t* e) {
+          if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
+          SwitchEventData* data = static_cast<SwitchEventData*>(lv_event_get_user_data(e));
+          delete data;
+        },
+        LV_EVENT_DELETE,
         event_data);
   }
 

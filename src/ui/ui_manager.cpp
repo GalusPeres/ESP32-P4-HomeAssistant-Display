@@ -312,7 +312,16 @@ void UIManager::switchToTab(uint8_t index) {
     if (tab_buttons[active_tab_index]) {
       lv_obj_set_style_bg_opa(tab_buttons[active_tab_index], LV_OPA_TRANSP, 0);
     }
-    // Label bleibt IMMER weiß - nicht ändern!
+    // Label bleibt IMMER weiss - nicht aendern!
+  }
+
+  if (index == 3) {
+    tiles_release_all();
+  } else if (index <= 2) {
+    GridType grid_type = static_cast<GridType>(index);
+    if (!tiles_is_loaded(grid_type)) {
+      tiles_reload_layout(grid_type);
+    }
   }
 
   // Neuen Tab aktivieren
@@ -322,7 +331,7 @@ void UIManager::switchToTab(uint8_t index) {
   if (tab_buttons[index]) {
     lv_obj_set_style_bg_opa(tab_buttons[index], LV_OPA_COVER, 0);
   }
-  // Label bleibt IMMER weiß - nicht ändern!
+  // Label bleibt IMMER weiss - nicht aendern!
 
   active_tab_index = index;
 }

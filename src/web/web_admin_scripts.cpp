@@ -210,6 +210,7 @@ void appendAdminScripts(String& html) {
       sensor_decimals: document.getElementById(prefix + '_sensor_decimals')?.value || '',
       scene_alias: document.getElementById(prefix + '_scene_alias')?.value || '',
       key_macro: document.getElementById(prefix + '_key_macro')?.value || '',
+      navigate_target: document.getElementById(prefix + '_navigate_target')?.value || '0',
       switch_entity: document.getElementById(prefix + '_switch_entity')?.value || '',
       switch_style: document.getElementById(prefix + '_switch_style')?.value || '0'
     };
@@ -235,6 +236,9 @@ void appendAdminScripts(String& html) {
       document.getElementById(prefix + '_scene_alias').value = d.scene_alias || '';
     } else if (d.type === '3') {
       document.getElementById(prefix + '_key_macro').value = d.key_macro || '';
+    } else if (d.type === '4') {
+      const navEl = document.getElementById(prefix + '_navigate_target');
+      if (navEl) navEl.value = d.navigate_target || '0';
     } else if (d.type === '5') {
       document.getElementById(prefix + '_switch_entity').value = d.switch_entity || '';
       const styleEl = document.getElementById(prefix + '_switch_style');
@@ -242,6 +246,96 @@ void appendAdminScripts(String& html) {
     }
     updateTilePreview(tab);
     return true;
+  }
+
+  let tileClipboard = null;
+  function persistTileClipboard() { try { localStorage.setItem('tileClipboard', JSON.stringify(tileClipboard)); } catch (e) {} }
+  function loadTileClipboard() {
+    try {
+      const raw = localStorage.getItem('tileClipboard');
+      if (raw) tileClipboard = JSON.parse(raw);
+    } catch (e) {
+      tileClipboard = null;
+    }
+  }
+
+  function collectTileFormData(tab) {
+    const prefix = tab;
+    return {
+      type: document.getElementById(prefix + '_tile_type')?.value || '0',
+      title: document.getElementById(prefix + '_tile_title')?.value || '',
+      icon: document.getElementById(prefix + '_tile_icon')?.value || '',
+      color: document.getElementById(prefix + '_tile_color')?.value || '#2A2A2A',
+      sensor_entity: document.getElementById(prefix + '_sensor_entity')?.value || '',
+      sensor_unit: document.getElementById(prefix + '_sensor_unit')?.value || '',
+      sensor_decimals: document.getElementById(prefix + '_sensor_decimals')?.value || '',
+      scene_alias: document.getElementById(prefix + '_scene_alias')?.value || '',
+      key_macro: document.getElementById(prefix + '_key_macro')?.value || '',
+      navigate_target: document.getElementById(prefix + '_navigate_target')?.value || '0',
+      switch_entity: document.getElementById(prefix + '_switch_entity')?.value || '',
+      switch_style: document.getElementById(prefix + '_switch_style')?.value || '0'
+    };
+  }
+
+  function applyTileFormData(tab, data) {
+    if (!data) return;
+    const prefix = tab;
+    const typeValue = data.type || '0';
+    const typeEl = document.getElementById(prefix + '_tile_type');
+    if (typeEl) typeEl.value = typeValue;
+    updateTileType(tab);
+
+    const titleEl = document.getElementById(prefix + '_tile_title');
+    if (titleEl) titleEl.value = data.title || '';
+    const iconEl = document.getElementById(prefix + '_tile_icon');
+    if (iconEl) iconEl.value = data.icon || '';
+    const colorEl = document.getElementById(prefix + '_tile_color');
+    if (colorEl) colorEl.value = data.color || '#2A2A2A';
+
+    const sensorEntityEl = document.getElementById(prefix + '_sensor_entity');
+    if (sensorEntityEl) sensorEntityEl.value = data.sensor_entity || '';
+    const sensorUnitEl = document.getElementById(prefix + '_sensor_unit');
+    if (sensorUnitEl) sensorUnitEl.value = data.sensor_unit || '';
+    const sensorDecEl = document.getElementById(prefix + '_sensor_decimals');
+    if (sensorDecEl) sensorDecEl.value = data.sensor_decimals || '';
+
+    const sceneEl = document.getElementById(prefix + '_scene_alias');
+    if (sceneEl) sceneEl.value = data.scene_alias || '';
+    const keyEl = document.getElementById(prefix + '_key_macro');
+    if (keyEl) keyEl.value = data.key_macro || '';
+    const navEl = document.getElementById(prefix + '_navigate_target');
+    if (navEl) navEl.value = data.navigate_target || '0';
+
+    const switchEntityEl = document.getElementById(prefix + '_switch_entity');
+    if (switchEntityEl) switchEntityEl.value = data.switch_entity || '';
+    const switchStyleEl = document.getElementById(prefix + '_switch_style');
+    if (switchStyleEl) switchStyleEl.value = data.switch_style || '0';
+  }
+
+  function copyTile(tab) {
+    if (currentTileIndex === -1 || currentTileTab !== tab) {
+      showNotification('Bitte zuerst eine Kachel waehlen', false);
+      return;
+    }
+    tileClipboard = collectTileFormData(tab);
+    persistTileClipboard();
+    showNotification('Kachel kopiert');
+  }
+
+  function pasteTile(tab) {
+    if (currentTileIndex === -1 || currentTileTab !== tab) {
+      showNotification('Bitte zuerst eine Kachel waehlen', false);
+      return;
+    }
+    if (!tileClipboard) {
+      showNotification('Keine kopierte Kachel vorhanden', false);
+      return;
+    }
+    applyTileFormData(tab, tileClipboard);
+    updateTilePreview(tab);
+    updateDraft(tab);
+    scheduleAutoSave(tab);
+    showNotification('Kachel eingefuegt');
   }
 
   function selectTile(index, tab) {
@@ -275,6 +369,45 @@ void appendAdminScripts(String& html) {
     if (title.trim().length) titleInput.value = title.trim();
   }
 
+  function titleFromOption(option) {
+    if (!option) return '';
+    const label = String(option.textContent || option.innerText || '').trim();
+    if (!label.length) return '';
+    const sep = label.indexOf(' - ');
+    if (sep > 0) return label.substring(0, sep).trim();
+    return label;
+  }
+
+  function titleFromEntity(entity) {
+    let name = String(entity || '').trim();
+    if (!name.length) return '';
+    const dot = name.indexOf('.');
+    if (dot !== -1) name = name.substring(dot + 1);
+    name = name.replace(/[_-]+/g, ' ').trim();
+    if (!name.length) return '';
+    return name.replace(/\b\w/g, (m) => m.toUpperCase());
+  }
+
+  function maybeFillTitleFromEntity(tab, selectSuffix) {
+    const prefix = tab;
+    const titleInput = document.getElementById(prefix + '_tile_title');
+    const selectEl = document.getElementById(prefix + selectSuffix);
+    if (!titleInput || !selectEl) return;
+    if (titleInput.value && titleInput.value.trim().length) return;
+    const opt = selectEl.selectedOptions && selectEl.selectedOptions[0];
+    let title = titleFromOption(opt);
+    if (!title.length) title = titleFromEntity(selectEl.value);
+    if (title.length) titleInput.value = title;
+  }
+
+  function maybeFillTitleFromSensor(tab) {
+    maybeFillTitleFromEntity(tab, '_sensor_entity');
+  }
+
+  function maybeFillTitleFromSwitch(tab) {
+    maybeFillTitleFromEntity(tab, '_switch_entity');
+  }
+
   function setupLivePreview(tab) {
     const prefix = tab;
     const fields = [
@@ -303,13 +436,13 @@ void appendAdminScripts(String& html) {
     if (iconInput) iconInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (colorInput) colorInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (typeSelect) typeSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (entitySelect) entitySelect.addEventListener('change', () => { updateTilePreview(tab); updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    if (entitySelect) entitySelect.addEventListener('change', () => { maybeFillTitleFromSensor(tab); updateTilePreview(tab); updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (unitInput) unitInput.addEventListener('input', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (decimalsInput) decimalsInput.addEventListener('input', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (sceneInput) sceneInput.addEventListener('input', () => { maybeFillTitleFromScene(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (keyInput) keyInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (navigateSelect) navigateSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (switchSelect) switchSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    if (switchSelect) switchSelect.addEventListener('change', () => { maybeFillTitleFromSwitch(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (switchStyleSelect) switchStyleSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
   }
 
@@ -899,6 +1032,7 @@ void appendAdminScripts(String& html) {
       initSavedTabData();  // Tab-Daten initialisieren (verhindert Überschreiben)
     }, 100);
     loadDraftsFromStorage();
+    loadTileClipboard();
     loadSensorValues();
     let savedTab = null;
     try { savedTab = localStorage.getItem('activeAdminTab'); } catch (e) {}

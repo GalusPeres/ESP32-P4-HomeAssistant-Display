@@ -350,11 +350,19 @@ static void appendTileTabHTML(
                 <option value="1">LVGL Switch</option>
               </select>
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#64748b;">
-              <span>Änderungen werden automatisch gespeichert.</span>
-              <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="resetTile(')html";
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#64748b;gap:10px;">
+              <span>Aenderungen werden automatisch gespeichert.</span>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+                <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="copyTile(')html";
   html += tab_id;
-  html += R"html(')">Löschen</button>
+  html += R"html(')">Kopieren</button>
+                <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="pasteTile(')html";
+  html += tab_id;
+  html += R"html(')">Einfuegen</button>
+                <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="resetTile(')html";
+  html += tab_id;
+  html += R"html(')">Loeschen</button>
+              </div>
             </div>
             </div><!-- /tile-specific-settings -->
           </div>
