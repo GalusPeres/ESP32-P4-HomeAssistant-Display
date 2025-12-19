@@ -3,6 +3,7 @@
 #include "src/game/game_ws_server.h"
 #include "src/tiles/tile_config.h"
 #include "src/tiles/mdi_icons.h"
+#include "src/ui/ui_manager.h"
 #include <Arduino.h>
 #include <math.h>
 #include <stdlib.h>
@@ -214,6 +215,8 @@ lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint
       return render_scene_tile(parent, col, row, tile, index, scene_cb);
     case TILE_KEY:
       return render_key_tile(parent, col, row, tile, index, grid_type);
+    case TILE_NAVIGATE:
+      return render_navigate_tile(parent, col, row, tile, index);
     default:
       return render_empty_tile(parent, col, row);
   }
@@ -474,6 +477,104 @@ lv_obj_t* render_key_tile(lv_obj_t* parent, int col, int row, const Tile& tile, 
         },
         LV_EVENT_CLICKED,
         event_data);
+  }
+
+  return btn;
+}
+
+struct NavigateEventData {
+  uint8_t target_tab;
+  String title;
+};
+
+lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index) {
+  lv_obj_t* btn = lv_button_create(parent);
+  lv_obj_set_style_radius(btn, 22, 0);
+  lv_obj_set_style_border_width(btn, 0, 0);
+
+  // Farbe verwenden (Standard: 0x353535 wenn color = 0)
+  uint32_t btn_color = (tile.bg_color != 0) ? tile.bg_color : 0x353535;
+  lv_obj_set_style_bg_color(btn, lv_color_hex(btn_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+
+  // Pressed-State: 10% heller
+  uint32_t pressed_color = btn_color + 0x101010;
+  lv_obj_set_style_bg_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
+  lv_obj_set_style_shadow_width(btn, 0, 0);
+  lv_obj_set_height(btn, CARD_H);
+  lv_obj_remove_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_set_grid_cell(btn,
+      LV_GRID_ALIGN_STRETCH, col, 1,
+      LV_GRID_ALIGN_STRETCH, row, 1);
+
+  // Icon Label (optional, falls icon_name vorhanden)
+  lv_obj_t* icon_lbl = nullptr;
+  bool has_icon = tile.icon_name.length() > 0;
+  bool has_title = tile.title.length() > 0;
+
+  if (has_icon && FONT_MDI_ICONS != nullptr) {
+    String iconChar = getMdiChar(tile.icon_name);
+    if (iconChar.length() > 0) {
+      icon_lbl = lv_label_create(btn);
+      if (icon_lbl) {
+        set_label_style(icon_lbl, lv_color_white(), FONT_MDI_ICONS);
+        lv_label_set_text(icon_lbl, iconChar.c_str());
+
+        // Flexible Positionierung: Icon + Title = 2 Zeilen mittig, nur Icon = 1 Zeile mittig
+        if (has_title) {
+          lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0, -20);  // Icon oben (mit Title)
+        } else {
+          lv_obj_center(icon_lbl);  // Icon mittig (ohne Title)
+        }
+      }
+    }
+  }
+
+  // Title Label (nur anzeigen wenn Titel vorhanden)
+  if (has_title) {
+    lv_obj_t* l = lv_label_create(btn);
+    if (l) {
+      set_label_style(l, lv_color_white(), FONT_TITLE);
+      lv_label_set_text(l, tile.title.c_str());
+
+      // Flexible Positionierung: mit Icon unten, ohne Icon mittig
+      if (icon_lbl) {
+        lv_obj_align(l, LV_ALIGN_CENTER, 0, 35);  // Title unten (mit Icon)
+      } else {
+        lv_obj_center(l);  // Title mittig (ohne Icon)
+      }
+    }
+  }
+
+  // Event-Handler für Tab-Navigation
+  // Element-Pool: sensor_decimals = target tab (0=Tab0, 1=Tab1, 2=Tab2)
+  uint8_t target_tab = tile.sensor_decimals;
+  Serial.printf("[Navigate] Render Navigation-Tile - sensor_decimals=%d, target_tab=%d\n", tile.sensor_decimals, target_tab);
+
+  if (target_tab <= 2) {  // Nur gültige Tabs
+    Serial.printf("[Navigate] Event-Handler wird registriert für Tab %d\n", target_tab);
+    // Allocate permanent storage for event data
+    NavigateEventData* event_data = new NavigateEventData{
+      target_tab,
+      tile.title
+    };
+
+    lv_obj_add_event_cb(
+        btn,
+        [](lv_event_t* e) {
+          if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+          NavigateEventData* data = static_cast<NavigateEventData*>(lv_event_get_user_data(e));
+          if (data) {
+            Serial.printf("[Tile] Navigation CLICKED! Ziel-Tab: %d, Titel: %s\n", data->target_tab, data->title.c_str());
+            uiManager.switchToTab(data->target_tab);
+            Serial.printf("[Tile] switchToTab(%d) aufgerufen\n", data->target_tab);
+          }
+        },
+        LV_EVENT_CLICKED,
+        event_data);
+  } else {
+    Serial.printf("[Navigate] WARNUNG: target_tab=%d ist ungültig (>2), Event-Handler NICHT registriert!\n", target_tab);
   }
 
   return btn;

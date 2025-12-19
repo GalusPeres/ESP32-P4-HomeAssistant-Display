@@ -447,6 +447,13 @@ void WebAdminServer::handleSaveTiles() {
 
     tile.key_code = key_code;
     tile.key_modifier = modifier;
+  } else if (type == TILE_NAVIGATE) {
+    // Element-Pool: sensor_decimals = target tab (0=Tab0, 1=Tab1, 2=Tab2)
+    bool hasArg = server.hasArg("navigate_target");
+    String argValue = hasArg ? server.arg("navigate_target") : "NOT_FOUND";
+    int targetValue = argValue.toInt();
+    Serial.printf("[DEBUG] Navigate Backend - hasArg=%d, argValue='%s', targetValue=%d\n", hasArg, argValue.c_str(), targetValue);
+    tile.sensor_decimals = hasArg ? targetValue : 0;
   } else {
     tile.sensor_decimals = 0xFF;
   }

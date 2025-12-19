@@ -109,7 +109,8 @@ void appendAdminStyles(String& html) {
     }
     .tile.sensor { display:grid; grid-template-rows:auto 1fr; grid-template-columns:1fr; }
     .tile.scene,
-    .tile.key { display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    .tile.key,
+    .tile.navigate { display:flex; flex-direction:column; align-items:center; justify-content:center; }
     .tile.active {
       border:3px solid #4A9EFF;
       box-shadow:0 0 12px rgba(74,158,255,0.6);
@@ -156,7 +157,8 @@ void appendAdminStyles(String& html) {
       width:100%;
     }
     .tile.scene .tile-title,
-    .tile.key .tile-title { text-align:center; align-self:auto; width:100%; }
+    .tile.key .tile-title,
+    .tile.navigate .tile-title { text-align:center; align-self:auto; width:100%; }
     .tile-value {
       color:#fff;
       font-size:24px;
@@ -183,13 +185,15 @@ void appendAdminStyles(String& html) {
       top:10px;
       right:8px;
     }
-    /* Scene/Key: Icon oben-mittig (flexbox zentriert automatisch) */
+    /* Scene/Key/Navigate: Icon oben-mittig (flexbox zentriert automatisch) */
     .tile.scene .tile-icon,
-    .tile.key .tile-icon {
+    .tile.key .tile-icon,
+    .tile.navigate .tile-icon {
       margin-bottom:4px;
     }
     .tile.scene .tile-title,
-    .tile.key .tile-title {
+    .tile.key .tile-title,
+    .tile.navigate .tile-title {
       margin-top:4px;
     }
 

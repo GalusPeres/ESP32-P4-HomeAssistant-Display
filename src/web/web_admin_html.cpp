@@ -97,6 +97,16 @@ static void appendTileTabHTML(
       } else {
         tileStyle = "background:#353535";
       }
+    } else if (tile.type == TILE_NAVIGATE) {
+      cssClass += " navigate";
+      if (tile.bg_color != 0) {
+        char colorHex[8];
+        snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
+        tileStyle = "background:";
+        tileStyle += colorHex;
+      } else {
+        tileStyle = "background:#353535";
+      }
     }
 
     html += "<div class=\"";
@@ -190,6 +200,7 @@ static void appendTileTabHTML(
               <option value="1">Sensor</option>
               <option value="2">Szene</option>
               <option value="3">Key</option>
+              <option value="4">Navigation</option>
             </select>
 
             <label>Titel</label>
@@ -275,6 +286,26 @@ static void appendTileTabHTML(
   html += tab_id;
   html += R"html(_key_macro" placeholder="z.B. ctrl+g">
               <div style="font-size:11px;color:#64748b;margin-top:4px;">Beispiele: g, ctrl+g, ctrl+shift+a</div>
+            </div>
+
+            <!-- Navigate Fields -->
+            <div id=")html";
+  html += tab_id;
+  html += R"html(_navigate_fields" class="type-fields">
+              <label>Ziel-Tab</label>
+              <select id=")html";
+  html += tab_id;
+  html += R"html(_navigate_target">
+                <option value="0">)html";
+  html += tileConfig.getTabName(0);
+  html += R"html(</option>
+                <option value="1">)html";
+  html += tileConfig.getTabName(1);
+  html += R"html(</option>
+                <option value="2">)html";
+  html += tileConfig.getTabName(2);
+  html += R"html(</option>
+              </select>
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#64748b;">
               <span>Änderungen werden automatisch gespeichert.</span>

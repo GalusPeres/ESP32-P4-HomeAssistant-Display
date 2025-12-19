@@ -9,7 +9,8 @@ enum TileType : uint8_t {
   TILE_EMPTY = 0,
   TILE_SENSOR = 1,
   TILE_SCENE = 2,
-  TILE_KEY = 3
+  TILE_KEY = 3,
+  TILE_NAVIGATE = 4
 };
 
 struct Tile {
