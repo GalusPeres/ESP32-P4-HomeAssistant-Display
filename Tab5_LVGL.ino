@@ -25,30 +25,47 @@ LV_FONT_DECLARE(mdi_icons_48);
 static uint32_t last_status_update = 0;
 static uint32_t ap_mode_started_at = 0;
 static const uint32_t AP_MODE_TIMEOUT_MS = 10UL * 60UL * 1000UL;
+static uint32_t ap_mode_disable_block_until = 0;
 
 static void set_hotspot_mode(bool enable) {
   if (enable) {
-    if (webConfigServer.isRunning()) return;
+    if (webConfigServer.isRunning()) {
+      settings_update_ap_mode(true);
+      return;
+    }
     if (networkManager.isMqttConnected()) networkManager.getMqttClient().disconnect();
-    WiFi.disconnect();
+    settings_update_ap_mode(true);
     if (webConfigServer.start()) {
       ap_mode_started_at = millis();
-      settings_update_ap_mode(true);
+      ap_mode_disable_block_until = ap_mode_started_at + 1500;
+    } else {
+      ap_mode_started_at = 0;
+      ap_mode_disable_block_until = 0;
     }
+    return;
+  }
+
+  if (ap_mode_disable_block_until != 0 &&
+      (int32_t)(millis() - ap_mode_disable_block_until) < 0) {
+    settings_update_ap_mode(true);
     return;
   }
 
   if (!webConfigServer.isRunning()) {
     ap_mode_started_at = 0;
+    ap_mode_disable_block_until = 0;
     settings_update_ap_mode(false);
     return;
   }
 
   webConfigServer.stop();
   ap_mode_started_at = 0;
+  ap_mode_disable_block_until = 0;
   settings_update_ap_mode(false);
   if (configManager.isConfigured()) {
-    networkManager.connectWifi();
+    if (WiFi.status() != WL_CONNECTED) {
+      networkManager.connectWifi();
+    }
   }
 }
 
@@ -218,6 +235,7 @@ void loop() {
   if (webConfigServer.isRunning()) {
     webConfigServer.handle();
     settings_update_ap_mode(true);
+    settings_update_wifi_status_ap("Tab5_Config", "192.168.4.1");
     settings_update_power_status();
 
     if (webConfigServer.hasNewConfig()) { delay(1000); ESP.restart(); }
@@ -230,8 +248,6 @@ void loop() {
       return;
     }
   }
-
-  settings_update_ap_mode(false);
 
   if (first_run) Serial.println("[Loop] webAdminServer.handle()...");
   if (webAdminServer.isRunning()) webAdminServer.handle();

@@ -24,6 +24,8 @@ public:
   // Touch-Guard nach Wake
   void armWakeTouchGuard();
   void setInputEnabled(bool enable);
+  void debugFlushNext(uint16_t count);
+  bool setBufferLines(size_t lines);
 
 private:
   static lv_display_t *disp;

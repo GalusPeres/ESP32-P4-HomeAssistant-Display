@@ -2,6 +2,7 @@
 
 #include "src/ui/tab_tiles_unified.h"
 #include "src/ui/tab_settings.h"
+#include "src/core/display_manager.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/tiles/tile_config.h"
 #include "font_roboto_mono_digits_48.h"
@@ -285,6 +286,14 @@ lv_obj_t* UIManager::createTabPanel(lv_obj_t *parent) {
 void UIManager::switchToTab(uint8_t index) {
   if (index >= TAB_COUNT) return;
   if (active_tab_index == index) return;
+
+  static constexpr size_t kTilesBufferLines = 155;
+  static constexpr size_t kSettingsBufferLines = 155;
+  if (index == 3) {
+    displayManager.setBufferLines(kSettingsBufferLines);
+  } else {
+    displayManager.setBufferLines(kTilesBufferLines);
+  }
 
   // Alten Tab deaktivieren (falls vorhanden)
   if (active_tab_index != UINT8_MAX && active_tab_index < TAB_COUNT) {

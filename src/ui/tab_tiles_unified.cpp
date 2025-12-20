@@ -1,4 +1,5 @@
 #include "src/ui/tab_tiles_unified.h"
+#include "src/core/display_manager.h"
 #include "src/tiles/tile_config.h"
 #include "src/tiles/tile_renderer.h"
 #include <Arduino.h>
@@ -158,6 +159,13 @@ void tiles_reload_layout(GridType grid_type) {
   uint8_t idx = (uint8_t)grid_type;
   if (!g_tiles_grids[idx]) return;
 
+  displayManager.debugFlushNext(40);
+
+  lv_display_t* disp = lv_obj_get_display(g_tiles_grids[idx]);
+  if (disp) {
+    lv_display_enable_invalidation(disp, false);
+  }
+
   reset_sensor_widgets(grid_type);
   reset_switch_widgets(grid_type);
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
@@ -179,6 +187,11 @@ void tiles_reload_layout(GridType grid_type) {
 
   g_tiles_loaded[idx] = true;
   apply_cached_states(grid_type, config);
+  if (disp) {
+    lv_display_enable_invalidation(disp, true);
+    lv_obj_invalidate(g_tiles_grids[idx]);
+    lv_refr_now(disp);
+  }
   Serial.printf("[%s] Layout neu geladen\n", getGridName(grid_type));
 }
 

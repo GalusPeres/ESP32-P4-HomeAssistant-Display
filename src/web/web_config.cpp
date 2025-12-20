@@ -22,12 +22,8 @@ bool WebConfigServer::start() {
 
   Serial.println("\n🌐 Starte WiFi-Konfigurationsmodus...");
 
-  // Stoppe bisherige WiFi-Verbindung
-  WiFi.disconnect();
-  delay(100);
-
   // Starte Access Point
-  WiFi.mode(WIFI_AP);
+  WiFi.mode(WIFI_AP_STA);
   WiFi.softAPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
 
   bool ap_ok = WiFi.softAP(AP_SSID, AP_PASS);
@@ -66,7 +62,6 @@ void WebConfigServer::stop() {
   dnsServer.stop();
   server.stop();
   WiFi.softAPdisconnect(true);
-  WiFi.mode(WIFI_STA);
 
   running = false;
   Serial.println("✓ WebConfigServer gestoppt");
