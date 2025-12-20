@@ -1,5 +1,6 @@
 #include <M5Unified.h>
 #include <lvgl.h>
+#include <WiFi.h>
 #include "src/ui/tab_settings.h"
 #include "src/core/config_manager.h"
 #include "src/tiles/mdi_icons.h"
@@ -656,14 +657,17 @@ void settings_update_wifi_status_ap(const char* ssid, const char* password) {
   lv_obj_clear_flag(wifi_ssid_label, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(wifi_ip_label, LV_OBJ_FLAG_HIDDEN);
 
-  lv_label_set_text(wifi_status_label, "Status: AP Mode");
+  static char status_buf[96];
+  snprintf(status_buf, sizeof(status_buf), "Status: AP Mode (PW: %s)", password ? password : "12345678");
+  lv_label_set_text(wifi_status_label, status_buf);
   lv_obj_set_style_text_color(wifi_status_label, lv_color_hex(0xFFC04D), 0);
 
   static char buf[128];
   snprintf(buf, sizeof(buf), "SSID: %s", ssid ? ssid : "Tab5_Config");
   lv_label_set_text(wifi_ssid_label, buf);
 
-  snprintf(buf, sizeof(buf), "Passwort: %s", password ? password : "12345678");
+  String ip = WiFi.softAPIP().toString();
+  snprintf(buf, sizeof(buf), "IP: %s", ip.length() ? ip.c_str() : "192.168.4.1");
   lv_label_set_text(wifi_ip_label, buf);
 }
 

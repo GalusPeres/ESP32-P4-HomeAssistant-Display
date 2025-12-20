@@ -34,6 +34,7 @@ static void set_hotspot_mode(bool enable) {
       return;
     }
     if (networkManager.isMqttConnected()) networkManager.getMqttClient().disconnect();
+    if (webAdminServer.isRunning()) webAdminServer.stop();
     settings_update_ap_mode(true);
     if (webConfigServer.start()) {
       ap_mode_started_at = millis();
@@ -233,6 +234,7 @@ void loop() {
 
   if (first_run) Serial.println("[Loop] webConfigServer check...");
   if (webConfigServer.isRunning()) {
+    if (webAdminServer.isRunning()) webAdminServer.stop();
     webConfigServer.handle();
     settings_update_ap_mode(true);
     settings_update_wifi_status_ap("Tab5_Config", "12345678");

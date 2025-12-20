@@ -40,6 +40,7 @@ private:
   // Request Handler
   void handleRoot();
   void handleSave();
+  void handleCaptivePortal();
   void handleNotFound();
 
   // HTML-Seiten

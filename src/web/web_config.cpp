@@ -22,11 +22,17 @@ bool WebConfigServer::start() {
 
   Serial.println("\n🌐 Starte WiFi-Konfigurationsmodus...");
 
+  // Stoppe bisherige WiFi-Verbindung (hilft beim Captive Portal)
+  WiFi.disconnect();
+  delay(100);
+
   // Starte Access Point
-  WiFi.mode(WIFI_AP_STA);
+  WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
 
-  bool ap_ok = WiFi.softAP(AP_SSID, AP_PASS);
+  // Starte AP mit expliziten Einstellungen
+  // Channel 1, SSID nicht versteckt, max 4 Verbindungen
+  bool ap_ok = WiFi.softAP(AP_SSID, AP_PASS, 1, 0, 4);
   if (!ap_ok) {
     Serial.println("❌ Access Point konnte nicht gestartet werden!");
     return false;
@@ -40,10 +46,25 @@ bool WebConfigServer::start() {
   Serial.printf("  IP-Adresse: %s\n", ip.toString().c_str());
 
   // DNS Server für Captive Portal (alle DNS-Anfragen zu uns umleiten)
-  dnsServer.start(53, "*", AP_IP);
+  if (dnsServer.start(53, "*", AP_IP)) {
+    Serial.println("✓ DNS Server gestartet (Port 53, alle Domains → 192.168.4.1)");
+  } else {
+    Serial.println("⚠️ DNS Server konnte nicht gestartet werden!");
+  }
 
   // Webserver Routes
   server.on("/", [this]() { this->handleRoot(); });
+  auto captive_handler = [this]() { this->handleCaptivePortal(); };
+  server.on("/generate_204", captive_handler);
+  server.on("/gen_204", captive_handler);
+  server.on("/hotspot-detect.html", captive_handler);
+  server.on("/library/test/success.html", captive_handler);
+  server.on("/success.txt", captive_handler);
+  server.on("/ncsi.txt", captive_handler);
+  server.on("/connecttest.txt", captive_handler);
+  server.on("/redirect", captive_handler);
+  server.on("/wpad.dat", captive_handler);
+  server.on("/favicon.ico", captive_handler);
   server.on("/save", HTTP_POST, [this]() { this->handleSave(); });
   server.onNotFound([this]() { this->handleNotFound(); });
 
@@ -59,12 +80,22 @@ bool WebConfigServer::start() {
 void WebConfigServer::stop() {
   if (!running) return;
 
+  Serial.println("🛑 Stoppe WebConfigServer...");
+
   dnsServer.stop();
+  Serial.println("  ✓ DNS Server gestoppt");
+
   server.stop();
+  Serial.println("  ✓ Webserver gestoppt");
+
   WiFi.softAPdisconnect(true);
+  Serial.println("  ✓ AP getrennt");
+
+  WiFi.mode(WIFI_STA);
+  Serial.println("  ✓ WiFi-Modus: Station");
 
   running = false;
-  Serial.println("✓ WebConfigServer gestoppt");
+  Serial.println("✓ WebConfigServer gestoppt - bereit für normale WiFi-Verbindung");
 }
 
 void WebConfigServer::handle() {
@@ -76,6 +107,18 @@ void WebConfigServer::handle() {
 void WebConfigServer::handleRoot() {
   Serial.println("📄 Config-Seite angefordert");
   server.send(200, "text/html", getConfigPage());
+}
+
+void WebConfigServer::handleCaptivePortal() {
+  String path = server.uri();
+  Serial.printf("🌐 Captive Portal Request: %s (Host: %s)\n", path.c_str(), server.hostHeader().c_str());
+
+  // FÜR ALLE CAPTIVE PORTAL CHECKS: Zeige direkt die Config-Seite!
+  // Das ist die robusteste Lösung für moderne Smartphones
+  server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  server.sendHeader("Pragma", "no-cache");
+  server.send(200, "text/html", getConfigPage());
+  Serial.println("  ✓ Config-Seite direkt gesendet");
 }
 
 void WebConfigServer::handleSave() {
@@ -132,9 +175,15 @@ void WebConfigServer::handleSave() {
 }
 
 void WebConfigServer::handleNotFound() {
-  // Captive Portal: Alle unbekannten Anfragen zur Hauptseite umleiten
-  server.sendHeader("Location", "/", true);
-  server.send(302, "text/plain", "");
+  String path = server.uri();
+  Serial.printf("❓ Not Found: %s (Host: %s)\n", path.c_str(), server.hostHeader().c_str());
+
+  // Zeige für ALLE nicht gefundenen Pfade die Config-Seite
+  // Das sorgt dafür, dass Captive Portal Detection auf jeden Fall funktioniert
+  server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  server.sendHeader("Pragma", "no-cache");
+  server.send(200, "text/html", getConfigPage());
+  Serial.println("  ✓ Config-Seite gesendet (Not Found → Config Page)");
 }
 
 String WebConfigServer::getConfigPage() {
