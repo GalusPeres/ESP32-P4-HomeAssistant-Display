@@ -281,6 +281,56 @@ void mqttPublishSwitchCommand(const char* entity_id, const char* state) {
   Serial.printf("Switch command -> MQTT '%s' (%s)\n", topic, ok ? "ok" : "fail");
 }
 
+void mqttPublishLightCommand(const char* entity_id, const char* state, int brightness_pct, bool has_color, uint32_t color) {
+  if (!entity_id || !*entity_id) return;
+
+  PubSubClient& mqtt = networkManager.getMqttClient();
+  if (!mqtt.connected()) {
+    Serial.printf("Light command skipped (MQTT offline): %s\n", entity_id);
+    return;
+  }
+
+  const char* topic = mqttTopics.topic(TopicKey::LIGHT_CMND);
+  if (!topic || !*topic) {
+    Serial.printf("Light command skipped (no topic): %s\n", entity_id);
+    return;
+  }
+
+  String payload = "{\"entity_id\":\"";
+  payload += entity_id;
+  payload += "\"";
+
+  if (state && *state) {
+    payload += ",\"state\":\"";
+    payload += state;
+    payload += "\"";
+  }
+
+  if (brightness_pct >= 0) {
+    if (brightness_pct > 100) brightness_pct = 100;
+    payload += ",\"brightness_pct\":";
+    payload += brightness_pct;
+  }
+
+  if (has_color) {
+    uint8_t r = (color >> 16) & 0xFF;
+    uint8_t g = (color >> 8) & 0xFF;
+    uint8_t b = color & 0xFF;
+    payload += ",\"rgb_color\":[";
+    payload += r;
+    payload += ",";
+    payload += g;
+    payload += ",";
+    payload += b;
+    payload += "]";
+  }
+
+  payload += "}";
+
+  bool ok = mqtt.publish(topic, payload.c_str(), false);
+  Serial.printf("Light command -> MQTT '%s' (%s)\n", topic, ok ? "ok" : "fail");
+}
+
 // ========== Home Assistant MQTT Discovery ==========
 void mqttPublishDiscovery() {
   PubSubClient& mqtt = networkManager.getMqttClient();

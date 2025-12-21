@@ -5,6 +5,7 @@
 #include "src/tiles/tile_config.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/ui/ui_manager.h"
+#include "src/ui/light_popup.h"
 #include "src/fonts/ui_fonts.h"
 #include <Arduino.h>
 #include <math.h>
@@ -46,6 +47,26 @@ static SwitchTileWidgets g_tab0_switches[TILES_PER_GRID];
 static SwitchTileWidgets g_tab1_switches[TILES_PER_GRID];
 static SwitchTileWidgets g_tab2_switches[TILES_PER_GRID];
 
+struct SwitchState {
+  bool has_state = false;
+  bool is_on = false;
+  bool has_color = false;
+  uint32_t color = 0;
+  bool has_brightness = false;
+  uint8_t brightness_pct = 100;
+  bool supports_color = false;
+  bool supports_brightness = false;
+  bool supported_modes_known = false;
+  bool supported_onoff_only = false;
+};
+
+static SwitchState g_tab0_switch_states[TILES_PER_GRID];
+static SwitchState g_tab1_switch_states[TILES_PER_GRID];
+static SwitchState g_tab2_switch_states[TILES_PER_GRID];
+
+static void set_label_style(lv_obj_t* lbl, lv_color_t c, const lv_font_t* f);
+static bool is_light_entity_id(const String& entity_id);
+
 static void clear_sensor_widgets(GridType grid_type) {
   SensorTileWidgets* target = g_tab0_sensors;
   if (grid_type == GridType::TAB1) target = g_tab1_sensors;
@@ -70,21 +91,35 @@ void reset_sensor_widgets(GridType grid_type) {
 
 static void clear_switch_widgets(GridType grid_type) {
   SwitchTileWidgets* target = g_tab0_switches;
-  if (grid_type == GridType::TAB1) target = g_tab1_switches;
-  else if (grid_type == GridType::TAB2) target = g_tab2_switches;
+  SwitchState* state_target = g_tab0_switch_states;
+  if (grid_type == GridType::TAB1) {
+    target = g_tab1_switches;
+    state_target = g_tab1_switch_states;
+  } else if (grid_type == GridType::TAB2) {
+    target = g_tab2_switches;
+    state_target = g_tab2_switch_states;
+  }
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     target[i].icon_label = nullptr;
     target[i].title_label = nullptr;
     target[i].switch_obj = nullptr;
+    state_target[i] = {};
   }
 }
 
 void reset_switch_widget(GridType grid_type, uint8_t grid_index) {
   if (grid_index >= TILES_PER_GRID) return;
   SwitchTileWidgets* target = g_tab0_switches;
-  if (grid_type == GridType::TAB1) target = g_tab1_switches;
-  else if (grid_type == GridType::TAB2) target = g_tab2_switches;
+  SwitchState* state_target = g_tab0_switch_states;
+  if (grid_type == GridType::TAB1) {
+    target = g_tab1_switches;
+    state_target = g_tab1_switch_states;
+  } else if (grid_type == GridType::TAB2) {
+    target = g_tab2_switches;
+    state_target = g_tab2_switch_states;
+  }
   target[grid_index] = {};
+  state_target[grid_index] = {};
 }
 
 void reset_switch_widgets(GridType grid_type) {
@@ -206,13 +241,6 @@ static volatile uint8_t g_switch_head = 0;
 static volatile uint8_t g_switch_tail = 0;
 static uint32_t g_switch_overflow_count = 0;
 
-struct SwitchState {
-  bool has_state = false;
-  bool is_on = false;
-  bool has_color = false;
-  uint32_t color = 0;
-};
-
 static uint32_t clamp_rgb(int r, int g, int b) {
   auto clamp = [](int v) { return v < 0 ? 0 : (v > 255 ? 255 : v); };
   return (static_cast<uint32_t>(clamp(r)) << 16) |
@@ -330,6 +358,86 @@ static bool extract_json_array_field(const String& src, const char* key, String&
   return out.length() > 0;
 }
 
+static bool extract_json_number_field(const String& src, const char* key, float& out) {
+  if (!key || !*key) return false;
+  String pattern = String("\"") + key + "\"";
+  int idx = src.indexOf(pattern);
+  if (idx < 0) return false;
+  int colon = src.indexOf(':', idx);
+  if (colon < 0) return false;
+  int pos = colon + 1;
+  while (pos < src.length() && (src.charAt(pos) == ' ' || src.charAt(pos) == '\t')) {
+    ++pos;
+  }
+  if (pos >= src.length()) return false;
+  const char* start = src.c_str() + pos;
+  char* end = nullptr;
+  float val = strtof(start, &end);
+  if (!end || end == start) return false;
+  out = val;
+  return true;
+}
+
+static bool extract_json_object_field(const String& src, const char* key, String& out) {
+  if (!key || !*key) return false;
+  String pattern = "\"";
+  pattern += key;
+  pattern += "\"";
+  int idx = src.indexOf(pattern);
+  if (idx < 0) return false;
+  int colon = src.indexOf(':', idx);
+  if (colon < 0) return false;
+  int pos = colon + 1;
+  while (pos < src.length() && (src.charAt(pos) == ' ' || src.charAt(pos) == '\t')) {
+    ++pos;
+  }
+  if (pos >= src.length() || src.charAt(pos) != '{') return false;
+  int depth = 0;
+  bool in_string = false;
+  for (int i = pos; i < src.length(); ++i) {
+    char c = src.charAt(i);
+    if (c == '"' && (i == 0 || src.charAt(i - 1) != '\\')) {
+      in_string = !in_string;
+    }
+    if (in_string) continue;
+    if (c == '{') {
+      ++depth;
+    } else if (c == '}') {
+      --depth;
+      if (depth == 0) {
+        out = src.substring(pos, i + 1);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static bool list_contains_mode(String list, const char* mode) {
+  if (!mode || !*mode) return false;
+  list.toLowerCase();
+  list.replace("\"", "");
+  int start = 0;
+  while (start < list.length()) {
+    int comma = list.indexOf(',', start);
+    if (comma < 0) comma = list.length();
+    String token = list.substring(start, comma);
+    token.trim();
+    if (token == mode) return true;
+    start = comma + 1;
+  }
+  return false;
+}
+
+static bool is_color_mode(const String& mode) {
+  return mode == "hs" ||
+         mode == "rgb" ||
+         mode == "xy" ||
+         mode == "rgbw" ||
+         mode == "rgbww" ||
+         mode == "color_temp";
+}
+
 static SwitchState parse_switch_payload(const char* payload) {
   SwitchState out;
   if (!payload) return out;
@@ -341,6 +449,56 @@ static SwitchState parse_switch_payload(const char* payload) {
     String state;
     if (extract_json_string_field(text, "state", state)) {
       out.has_state = parse_on_off(state, out.is_on);
+    }
+
+    String supported_modes;
+    if (extract_json_array_field(text, "supported_color_modes", supported_modes)) {
+      out.supported_modes_known = true;
+      bool has_brightness = list_contains_mode(supported_modes, "brightness");
+      bool has_color = list_contains_mode(supported_modes, "hs") ||
+                       list_contains_mode(supported_modes, "rgb") ||
+                       list_contains_mode(supported_modes, "xy") ||
+                       list_contains_mode(supported_modes, "rgbw") ||
+                       list_contains_mode(supported_modes, "rgbww") ||
+                       list_contains_mode(supported_modes, "color_temp");
+      bool has_onoff = list_contains_mode(supported_modes, "onoff");
+      out.supports_brightness = has_brightness;
+      out.supports_color = has_color;
+      out.supported_onoff_only = has_onoff && !has_brightness && !has_color;
+    }
+
+    String color_mode;
+    if (extract_json_string_field(text, "color_mode", color_mode)) {
+      String mode = color_mode;
+      mode.toLowerCase();
+      if (mode == "brightness") {
+        out.supports_brightness = true;
+        out.supported_onoff_only = false;
+      }
+      if (is_color_mode(mode)) {
+        out.supports_color = true;
+        out.supported_onoff_only = false;
+      }
+      if (mode == "onoff" && !out.supported_modes_known) {
+        out.supported_modes_known = true;
+        out.supported_onoff_only = true;
+      }
+    }
+
+    float bright_pct = -1.0f;
+    float bright_raw = -1.0f;
+    if (extract_json_number_field(text, "brightness_pct", bright_pct)) {
+      int pct = static_cast<int>(roundf(bright_pct));
+      if (pct < 0) pct = 0;
+      if (pct > 100) pct = 100;
+      out.has_brightness = true;
+      out.brightness_pct = static_cast<uint8_t>(pct);
+    } else if (extract_json_number_field(text, "brightness", bright_raw)) {
+      int pct = static_cast<int>(roundf((bright_raw / 255.0f) * 100.0f));
+      if (pct < 0) pct = 0;
+      if (pct > 100) pct = 100;
+      out.has_brightness = true;
+      out.brightness_pct = static_cast<uint8_t>(pct);
     }
 
     String color_text;
@@ -373,6 +531,87 @@ static SwitchState parse_switch_payload(const char* payload) {
         }
       }
     }
+
+    String attributes;
+    if (extract_json_object_field(text, "attributes", attributes)) {
+      if (extract_json_array_field(attributes, "supported_color_modes", supported_modes)) {
+        out.supported_modes_known = true;
+        bool has_brightness = list_contains_mode(supported_modes, "brightness");
+        bool has_color = list_contains_mode(supported_modes, "hs") ||
+                         list_contains_mode(supported_modes, "rgb") ||
+                         list_contains_mode(supported_modes, "xy") ||
+                         list_contains_mode(supported_modes, "rgbw") ||
+                         list_contains_mode(supported_modes, "rgbww") ||
+                         list_contains_mode(supported_modes, "color_temp");
+        bool has_onoff = list_contains_mode(supported_modes, "onoff");
+        out.supports_brightness = has_brightness;
+        out.supports_color = has_color;
+        out.supported_onoff_only = has_onoff && !has_brightness && !has_color;
+      }
+
+      if (extract_json_string_field(attributes, "color_mode", color_mode)) {
+        String mode = color_mode;
+        mode.toLowerCase();
+        if (mode == "brightness") {
+          out.supports_brightness = true;
+          out.supported_onoff_only = false;
+        }
+        if (is_color_mode(mode)) {
+          out.supports_color = true;
+          out.supported_onoff_only = false;
+        }
+        if (mode == "onoff" && !out.supported_modes_known) {
+          out.supported_modes_known = true;
+          out.supported_onoff_only = true;
+        }
+      }
+
+      if (!out.has_brightness && extract_json_number_field(attributes, "brightness_pct", bright_pct)) {
+        int pct = static_cast<int>(roundf(bright_pct));
+        if (pct < 0) pct = 0;
+        if (pct > 100) pct = 100;
+        out.has_brightness = true;
+        out.brightness_pct = static_cast<uint8_t>(pct);
+      } else if (!out.has_brightness && extract_json_number_field(attributes, "brightness", bright_raw)) {
+        int pct = static_cast<int>(roundf((bright_raw / 255.0f) * 100.0f));
+        if (pct < 0) pct = 0;
+        if (pct > 100) pct = 100;
+        out.has_brightness = true;
+        out.brightness_pct = static_cast<uint8_t>(pct);
+      }
+
+      if (!out.has_color) {
+        if (extract_json_string_field(attributes, "color", color_text)) {
+          uint32_t color = 0;
+          if (parse_hex_color(color_text, color)) {
+            out.has_color = true;
+            out.color = color;
+          }
+        }
+      }
+
+      if (!out.has_color) {
+        String rgb_list;
+        if (extract_json_array_field(attributes, "rgb_color", rgb_list)) {
+          int r = 0, g = 0, b = 0;
+          if (parse_rgb_list(rgb_list, r, g, b)) {
+            out.has_color = true;
+            out.color = clamp_rgb(r, g, b);
+          }
+        }
+      }
+
+      if (!out.has_color) {
+        String hs_list;
+        if (extract_json_array_field(attributes, "hs_color", hs_list)) {
+          float h = 0.0f, s = 0.0f;
+          if (parse_hs_list(hs_list, h, s)) {
+            out.has_color = true;
+            out.color = hs_to_rgb(h, s);
+          }
+        }
+      }
+    }
   }
 
   if (!out.has_state) {
@@ -398,6 +637,22 @@ static SwitchState parse_switch_payload(const char* payload) {
     out.has_state = true;
     out.is_on = true;
   }
+  if (!out.has_state && out.has_brightness) {
+    out.has_state = true;
+    out.is_on = out.brightness_pct > 0;
+  }
+
+  if (out.has_color) {
+    out.supports_color = true;
+  }
+  if (out.has_brightness) {
+    out.supports_brightness = true;
+    out.supported_onoff_only = false;
+  }
+  if (out.supports_color) {
+    out.supports_brightness = true;
+    out.supported_onoff_only = false;
+  }
 
   return out;
 }
@@ -405,14 +660,59 @@ static SwitchState parse_switch_payload(const char* payload) {
 static void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char* payload) {
   if (grid_index >= TILES_PER_GRID || !payload) return;
   SwitchTileWidgets* target = g_tab0_switches;
-  if (grid_type == GridType::TAB1) target = g_tab1_switches;
-  else if (grid_type == GridType::TAB2) target = g_tab2_switches;
+  SwitchState* state_target = g_tab0_switch_states;
+  if (grid_type == GridType::TAB1) {
+    target = g_tab1_switches;
+    state_target = g_tab1_switch_states;
+  } else if (grid_type == GridType::TAB2) {
+    target = g_tab2_switches;
+    state_target = g_tab2_switch_states;
+  }
+
+  SwitchState state = parse_switch_payload(payload);
+  if (!state.has_state &&
+      !state.has_color &&
+      !state.has_brightness &&
+      !state.supports_color &&
+      !state.supports_brightness) {
+    return;
+  }
+
+  SwitchState prev = state_target[grid_index];
+  if (!state.supported_modes_known && prev.supported_modes_known) {
+    state.supported_modes_known = true;
+    state.supported_onoff_only = prev.supported_onoff_only;
+    state.supports_color = prev.supports_color;
+    state.supports_brightness = prev.supports_brightness;
+  }
+  if (!state.supported_modes_known) {
+    if (!state.supports_color && prev.supports_color) {
+      state.supports_color = true;
+    }
+    if (!state.supports_brightness && prev.supports_brightness) {
+      state.supports_brightness = true;
+    }
+  }
+  if (state.supports_color) {
+    state.supports_brightness = true;
+  }
+
+  const TileGridConfig& grid = (grid_type == GridType::TAB1)
+                                 ? tileConfig.getTab1Grid()
+                                 : (grid_type == GridType::TAB2 ? tileConfig.getTab2Grid() : tileConfig.getTab0Grid());
+  const String& entity_id = grid.tiles[grid_index].sensor_entity;
+  const bool is_light_entity = is_light_entity_id(entity_id);
+  if (is_light_entity) {
+    if (state.supported_modes_known && state.supported_onoff_only) {
+      state.supports_color = false;
+      state.supports_brightness = false;
+    }
+  }
+
+  state_target[grid_index] = state;
 
   SwitchTileWidgets& widgets = target[grid_index];
   if (!widgets.icon_label && !widgets.title_label && !widgets.switch_obj) return;
-
-  SwitchState state = parse_switch_payload(payload);
-  if (!state.has_state && !state.has_color) return;
 
   static const uint32_t kIconOn = 0xFFD54F;
   static const uint32_t kIconOff = 0xB0B0B0;
@@ -940,11 +1240,65 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
 struct SwitchEventData {
   String entity_id;
   String title;
+  GridType grid_type;
+  uint8_t index = 0;
+  bool suppress_click = false;
 };
 
 struct SwitchWidgetEventData {
   String entity_id;
 };
+
+static SwitchState* get_switch_state_array(GridType grid_type) {
+  if (grid_type == GridType::TAB1) return g_tab1_switch_states;
+  if (grid_type == GridType::TAB2) return g_tab2_switch_states;
+  return g_tab0_switch_states;
+}
+
+static SwitchState get_switch_state(GridType grid_type, uint8_t index) {
+  if (index >= TILES_PER_GRID) return {};
+  return get_switch_state_array(grid_type)[index];
+}
+
+static bool is_light_entity_id(const String& entity_id) {
+  return entity_id.length() >= 6 && entity_id.startsWith("light.");
+}
+
+static LightPopupInit build_light_popup_init(const SwitchEventData* data) {
+  LightPopupInit init;
+  if (!data) return init;
+  init.entity_id = data->entity_id;
+  init.title = data->title;
+  init.is_light = is_light_entity_id(data->entity_id);
+
+  const SwitchState state = get_switch_state(data->grid_type, data->index);
+  if (state.has_state) {
+    init.is_on = state.is_on;
+  } else if (state.has_brightness) {
+    init.is_on = state.brightness_pct > 0;
+  } else {
+    init.is_on = true;
+  }
+
+  if (init.is_light) {
+    init.supports_color = state.supports_color;
+    init.supports_brightness = state.supports_brightness || state.supports_color;
+  } else {
+    init.supports_color = false;
+    init.supports_brightness = false;
+  }
+  if (state.has_color) {
+    init.color = state.color;
+  }
+  if (state.has_brightness) {
+    init.brightness_pct = state.brightness_pct;
+  } else if (state.has_state && !state.is_on) {
+    init.brightness_pct = 0;
+  } else {
+    init.brightness_pct = 100;
+  }
+  return init;
+}
 
 static bool is_switch_widget_tile(const Tile& tile) {
   return tile.sensor_decimals == 1;
@@ -971,6 +1325,7 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
   if (use_switch_widget) {
     lv_obj_set_style_pad_hor(container, 20, 0);
     lv_obj_set_style_pad_ver(container, 24, 0);
+    lv_obj_add_flag(container, LV_OBJ_FLAG_CLICKABLE);
   }
   lv_obj_set_height(container, CARD_H);
   lv_obj_remove_flag(container, LV_OBJ_FLAG_SCROLLABLE);
@@ -1034,6 +1389,7 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
       lv_obj_set_size(switch_obj, 90, 44);
       lv_obj_align(switch_obj, LV_ALIGN_CENTER, 0, 28);
       lv_obj_set_ext_click_area(switch_obj, 18);
+      lv_obj_add_flag(switch_obj, LV_OBJ_FLAG_EVENT_BUBBLE);
       lv_obj_set_style_bg_color(switch_obj, lv_color_hex(0xB0B0B0), LV_PART_INDICATOR | LV_STATE_DEFAULT);
       lv_obj_set_style_bg_color(switch_obj, lv_color_hex(0xFFD54F), LV_PART_INDICATOR | LV_STATE_CHECKED);
       SwitchWidgetEventData* widget_data = new SwitchWidgetEventData{tile.sensor_entity};
@@ -1077,23 +1433,46 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
     }
   }
 
-  if (!use_switch_widget && tile.sensor_entity.length()) {
+  if (tile.sensor_entity.length()) {
     SwitchEventData* event_data = new SwitchEventData{
       tile.sensor_entity,
-      tile.title
+      tile.title,
+      grid_type,
+      index,
+      false
     };
+
+    if (!use_switch_widget) {
+      lv_obj_add_event_cb(
+          container,
+          [](lv_event_t* e) {
+            if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+            SwitchEventData* data = static_cast<SwitchEventData*>(lv_event_get_user_data(e));
+            if (!data) return;
+            if (data->suppress_click) {
+              data->suppress_click = false;
+              return;
+            }
+            Serial.printf("[Tile] Switch toggle: %s\n", data->entity_id.c_str());
+            mqttPublishSwitchCommand(data->entity_id.c_str(), "toggle");
+          },
+          LV_EVENT_CLICKED,
+          event_data);
+    }
 
     lv_obj_add_event_cb(
         container,
         [](lv_event_t* e) {
-          if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+          if (lv_event_get_code(e) != LV_EVENT_LONG_PRESSED) return;
           SwitchEventData* data = static_cast<SwitchEventData*>(lv_event_get_user_data(e));
           if (!data) return;
-          Serial.printf("[Tile] Switch toggle: %s\n", data->entity_id.c_str());
-          mqttPublishSwitchCommand(data->entity_id.c_str(), "toggle");
+          data->suppress_click = true;
+          LightPopupInit init = build_light_popup_init(data);
+          show_light_popup(init);
         },
-        LV_EVENT_CLICKED,
+        LV_EVENT_LONG_PRESSED,
         event_data);
+
     lv_obj_add_event_cb(
         container,
         [](lv_event_t* e) {
