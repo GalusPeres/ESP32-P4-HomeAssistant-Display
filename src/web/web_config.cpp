@@ -26,8 +26,8 @@ bool WebConfigServer::start() {
   WiFi.disconnect();
   delay(100);
 
-  // Starte Access Point
-  WiFi.mode(WIFI_AP);
+  // Starte Access Point + STA (vermeidet Mode-Reinit Probleme bei esp_hosted)
+  WiFi.mode(WIFI_AP_STA);
   WiFi.softAPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
 
   // Starte AP mit expliziten Einstellungen
@@ -91,8 +91,7 @@ void WebConfigServer::stop() {
   WiFi.softAPdisconnect(true);
   Serial.println("  ✓ AP getrennt");
 
-  WiFi.mode(WIFI_STA);
-  Serial.println("  ✓ WiFi-Modus: Station");
+  Serial.println("  ✓ WiFi-Modus: AP/STA");
 
   running = false;
   Serial.println("✓ WebConfigServer gestoppt - bereit für normale WiFi-Verbindung");
