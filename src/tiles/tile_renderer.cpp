@@ -933,7 +933,7 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
     return nullptr;
   }
 
-  lv_obj_t* card = lv_obj_create(parent);
+  lv_obj_t* card = lv_button_create(parent);
   if (!card) {
     Serial.println("[TileRenderer] ERROR: Konnte Sensor-Card nicht erstellen");
     return nullptr;
@@ -941,16 +941,20 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
 
   // Farbe verwenden (Standard: 0x2A2A2A wenn color = 0)
   uint32_t card_color = (tile.bg_color != 0) ? tile.bg_color : 0x2A2A2A;
-  lv_obj_set_style_bg_color(card, lv_color_hex(card_color), 0);
+  lv_obj_set_style_bg_color(card, lv_color_hex(card_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+
+  // Pressed-State: 10% heller
+  uint32_t pressed_color = card_color + 0x101010;
+  lv_obj_set_style_bg_color(card, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
   lv_obj_set_style_radius(card, 22, 0);
   lv_obj_set_style_border_width(card, 0, 0);
+  lv_obj_set_style_shadow_width(card, 0, 0);
   lv_obj_set_style_pad_hor(card, 20, 0);
   lv_obj_set_style_pad_ver(card, 24, 0);
   lv_obj_set_height(card, CARD_H);
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_set_style_shadow_width(card, 0, 0);
 
   lv_obj_set_grid_cell(card,
       LV_GRID_ALIGN_STRETCH, col, 1,
