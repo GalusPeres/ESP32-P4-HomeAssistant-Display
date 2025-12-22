@@ -945,12 +945,12 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
   lv_obj_set_style_radius(card, 22, 0);
   lv_obj_set_style_border_width(card, 0, 0);
-  lv_obj_set_style_shadow_width(card, 0, 0);
   lv_obj_set_style_pad_hor(card, 20, 0);
   lv_obj_set_style_pad_ver(card, 24, 0);
   lv_obj_set_height(card, CARD_H);
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_style_shadow_width(card, 0, 0);
 
   lv_obj_set_grid_cell(card,
       LV_GRID_ALIGN_STRETCH, col, 1,
@@ -1006,7 +1006,7 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
     lv_obj_add_event_cb(
         card,
         [](lv_event_t* e) {
-          if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+          if (lv_event_get_code(e) != LV_EVENT_LONG_PRESSED) return;
           SensorEventData* data = static_cast<SensorEventData*>(lv_event_get_user_data(e));
           if (!data || !data->entity_id.length()) return;
           SensorPopupInit init;
@@ -1027,7 +1027,7 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
           init.value = haBridgeConfig.findSensorInitialValue(data->entity_id);
           show_sensor_popup(init);
         },
-        LV_EVENT_CLICKED,
+        LV_EVENT_LONG_PRESSED,
         data);
 
     lv_obj_add_event_cb(

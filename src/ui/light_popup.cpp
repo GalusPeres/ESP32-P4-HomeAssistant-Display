@@ -8,6 +8,12 @@ namespace {
 constexpr int kCardWidth = 760;
 constexpr int kCardHeight = 420;
 constexpr int kCardPad = 20;
+constexpr int kHeaderPadTop = 4;
+constexpr int kHeaderIconOffsetX = 4;
+constexpr int kHeaderIconOffsetY = -8;
+constexpr int kContentPadTop = 85;
+constexpr int kPowerStatusGap = 20;
+constexpr int kPowerStatusMarginBottom = 35;
 
 constexpr int kLabelWidth = 140;
 constexpr int kSliderWidth = 420;
@@ -17,8 +23,8 @@ constexpr int kSliderClickPad = 22;
 constexpr int kRowHeight = 40;
 constexpr int kRowPadX = 28;
 constexpr int kRowPadY = 20;
-constexpr int kSwitchWidth = 90;
-constexpr int kSwitchHeight = 40;
+constexpr int kSwitchWidth = 120;
+constexpr int kSwitchHeight = 50;
 
 constexpr int kPreviewWidth = 140;
 constexpr int kPreviewHeight = 64;
@@ -43,6 +49,7 @@ struct LightPopupContext {
   lv_obj_t* val_row = nullptr;
   lv_obj_t* power_row = nullptr;
   lv_obj_t* power_switch = nullptr;
+  lv_obj_t* power_status_label = nullptr;
   uint16_t hue = 0;
   uint8_t sat = 0;
   uint8_t val = 100;
@@ -119,6 +126,16 @@ static void set_label_style(lv_obj_t* lbl, lv_color_t color) {
   if (!lbl) return;
   lv_obj_set_style_text_color(lbl, color, 0);
   lv_obj_set_style_text_font(lbl, &ui_font_24, 0);
+}
+
+static const lv_font_t* get_value_font() {
+#if defined(LV_FONT_MONTSERRAT_40) && LV_FONT_MONTSERRAT_40
+  return &lv_font_montserrat_40;
+#elif defined(LV_FONT_MONTSERRAT_48) && LV_FONT_MONTSERRAT_48
+  return &lv_font_montserrat_48;
+#else
+  return LV_FONT_DEFAULT;
+#endif
 }
 
 static void update_value_label(lv_obj_t* label, int value, const char* suffix) {
@@ -277,6 +294,35 @@ static void apply_init_to_context(LightPopupContext* ctx, const LightPopupInit& 
   }
   update_preview(ctx);
   ctx->suppress_events = false;
+}
+
+static lv_obj_t* create_centered_power_status(lv_obj_t* parent,
+                                               lv_obj_t** switch_out,
+                                               lv_obj_t** label_out) {
+  // Container für Switch (zentriert)
+  lv_obj_t* container = lv_obj_create(parent);
+  lv_obj_set_width(container, LV_PCT(100));
+  lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(container, 0, 0);
+  lv_obj_set_style_pad_all(container, 0, 0);
+  lv_obj_set_style_pad_bottom(container, kPowerStatusMarginBottom, 0);
+  lv_obj_set_height(container, LV_SIZE_CONTENT);
+  lv_obj_set_layout(container, LV_LAYOUT_FLEX);
+  lv_obj_set_flex_flow(container, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+  // Gelber Switch
+  lv_obj_t* sw = lv_switch_create(container);
+  lv_obj_set_size(sw, kSwitchWidth, kSwitchHeight);
+  // Gelbe Farbe für checked state
+  lv_obj_set_style_bg_color(sw, lv_color_hex(0xFFD700), LV_PART_INDICATOR | LV_STATE_CHECKED);
+  lv_obj_set_style_bg_color(sw, lv_color_hex(0xFFD700), LV_PART_KNOB | LV_STATE_CHECKED);
+  *switch_out = sw;
+
+  // Kein Label mehr
+  *label_out = nullptr;
+
+  return container;
 }
 
 static lv_obj_t* create_slider_row(lv_obj_t* parent,
@@ -508,13 +554,13 @@ void show_light_popup(const LightPopupInit& init) {
   ctx->title_label = title;
   set_label_style(title, lv_color_white());
   lv_label_set_text(title, init.title.c_str());
-  lv_obj_align(title, LV_ALIGN_TOP_LEFT, 0, 4);
+  lv_obj_align(title, LV_ALIGN_TOP_LEFT, 0, kHeaderPadTop);
 
   // Icon (right) - colored based on light state
   lv_obj_t* icon = lv_label_create(card);
   ctx->icon_label = icon;
   lv_obj_set_style_text_font(icon, FONT_MDI_ICONS, 0);
-  lv_obj_align(icon, LV_ALIGN_TOP_RIGHT, 4, -8);
+  lv_obj_align(icon, LV_ALIGN_TOP_RIGHT, kHeaderIconOffsetX, kHeaderIconOffsetY);
   if (init.icon_name.length() > 0) {
     String icon_char = getMdiChar(init.icon_name);
     lv_label_set_text(icon, icon_char.c_str());
@@ -526,12 +572,12 @@ void show_light_popup(const LightPopupInit& init) {
   lv_obj_set_style_bg_opa(content, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(content, 0, 0);
   lv_obj_set_style_pad_all(content, 0, 0);
-  lv_obj_set_style_pad_top(content, 100, 0);
+  lv_obj_set_style_pad_top(content, kContentPadTop, 0);
   lv_obj_set_layout(content, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_row(content, kRowPadY, 0);
 
-  ctx->power_row = create_switch_row(content, "Ein/Aus", &ctx->power_switch);
+  ctx->power_row = create_centered_power_status(content, &ctx->power_switch, &ctx->power_status_label);
   ctx->hue_row = create_slider_row(content, "Farbton", 0, 360, &ctx->hue_slider, &ctx->hue_value);
   ctx->sat_row = create_slider_row(content, "Saettigung", 0, 100, &ctx->sat_slider, &ctx->sat_value);
   ctx->val_row = create_slider_row(content, "Helligkeit", 0, 100, &ctx->val_slider, &ctx->val_value);
