@@ -6,6 +6,7 @@
 #include "src/tiles/mdi_icons.h"
 #include "src/ui/ui_manager.h"
 #include "src/ui/light_popup.h"
+#include "src/ui/sensor_popup.h"
 #include "src/fonts/ui_fonts.h"
 #include <Arduino.h>
 #include <math.h>
@@ -919,6 +920,13 @@ lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint
   return nullptr;
 }
 
+struct SensorEventData {
+  String entity_id;
+  String title;
+  String icon_name;
+  String unit;
+};
+
 lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type) {
   if (!parent) {
     Serial.println("[TileRenderer] ERROR: parent NULL bei Sensor-Tile");
@@ -942,6 +950,7 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
   lv_obj_set_style_pad_ver(card, 24, 0);
   lv_obj_set_height(card, CARD_H);
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
 
   lv_obj_set_grid_cell(card,
       LV_GRID_ALIGN_STRETCH, col, 1,
@@ -985,6 +994,52 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
   if (grid_type == GridType::TAB2) target = g_tab2_sensors;
   target[index].value_label = v;
   target[index].unit_label = nullptr;
+
+  if (tile.sensor_entity.length()) {
+    SensorEventData* data = new SensorEventData{
+      tile.sensor_entity,
+      tile.title,
+      tile.icon_name,
+      tile.sensor_unit
+    };
+
+    lv_obj_add_event_cb(
+        card,
+        [](lv_event_t* e) {
+          if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+          SensorEventData* data = static_cast<SensorEventData*>(lv_event_get_user_data(e));
+          if (!data || !data->entity_id.length()) return;
+          SensorPopupInit init;
+          init.entity_id = data->entity_id;
+          init.title = data->title;
+          if (!init.title.length()) {
+            init.title = haBridgeConfig.findSensorName(data->entity_id);
+          }
+          if (!init.title.length()) {
+            init.title = data->entity_id;
+          }
+          init.icon_name = data->icon_name;
+          String unit = data->unit;
+          if (!unit.length()) {
+            unit = haBridgeConfig.findSensorUnit(data->entity_id);
+          }
+          init.unit = unit;
+          init.value = haBridgeConfig.findSensorInitialValue(data->entity_id);
+          show_sensor_popup(init);
+        },
+        LV_EVENT_CLICKED,
+        data);
+
+    lv_obj_add_event_cb(
+        card,
+        [](lv_event_t* e) {
+          if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
+          SensorEventData* data = static_cast<SensorEventData*>(lv_event_get_user_data(e));
+          delete data;
+        },
+        LV_EVENT_DELETE,
+        data);
+  }
 
   return card;
 }

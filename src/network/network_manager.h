@@ -32,6 +32,8 @@ public:
   void publishBridgeRequest();
   const char* getBridgeApplyTopic() const;
   const char* getBridgeRequestTopic() const;
+  const char* getHistoryRequestTopic() const;
+  const char* getHistoryResponseTopic() const;
 
   // WiFi Power Management
   void setWifiPowerSaving(bool enable);
@@ -47,6 +49,8 @@ private:
   bool mqtt_enabled = false;
   String bridge_apply_topic_;
   String bridge_request_topic_;
+  String history_request_topic_;
+  String history_response_topic_;
 
 };
 

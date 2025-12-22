@@ -3,6 +3,7 @@
 #include "src/network/network_manager.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/ui/tab_tiles_unified.h"
+#include "src/ui/sensor_popup.h"
 #include "src/tiles/tile_config.h"
 #include <PubSubClient.h>
 #include <algorithm>
@@ -203,6 +204,15 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
     return;
   }
 
+  const char* history_topic = networkManager.getHistoryResponseTopic();
+  if (history_topic && strcmp(topic, history_topic) == 0) {
+    size_t copy_len = length < (LARGE_BUF - 1) ? length : (LARGE_BUF - 1);
+    memcpy(large_buf, payload, copy_len);
+    large_buf[copy_len] = '\0';
+    queue_sensor_popup_history(nullptr, large_buf, copy_len);
+    return;
+  }
+
   if (processed_static) {
     return;
   }
@@ -331,6 +341,28 @@ void mqttPublishLightCommand(const char* entity_id, const char* state, int brigh
 
   bool ok = mqtt.publish(topic, payload.c_str(), false);
   Serial.printf("Light command -> MQTT '%s' (%s)\n", topic, ok ? "ok" : "fail");
+}
+
+void mqttPublishHistoryRequest(const char* entity_id) {
+  if (!entity_id || !*entity_id) return;
+
+  PubSubClient& mqtt = networkManager.getMqttClient();
+  if (!mqtt.connected()) {
+    Serial.printf("History request skipped (MQTT offline): %s\n", entity_id);
+    return;
+  }
+
+  const char* topic = networkManager.getHistoryRequestTopic();
+  if (!topic || !*topic) {
+    Serial.printf("History request skipped (no topic): %s\n", entity_id);
+    return;
+  }
+
+  String payload = "{\"entity_id\":\"";
+  payload += entity_id;
+  payload += "\",\"hours\":24,\"period_minutes\":5,\"points\":288,\"stat\":\"mean\"}";
+  bool ok = mqtt.publish(topic, payload.c_str(), false);
+  Serial.printf("History request -> MQTT '%s' (%s)\n", topic, ok ? "ok" : "fail");
 }
 
 // ========== Home Assistant MQTT Discovery ==========

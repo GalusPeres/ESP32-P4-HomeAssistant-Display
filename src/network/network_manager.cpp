@@ -92,6 +92,14 @@ void Tab5NetworkManager::connectMqtt() {
   bridge_request_topic_ += did;
   bridge_request_topic_ += "/bridge/request";
 
+  history_request_topic_ = "tab5_lvgl/config/";
+  history_request_topic_ += did;
+  history_request_topic_ += "/history/request";
+
+  history_response_topic_ = "tab5_lvgl/config/";
+  history_response_topic_ += did;
+  history_response_topic_ += "/history/response";
+
   Serial.printf("MQTT: Verbinde mit %s:%u als %s\n", cfg.mqtt_host, cfg.mqtt_port, client_id);
 
   const char* stat_topic = mqttTopics.topic(TopicKey::STAT_CONN);
@@ -121,6 +129,10 @@ void Tab5NetworkManager::connectMqtt() {
   if (!bridge_apply_topic_.isEmpty()) {
     mqtt_client.subscribe(bridge_apply_topic_.c_str());
     Serial.printf("[MQTT] Listening for bridge config on %s\n", bridge_apply_topic_.c_str());
+  }
+  if (!history_response_topic_.isEmpty()) {
+    mqtt_client.subscribe(history_response_topic_.c_str());
+    Serial.printf("[MQTT] Listening for history responses on %s\n", history_response_topic_.c_str());
   }
   mqttPublishDiscovery();
   publishBridgeConfig();
@@ -187,6 +199,14 @@ void Tab5NetworkManager::publishBridgeRequest() {
 
 const char* Tab5NetworkManager::getBridgeRequestTopic() const {
   return bridge_request_topic_.length() ? bridge_request_topic_.c_str() : nullptr;
+}
+
+const char* Tab5NetworkManager::getHistoryRequestTopic() const {
+  return history_request_topic_.length() ? history_request_topic_.c_str() : nullptr;
+}
+
+const char* Tab5NetworkManager::getHistoryResponseTopic() const {
+  return history_response_topic_.length() ? history_response_topic_.c_str() : nullptr;
 }
 
 // ========== Update-Schleife ==========

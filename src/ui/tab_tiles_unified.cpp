@@ -2,6 +2,8 @@
 #include "src/core/display_manager.h"
 #include "src/tiles/tile_config.h"
 #include "src/tiles/tile_renderer.h"
+#include "src/ui/sensor_popup.h"
+#include "src/network/ha_bridge_config.h"
 #include <Arduino.h>
 
 /* === Layout-Konstanten === */
@@ -328,6 +330,7 @@ void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, co
   if (!tiles_is_loaded(grid_type)) return;
 
   const TileGridConfig& config = getGridConfig(grid_type);
+  bool popup_queued = false;
 
   // Find tile with matching sensor_entity
   for (uint8_t i = 0; i < TILES_PER_GRID; i++) {
@@ -336,6 +339,14 @@ void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, co
       const char* unit = tile.sensor_unit.length() > 0 ? tile.sensor_unit.c_str() : nullptr;
       queue_sensor_tile_update(grid_type, i, value, unit);
       Serial.printf("[%s] Sensor %s@%u queued: %s %s\n", getGridName(grid_type), entity_id, i, value, unit ? unit : "");
+      if (!popup_queued) {
+        String popup_unit = tile.sensor_unit;
+        if (!popup_unit.length()) {
+          popup_unit = haBridgeConfig.findSensorUnit(entity_id);
+        }
+        queue_sensor_popup_value(entity_id, value, popup_unit.length() ? popup_unit.c_str() : nullptr);
+        popup_queued = true;
+      }
     }
     if (tile.type == TILE_SWITCH && tile.sensor_entity.equalsIgnoreCase(entity_id)) {
       queue_switch_tile_update(grid_type, i, value);
