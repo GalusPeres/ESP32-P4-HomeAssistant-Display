@@ -318,8 +318,10 @@ static lv_obj_t* create_centered_power_status(lv_obj_t* parent,
   // Switch mit weißem Knob (Farbe wird in update_preview gesetzt)
   lv_obj_t* sw = lv_switch_create(container);
   lv_obj_set_size(sw, kSwitchWidth, kSwitchHeight);
-  // Knob bleibt weiß (default)
+  // Knob bleibt weiß mit dunklem Rand für Sichtbarkeit
   lv_obj_set_style_bg_color(sw, lv_color_white(), LV_PART_KNOB);
+  lv_obj_set_style_border_color(sw, lv_color_hex(0x404040), LV_PART_KNOB);
+  lv_obj_set_style_border_width(sw, 2, LV_PART_KNOB);
   *switch_out = sw;
 
   // Kein Label mehr
