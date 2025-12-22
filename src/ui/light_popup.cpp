@@ -178,23 +178,27 @@ static void publish_light_popup(LightPopupContext* ctx) {
 static void update_preview(LightPopupContext* ctx) {
   if (!ctx) return;
 
-  // Update icon color based on light state
-  if (ctx->icon_label) {
-    uint32_t rgb = 0;
-
-    // If light is off, show gray icon (like tiles)
-    if (!ctx->is_on) {
-      rgb = 0xB0B0B0;  // Tile gray
+  // Calculate color for icon and switch
+  uint32_t rgb = 0;
+  if (!ctx->is_on) {
+    rgb = 0xB0B0B0;  // Tile gray when off
+  } else {
+    // Light is on - mirror tile icon behavior
+    if (ctx->supports_color) {
+      rgb = color_from_hsv(ctx->hue, ctx->sat, 100);
     } else {
-      // Light is on - mirror tile icon behavior
-      if (ctx->supports_color) {
-        rgb = color_from_hsv(ctx->hue, ctx->sat, 100);
-      } else {
-        rgb = kDefaultColor;
-      }
+      rgb = kDefaultColor;
     }
+  }
 
+  // Update icon color
+  if (ctx->icon_label) {
     lv_obj_set_style_text_color(ctx->icon_label, lv_color_hex(rgb), 0);
+  }
+
+  // Update switch indicator color (same as icon)
+  if (ctx->power_switch) {
+    lv_obj_set_style_bg_color(ctx->power_switch, lv_color_hex(rgb), LV_PART_INDICATOR | LV_STATE_CHECKED);
   }
 
   update_value_label(ctx->hue_value, ctx->hue, "");
@@ -311,12 +315,11 @@ static lv_obj_t* create_centered_power_status(lv_obj_t* parent,
   lv_obj_set_flex_flow(container, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-  // Gelber Switch
+  // Switch mit weißem Knob (Farbe wird in update_preview gesetzt)
   lv_obj_t* sw = lv_switch_create(container);
   lv_obj_set_size(sw, kSwitchWidth, kSwitchHeight);
-  // Gelbe Farbe für checked state
-  lv_obj_set_style_bg_color(sw, lv_color_hex(0xFFD700), LV_PART_INDICATOR | LV_STATE_CHECKED);
-  lv_obj_set_style_bg_color(sw, lv_color_hex(0xFFD700), LV_PART_KNOB | LV_STATE_CHECKED);
+  // Knob bleibt weiß (default)
+  lv_obj_set_style_bg_color(sw, lv_color_white(), LV_PART_KNOB);
   *switch_out = sw;
 
   // Kein Label mehr
