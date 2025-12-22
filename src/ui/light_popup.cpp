@@ -319,7 +319,7 @@ static lv_obj_t* create_centered_power_status(lv_obj_t* parent,
   lv_obj_t* sw = lv_switch_create(container);
   lv_obj_set_size(sw, kSwitchWidth, kSwitchHeight);
   // Knob in hellgrau für bessere Sichtbarkeit
-  lv_obj_set_style_bg_color(sw, lv_color_hex(0xD0D0D0), LV_PART_KNOB);
+  lv_obj_set_style_bg_color(sw, lv_color_hex(0x2A2A2A), LV_PART_KNOB);
   *switch_out = sw;
 
   // Kein Label mehr
