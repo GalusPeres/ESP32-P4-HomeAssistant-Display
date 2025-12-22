@@ -233,8 +233,15 @@ static void apply_init_to_context(LightPopupContext* ctx, const LightPopupInit& 
   if (ctx->title_label) {
     lv_label_set_text(ctx->title_label, init.title.c_str());
   }
-  if (ctx->icon_label && init.icon_name.length() > 0) {
-    String icon_char = getMdiChar(init.icon_name);
+  if (ctx->icon_label) {
+    String icon_char;
+    if (init.icon_name.length() > 0) {
+      icon_char = getMdiChar(init.icon_name);
+    } else if (ctx->is_light) {
+      icon_char = getMdiChar("lightbulb");
+    } else {
+      icon_char = getMdiChar("toggle-switch-variant");
+    }
     lv_label_set_text(ctx->icon_label, icon_char.c_str());
   }
   if (ctx->hue_slider && update_color) {
