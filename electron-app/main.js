@@ -27,15 +27,43 @@ let TAB5_IP = store.get('tab5_ip'); // Aus Settings laden
 const TAB5_PORT = 8081;
 
 // Scan Code zu Robot Key Mapping
+// Based on USB HID Usage Tables
 const SCANCODE_MAP = {
+  // Letters
   0x04: 'a', 0x05: 'b', 0x06: 'c', 0x07: 'd', 0x08: 'e', 0x09: 'f',
   0x0A: 'g', 0x0B: 'h', 0x0C: 'i', 0x0D: 'j', 0x0E: 'k', 0x0F: 'l',
   0x10: 'm', 0x11: 'n', 0x12: 'o', 0x13: 'p', 0x14: 'q', 0x15: 'r',
   0x16: 's', 0x17: 't', 0x18: 'u', 0x19: 'v', 0x1A: 'w', 0x1B: 'x',
   0x1C: 'y', 0x1D: 'z',
+
+  // Numbers (Main Keyboard)
   0x1E: '1', 0x1F: '2', 0x20: '3', 0x21: '4', 0x22: '5',
   0x23: '6', 0x24: '7', 0x25: '8', 0x26: '9', 0x27: '0',
-  0x28: 'enter', 0x29: 'escape', 0x2A: 'backspace', 0x2B: 'tab', 0x2C: 'space'
+
+  // Special Keys
+  0x28: 'enter', 0x29: 'escape', 0x2A: 'backspace', 0x2B: 'tab', 0x2C: 'space',
+  0x2D: '-', 0x2E: '=', 0x2F: '[', 0x30: ']',
+  0x31: '\\', 0x33: ';', 0x34: '\'', 0x35: '`',
+  0x36: ',', 0x37: '.', 0x38: '/', 0x39: 'capsLock',
+
+  // Function Keys
+  0x3A: 'f1', 0x3B: 'f2', 0x3C: 'f3', 0x3D: 'f4', 0x3E: 'f5', 0x3F: 'f6',
+  0x40: 'f7', 0x41: 'f8', 0x42: 'f9', 0x43: 'f10', 0x44: 'f11', 0x45: 'f12',
+
+  // System Keys
+  0x46: 'printScreen', 0x47: 'scrollLock', 0x48: 'pause', 0x49: 'insert',
+  0x4A: 'home', 0x4B: 'pageUp', 0x4C: 'delete', 0x4D: 'end', 0x4E: 'pageDown',
+  0x4F: 'right', 0x50: 'left', 0x51: 'down', 0x52: 'up',
+
+  // Numpad
+  0x53: 'numLock', 0x54: 'divide', 0x55: 'multiply', 0x56: 'subtract', 0x57: 'add',
+  0x58: 'enter', 0x59: 'num1', 0x5A: 'num2', 0x5B: 'num3', 0x5C: 'num4', 0x5D: 'num5',
+  0x5E: 'num6', 0x5F: 'num7', 0x60: 'num8', 0x61: 'num9', 0x62: 'num0', 0x63: 'decimal',
+
+  // Media & Extra
+  0x7F: 'audioMute', 0x80: 'audioVolUp', 0x81: 'audioVolDown',
+  0xE0: 'controlLeft', 0xE1: 'shiftLeft', 0xE2: 'altLeft', 0xE3: 'metaLeft',
+  0xE4: 'controlRight', 0xE5: 'shiftRight', 0xE6: 'altRight', 0xE7: 'metaRight'
 };
 
 function createWindow() {
@@ -206,23 +234,26 @@ async function simulateKeyPress(scancode, modifier) {
   if (modifier & 0x01) modifiers.push('control');
   if (modifier & 0x02) modifiers.push('shift');
   if (modifier & 0x04) modifiers.push('alt');
+  if (modifier & 0x08) modifiers.push('command'); // Win/Meta
 
-  log(`⌨️ Simulating: ${modifiers.join('+')} ${key}`);
+  log(`⌨️ Processing: ${modifiers.join('+')} ${key} (Code: 0x${scancode.toString(16)})`);
 
   try {
-    // keysender Hardware API - braucht ein Array mit allen Tasten
+    // keysender Hardware API
     if (modifiers.length > 0) {
-      // Mit Modifiern: ['alt', 'n'] oder ['ctrl', 'shift', 'a']
+      // Mit Modifiern
       const keyCombo = [...modifiers, key];
+      log(`   -> Sending combo: [${keyCombo.join(', ')}]`);
       await kb.keyboard.sendKey(keyCombo);
-      log(`✅ Key pressed: ${keyCombo.join('+')}`);
     } else {
       // Ohne Modifier
+      log(`   -> Sending single: ${key}`);
       await kb.keyboard.sendKey(key);
-      log(`✅ Key pressed: ${key}`);
     }
+    log(`✅ Success`);
   } catch (err) {
-    log(`❌ Error: ${err.message}`);
+    log(`❌ ERROR Sending Key: ${err.message}`);
+    // Prevent App Crash by catching all errors here
   }
 }
 

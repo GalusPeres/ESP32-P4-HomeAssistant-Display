@@ -4,6 +4,7 @@
 #include "src/network/mqtt_handlers.h"
 #include "src/ui/tab_settings.h"
 #include "src/game/game_controls_config.h"
+#include "src/game/key_parsing.h"
 #include "src/tiles/tile_config.h"
 #include "src/ui/tab_tiles_unified.h"
 #include "src/ui/ui_manager.h"
@@ -193,25 +194,7 @@ void WebAdminServer::handleSaveGameControls() {
     uint8_t key_code = 0;
     uint8_t modifier = 0;
 
-    if (macro.length() > 0) {
-      // Modifier extrahieren
-      if (macro.indexOf("ctrl+") >= 0) { modifier |= 0x01; macro.replace("ctrl+", ""); }
-      if (macro.indexOf("shift+") >= 0) { modifier |= 0x02; macro.replace("shift+", ""); }
-      if (macro.indexOf("alt+") >= 0) { modifier |= 0x04; macro.replace("alt+", ""); }
-
-      // Taste zu Scancode konvertieren
-      macro.trim();
-      if (macro.length() == 1 && macro[0] >= 'a' && macro[0] <= 'z') {
-        key_code = 0x04 + (macro[0] - 'a');  // a=0x04, b=0x05, ..., z=0x1D
-      } else if (macro.length() == 1 && macro[0] >= '0' && macro[0] <= '9') {
-        key_code = 0x1E + (macro[0] - '0');  // 0=0x27, 1=0x1E, ..., 9=0x26
-      } else if (macro == "space") key_code = 0x2C;
-      else if (macro == "enter") key_code = 0x28;
-      else if (macro == "backspace") key_code = 0x2A;
-      else if (macro == "tab") key_code = 0x2B;
-      else if (macro == "esc" || macro == "escape") key_code = 0x29;
-      // sonst 0 (keine Taste)
-    }
+    parseKeyMacro(macro, key_code, modifier);
 
     if (updated.buttons[i].key_code != key_code) {
       updated.buttons[i].key_code = key_code;
@@ -434,28 +417,10 @@ void WebAdminServer::handleSaveTiles() {
     tile.sensor_value_font = 0;
 
     // Parse macro to key_code and modifier
-    String macro = tile.key_macro;
-    macro.toLowerCase();
-
     uint8_t modifier = 0;
     uint8_t key_code = 0;
 
-    // Parse modifiers
-    if (macro.indexOf("ctrl+") >= 0) { modifier |= 0x01; macro.replace("ctrl+", ""); }
-    if (macro.indexOf("shift+") >= 0) { modifier |= 0x02; macro.replace("shift+", ""); }
-    if (macro.indexOf("alt+") >= 0) { modifier |= 0x04; macro.replace("alt+", ""); }
-
-    // Parse key
-    macro.trim();
-    if (macro.length() == 1 && macro[0] >= 'a' && macro[0] <= 'z') {
-      key_code = 0x04 + (macro[0] - 'a');
-    } else if (macro.length() == 1 && macro[0] >= '0' && macro[0] <= '9') {
-      key_code = 0x1E + (macro[0] - '0');
-    } else if (macro == "space") key_code = 0x2C;
-    else if (macro == "enter") key_code = 0x28;
-    else if (macro == "backspace") key_code = 0x2A;
-    else if (macro == "tab") key_code = 0x2B;
-    else if (macro == "esc" || macro == "escape") key_code = 0x29;
+    parseKeyMacro(tile.key_macro, key_code, modifier);
 
     tile.key_code = key_code;
     tile.key_modifier = modifier;
