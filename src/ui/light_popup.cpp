@@ -1,4 +1,5 @@
 #include "src/ui/light_popup.h"
+#include "src/ui/sensor_popup.h"
 #include "src/fonts/ui_fonts.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/tiles/mdi_icons.h"
@@ -518,6 +519,10 @@ static void on_overlay_delete(lv_event_t* e) {
 
 void show_light_popup(const LightPopupInit& init) {
   if (!init.entity_id.length()) return;
+
+  // Hide sensor popup if visible
+  hide_sensor_popup();
+
   if (g_light_popup_ctx && g_light_popup_ctx->overlay && g_light_popup_ctx->card) {
     apply_init_to_context(g_light_popup_ctx, init);
     lv_obj_clear_flag(g_light_popup_ctx->card, LV_OBJ_FLAG_HIDDEN);
@@ -639,4 +644,10 @@ void preload_light_popup() {
     lv_obj_add_flag(g_light_popup_ctx->card, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(g_light_popup_ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
   }
+}
+
+void hide_light_popup() {
+  if (!g_light_popup_ctx || !g_light_popup_ctx->card || !g_light_popup_ctx->overlay) return;
+  lv_obj_add_flag(g_light_popup_ctx->card, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_clear_flag(g_light_popup_ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
 }

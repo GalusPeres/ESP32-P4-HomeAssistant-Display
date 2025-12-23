@@ -1,4 +1,5 @@
 #include "src/ui/sensor_popup.h"
+#include "src/ui/light_popup.h"
 #include "src/fonts/ui_fonts.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/tiles/mdi_icons.h"
@@ -350,6 +351,9 @@ static bool should_request_history(const SensorPopupInit& init) {
 void show_sensor_popup(const SensorPopupInit& init) {
   if (!init.entity_id.length()) return;
 
+  // Hide light popup if visible
+  hide_light_popup();
+
   if (g_sensor_popup_ctx && g_sensor_popup_ctx->overlay && g_sensor_popup_ctx->card) {
     apply_init_to_context(g_sensor_popup_ctx, init);
     clear_chart(g_sensor_popup_ctx, kHistoryPointsDefault);
@@ -380,6 +384,12 @@ void preload_sensor_popup() {
     lv_obj_add_flag(g_sensor_popup_ctx->card, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(g_sensor_popup_ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
   }
+}
+
+void hide_sensor_popup() {
+  if (!g_sensor_popup_ctx || !g_sensor_popup_ctx->card || !g_sensor_popup_ctx->overlay) return;
+  lv_obj_add_flag(g_sensor_popup_ctx->card, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_clear_flag(g_sensor_popup_ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
 }
 
 void queue_sensor_popup_value(const char* entity_id, const char* value, const char* unit) {

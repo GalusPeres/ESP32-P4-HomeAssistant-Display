@@ -13,6 +13,7 @@ struct SensorPopupInit {
 
 void show_sensor_popup(const SensorPopupInit& init);
 void preload_sensor_popup();
+void hide_sensor_popup();
 
 // Thread-safe queue helpers (MQTT -> main loop).
 void queue_sensor_popup_value(const char* entity_id, const char* value, const char* unit);
