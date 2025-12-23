@@ -1,7 +1,0 @@
-0000000000000000000000000000000000000000 615b3215995ff2a556b4d614305102219371a22c GalusPeres <seb_wittmann@msn.com> 1762676657 +0100	commit (initial): Refactor: Modulare Code-Architektur implementiert
-615b3215995ff2a556b4d614305102219371a22c c552e7e276e966bc20432890e2a8c5ca62c5737c GalusPeres <seb_wittmann@msn.com> 1762676738 +0100	commit: Add .gitignore und entferne .claude/ aus Git
-c552e7e276e966bc20432890e2a8c5ca62c5737c 43b65e55f017ed7fcd107d27bf3f206e77f6d3a6 GalusPeres <seb_wittmann@msn.com> 1762703974 +0100	commit: chore: save current homeassistant integration updates
-43b65e55f017ed7fcd107d27bf3f206e77f6d3a6 89d869588032f9f20f47f17275e8c87d2bbcf97d GalusPeres <seb_wittmann@msn.com> 1762871689 +0100	commit: Optimierung: Helligkeit und Stromsparen getrennt
-89d869588032f9f20f47f17275e8c87d2bbcf97d 6246a00808500d3d3158f85ef9f03d5d372af3ab GalusPeres <seb_wittmann@msn.com> 1763116710 +0100	commit: Fix: Power-Detection nutzt Stromrichtung statt isCharging
-6246a00808500d3d3158f85ef9f03d5d372af3ab 346f2dffe7f2888ff360aeecb38b390be67eac4a GalusPeres <seb_wittmann@msn.com> 1763117957 +0100	commit: Feature: WiFi Power Saving + Tab-Button Feedback
-346f2dffe7f2888ff360aeecb38b390be67eac4a 0e255317ef3b3155fc5f50f983ab1e4b6ea4fbe9 GalusPeres <seb_wittmann@msn.com> 1763122014 +0100	commit: Fix: Power Management stabilisiert
