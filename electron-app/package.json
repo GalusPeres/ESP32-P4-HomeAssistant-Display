@@ -4,7 +4,11 @@
   "description": "Tab5 Game Controls - Stream Deck style keyboard controller",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
   },
   "author": "Tab5 User",
   "license": "MIT",
@@ -13,5 +17,34 @@
     "keysender": "2.4.0",
     "sharp": "0.34.5",
     "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.tab5.gamecontrols",
+    "productName": "Tab5 Game Controls",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/**/*",
+      "node_modules/keysender/**/*",
+      "node_modules/sharp/**/*",
+      "node_modules/ws/**/*"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "icon.png"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "icon.png"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "icon": "icon.png"
+    }
   }
 }
