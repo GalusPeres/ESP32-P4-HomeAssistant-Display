@@ -45,6 +45,7 @@ public:
   void handleGetTabs();
   void handleRenameTab();
   void handleGetSensorValues();
+  void handleGetSdImages();
 
   // HTML-Seiten (implemented in web_admin_html.cpp)
   String getAdminPage();

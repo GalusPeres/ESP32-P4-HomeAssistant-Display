@@ -168,6 +168,81 @@ void appendAdminScripts(String& html) {
   let tab0TilesData = [];
   let tab1TilesData = [];
   let tab2TilesData = [];
+  const slideshowToken = '__slideshow__';
+  let sdImageList = [];
+  let sdImageListLoaded = false;
+
+  function populateImageSelect(tab, list) {
+    const prefix = tab;
+    const select = document.getElementById(prefix + '_image_select');
+    if (!select) return;
+    const current = select.value;
+    const inputVal = document.getElementById(prefix + '_image_path')?.value || '';
+    const items = Array.isArray(list) ? list : [];
+    select.innerHTML = '';
+    const slideshowOpt = document.createElement('option');
+    slideshowOpt.value = slideshowToken;
+    slideshowOpt.textContent = 'Alle Bilder (Diashow)';
+    select.appendChild(slideshowOpt);
+    items.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      select.appendChild(opt);
+    });
+    const preferred = inputVal || current || '';
+    const valid = preferred === slideshowToken || items.includes(preferred);
+    if (valid) {
+      select.value = preferred;
+    } else {
+      select.value = slideshowToken;
+      setImagePath(tab, slideshowToken);
+    }
+  }
+
+  function refreshImageSelect(tab, force) {
+    if (!force && sdImageListLoaded) {
+      populateImageSelect(tab, sdImageList);
+      return;
+    }
+    fetch('/api/sd_images')
+      .then(res => res.json())
+      .then(list => {
+        sdImageList = Array.isArray(list) ? list : [];
+        sdImageListLoaded = true;
+        populateImageSelect(tab, sdImageList);
+      })
+      .catch(() => {
+        sdImageListLoaded = false;
+      });
+  }
+
+  function applyImageUiState(tab, path) {
+    const prefix = tab;
+    const select = document.getElementById(prefix + '_image_select');
+    if (!select) return;
+    if (!path) {
+      setImagePath(tab, slideshowToken);
+      return;
+    }
+    select.value = path;
+    if (select.value !== path) select.value = slideshowToken;
+  }
+
+  function setImagePath(tab, value) {
+    const prefix = tab;
+    const input = document.getElementById(prefix + '_image_path');
+    if (!input) return;
+    input.value = value || '';
+    const select = document.getElementById(prefix + '_image_select');
+    if (select) {
+      select.value = input.value;
+      if (select.value !== input.value) select.value = slideshowToken;
+    }
+    updateTilePreview(tab);
+    updateDraft(tab);
+    scheduleAutoSave(tab);
+  }
 
   function persistDrafts() { try { localStorage.setItem('tileDrafts', JSON.stringify(drafts)); } catch (e) {} }
   function loadDraftsFromStorage() {
@@ -249,6 +324,8 @@ void appendAdminScripts(String& html) {
       if (styleEl) styleEl.value = d.switch_style || '0';
     } else if (d.type === '6') {
       document.getElementById(prefix + '_image_path').value = d.image_path || '';
+      applyImageUiState(tab, d.image_path || '');
+      refreshImageSelect(tab, false);
     }
     updateTilePreview(tab);
     return true;
@@ -320,6 +397,12 @@ void appendAdminScripts(String& html) {
     if (switchEntityEl) switchEntityEl.value = data.switch_entity || '';
     const switchStyleEl = document.getElementById(prefix + '_switch_style');
     if (switchStyleEl) switchStyleEl.value = data.switch_style || '0';
+    if (typeValue === '6') {
+      const imagePathEl = document.getElementById(prefix + '_image_path');
+      if (imagePathEl) imagePathEl.value = data.image_path || '';
+      applyImageUiState(tab, data.image_path || '');
+      refreshImageSelect(tab, false);
+    }
   }
 
   function copyTile(tab) {
@@ -422,7 +505,8 @@ void appendAdminScripts(String& html) {
     const prefix = tab;
       const fields = [
         '_tile_title','_tile_color','_tile_type','_sensor_entity','_sensor_unit',
-        '_sensor_decimals','_sensor_value_font','_scene_alias','_key_macro','_navigate_target','_switch_entity','_switch_style'
+        '_sensor_decimals','_sensor_value_font','_scene_alias','_key_macro','_navigate_target','_switch_entity','_switch_style',
+        '_image_path','_image_select'
       ];
     fields.forEach(id => {
       const el = document.getElementById(prefix + id);
@@ -442,6 +526,7 @@ void appendAdminScripts(String& html) {
     const navigateSelect = document.getElementById(prefix + '_navigate_target');
     const switchSelect = document.getElementById(prefix + '_switch_entity');
     const switchStyleSelect = document.getElementById(prefix + '_switch_style');
+    const imageSelect = document.getElementById(prefix + '_image_select');
 
     if (titleInput) titleInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (iconInput) iconInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -456,6 +541,10 @@ void appendAdminScripts(String& html) {
     if (navigateSelect) navigateSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (switchSelect) switchSelect.addEventListener('change', () => { maybeFillTitleFromSwitch(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (switchStyleSelect) switchStyleSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    if (imageSelect) imageSelect.addEventListener('focus', () => { refreshImageSelect(tab, true); });
+    if (imageSelect) imageSelect.addEventListener('change', () => {
+      setImagePath(tab, imageSelect.value || '');
+    });
   }
 
   function formatSensorValue(value, decimals) {
@@ -805,6 +894,8 @@ void appendAdminScripts(String& html) {
           if (styleEl) styleEl.value = (data.switch_style !== undefined) ? String(data.switch_style) : '0';
         } else if (data.type === 6) {
           document.getElementById(prefix + '_image_path').value = data.image_path || '';
+          applyImageUiState(tab, data.image_path || '');
+          refreshImageSelect(tab, false);
         }
       const decEl = document.getElementById(prefix + '_sensor_decimals');
       if (data.type !== 1 && decEl) decEl.value = '';
@@ -831,7 +922,12 @@ void appendAdminScripts(String& html) {
     else if (typeValue === '3') document.getElementById(prefix + '_key_fields').classList.add('show');
     else if (typeValue === '4') document.getElementById(prefix + '_navigate_fields').classList.add('show');
     else if (typeValue === '5') document.getElementById(prefix + '_switch_fields').classList.add('show');
-    else if (typeValue === '6') document.getElementById(prefix + '_image_fields').classList.add('show');
+    else if (typeValue === '6') {
+      document.getElementById(prefix + '_image_fields').classList.add('show');
+      refreshImageSelect(tab, false);
+      const path = document.getElementById(prefix + '_image_path')?.value || '';
+      applyImageUiState(tab, path);
+    }
   }
 
   function showNotification(message, success = true) {
@@ -859,6 +955,7 @@ void appendAdminScripts(String& html) {
       const el = document.getElementById(prefix + suf);
       if (el) el.value = (suf === '_switch_style' || suf === '_sensor_value_font') ? '0' : '';
     });
+    applyImageUiState(tab, '');
     updateTileType(tab);
     updateTilePreview(tab);
     updateDraft(tab);

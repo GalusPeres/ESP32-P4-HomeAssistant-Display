@@ -29,6 +29,7 @@ bool WebAdminServer::start() {
   server.on("/api/tabs", HTTP_GET, [this]() { this->handleGetTabs(); });
   server.on("/api/tabs/rename", HTTP_POST, [this]() { this->handleRenameTab(); });
   server.on("/api/sensor_values", HTTP_GET, [this]() { this->handleGetSensorValues(); });
+  server.on("/api/sd_images", HTTP_GET, [this]() { this->handleGetSdImages(); });
 
   server.begin();
   running = true;

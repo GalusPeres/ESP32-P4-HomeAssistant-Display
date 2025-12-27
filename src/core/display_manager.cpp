@@ -3,6 +3,7 @@
 #include <M5Unified.h>
 #include "esp_heap_caps.h"
 #include <Arduino.h>
+#include <cstring>
 
 // Globale Instanz
 DisplayManager displayManager;
@@ -19,9 +20,60 @@ static volatile uint16_t g_flush_log_budget = 0;
 static size_t g_buffer_lines = 0;
 static uint8_t g_bytes_per_pixel = 0;
 static lv_display_render_mode_t g_render_mode = LV_DISPLAY_RENDER_MODE_PARTIAL;
+static bool g_reverse_flush = false;
+static lv_color_t* g_reverse_buf = nullptr;
+static size_t g_reverse_buf_width = 0;
+static constexpr size_t kReverseStripeWidth = 16;
+static bool g_reverse_flush_once = false;
+
+static bool ensure_reverse_buf() {
+  if (g_reverse_buf && g_reverse_buf_width == kReverseStripeWidth) return true;
+  if (g_reverse_buf) {
+    heap_caps_free(g_reverse_buf);
+    g_reverse_buf = nullptr;
+    g_reverse_buf_width = 0;
+  }
+  uint8_t bpp = g_bytes_per_pixel ? g_bytes_per_pixel : 2;
+  const size_t bytes = kReverseStripeWidth * SCREEN_HEIGHT * bpp;
+  lv_color_t* buf = (lv_color_t*)heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+  if (!buf) {
+    buf = (lv_color_t*)heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+  }
+  if (!buf) return false;
+  g_reverse_buf = buf;
+  g_reverse_buf_width = kReverseStripeWidth;
+  return true;
+}
 
 void DisplayManager::debugFlushNext(uint16_t count) {
   g_flush_log_budget = count;
+}
+
+void DisplayManager::setReverseFlush(bool enable) {
+  if (enable == g_reverse_flush) return;
+  if (!enable) {
+    if (g_reverse_buf) {
+      heap_caps_free(g_reverse_buf);
+      g_reverse_buf = nullptr;
+    }
+    g_reverse_buf_width = 0;
+    g_reverse_flush = false;
+    g_reverse_flush_once = false;
+    return;
+  }
+  if (!ensure_reverse_buf()) {
+    g_reverse_flush = false;
+    g_reverse_flush_once = false;
+    return;
+  }
+  g_reverse_flush = true;
+  g_reverse_flush_once = false;
+}
+
+void DisplayManager::setReverseFlushOnce() {
+  if (!ensure_reverse_buf()) return;
+  g_reverse_flush = true;
+  g_reverse_flush_once = true;
 }
 
 bool DisplayManager::setBufferLines(size_t lines) {
@@ -103,6 +155,30 @@ void IRAM_ATTR DisplayManager::flush_cb(lv_display_t *lv_disp, const lv_area_t *
                   (unsigned long)w, (unsigned long)h,
                   lv_display_flush_is_last(lv_disp));
     g_flush_log_budget--;
+  }
+  if (g_reverse_flush && g_reverse_buf && g_reverse_buf_width > 0 &&
+      area->x1 == 0 && area->y1 == 0 &&
+      w == SCREEN_WIDTH && h == SCREEN_HEIGHT) {
+    const uint16_t* src = reinterpret_cast<const uint16_t*>(px_map);
+    const uint32_t stripe = (uint32_t)g_reverse_buf_width;
+    int32_t x = (int32_t)w;
+    while (x > 0) {
+      const uint32_t cur_w = (x >= (int32_t)stripe) ? stripe : (uint32_t)x;
+      const uint32_t start = (uint32_t)(x - (int32_t)cur_w);
+      uint16_t* dst = reinterpret_cast<uint16_t*>(g_reverse_buf);
+      for (uint32_t row = 0; row < h; ++row) {
+        const uint16_t* src_row = src + row * w + start;
+        std::memcpy(dst + row * cur_w, src_row, cur_w * sizeof(uint16_t));
+      }
+      M5.Display.pushImageDMA((int32_t)start, 0, cur_w, h, dst);
+      x -= (int32_t)cur_w;
+    }
+    if (g_reverse_flush_once) {
+      g_reverse_flush = false;
+      g_reverse_flush_once = false;
+    }
+    lv_display_flush_ready(lv_disp);
+    return;
   }
   M5.Display.pushImageDMA(area->x1, area->y1, w, h, (uint16_t*)px_map);
   lv_display_flush_ready(lv_disp);

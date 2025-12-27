@@ -9,6 +9,68 @@
 #include "src/ui/tab_tiles_unified.h"
 #include "src/ui/ui_manager.h"
 #include <algorithm>
+#include <vector>
+#include <SD.h>
+
+namespace {
+
+bool endsWithIgnoreCase(const String& value, const char* suffix) {
+  if (!suffix) return false;
+  String v = value;
+  v.toLowerCase();
+  String s = suffix;
+  s.toLowerCase();
+  return v.endsWith(s);
+}
+
+String joinPath(const String& dir, const String& name) {
+  if (name.startsWith("/")) return name;
+  if (dir == "/") return String("/") + name;
+  return dir + "/" + name;
+}
+
+void collectBinImages(const String& dir, std::vector<String>& out, size_t max_entries, uint8_t depth) {
+  if (out.size() >= max_entries) return;
+  File root = SD.open(dir);
+  if (!root) return;
+
+  File file = root.openNextFile();
+  while (file) {
+    if (out.size() >= max_entries) break;
+    const char* name_c = file.name();
+    String name = name_c ? String(name_c) : String();
+    if (file.isDirectory()) {
+      if (depth > 0 && name.length()) {
+        collectBinImages(joinPath(dir, name), out, max_entries, depth - 1);
+      }
+    } else if (name.length()) {
+      if (endsWithIgnoreCase(name, ".bin")) {
+        out.push_back(joinPath(dir, name));
+      }
+    }
+    file = root.openNextFile();
+  }
+}
+
+void appendJsonEscaped(String& out, const String& value) {
+  for (size_t i = 0; i < value.length(); ++i) {
+    char c = value.charAt(i);
+    if (c == '\"' || c == '\\') {
+      out += '\\';
+      out += c;
+    } else if (c == '\n') {
+      out += "\\n";
+    } else if (c == '\r') {
+      out += "\\r";
+    } else if (c == '\t') {
+      out += "\\t";
+    } else {
+      out += c;
+    }
+  }
+}
+
+}  // namespace
 
 void WebAdminServer::handleSaveMQTT() {
   DeviceConfig cfg{};
@@ -449,6 +511,7 @@ void WebAdminServer::handleSaveTiles() {
   } else if (type == TILE_IMAGE) {
     // Element-Pool: image_path wird in key_macro gespeichert (siehe tile_config.cpp packTile/unpackTile)
     tile.image_path = server.hasArg("image_path") ? server.arg("image_path") : "";
+    tile.image_path.trim();
     Serial.printf("[WebAdmin] IMAGE Tile - Empfangener Pfad: '%s'\n", tile.image_path.c_str());
     tile.sensor_decimals = 0xFF;
     tile.sensor_value_font = 0;
@@ -563,6 +626,21 @@ void WebAdminServer::handleGetSensorValues() {
   json += "}";
   Serial.print("[WebAdmin] Sending JSON: ");
   Serial.println(json);
+  server.send(200, "application/json", json);
+}
+
+void WebAdminServer::handleGetSdImages() {
+  std::vector<String> files;
+  collectBinImages("/", files, 200, 3);
+
+  String json = "[";
+  for (size_t i = 0; i < files.size(); ++i) {
+    if (i > 0) json += ",";
+    json += "\"";
+    appendJsonEscaped(json, files[i]);
+    json += "\"";
+  }
+  json += "]";
   server.send(200, "application/json", json);
 }
 

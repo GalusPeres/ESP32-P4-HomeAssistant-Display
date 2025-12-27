@@ -374,11 +374,14 @@ static void appendTileTabHTML(
             <div id=")html";
   html += tab_id;
   html += R"html(_image_fields" class="type-fields">
-              <label>Bildpfad (SD-Karte)</label>
-              <input type="text" id=")html";
+              <label>Bildauswahl (.bin von SD)</label>
+              <select id=")html";
   html += tab_id;
-  html += R"html(_image_path" placeholder="/bild.bin">
-              <div style="font-size:11px;color:#64748b;margin-top:4px;">Pfad zur PNG-, JPG- oder BIN-Datei auf der SD-Karte (z.B. /bild.bin). BIN aus dem LVGL Image Converter (RGB565; falls verfuegbar RGB565_SWAPPED).</div>
+  html += R"html(_image_select">
+              </select>
+              <input type="hidden" id=")html";
+  html += tab_id;
+  html += R"html(_image_path">
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#64748b;gap:10px;">
               <span>Aenderungen werden automatisch gespeichert.</span>

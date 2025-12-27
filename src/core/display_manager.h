@@ -25,6 +25,8 @@ public:
   void armWakeTouchGuard();
   void setInputEnabled(bool enable);
   void debugFlushNext(uint16_t count);
+  void setReverseFlush(bool enable);
+  void setReverseFlushOnce();
   bool setBufferLines(size_t lines);
   bool setBufferLines(size_t lines, lv_display_render_mode_t render_mode);
   size_t getBufferLines() const;
