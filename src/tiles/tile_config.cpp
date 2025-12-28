@@ -3,7 +3,9 @@
 #include <string.h>
 
 static const char* PREF_NAMESPACE = "tab5_tiles";
-static constexpr uint8_t PACKED_GRID_VERSION = 2;
+static constexpr uint8_t PACKED_GRID_VERSION = 3;
+static constexpr uint16_t IMAGE_SLIDESHOW_DEFAULT_SEC = 10;
+static constexpr uint16_t IMAGE_SLIDESHOW_MAX_SEC = 3600;
 
 // Feste Längen für gepackte Strings (inkl. Nullterminator)
 static constexpr size_t TITLE_MAX     = 32;
@@ -33,7 +35,7 @@ struct PackedGridV1 {
   PackedTileV1 tiles[TILES_PER_GRID];
 };
 
-struct PackedTile {
+struct PackedTileV2 {
   uint8_t type;
   uint8_t sensor_decimals;
   uint8_t key_code;
@@ -47,6 +49,29 @@ struct PackedTile {
   char key_macro[MACRO_MAX];
   uint8_t sensor_value_font;
   uint8_t reserved[3];             // Alignment / future use
+};
+
+struct PackedGridV2 {
+  uint8_t version;
+  uint8_t reserved[3];  // Alignment / future use
+  PackedTileV2 tiles[TILES_PER_GRID];
+};
+
+struct PackedTile {
+  uint8_t type;
+  uint8_t sensor_decimals;
+  uint8_t key_code;
+  uint8_t key_modifier;
+  uint32_t bg_color;
+  char title[TITLE_MAX];
+  char icon_name[ICON_MAX];        // MDI Icon Name
+  char sensor_entity[ENTITY_MAX];
+  char sensor_unit[UNIT_MAX];
+  char scene_alias[SCENE_MAX];
+  char key_macro[MACRO_MAX];
+  uint8_t sensor_value_font;
+  uint16_t image_slideshow_sec;
+  uint8_t reserved[1];             // Alignment / future use
 };
 
 struct PackedGrid {
@@ -79,6 +104,14 @@ static uint8_t clampSensorValueFont(uint8_t val) {
   return val;
 }
 
+static uint16_t clampImageSlideshowSeconds(uint16_t val) {
+  if (val == 0) return IMAGE_SLIDESHOW_DEFAULT_SEC;
+  if (val > IMAGE_SLIDESHOW_MAX_SEC) return IMAGE_SLIDESHOW_MAX_SEC;
+  return val;
+}
+
+static bool looksLikeImagePath(const String& value);
+
 static void packTile(const Tile& in, PackedTile& out) {
   memset(&out, 0, sizeof(out));
   out.type = static_cast<uint8_t>(in.type);
@@ -87,18 +120,32 @@ static void packTile(const Tile& in, PackedTile& out) {
   out.key_modifier = in.key_modifier;
   out.bg_color = in.bg_color;
   out.sensor_value_font = clampSensorValueFont(in.sensor_value_font);
+  out.image_slideshow_sec = clampImageSlideshowSeconds(in.image_slideshow_sec);
   copyString(in.title, out.title, sizeof(out.title));
   copyString(in.icon_name, out.icon_name, sizeof(out.icon_name));
-  copyString(in.sensor_entity, out.sensor_entity, sizeof(out.sensor_entity));
   copyString(in.sensor_unit, out.sensor_unit, sizeof(out.sensor_unit));
   copyString(in.scene_alias, out.scene_alias, sizeof(out.scene_alias));
-  // Element-Pool: TILE_IMAGE nutzt key_macro für image_path
-  copyString(in.key_macro.length() > 0 ? in.key_macro : in.image_path, out.key_macro, sizeof(out.key_macro));
-
   if (in.type == TILE_IMAGE) {
-    Serial.printf("[TileConfig] packTile - TILE_IMAGE: image_path='%s', key_macro='%s', packed='%s'\n",
-                  in.image_path.c_str(), in.key_macro.c_str(), out.key_macro);
+    // Element-Pool: TILE_IMAGE nutzt sensor_entity für image_path (mehr Platz als key_macro).
+    String image_path = in.image_path;
+    if (image_path.length() == 0 && looksLikeImagePath(in.key_macro)) {
+      image_path = in.key_macro;  // Legacy fallback
+    }
+    copyString(image_path, out.sensor_entity, sizeof(out.sensor_entity));
+    out.key_macro[0] = '\0';
+    Serial.printf("[TileConfig] packTile - TILE_IMAGE: image_path='%s', packed='%s'\n",
+                  image_path.c_str(), out.sensor_entity);
+  } else {
+    copyString(in.sensor_entity, out.sensor_entity, sizeof(out.sensor_entity));
+    copyString(in.key_macro, out.key_macro, sizeof(out.key_macro));
   }
+}
+
+static bool looksLikeImagePath(const String& value) {
+  if (value.length() == 0) return false;
+  if (value.startsWith("/") || value.startsWith("__")) return true;
+  if (value.startsWith("http://") || value.startsWith("https://")) return true;
+  return false;
 }
 
 static void unpackTile(const PackedTile& in, Tile& out) {
@@ -108,18 +155,54 @@ static void unpackTile(const PackedTile& in, Tile& out) {
   out.sensor_value_font = clampSensorValueFont(in.sensor_value_font);
   out.key_code = in.key_code;
   out.key_modifier = in.key_modifier;
+  out.image_slideshow_sec = clampImageSlideshowSeconds(in.image_slideshow_sec);
   out.title = String(in.title);
   out.icon_name = String(in.icon_name);
   out.sensor_entity = String(in.sensor_entity);
   out.sensor_unit = String(in.sensor_unit);
   out.scene_alias = String(in.scene_alias);
   out.key_macro = String(in.key_macro);
-  // Element-Pool: TILE_IMAGE nutzt key_macro für image_path
+  // Element-Pool: TILE_IMAGE nutzt sensor_entity für image_path (fallback: key_macro aus Altbestand).
   if (out.type == TILE_IMAGE) {
-    out.image_path = out.key_macro;
+    if (looksLikeImagePath(out.sensor_entity)) {
+      out.image_path = out.sensor_entity;
+    } else {
+      out.image_path = out.key_macro;
+    }
     out.key_macro = "";
-    Serial.printf("[TileConfig] unpackTile - TILE_IMAGE: packed='%s', image_path='%s'\n",
-                  in.key_macro, out.image_path.c_str());
+    out.sensor_entity = "";
+    Serial.printf("[TileConfig] unpackTile - TILE_IMAGE: packed(sensor)='%s', packed(macro)='%s', image_path='%s'\n",
+                  in.sensor_entity, in.key_macro, out.image_path.c_str());
+  } else {
+    out.image_path = "";
+  }
+}
+
+static void unpackTileV2(const PackedTileV2& in, Tile& out) {
+  out.type = static_cast<TileType>(in.type);
+  out.bg_color = in.bg_color;
+  out.sensor_decimals = clampDecimals(in.sensor_decimals);
+  out.sensor_value_font = clampSensorValueFont(in.sensor_value_font);
+  out.key_code = in.key_code;
+  out.key_modifier = in.key_modifier;
+  out.image_slideshow_sec = IMAGE_SLIDESHOW_DEFAULT_SEC;
+  out.title = String(in.title);
+  out.icon_name = String(in.icon_name);
+  out.sensor_entity = String(in.sensor_entity);
+  out.sensor_unit = String(in.sensor_unit);
+  out.scene_alias = String(in.scene_alias);
+  out.key_macro = String(in.key_macro);
+  // Element-Pool: TILE_IMAGE nutzt sensor_entity fuer image_path (fallback: key_macro aus Altbestand).
+  if (out.type == TILE_IMAGE) {
+    if (looksLikeImagePath(out.sensor_entity)) {
+      out.image_path = out.sensor_entity;
+    } else {
+      out.image_path = out.key_macro;
+    }
+    out.key_macro = "";
+    out.sensor_entity = "";
+    Serial.printf("[TileConfig] unpackTile - TILE_IMAGE: packed(sensor)='%s', packed(macro)='%s', image_path='%s'\n",
+                  in.sensor_entity, in.key_macro, out.image_path.c_str());
   } else {
     out.image_path = "";
   }
@@ -132,16 +215,22 @@ static void unpackTileV1(const PackedTileV1& in, Tile& out) {
   out.sensor_value_font = 0;
   out.key_code = in.key_code;
   out.key_modifier = in.key_modifier;
+  out.image_slideshow_sec = IMAGE_SLIDESHOW_DEFAULT_SEC;
   out.title = String(in.title);
   out.icon_name = String(in.icon_name);
   out.sensor_entity = String(in.sensor_entity);
   out.sensor_unit = String(in.sensor_unit);
   out.scene_alias = String(in.scene_alias);
   out.key_macro = String(in.key_macro);
-  // Element-Pool: TILE_IMAGE nutzt key_macro für image_path
+  // Element-Pool: TILE_IMAGE nutzt sensor_entity fuer image_path (fallback: key_macro aus Altbestand).
   if (out.type == TILE_IMAGE) {
-    out.image_path = out.key_macro;
+    if (looksLikeImagePath(out.sensor_entity)) {
+      out.image_path = out.sensor_entity;
+    } else {
+      out.image_path = out.key_macro;
+    }
     out.key_macro = "";
+    out.sensor_entity = "";
   } else {
     out.image_path = "";
   }
@@ -192,6 +281,7 @@ static bool loadGridLegacy(const char* prefix, TileGridConfig& grid) {
 
     snprintf(key, sizeof(key), "%s_t%u_mod", prefix, static_cast<unsigned>(i));
     grid.tiles[i].key_modifier = prefs.getUChar(key, 0);
+    grid.tiles[i].image_slideshow_sec = IMAGE_SLIDESHOW_DEFAULT_SEC;
   }
 
   prefs.end();
@@ -337,6 +427,20 @@ bool TileConfig::loadGrid(const char* prefix, TileGridConfig& grid) {
           prefs.end();
           Serial.printf("[TileConfig] Grid '%s' geladen (blob v%u)\n",
                         prefix, static_cast<unsigned>(packed.version));
+          return true;
+        }
+      }
+
+      if (blob_len >= sizeof(PackedGridV2)) {
+        PackedGridV2 packed{};
+        size_t read = prefs.getBytes(blob_key, &packed, sizeof(packed));
+        if (read == sizeof(packed) && packed.version == 2) {
+          for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+            unpackTileV2(packed.tiles[i], grid.tiles[i]);
+          }
+          prefs.end();
+          Serial.printf("[TileConfig] Grid '%s' geladen (blob v2)\n", prefix);
+          saveGrid(prefix, grid);  // Migration auf neues Format
           return true;
         }
       }

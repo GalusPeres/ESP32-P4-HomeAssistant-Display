@@ -168,9 +168,20 @@ void appendAdminScripts(String& html) {
   let tab0TilesData = [];
   let tab1TilesData = [];
   let tab2TilesData = [];
-  const slideshowToken = '__slideshow__';
+  const slideshowTokenLegacy = '__slideshow__';
+  const slideshowTokenBin = '__slideshow_bin__';
+  const slideshowTokenJpeg = '__slideshow_jpeg__';
+  const imageUrlToken = '__url__';
   let sdImageList = [];
   let sdImageListLoaded = false;
+  function isImageUrl(value) {
+    return /^https?:\/\//i.test(String(value || '').trim());
+  }
+  function normalizeImageToken(value) {
+    if (!value) return '';
+    if (value === slideshowTokenLegacy) return slideshowTokenBin;
+    return value;
+  }
 
   function populateImageSelect(tab, list) {
     const prefix = tab;
@@ -178,26 +189,40 @@ void appendAdminScripts(String& html) {
     if (!select) return;
     const current = select.value;
     const inputVal = document.getElementById(prefix + '_image_path')?.value || '';
+    const urlInput = document.getElementById(prefix + '_image_url');
     const items = Array.isArray(list) ? list : [];
     select.innerHTML = '';
-    const slideshowOpt = document.createElement('option');
-    slideshowOpt.value = slideshowToken;
-    slideshowOpt.textContent = 'Alle Bilder (Diashow)';
-    select.appendChild(slideshowOpt);
+    const slideshowBinOpt = document.createElement('option');
+    slideshowBinOpt.value = slideshowTokenBin;
+    slideshowBinOpt.textContent = 'Alle .bin (Diashow)';
+    select.appendChild(slideshowBinOpt);
+    const slideshowJpegOpt = document.createElement('option');
+    slideshowJpegOpt.value = slideshowTokenJpeg;
+    slideshowJpegOpt.textContent = 'Alle JPEG (Diashow)';
+    select.appendChild(slideshowJpegOpt);
+    const urlOpt = document.createElement('option');
+    urlOpt.value = imageUrlToken;
+    urlOpt.textContent = 'URL (HTTP/HTTPS)';
+    select.appendChild(urlOpt);
     items.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p;
       opt.textContent = p;
       select.appendChild(opt);
     });
-    const preferred = inputVal || current || '';
-    const valid = preferred === slideshowToken || items.includes(preferred);
+    const preferred = normalizeImageToken(inputVal || current || '');
+    const isUrlValue = isImageUrl(preferred) || preferred === imageUrlToken;
+    const valid = preferred === slideshowTokenBin || preferred === slideshowTokenJpeg || items.includes(preferred) || isUrlValue;
     if (valid) {
-      select.value = preferred;
+      select.value = isUrlValue ? imageUrlToken : preferred;
+    } else if (!inputVal && !current) {
+      select.value = slideshowTokenBin;
+      setImagePath(tab, slideshowTokenBin, false);
     } else {
-      select.value = slideshowToken;
-      setImagePath(tab, slideshowToken);
+      select.value = slideshowTokenBin;
     }
+    if (isUrlValue && urlInput && inputVal) urlInput.value = inputVal;
+    updateImageUrlVisibility(tab, select.value, inputVal || '');
   }
 
   function refreshImageSelect(tab, force) {
@@ -221,34 +246,85 @@ void appendAdminScripts(String& html) {
     const prefix = tab;
     const select = document.getElementById(prefix + '_image_select');
     if (!select) return;
+    const urlInput = document.getElementById(prefix + '_image_url');
     if (!path) {
-      setImagePath(tab, slideshowToken);
+      setImagePath(tab, slideshowTokenBin, false);
       return;
     }
-    select.value = path;
-    if (select.value !== path) select.value = slideshowToken;
+    const normalized = normalizeImageToken(path);
+    if (isImageUrl(normalized) || normalized === imageUrlToken) {
+      select.value = imageUrlToken;
+      if (urlInput) urlInput.value = normalized === imageUrlToken ? '' : normalized;
+    } else {
+      select.value = normalized;
+      if (select.value !== normalized) select.value = slideshowTokenBin;
+      if (urlInput) urlInput.value = '';
+    }
+    updateImageUrlVisibility(tab, select.value, path);
   }
 
-  function setImagePath(tab, value) {
+  function setImagePath(tab, value, autosave = true) {
     const prefix = tab;
     const input = document.getElementById(prefix + '_image_path');
     if (!input) return;
-    input.value = value || '';
+    const normalized = normalizeImageToken(value || '');
+    input.value = normalized;
+    const urlInput = document.getElementById(prefix + '_image_url');
+    if (urlInput) urlInput.value = '';
     const select = document.getElementById(prefix + '_image_select');
     if (select) {
       select.value = input.value;
-      if (select.value !== input.value) select.value = slideshowToken;
+      if (select.value !== input.value) select.value = slideshowTokenBin;
     }
-    updateTilePreview(tab);
-    updateDraft(tab);
-    scheduleAutoSave(tab);
+    updateImageUrlVisibility(tab, select ? select.value : '', input.value);
+    if (autosave) {
+      updateTilePreview(tab);
+      updateDraft(tab);
+      scheduleAutoSave(tab);
+    }
+  }
+
+  function setImageUrl(tab, url, autosave = true) {
+    const prefix = tab;
+    const input = document.getElementById(prefix + '_image_path');
+    if (!input) return;
+    const normalized = String(url || '').trim();
+    input.value = normalized;
+    const urlInput = document.getElementById(prefix + '_image_url');
+    if (urlInput) urlInput.value = normalized;
+    const select = document.getElementById(prefix + '_image_select');
+    if (select) select.value = imageUrlToken;
+    updateImageUrlVisibility(tab, imageUrlToken, normalized);
+    if (autosave) {
+      updateTilePreview(tab);
+      updateDraft(tab);
+      scheduleAutoSave(tab);
+    }
+  }
+
+  function updateImageUrlVisibility(tab, selectedValue, currentPath) {
+    const prefix = tab;
+    const wrap = document.getElementById(prefix + '_image_url_fields');
+    if (!wrap) return;
+    const show = selectedValue === imageUrlToken || isImageUrl(currentPath || '');
+    wrap.style.display = show ? 'block' : 'none';
   }
 
   function persistDrafts() { try { localStorage.setItem('tileDrafts', JSON.stringify(drafts)); } catch (e) {} }
   function loadDraftsFromStorage() {
     try {
       const raw = localStorage.getItem('tileDrafts');
-      if (raw) drafts = JSON.parse(raw);
+      if (raw) {
+        drafts = JSON.parse(raw);
+        // Drafts sollen nach Page-Refresh nicht gespeicherte Werte ueberschreiben.
+        for (const tab in drafts) {
+          const tabDrafts = drafts[tab];
+          if (!tabDrafts) continue;
+          Object.keys(tabDrafts).forEach(key => {
+            if (tabDrafts[key]) tabDrafts[key]._dirty = false;
+          });
+        }
+      }
     } catch (e) {
       drafts = { tab0: {}, tab1: {}, tab2: {} };
     }
@@ -289,7 +365,9 @@ void appendAdminScripts(String& html) {
       navigate_target: document.getElementById(prefix + '_navigate_target')?.value || '0',
       switch_entity: document.getElementById(prefix + '_switch_entity')?.value || '',
       switch_style: document.getElementById(prefix + '_switch_style')?.value || '0',
-      image_path: document.getElementById(prefix + '_image_path')?.value || ''
+      image_path: document.getElementById(prefix + '_image_path')?.value || '',
+      image_slideshow_sec: document.getElementById(prefix + '_image_slideshow_sec')?.value || '10',
+      _dirty: true
     };
     drafts[tab][currentTileIndex] = d;
     persistDrafts();
@@ -297,7 +375,7 @@ void appendAdminScripts(String& html) {
 
   function applyDraft(tab, index) {
     const d = drafts[tab] && drafts[tab][index];
-    if (!d) return false;
+    if (!d || !d._dirty) return false;
     const prefix = tab;
     document.getElementById(prefix + '_tile_type').value = d.type || '0';
     updateTileType(tab);
@@ -324,6 +402,10 @@ void appendAdminScripts(String& html) {
       if (styleEl) styleEl.value = d.switch_style || '0';
     } else if (d.type === '6') {
       document.getElementById(prefix + '_image_path').value = d.image_path || '';
+      const intervalEl = document.getElementById(prefix + '_image_slideshow_sec');
+      if (intervalEl && d.image_slideshow_sec !== undefined && d.image_slideshow_sec !== null && String(d.image_slideshow_sec).length > 0) {
+        intervalEl.value = d.image_slideshow_sec;
+      }
       applyImageUiState(tab, d.image_path || '');
       refreshImageSelect(tab, false);
     }
@@ -358,7 +440,8 @@ void appendAdminScripts(String& html) {
       navigate_target: document.getElementById(prefix + '_navigate_target')?.value || '0',
       switch_entity: document.getElementById(prefix + '_switch_entity')?.value || '',
       switch_style: document.getElementById(prefix + '_switch_style')?.value || '0',
-      image_path: document.getElementById(prefix + '_image_path')?.value || ''
+      image_path: document.getElementById(prefix + '_image_path')?.value || '',
+      image_slideshow_sec: document.getElementById(prefix + '_image_slideshow_sec')?.value || '10'
     };
   }
 
@@ -400,6 +483,8 @@ void appendAdminScripts(String& html) {
     if (typeValue === '6') {
       const imagePathEl = document.getElementById(prefix + '_image_path');
       if (imagePathEl) imagePathEl.value = data.image_path || '';
+      const intervalEl = document.getElementById(prefix + '_image_slideshow_sec');
+      if (intervalEl) intervalEl.value = data.image_slideshow_sec || '10';
       applyImageUiState(tab, data.image_path || '');
       refreshImageSelect(tab, false);
     }
@@ -506,7 +591,7 @@ void appendAdminScripts(String& html) {
       const fields = [
         '_tile_title','_tile_color','_tile_type','_sensor_entity','_sensor_unit',
         '_sensor_decimals','_sensor_value_font','_scene_alias','_key_macro','_navigate_target','_switch_entity','_switch_style',
-        '_image_path','_image_select'
+        '_image_path','_image_select','_image_slideshow_sec','_image_url'
       ];
     fields.forEach(id => {
       const el = document.getElementById(prefix + id);
@@ -527,6 +612,8 @@ void appendAdminScripts(String& html) {
     const switchSelect = document.getElementById(prefix + '_switch_entity');
     const switchStyleSelect = document.getElementById(prefix + '_switch_style');
     const imageSelect = document.getElementById(prefix + '_image_select');
+    const imageUrlInput = document.getElementById(prefix + '_image_url');
+    const imageIntervalInput = document.getElementById(prefix + '_image_slideshow_sec');
 
     if (titleInput) titleInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (iconInput) iconInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -543,8 +630,17 @@ void appendAdminScripts(String& html) {
     if (switchStyleSelect) switchStyleSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (imageSelect) imageSelect.addEventListener('focus', () => { refreshImageSelect(tab, true); });
     if (imageSelect) imageSelect.addEventListener('change', () => {
-      setImagePath(tab, imageSelect.value || '');
+      const selected = imageSelect.value || '';
+      if (selected === imageUrlToken) {
+        setImageUrl(tab, imageUrlInput ? imageUrlInput.value : '');
+      } else {
+        setImagePath(tab, selected);
+      }
     });
+    if (imageUrlInput) imageUrlInput.addEventListener('input', () => {
+      setImageUrl(tab, imageUrlInput.value || '');
+    });
+    if (imageIntervalInput) imageIntervalInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
   }
 
   function formatSensorValue(value, decimals) {
@@ -894,6 +990,8 @@ void appendAdminScripts(String& html) {
           if (styleEl) styleEl.value = (data.switch_style !== undefined) ? String(data.switch_style) : '0';
         } else if (data.type === 6) {
           document.getElementById(prefix + '_image_path').value = data.image_path || '';
+          const intervalEl = document.getElementById(prefix + '_image_slideshow_sec');
+          if (intervalEl) intervalEl.value = data.image_slideshow_sec || '10';
           applyImageUiState(tab, data.image_path || '');
           refreshImageSelect(tab, false);
         }
@@ -955,6 +1053,11 @@ void appendAdminScripts(String& html) {
       const el = document.getElementById(prefix + suf);
       if (el) el.value = (suf === '_switch_style' || suf === '_sensor_value_font') ? '0' : '';
     });
+    const intervalEl = document.getElementById(prefix + '_image_slideshow_sec');
+    if (intervalEl) intervalEl.value = '10';
+    const urlEl = document.getElementById(prefix + '_image_url');
+    if (urlEl) urlEl.value = '';
+    updateImageUrlVisibility(tab, '', '');
     applyImageUiState(tab, '');
     updateTileType(tab);
     updateTilePreview(tab);
@@ -993,6 +1096,7 @@ void appendAdminScripts(String& html) {
       formData.append('switch_style', styleEl ? styleEl.value : '0');
     } else if (typeValue === '6') {
       formData.append('image_path', document.getElementById(prefix + '_image_path').value);
+      formData.append('image_slideshow_sec', document.getElementById(prefix + '_image_slideshow_sec').value);
     }
     fetch('/api/tiles', { method:'POST', body:formData })
       .then(res => res.json())

@@ -1633,6 +1633,7 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
 
 struct ImageEventData {
   String image_path;
+  uint16_t slideshow_sec;
 };
 
 lv_obj_t* render_image_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index) {
@@ -1700,7 +1701,7 @@ lv_obj_t* render_image_tile(lv_obj_t* parent, int col, int row, const Tile& tile
     Serial.printf("[TileRenderer] Registriere Click-Event für image_path='%s'\n", tile.image_path.c_str());
 
     // Allocate permanent storage for event data
-    ImageEventData* event_data = new ImageEventData{tile.image_path};
+    ImageEventData* event_data = new ImageEventData{tile.image_path, tile.image_slideshow_sec};
 
     lv_obj_add_event_cb(
         btn,
@@ -1709,7 +1710,7 @@ lv_obj_t* render_image_tile(lv_obj_t* parent, int col, int row, const Tile& tile
           ImageEventData* data = static_cast<ImageEventData*>(lv_event_get_user_data(e));
           if (data && data->image_path.length() > 0) {
             Serial.printf("[Tile] Öffne Bild: %s\n", data->image_path.c_str());
-            show_image_popup(data->image_path.c_str());
+            show_image_popup(data->image_path.c_str(), data->slideshow_sec);
           } else {
             Serial.println("[Tile] FEHLER: Keine event_data oder image_path leer!");
           }

@@ -36,7 +36,8 @@ struct Tile {
   uint8_t key_modifier;      // Modifier bits (CTRL=0x01, SHIFT=0x02, ALT=0x04)
 
   // Image-spezifisch
-  String image_path;         // SD-Karten Pfad (z.B. "/bild.png")
+  String image_path;         // SD-Karten Pfad (z.B. "/bild.bin")
+  uint16_t image_slideshow_sec;  // Diashow-Intervall in Sekunden (Default 10)
 
   Tile()
       : type(TILE_EMPTY),
@@ -44,7 +45,8 @@ struct Tile {
         sensor_decimals(0xFF),  // 0xFF = keine Rundung, Originalwert anzeigen
         sensor_value_font(0),
         key_code(0),
-        key_modifier(0) {}
+        key_modifier(0),
+        image_slideshow_sec(10) {}
 };
 
 struct TileGridConfig {

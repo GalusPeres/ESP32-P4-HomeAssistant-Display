@@ -29,7 +29,7 @@ String joinPath(const String& dir, const String& name) {
   return dir + "/" + name;
 }
 
-void collectBinImages(const String& dir, std::vector<String>& out, size_t max_entries, uint8_t depth) {
+void collectImageFiles(const String& dir, std::vector<String>& out, size_t max_entries, uint8_t depth, bool allow_bin, bool allow_jpeg) {
   if (out.size() >= max_entries) return;
   File root = SD.open(dir);
   if (!root) return;
@@ -41,10 +41,12 @@ void collectBinImages(const String& dir, std::vector<String>& out, size_t max_en
     String name = name_c ? String(name_c) : String();
     if (file.isDirectory()) {
       if (depth > 0 && name.length()) {
-        collectBinImages(joinPath(dir, name), out, max_entries, depth - 1);
+        collectImageFiles(joinPath(dir, name), out, max_entries, depth - 1, allow_bin, allow_jpeg);
       }
     } else if (name.length()) {
-      if (endsWithIgnoreCase(name, ".bin")) {
+      const bool is_bin = endsWithIgnoreCase(name, ".bin");
+      const bool is_jpeg = endsWithIgnoreCase(name, ".jpg") || endsWithIgnoreCase(name, ".jpeg");
+      if ((allow_bin && is_bin) || (allow_jpeg && is_jpeg)) {
         out.push_back(joinPath(dir, name));
       }
     }
@@ -376,7 +378,9 @@ void WebAdminServer::handleGetTiles() {
     json += String((tile.type == TILE_SWITCH && tile.sensor_decimals == 1) ? 1 : 0);
     json += ",\"image_path\":\"";
     json += tile.image_path;
-    json += "\"}";
+    json += "\",\"image_slideshow_sec\":";
+    json += String(tile.image_slideshow_sec);
+    json += "}";
 
     server.send(200, "application/json", json);
     return;
@@ -413,7 +417,9 @@ void WebAdminServer::handleGetTiles() {
     json += String((tile.type == TILE_SWITCH && tile.sensor_decimals == 1) ? 1 : 0);
     json += ",\"image_path\":\"";
     json += tile.image_path;
-    json += "\"}";
+    json += "\",\"image_slideshow_sec\":";
+    json += String(tile.image_slideshow_sec);
+    json += "}";
   }
   json += "]";
 
@@ -444,6 +450,12 @@ void WebAdminServer::handleSaveTiles() {
   tile.type = static_cast<TileType>(type);
   tile.title = server.hasArg("title") ? server.arg("title") : "";
   tile.icon_name = server.hasArg("icon_name") ? server.arg("icon_name") : "";
+  if (server.hasArg("image_slideshow_sec")) {
+    int raw = server.arg("image_slideshow_sec").toInt();
+    if (raw <= 0) raw = 10;
+    if (raw > 3600) raw = 3600;
+    tile.image_slideshow_sec = static_cast<uint16_t>(raw);
+  }
 
   // Parse color
   if (server.hasArg("bg_color")) {
@@ -509,9 +521,10 @@ void WebAdminServer::handleSaveTiles() {
     tile.sensor_decimals = style;
     tile.sensor_value_font = 0;
   } else if (type == TILE_IMAGE) {
-    // Element-Pool: image_path wird in key_macro gespeichert (siehe tile_config.cpp packTile/unpackTile)
+    // Element-Pool: image_path wird in sensor_entity gespeichert (siehe tile_config.cpp packTile/unpackTile)
     tile.image_path = server.hasArg("image_path") ? server.arg("image_path") : "";
     tile.image_path.trim();
+    tile.key_macro = "";
     Serial.printf("[WebAdmin] IMAGE Tile - Empfangener Pfad: '%s'\n", tile.image_path.c_str());
     tile.sensor_decimals = 0xFF;
     tile.sensor_value_font = 0;
@@ -631,7 +644,7 @@ void WebAdminServer::handleGetSensorValues() {
 
 void WebAdminServer::handleGetSdImages() {
   std::vector<String> files;
-  collectBinImages("/", files, 200, 3);
+  collectImageFiles("/", files, 200, 3, true, true);
 
   String json = "[";
   for (size_t i = 0; i < files.size(); ++i) {
