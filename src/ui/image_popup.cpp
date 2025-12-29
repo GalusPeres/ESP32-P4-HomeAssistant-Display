@@ -35,8 +35,6 @@ static lv_timer_t* g_slideshow_timer = nullptr;
 static constexpr uint16_t kDefaultSlideshowSec = 10;
 static constexpr uint16_t kMaxSlideshowSec = 3600;
 static constexpr uint16_t kDefaultUrlCacheSec = 3600;
-static constexpr uint32_t kOpenUrlCacheIntervalMs = 30UL * 1000UL;
-static constexpr uint32_t kOpenUrlUpdateDelayMs = 200UL;
 static constexpr uint32_t kPopupRestoreDelayMs = 400UL;
 static uint32_t g_slideshow_interval_ms = 1000U * kDefaultSlideshowSec;
 static lv_timer_t* g_popup_restore_timer = nullptr;
@@ -52,8 +50,6 @@ static size_t g_image_ram_buf_size = 0;
 static bool g_image_ram_active = false;
 static String g_image_ram_source;
 static String g_open_url;
-static uint32_t g_open_url_update_due_ms = 0;
-static uint32_t g_open_url_flush_seq = 0;
 static const char* kUrlCacheDir = "/_url_cache";
 static constexpr uint32_t kUrlCacheIntervalMs = 1000UL;
 static constexpr uint32_t kUrlCacheInitialDelayMs = 30UL * 1000UL;
@@ -1097,9 +1093,6 @@ static void refresh_url_cache_entries(uint32_t now) {
       if (tile.type != TILE_IMAGE) continue;
       if (!is_url_path(tile.image_path)) continue;
       uint32_t interval_ms = normalize_url_cache_interval_ms(tile.image_slideshow_sec);
-      if (g_open_url.length() > 0 && g_open_url == tile.image_path) {
-        interval_ms = kOpenUrlCacheIntervalMs;
-      }
       add_entry(tile.image_path, interval_ms);
     }
   }
@@ -1400,8 +1393,6 @@ void show_image_popup(const char* path, uint16_t slideshow_sec) {
       request_url_cache_cancel(g_open_url);
     }
     g_open_url = "";
-    g_open_url_update_due_ms = 0;
-    g_open_url_flush_seq = 0;
     show_image_popup_error("SD Karte fehlt", "/");
     return;
   }
@@ -1435,14 +1426,6 @@ void show_image_popup(const char* path, uint16_t slideshow_sec) {
       apply_slideshow_display_mode(false);
       return;
     }
-    if (WiFi.status() == WL_CONNECTED) {
-      g_open_url_update_due_ms = now + kOpenUrlUpdateDelayMs;
-      g_open_url_flush_seq = displayManager.getFullScreenFlushSeq();
-      mark_url_cache_queued(rawPath, now);
-    } else {
-      g_open_url_update_due_ms = 0;
-      g_open_url_flush_seq = 0;
-    }
     Serial.printf("[ImagePopup] Zeige URL Cache: %s\n", cached.c_str());
     show_image_popup_internal(cached, true, false);
     return;
@@ -1452,8 +1435,6 @@ void show_image_popup(const char* path, uint16_t slideshow_sec) {
     request_url_cache_cancel(g_open_url);
   }
   g_open_url = "";
-  g_open_url_update_due_ms = 0;
-  g_open_url_flush_seq = 0;
   String fullPath = normalize_sd_path(rawPath);
   SlideshowMode mode = get_slideshow_mode(fullPath);
   if (mode != SlideshowMode::None) {
@@ -1480,8 +1461,6 @@ void hide_image_popup() {
       request_url_cache_cancel(g_open_url);
     }
     g_open_url = "";
-    g_open_url_update_due_ms = 0;
-    g_open_url_flush_seq = 0;
     g_image_shown = false;
     free_image_ram();
     schedule_popup_restore();
@@ -1531,17 +1510,6 @@ void image_popup_service_url_cache() {
   if (WiFi.status() != WL_CONNECTED) return;
 
   uint32_t now = millis();
-  if (g_open_url_update_due_ms != 0 && (int32_t)(now - g_open_url_update_due_ms) >= 0) {
-    if (g_open_url.length() > 0) {
-      uint32_t flush_seq = displayManager.getFullScreenFlushSeq();
-      if (flush_seq != g_open_url_flush_seq) {
-        enqueue_url_job(g_open_url);
-        mark_url_cache_queued(g_open_url, now);
-        g_open_url_flush_seq = flush_seq;
-      }
-    }
-    g_open_url_update_due_ms = 0;
-  }
   if (g_url_cache_next_ms == 0) {
     g_url_cache_next_ms = now + kUrlCacheInitialDelayMs;
     return;
