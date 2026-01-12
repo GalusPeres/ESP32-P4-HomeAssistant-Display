@@ -1133,6 +1133,177 @@ void appendAdminScripts(String& html) {
       .catch(() => showNotification('Netzwerkfehler beim Speichern', false));
   }
 
+  function downloadJsonFile(filename, content) {
+    const blob = new Blob([content], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  function parseBgColorValue(value) {
+    if (value === undefined || value === null) return 0;
+    if (typeof value === 'string') {
+      let v = value.trim();
+      if (!v.length) return 0;
+      if (v.startsWith('#')) return parseInt(v.substring(1), 16) || 0;
+      if (v.startsWith('0x') || v.startsWith('0X')) return parseInt(v, 16) || 0;
+    }
+    const num = parseInt(value, 10);
+    return isNaN(num) ? 0 : num;
+  }
+
+  async function exportTilesConfig() {
+    try {
+      const [tabsRes, tab0Tiles, tab1Tiles, tab2Tiles] = await Promise.all([
+        fetch('/api/tabs').then(res => res.json()),
+        fetch('/api/tiles?tab=tab0').then(res => res.json()),
+        fetch('/api/tiles?tab=tab1').then(res => res.json()),
+        fetch('/api/tiles?tab=tab2').then(res => res.json())
+      ]);
+      const payload = {
+        version: 1,
+        exported_at: new Date().toISOString(),
+        tabs: Array.isArray(tabsRes.tabs) ? tabsRes.tabs : [],
+        grids: {
+          tab0: Array.isArray(tab0Tiles) ? tab0Tiles : [],
+          tab1: Array.isArray(tab1Tiles) ? tab1Tiles : [],
+          tab2: Array.isArray(tab2Tiles) ? tab2Tiles : []
+        }
+      };
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      downloadJsonFile('tab5_tiles_' + ts + '.json', JSON.stringify(payload, null, 2));
+      showNotification('Export erstellt!');
+    } catch (e) {
+      showNotification('Export fehlgeschlagen', false);
+    }
+  }
+
+  function triggerTilesImport(tab) {
+    const input = document.getElementById(tab + '_tile_import');
+    if (!input) return;
+    input.value = '';
+    input.click();
+  }
+
+  function importTilesConfig(tab, files) {
+    if (!files || !files.length) return;
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const payload = JSON.parse(reader.result);
+        await importTilesPayload(payload);
+      } catch (e) {
+        showNotification('Import-JSON ungueltig', false);
+      }
+    };
+    reader.onerror = () => showNotification('Import fehlgeschlagen', false);
+    reader.readAsText(file);
+  }
+
+  async function importTilesPayload(payload) {
+    try {
+      if (!payload || typeof payload !== 'object') {
+        showNotification('Import-JSON ungueltig', false);
+        return;
+      }
+      const grids = payload.grids || {};
+      if (!grids.tab0 && Array.isArray(payload.tab0)) grids.tab0 = payload.tab0;
+      if (!grids.tab1 && Array.isArray(payload.tab1)) grids.tab1 = payload.tab1;
+      if (!grids.tab2 && Array.isArray(payload.tab2)) grids.tab2 = payload.tab2;
+
+      showNotification('Import laeuft...');
+
+      const tabs = Array.isArray(payload.tabs) ? payload.tabs : [];
+      for (const tab of tabs) {
+        const tabKey = tab.type || (tab.id === 0 ? 'tab0' : tab.id === 1 ? 'tab1' : tab.id === 2 ? 'tab2' : tab.id === 3 ? 'tab3' : '');
+        if (!tabKey) continue;
+        await postTabRename(tabKey, tab.name || '', tab.icon_name || '');
+      }
+
+      const tabNames = ['tab0', 'tab1', 'tab2'];
+      for (const tabName of tabNames) {
+        const tiles = grids[tabName];
+        if (!Array.isArray(tiles)) continue;
+        for (let i = 0; i < tiles.length && i < 12; i++) {
+          await postTile(tabName, i, tiles[i] || {});
+        }
+      }
+
+      try { localStorage.removeItem('tileDrafts'); } catch (e) {}
+      showNotification('Import abgeschlossen!');
+      setTimeout(() => location.reload(), 600);
+    } catch (e) {
+      console.error('Import fehlgeschlagen:', e);
+      showNotification('Import fehlgeschlagen', false);
+    }
+  }
+
+  async function postTabRename(tabKey, name, iconName) {
+    const fd = new FormData();
+    fd.append('tab', tabKey);
+    fd.append('name', name || '');
+    if (iconName !== undefined && iconName !== null) fd.append('icon_name', iconName || '');
+    const res = await fetch('/api/tabs/rename', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error('Tab speichern fehlgeschlagen');
+    }
+  }
+
+  async function postTile(tab, index, tile) {
+    const fd = new FormData();
+    const type = Number(tile.type);
+    const safeType = isNaN(type) ? 0 : type;
+    fd.append('tab', tab);
+    fd.append('index', index);
+    fd.append('type', safeType);
+    fd.append('title', tile.title || '');
+    fd.append('icon_name', tile.icon_name || '');
+    fd.append('bg_color', parseBgColorValue(tile.bg_color));
+
+    if (safeType === 1) {
+      fd.append('sensor_entity', tile.sensor_entity || '');
+      fd.append('sensor_unit', tile.sensor_unit || '');
+      const dec = tile.sensor_decimals;
+      if (dec !== undefined && dec !== null && Number(dec) >= 0) {
+        fd.append('sensor_decimals', dec);
+      }
+      if (tile.sensor_value_font !== undefined && tile.sensor_value_font !== null) {
+        fd.append('sensor_value_font', tile.sensor_value_font);
+      }
+    } else if (safeType === 2) {
+      fd.append('scene_alias', tile.scene_alias || '');
+    } else if (safeType === 3) {
+      fd.append('key_macro', tile.key_macro || '');
+    } else if (safeType === 4) {
+      const target = (tile.navigate_target !== undefined && tile.navigate_target !== null)
+        ? tile.navigate_target
+        : tile.sensor_decimals;
+      fd.append('navigate_target', target !== undefined && target !== null ? target : 0);
+    } else if (safeType === 5) {
+      fd.append('switch_entity', tile.sensor_entity || '');
+      const style = (tile.switch_style !== undefined && tile.switch_style !== null)
+        ? tile.switch_style
+        : (tile.sensor_decimals === 1 ? 1 : 0);
+      fd.append('switch_style', style);
+    } else if (safeType === 6) {
+      fd.append('image_path', tile.image_path || '');
+      fd.append('image_slideshow_sec', tile.image_slideshow_sec || '10');
+    }
+
+    const res = await fetch('/api/tiles', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error('Tile speichern fehlgeschlagen');
+    }
+  }
+
   function rgbToHex(rgb) { return '#' + ('000000' + rgb.toString(16)).slice(-6); }
   function hexToRgb(hex) { return parseInt(hex.replace('#', ''), 16); }
 

@@ -411,6 +411,21 @@ static void appendTileTabHTML(
   html += R"html(')">Loeschen</button>
               </div>
             </div>
+            <div style="margin-top:12px;border-top:1px solid #e2e8f0;padding-top:10px;">
+              <div style="font-size:12px;color:#64748b;margin-bottom:6px;">Import / Export (alle Tabs & Kacheln)</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:110px;" onclick="exportTilesConfig()">Export</button>
+                <input type="file" id=")html";
+  html += tab_id;
+  html += R"html(_tile_import" accept="application/json" style="display:none" onchange="importTilesConfig(')html";
+  html += tab_id;
+  html += R"html(', this.files)">
+                <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:110px;" onclick="triggerTilesImport(')html";
+  html += tab_id;
+  html += R"html(')">Import</button>
+              </div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:6px;">Import ueberschreibt alle Kacheln & Tab-Namen.</div>
+            </div>
             </div><!-- /tile-specific-settings -->
           </div>
         </div>
