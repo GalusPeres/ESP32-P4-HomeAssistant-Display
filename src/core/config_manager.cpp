@@ -30,6 +30,7 @@ ConfigManager::ConfigManager() {
 
   // Display & Power Defaults
   config.display_brightness = 200;
+  config.display_rotated_180 = false;
   config.auto_sleep_enabled = true;
   config.auto_sleep_seconds = 60;
   config.auto_sleep_battery_enabled = true;
@@ -65,6 +66,7 @@ bool ConfigManager::load() {
 
   // Display & Power Settings laden
   config.display_brightness = prefs.getUChar("disp_bright", 200);
+  config.display_rotated_180 = prefs.getBool("disp_rot180", false);
   config.auto_sleep_enabled = prefs.getBool("sleep_en", true);
   uint16_t sleep_seconds = 60;
   if (prefs.isKey("sleep_sec")) {
@@ -134,6 +136,7 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
 
   // Display & Power Settings speichern
   prefs.putUChar("disp_bright", cfg.display_brightness);
+  prefs.putBool("disp_rot180", cfg.display_rotated_180);
   prefs.putBool("sleep_en", cfg.auto_sleep_enabled);
   prefs.putUShort("sleep_sec", cfg.auto_sleep_seconds);
   prefs.putBool("sleep_bat_en", cfg.auto_sleep_battery_enabled);
@@ -170,7 +173,8 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
                                         bool sleep_enabled,
                                         uint16_t sleep_seconds,
                                         bool sleep_battery_enabled,
-                                        uint16_t sleep_battery_seconds) {
+                                        uint16_t sleep_battery_seconds,
+                                        bool rotate_180) {
   Preferences prefs;
 
   if (!prefs.begin(PREF_NAMESPACE, false)) {
@@ -183,6 +187,7 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
   uint16_t normalized_bat_seconds = normalize_sleep_seconds(sleep_battery_seconds);
 
   prefs.putUChar("disp_bright", brightness);
+  prefs.putBool("disp_rot180", rotate_180);
   prefs.putBool("sleep_en", sleep_enabled);
   prefs.putUShort("sleep_sec", normalized_sleep_seconds);
   prefs.putBool("sleep_bat_en", sleep_battery_enabled);
@@ -204,6 +209,7 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
 
   // Update lokale Kopie
   config.display_brightness = brightness;
+  config.display_rotated_180 = rotate_180;
   config.auto_sleep_enabled = sleep_enabled;
   config.auto_sleep_seconds = normalized_sleep_seconds;
   config.auto_sleep_battery_enabled = sleep_battery_enabled;
@@ -229,6 +235,7 @@ void ConfigManager::clear() {
   config.mqtt_port = 1883;
   strncpy(config.mqtt_base_topic, "tab5", CONFIG_MQTT_BASE_MAX - 1);
   strncpy(config.ha_prefix, "ha/statestream", CONFIG_HA_PREFIX_MAX - 1);
+  config.display_rotated_180 = false;
 
   Serial.println("✓ ConfigManager: Konfiguration gelöscht");
 }

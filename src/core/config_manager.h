@@ -30,6 +30,7 @@ struct DeviceConfig {
 
   // Display & Power Settings
   uint8_t display_brightness;  // 75-255
+  bool display_rotated_180;    // Display 180° gedreht?
   bool auto_sleep_enabled;     // Auto-Sleep aktiv?
   uint16_t auto_sleep_seconds; // Seconds until auto-sleep (5-3600)
   bool auto_sleep_battery_enabled;     // Auto-Sleep aktiv im Batteriebetrieb?
@@ -51,7 +52,8 @@ public:
                            bool sleep_enabled,
                            uint16_t sleep_seconds,
                            bool sleep_battery_enabled,
-                           uint16_t sleep_battery_seconds);
+                           uint16_t sleep_battery_seconds,
+                           bool rotate_180);
 
   // Löscht gespeicherte Konfiguration
   void clear();

@@ -144,6 +144,15 @@ void setup() {
   Serial.println("[Setup] Configs OK");
   Serial.flush();
 
+  Serial.println("[Setup] Applying display rotation...");
+  Serial.flush();
+  {
+    const DeviceConfig& dcfg = configManager.getConfig();
+    M5.Display.setRotation(dcfg.display_rotated_180 ? 3 : 1);
+  }
+  Serial.println("[Setup] Rotation OK");
+  Serial.flush();
+
   Serial.println("[Setup] Setting brightness...");
   Serial.flush();
   {

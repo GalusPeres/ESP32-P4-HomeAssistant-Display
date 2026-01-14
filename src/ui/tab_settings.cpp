@@ -117,6 +117,14 @@ static void on_display_rotate_clicked(lv_event_t *e) {
   (void)e;
   display_rotated_180 = !display_rotated_180;
   M5.Display.setRotation(display_rotated_180 ? kDisplayRotationFlipped : kDisplayRotationDefault);
+  const DeviceConfig& cfg = configManager.getConfig();
+  configManager.saveDisplaySettings(
+      cfg.display_brightness,
+      cfg.auto_sleep_enabled,
+      cfg.auto_sleep_seconds,
+      cfg.auto_sleep_battery_enabled,
+      cfg.auto_sleep_battery_seconds,
+      display_rotated_180);
   update_display_rotate_label();
 }
 
@@ -141,7 +149,8 @@ static void on_brightness(lv_event_t *e) {
         cfg.auto_sleep_enabled,
         cfg.auto_sleep_seconds,
         cfg.auto_sleep_battery_enabled,
-        cfg.auto_sleep_battery_seconds);
+        cfg.auto_sleep_battery_seconds,
+        display_rotated_180);
   }
 }
 
@@ -195,7 +204,8 @@ static void on_sleep_slider(lv_event_t *e) {
         enabled,
         seconds,
         cfg.auto_sleep_battery_enabled,
-        cfg.auto_sleep_battery_seconds);
+        cfg.auto_sleep_battery_seconds,
+        display_rotated_180);
   }
 }
 
@@ -217,7 +227,8 @@ static void on_sleep_battery_slider(lv_event_t *e) {
         cfg.auto_sleep_enabled,
         cfg.auto_sleep_seconds,
         enabled,
-        seconds);
+        seconds,
+        display_rotated_180);
   }
 }
 
@@ -403,6 +414,7 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
   lv_obj_set_style_pad_row(tab, 24, 0);
 
   const DeviceConfig& cfg = configManager.getConfig();
+  display_rotated_180 = cfg.display_rotated_180;
 
   // Display tile
   lv_obj_t *card_display = create_settings_card(tab, 0, 0);
