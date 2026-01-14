@@ -110,7 +110,7 @@ static void format_sleep_label_for_index(char* buf, size_t len, int32_t index) {
 
 static void update_display_rotate_label() {
   if (!display_rotate_label) return;
-  lv_label_set_text(display_rotate_label, display_rotated_180 ? "Normal" : "Rotate 180\u00b0");
+  lv_label_set_text(display_rotate_label, display_rotated_180 ? "Normal" : "Rotate 180");
 }
 
 static void on_display_rotate_clicked(lv_event_t *e) {
@@ -126,6 +126,8 @@ static void on_display_rotate_clicked(lv_event_t *e) {
       cfg.auto_sleep_battery_seconds,
       display_rotated_180);
   update_display_rotate_label();
+  lv_obj_invalidate(lv_scr_act());
+  lv_refr_now(lv_display_get_default());
 }
 
 static void on_brightness(lv_event_t *e) {
