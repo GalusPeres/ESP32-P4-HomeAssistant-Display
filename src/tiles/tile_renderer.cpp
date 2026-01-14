@@ -15,6 +15,7 @@
 
 /* === Layout-Konstanten === */
 static const int CARD_H = 150;
+static const int32_t GAUGE_ARC_STEPS = 1000;
 
 /* === Fonts === */
 #define FONT_TITLE (&ui_font_24)
@@ -33,6 +34,9 @@ static const int CARD_H = 150;
 struct SensorTileWidgets {
   lv_obj_t* value_label = nullptr;
   lv_obj_t* unit_label = nullptr;
+  lv_obj_t* gauge = nullptr;
+  int32_t gauge_min = 0;
+  int32_t gauge_max = 100;
 };
 
 struct SwitchTileWidgets {
@@ -79,6 +83,9 @@ static void clear_sensor_widgets(GridType grid_type) {
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     target[i].value_label = nullptr;
     target[i].unit_label = nullptr;
+    target[i].gauge = nullptr;
+    target[i].gauge_min = 0;
+    target[i].gauge_max = 100;
   }
 }
 
@@ -176,6 +183,31 @@ static bool apply_decimals(String& value, uint8_t decimals) {
   uint8_t d = decimals > 6 ? 6 : decimals;
   value = String(f, static_cast<unsigned int>(d));
   return true;
+}
+
+static bool parse_sensor_number(const String& value, float& out) {
+  String normalized = value;
+  normalized.trim();
+  if (!normalized.length()) return false;
+  normalized.replace(",", ".");
+  char* end = nullptr;
+  float f = strtof(normalized.c_str(), &end);
+  if (!end || end == normalized.c_str()) return false;
+  if (isnan(f) || isinf(f)) return false;
+  out = f;
+  return true;
+}
+
+static int32_t map_gauge_arc_value(float numeric, int32_t min_value, int32_t max_value) {
+  if (max_value <= min_value) {
+    min_value = 0;
+    max_value = 100;
+  }
+  const float span = static_cast<float>(max_value - min_value);
+  float ratio = (numeric - static_cast<float>(min_value)) / span;
+  if (ratio < 0.0f) ratio = 0.0f;
+  if (ratio > 1.0f) ratio = 1.0f;
+  return static_cast<int32_t>(roundf(ratio * static_cast<float>(GAUGE_ARC_STEPS)));
 }
 
 // MQTT Callback ruft das auf (thread-safe!)
@@ -938,6 +970,14 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
     return nullptr;
   }
 
+  const bool gauge_enabled = tile.sensor_gauge_enabled;
+  int32_t gauge_min = tile.sensor_gauge_min;
+  int32_t gauge_max = tile.sensor_gauge_max;
+  if (gauge_max <= gauge_min) {
+    gauge_min = 0;
+    gauge_max = 100;
+  }
+
   lv_obj_t* card = lv_button_create(parent);
   if (!card) {
     Serial.println("[TileRenderer] ERROR: Konnte Sensor-Card nicht erstellen");
@@ -966,10 +1006,11 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
       LV_GRID_ALIGN_STRETCH, row, 1);
 
   // Icon Label (optional, falls icon_name vorhanden) - rechtsbündig
+  lv_obj_t* icon_lbl = nullptr;
   if (tile.icon_name.length() > 0 && FONT_MDI_ICONS != nullptr) {
     String iconChar = getMdiChar(tile.icon_name);
     if (iconChar.length() > 0) {
-      lv_obj_t* icon_lbl = lv_label_create(card);
+      icon_lbl = lv_label_create(card);
       if (icon_lbl) {
         set_label_style(icon_lbl, lv_color_white(), FONT_MDI_ICONS);
         lv_label_set_text(icon_lbl, iconChar.c_str());
@@ -978,14 +1019,57 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
     }
   }
 
+  lv_obj_t* title_label = nullptr;
   // Title Label (nur anzeigen wenn Titel vorhanden) - linksbündig
   if (tile.title.length() > 0) {
-    lv_obj_t* t = lv_label_create(card);
-    if (t) {
-      set_label_style(t, lv_color_hex(0xFFFFFF), FONT_TITLE);
-      lv_label_set_text(t, tile.title.c_str());
-      lv_obj_align(t, LV_ALIGN_TOP_LEFT, 0, 4);  // Linksbündig
+    title_label = lv_label_create(card);
+    if (title_label) {
+      set_label_style(title_label, lv_color_hex(0xFFFFFF), FONT_TITLE);
+      lv_label_set_text(title_label, tile.title.c_str());
+      if (gauge_enabled) {
+        lv_obj_align(title_label, LV_ALIGN_TOP_LEFT, 0, 4);
+      } else {
+        lv_obj_align(title_label, LV_ALIGN_TOP_LEFT, 0, 4);  // Linksbündig
+      }
     }
+  }
+
+  lv_obj_t* gauge = nullptr;
+  if (gauge_enabled) {
+    const int gauge_size = 350;
+    gauge = lv_arc_create(card);
+    if (gauge) {
+      lv_obj_set_size(gauge, gauge_size, gauge_size);
+      lv_obj_align(gauge, LV_ALIGN_TOP_MID, 0, 12);
+      lv_obj_remove_flag(gauge, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_remove_flag(gauge, LV_OBJ_FLAG_SCROLLABLE);
+      lv_obj_set_style_bg_opa(gauge, LV_OPA_TRANSP, LV_PART_MAIN);
+      lv_obj_set_style_border_width(gauge, 0, LV_PART_MAIN);
+      lv_obj_set_style_shadow_width(gauge, 0, LV_PART_MAIN);
+      lv_obj_set_style_pad_all(gauge, 0, LV_PART_MAIN);
+
+      lv_arc_set_range(gauge, 0, GAUGE_ARC_STEPS);
+      lv_arc_set_value(gauge, 0);
+      lv_arc_set_rotation(gauge, 220);
+      lv_arc_set_bg_angles(gauge, 0, 100);
+      lv_arc_set_angles(gauge, 0, 100);
+
+      lv_obj_set_style_arc_width(gauge, 14, LV_PART_MAIN);
+      lv_obj_set_style_arc_color(gauge, lv_color_hex(0x2E2E2E), LV_PART_MAIN);
+      lv_obj_set_style_arc_rounded(gauge, true, LV_PART_MAIN);
+
+      lv_obj_set_style_arc_width(gauge, 14, LV_PART_INDICATOR);
+      lv_obj_set_style_arc_color(gauge, lv_color_hex(0x20A4FF), LV_PART_INDICATOR);
+      lv_obj_set_style_arc_rounded(gauge, true, LV_PART_INDICATOR);
+
+      lv_obj_set_style_bg_opa(gauge, LV_OPA_TRANSP, LV_PART_KNOB);
+      lv_obj_set_style_border_opa(gauge, LV_OPA_TRANSP, LV_PART_KNOB);
+      lv_obj_set_style_shadow_width(gauge, 0, LV_PART_KNOB);
+    }
+  }
+  if (gauge_enabled) {
+    if (icon_lbl) lv_obj_move_foreground(icon_lbl);
+    if (title_label) lv_obj_move_foreground(title_label);
   }
 
   // Value Label (Wert + Einheit kombiniert)
@@ -996,13 +1080,20 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
   }
   set_label_style(v, lv_color_white(), get_sensor_value_font(tile));
   lv_label_set_text(v, "--");
-  lv_obj_align(v, LV_ALIGN_CENTER, 0, 28);  // Nach unten verschoben (war 18)
+  if (gauge_enabled) {
+    lv_obj_align(v, LV_ALIGN_BOTTOM_MID, 0, 12);
+  } else {
+    lv_obj_align(v, LV_ALIGN_CENTER, 0, 28);  // Nach unten verschoben (war 18)
+  }
 
   // Speichern für spätere Updates
   SensorTileWidgets* target = (grid_type == GridType::TAB0) ? g_tab0_sensors : g_tab1_sensors;
   if (grid_type == GridType::TAB2) target = g_tab2_sensors;
   target[index].value_label = v;
   target[index].unit_label = nullptr;
+  target[index].gauge = gauge;
+  target[index].gauge_min = gauge_min;
+  target[index].gauge_max = gauge_max;
 
   if (tile.sensor_entity.length()) {
     SensorEventData* data = new SensorEventData{
@@ -1756,6 +1847,16 @@ void update_sensor_tile_value(GridType grid_type, uint8_t grid_index, const char
   lv_obj_t* value_label = target[grid_index].value_label;
   if (!value_label) {
     return;
+  }
+
+  if (target[grid_index].gauge && value) {
+    float numeric = 0.0f;
+    if (parse_sensor_number(String(value), numeric)) {
+      const int32_t mapped = map_gauge_arc_value(numeric,
+                                                 target[grid_index].gauge_min,
+                                                 target[grid_index].gauge_max);
+      lv_arc_set_value(target[grid_index].gauge, mapped);
+    }
   }
 
   String displayValue = value ? String(value) : String();

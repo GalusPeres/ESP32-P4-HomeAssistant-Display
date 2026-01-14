@@ -368,6 +368,12 @@ void WebAdminServer::handleGetTiles() {
     json += String(tile.sensor_decimals == 0xFF ? -1 : (int)tile.sensor_decimals);
     json += ",\"sensor_value_font\":";
     json += String(tile.sensor_value_font);
+    json += ",\"sensor_gauge\":";
+    json += String(tile.sensor_gauge_enabled ? 1 : 0);
+    json += ",\"sensor_gauge_min\":";
+    json += String(tile.sensor_gauge_min);
+    json += ",\"sensor_gauge_max\":";
+    json += String(tile.sensor_gauge_max);
     json += ",\"scene_alias\":\"";
     json += tile.scene_alias;
     json += "\",\"key_macro\":\"";
@@ -407,6 +413,12 @@ void WebAdminServer::handleGetTiles() {
     json += String(tile.sensor_decimals == 0xFF ? -1 : (int)tile.sensor_decimals);
     json += ",\"sensor_value_font\":";
     json += String(tile.sensor_value_font);
+    json += ",\"sensor_gauge\":";
+    json += String(tile.sensor_gauge_enabled ? 1 : 0);
+    json += ",\"sensor_gauge_min\":";
+    json += String(tile.sensor_gauge_min);
+    json += ",\"sensor_gauge_max\":";
+    json += String(tile.sensor_gauge_max);
     json += ",\"scene_alias\":\"";
     json += tile.scene_alias;
     json += "\",\"key_macro\":\"";
@@ -485,14 +497,40 @@ void WebAdminServer::handleSaveTiles() {
       value_font = (raw == 1 || raw == 2) ? static_cast<uint8_t>(raw) : 0;
     }
     tile.sensor_value_font = value_font;
+    tile.sensor_gauge_enabled = false;
+    tile.sensor_gauge_min = 0;
+    tile.sensor_gauge_max = 100;
+    if (server.hasArg("sensor_gauge")) {
+      tile.sensor_gauge_enabled = (server.arg("sensor_gauge").toInt() == 1);
+    }
+    if (server.hasArg("sensor_gauge_min")) {
+      String raw = server.arg("sensor_gauge_min");
+      raw.trim();
+      if (raw.length() > 0) tile.sensor_gauge_min = raw.toInt();
+    }
+    if (server.hasArg("sensor_gauge_max")) {
+      String raw = server.arg("sensor_gauge_max");
+      raw.trim();
+      if (raw.length() > 0) tile.sensor_gauge_max = raw.toInt();
+    }
+    if (tile.sensor_gauge_max <= tile.sensor_gauge_min) {
+      tile.sensor_gauge_min = 0;
+      tile.sensor_gauge_max = 100;
+    }
   } else if (type == TILE_SCENE) {
     tile.scene_alias = server.hasArg("scene_alias") ? server.arg("scene_alias") : "";
     tile.sensor_decimals = 0xFF;
     tile.sensor_value_font = 0;
+    tile.sensor_gauge_enabled = false;
+    tile.sensor_gauge_min = 0;
+    tile.sensor_gauge_max = 100;
   } else if (type == TILE_KEY) {
     tile.key_macro = server.hasArg("key_macro") ? server.arg("key_macro") : "";
     tile.sensor_decimals = 0xFF;
     tile.sensor_value_font = 0;
+    tile.sensor_gauge_enabled = false;
+    tile.sensor_gauge_min = 0;
+    tile.sensor_gauge_max = 100;
 
     // Parse macro to key_code and modifier
     uint8_t modifier = 0;
@@ -510,6 +548,9 @@ void WebAdminServer::handleSaveTiles() {
     Serial.printf("[DEBUG] Navigate Backend - hasArg=%d, argValue='%s', targetValue=%d\n", hasArg, argValue.c_str(), targetValue);
     tile.sensor_decimals = hasArg ? targetValue : 0;
     tile.sensor_value_font = 0;
+    tile.sensor_gauge_enabled = false;
+    tile.sensor_gauge_min = 0;
+    tile.sensor_gauge_max = 100;
   } else if (type == TILE_SWITCH) {
     // Element-Pool: sensor_entity = target entity for switch/light
     tile.sensor_entity = server.hasArg("switch_entity") ? server.arg("switch_entity") : "";
@@ -520,6 +561,9 @@ void WebAdminServer::handleSaveTiles() {
     }
     tile.sensor_decimals = style;
     tile.sensor_value_font = 0;
+    tile.sensor_gauge_enabled = false;
+    tile.sensor_gauge_min = 0;
+    tile.sensor_gauge_max = 100;
   } else if (type == TILE_IMAGE) {
     // Element-Pool: image_path wird in sensor_entity gespeichert (siehe tile_config.cpp packTile/unpackTile)
     tile.image_path = server.hasArg("image_path") ? server.arg("image_path") : "";
@@ -528,9 +572,15 @@ void WebAdminServer::handleSaveTiles() {
     Serial.printf("[WebAdmin] IMAGE Tile - Empfangener Pfad: '%s'\n", tile.image_path.c_str());
     tile.sensor_decimals = 0xFF;
     tile.sensor_value_font = 0;
+    tile.sensor_gauge_enabled = false;
+    tile.sensor_gauge_min = 0;
+    tile.sensor_gauge_max = 100;
   } else {
     tile.sensor_decimals = 0xFF;
     tile.sensor_value_font = 0;
+    tile.sensor_gauge_enabled = false;
+    tile.sensor_gauge_min = 0;
+    tile.sensor_gauge_max = 100;
   }
 
   // Save to NVS (nur das betroffene Grid)

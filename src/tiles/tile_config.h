@@ -26,6 +26,9 @@ struct Tile {
   String sensor_unit;        // Einheit (z.B. "°C")
   uint8_t sensor_decimals;   // Nachkommastellen (0xFF = unverändert)
   uint8_t sensor_value_font; // 0=Standard, 1=20, 2=24
+  bool sensor_gauge_enabled; // Zeiger-Gauge anzeigen
+  int32_t sensor_gauge_min;  // Gauge-Min
+  int32_t sensor_gauge_max;  // Gauge-Max
 
   // Scene-spezifisch
   String scene_alias;        // HA Scene Alias
@@ -44,6 +47,9 @@ struct Tile {
         bg_color(0),
         sensor_decimals(0xFF),  // 0xFF = keine Rundung, Originalwert anzeigen
         sensor_value_font(0),
+        sensor_gauge_enabled(false),
+        sensor_gauge_min(0),
+        sensor_gauge_max(100),
         key_code(0),
         key_modifier(0),
         image_slideshow_sec(10) {}

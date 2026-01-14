@@ -373,6 +373,9 @@ void appendAdminScripts(String& html) {
       sensor_unit: document.getElementById(prefix + '_sensor_unit')?.value || '',
       sensor_decimals: document.getElementById(prefix + '_sensor_decimals')?.value || '',
       sensor_value_font: document.getElementById(prefix + '_sensor_value_font')?.value || '0',
+      sensor_gauge: document.getElementById(prefix + '_sensor_gauge')?.checked ? '1' : '0',
+      sensor_gauge_min: document.getElementById(prefix + '_sensor_gauge_min')?.value || '',
+      sensor_gauge_max: document.getElementById(prefix + '_sensor_gauge_max')?.value || '',
       scene_alias: document.getElementById(prefix + '_scene_alias')?.value || '',
       key_macro: document.getElementById(prefix + '_key_macro')?.value || '',
       navigate_target: document.getElementById(prefix + '_navigate_target')?.value || '0',
@@ -402,6 +405,13 @@ void appendAdminScripts(String& html) {
       if (decEl) decEl.value = d.sensor_decimals || '';
       const fontEl = document.getElementById(prefix + '_sensor_value_font');
       if (fontEl) fontEl.value = d.sensor_value_font || '0';
+      const gaugeEl = document.getElementById(prefix + '_sensor_gauge');
+      if (gaugeEl) gaugeEl.checked = d.sensor_gauge === '1';
+      const gaugeMinEl = document.getElementById(prefix + '_sensor_gauge_min');
+      if (gaugeMinEl) gaugeMinEl.value = d.sensor_gauge_min || '';
+      const gaugeMaxEl = document.getElementById(prefix + '_sensor_gauge_max');
+      if (gaugeMaxEl) gaugeMaxEl.value = d.sensor_gauge_max || '';
+      syncGaugeUi(tab);
     } else if (d.type === '2') {
       document.getElementById(prefix + '_scene_alias').value = d.scene_alias || '';
     } else if (d.type === '3') {
@@ -448,6 +458,9 @@ void appendAdminScripts(String& html) {
       sensor_unit: document.getElementById(prefix + '_sensor_unit')?.value || '',
       sensor_decimals: document.getElementById(prefix + '_sensor_decimals')?.value || '',
       sensor_value_font: document.getElementById(prefix + '_sensor_value_font')?.value || '0',
+      sensor_gauge: document.getElementById(prefix + '_sensor_gauge')?.checked ? '1' : '0',
+      sensor_gauge_min: document.getElementById(prefix + '_sensor_gauge_min')?.value || '',
+      sensor_gauge_max: document.getElementById(prefix + '_sensor_gauge_max')?.value || '',
       scene_alias: document.getElementById(prefix + '_scene_alias')?.value || '',
       key_macro: document.getElementById(prefix + '_key_macro')?.value || '',
       navigate_target: document.getElementById(prefix + '_navigate_target')?.value || '0',
@@ -481,6 +494,13 @@ void appendAdminScripts(String& html) {
     if (sensorDecEl) sensorDecEl.value = data.sensor_decimals || '';
     const sensorFontEl = document.getElementById(prefix + '_sensor_value_font');
     if (sensorFontEl) sensorFontEl.value = data.sensor_value_font || '0';
+    const sensorGaugeEl = document.getElementById(prefix + '_sensor_gauge');
+    if (sensorGaugeEl) sensorGaugeEl.checked = data.sensor_gauge === '1' || data.sensor_gauge === 1;
+    const sensorGaugeMinEl = document.getElementById(prefix + '_sensor_gauge_min');
+    if (sensorGaugeMinEl) sensorGaugeMinEl.value = data.sensor_gauge_min || '';
+    const sensorGaugeMaxEl = document.getElementById(prefix + '_sensor_gauge_max');
+    if (sensorGaugeMaxEl) sensorGaugeMaxEl.value = data.sensor_gauge_max || '';
+    syncGaugeUi(tab);
 
     const sceneEl = document.getElementById(prefix + '_scene_alias');
     if (sceneEl) sceneEl.value = data.scene_alias || '';
@@ -603,7 +623,8 @@ void appendAdminScripts(String& html) {
     const prefix = tab;
       const fields = [
         '_tile_title','_tile_color','_tile_type','_sensor_entity','_sensor_unit',
-        '_sensor_decimals','_sensor_value_font','_scene_alias','_key_macro','_navigate_target','_switch_entity','_switch_style',
+        '_sensor_decimals','_sensor_value_font','_sensor_gauge','_sensor_gauge_min','_sensor_gauge_max',
+        '_scene_alias','_key_macro','_navigate_target','_switch_entity','_switch_style',
         '_image_path','_image_select','_image_slideshow_sec','_image_url'
       ];
     fields.forEach(id => {
@@ -619,6 +640,9 @@ void appendAdminScripts(String& html) {
       const unitInput = document.getElementById(prefix + '_sensor_unit');
       const decimalsInput = document.getElementById(prefix + '_sensor_decimals');
       const valueFontSelect = document.getElementById(prefix + '_sensor_value_font');
+      const gaugeCheck = document.getElementById(prefix + '_sensor_gauge');
+      const gaugeMinInput = document.getElementById(prefix + '_sensor_gauge_min');
+      const gaugeMaxInput = document.getElementById(prefix + '_sensor_gauge_max');
       const sceneInput = document.getElementById(prefix + '_scene_alias');
     const keyInput = document.getElementById(prefix + '_key_macro');
     const navigateSelect = document.getElementById(prefix + '_navigate_target');
@@ -636,6 +660,9 @@ void appendAdminScripts(String& html) {
       if (unitInput) unitInput.addEventListener('input', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
       if (decimalsInput) decimalsInput.addEventListener('input', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
       if (valueFontSelect) valueFontSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+      if (gaugeCheck) gaugeCheck.addEventListener('change', () => { syncGaugeUi(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+      if (gaugeMinInput) gaugeMinInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
+      if (gaugeMaxInput) gaugeMaxInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
     if (sceneInput) sceneInput.addEventListener('input', () => { maybeFillTitleFromScene(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (keyInput) keyInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (navigateSelect) navigateSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -874,6 +901,20 @@ void appendAdminScripts(String& html) {
     el.classList.add(getSensorValueFontClass(value));
   }
 
+  function syncGaugeUi(tab) {
+    const prefix = tab;
+    const typeValue = document.getElementById(prefix + '_tile_type')?.value || '0';
+    const gaugeWrap = document.getElementById(prefix + '_sensor_gauge_fields');
+    if (!gaugeWrap) return;
+    if (typeValue !== '1') {
+      gaugeWrap.classList.add('hidden');
+      return;
+    }
+    const gaugeEnabled = document.getElementById(prefix + '_sensor_gauge')?.checked;
+    if (gaugeEnabled) gaugeWrap.classList.remove('hidden');
+    else gaugeWrap.classList.add('hidden');
+  }
+
   function updateTilePreview(tab) {
     if (currentTileIndex === -1) return;
     const prefix = tab;
@@ -989,6 +1030,13 @@ void appendAdminScripts(String& html) {
         if (decEl) decEl.value = (data.sensor_decimals !== undefined && data.sensor_decimals >= 0) ? data.sensor_decimals : '';
         const fontEl = document.getElementById(prefix + '_sensor_value_font');
         if (fontEl) fontEl.value = (data.sensor_value_font !== undefined) ? String(data.sensor_value_font) : '0';
+        const gaugeEl = document.getElementById(prefix + '_sensor_gauge');
+        if (gaugeEl) gaugeEl.checked = data.sensor_gauge === 1 || data.sensor_gauge === '1';
+        const gaugeMinEl = document.getElementById(prefix + '_sensor_gauge_min');
+        if (gaugeMinEl) gaugeMinEl.value = (data.sensor_gauge_min !== undefined && data.sensor_gauge_min !== null) ? String(data.sensor_gauge_min) : '';
+        const gaugeMaxEl = document.getElementById(prefix + '_sensor_gauge_max');
+        if (gaugeMaxEl) gaugeMaxEl.value = (data.sensor_gauge_max !== undefined && data.sensor_gauge_max !== null) ? String(data.sensor_gauge_max) : '';
+        syncGaugeUi(tab);
       } else if (data.type === 2) {
           document.getElementById(prefix + '_scene_alias').value = data.scene_alias || '';
           maybeFillTitleFromScene(tab);
@@ -1012,6 +1060,13 @@ void appendAdminScripts(String& html) {
       if (data.type !== 1 && decEl) decEl.value = '';
       const fontEl = document.getElementById(prefix + '_sensor_value_font');
       if (data.type !== 1 && fontEl) fontEl.value = '0';
+      const gaugeEl = document.getElementById(prefix + '_sensor_gauge');
+      if (data.type !== 1 && gaugeEl) gaugeEl.checked = false;
+      const gaugeMinEl = document.getElementById(prefix + '_sensor_gauge_min');
+      if (data.type !== 1 && gaugeMinEl) gaugeMinEl.value = '';
+      const gaugeMaxEl = document.getElementById(prefix + '_sensor_gauge_max');
+      if (data.type !== 1 && gaugeMaxEl) gaugeMaxEl.value = '';
+      syncGaugeUi(tab);
         const tileElem = document.getElementById(tab + '-tile-' + index);
         if (tileElem) tileElem.classList.add('active');
         const draft = (drafts[tab] || {})[index];
@@ -1039,6 +1094,7 @@ void appendAdminScripts(String& html) {
       const path = document.getElementById(prefix + '_image_path')?.value || '';
       applyImageUiState(tab, path);
     }
+    syncGaugeUi(tab);
   }
 
   function showNotification(message, success = true) {
@@ -1066,12 +1122,19 @@ void appendAdminScripts(String& html) {
       const el = document.getElementById(prefix + suf);
       if (el) el.value = (suf === '_switch_style' || suf === '_sensor_value_font') ? '0' : '';
     });
+    const gaugeEl = document.getElementById(prefix + '_sensor_gauge');
+    if (gaugeEl) gaugeEl.checked = false;
+    const gaugeMinEl = document.getElementById(prefix + '_sensor_gauge_min');
+    if (gaugeMinEl) gaugeMinEl.value = '';
+    const gaugeMaxEl = document.getElementById(prefix + '_sensor_gauge_max');
+    if (gaugeMaxEl) gaugeMaxEl.value = '';
     const intervalEl = document.getElementById(prefix + '_image_slideshow_sec');
     if (intervalEl) intervalEl.value = '10';
     const urlEl = document.getElementById(prefix + '_image_url');
     if (urlEl) urlEl.value = '';
     updateImageUrlVisibility(tab, '', '');
     applyImageUiState(tab, '');
+    syncGaugeUi(tab);
     updateTileType(tab);
     updateTilePreview(tab);
     updateDraft(tab);
@@ -1094,6 +1157,9 @@ void appendAdminScripts(String& html) {
         formData.append('sensor_unit', document.getElementById(prefix + '_sensor_unit').value);
         formData.append('sensor_decimals', document.getElementById(prefix + '_sensor_decimals').value);
         formData.append('sensor_value_font', document.getElementById(prefix + '_sensor_value_font').value);
+        formData.append('sensor_gauge', document.getElementById(prefix + '_sensor_gauge')?.checked ? '1' : '0');
+        formData.append('sensor_gauge_min', document.getElementById(prefix + '_sensor_gauge_min')?.value || '');
+        formData.append('sensor_gauge_max', document.getElementById(prefix + '_sensor_gauge_max')?.value || '');
       } else if (typeValue === '2') {
       formData.append('scene_alias', document.getElementById(prefix + '_scene_alias').value);
     } else if (typeValue === '3') {
@@ -1276,6 +1342,13 @@ void appendAdminScripts(String& html) {
       }
       if (tile.sensor_value_font !== undefined && tile.sensor_value_font !== null) {
         fd.append('sensor_value_font', tile.sensor_value_font);
+      }
+      fd.append('sensor_gauge', (tile.sensor_gauge === 1 || tile.sensor_gauge === '1' || tile.sensor_gauge === true) ? '1' : '0');
+      if (tile.sensor_gauge_min !== undefined && tile.sensor_gauge_min !== null && String(tile.sensor_gauge_min).length > 0) {
+        fd.append('sensor_gauge_min', tile.sensor_gauge_min);
+      }
+      if (tile.sensor_gauge_max !== undefined && tile.sensor_gauge_max !== null && String(tile.sensor_gauge_max).length > 0) {
+        fd.append('sensor_gauge_max', tile.sensor_gauge_max);
       }
     } else if (safeType === 2) {
       fd.append('scene_alias', tile.scene_alias || '');

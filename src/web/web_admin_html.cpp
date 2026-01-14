@@ -282,6 +282,24 @@ static void appendTileTabHTML(
                   <option value="1">20</option>
                   <option value="2">24</option>
                 </select>
+                <label class="inline-checkbox">
+                  <input type="checkbox" id=")html";
+  html += tab_id;
+  html += R"html(_sensor_gauge">
+                  Zeiger-Gauge anzeigen
+                </label>
+                <div id=")html";
+  html += tab_id;
+  html += R"html(_sensor_gauge_fields" class="gauge-fields hidden">
+                  <label>Gauge Min</label>
+                  <input type="number" id=")html";
+  html += tab_id;
+  html += R"html(_sensor_gauge_min" step="1" placeholder="z.B. 0">
+                  <label>Gauge Max</label>
+                  <input type="number" id=")html";
+  html += tab_id;
+  html += R"html(_sensor_gauge_max" step="1" placeholder="z.B. 100">
+                </div>
             </div>
 
             <!-- Scene Fields -->

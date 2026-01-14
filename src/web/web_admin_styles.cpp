@@ -248,6 +248,10 @@ void appendAdminStyles(String& html) {
     .tile-settings h3 { margin:0 0 16px; color:#1e293b; font-size:18px; }
     .type-fields { display:none; margin-top:12px; }
     .type-fields.show { display:block; }
+    .inline-checkbox { display:flex; align-items:center; gap:8px; font-weight:600; margin-top:8px; }
+    .inline-checkbox input { margin:0; }
+    .gauge-fields { padding-left:4px; }
+    .gauge-fields.hidden { display:none; }
 
     /* Notification */
     .notification {
