@@ -4,9 +4,11 @@ Small WebSocket bridge that reads MSFS SimConnect data and streams it to the Ele
 
 ## Setup
 1) Install the MSFS SDK (Developer Mode -> SDK -> Install).
-2) Copy the **managed** `Microsoft.FlightSimulator.SimConnect.dll` from the SDK to
-   `simconnect-bridge/lib/Microsoft.FlightSimulator.SimConnect.dll`.
-   Common SDK path: `.../MSFS SDK/SimConnect SDK/lib/managed/Microsoft.FlightSimulator.SimConnect.dll`.
+2) Copy the DLLs from the SDK:
+   - Managed: `.../MSFS SDK/SimConnect SDK/lib/managed/Microsoft.FlightSimulator.SimConnect.dll`
+     -> `simconnect-bridge/lib/Microsoft.FlightSimulator.SimConnect.dll`
+   - Native: `.../MSFS SDK/SimConnect SDK/lib/SimConnect.dll`
+     -> `simconnect-bridge/lib/SimConnect.dll`
 3) Build the bridge:
 
 ```
