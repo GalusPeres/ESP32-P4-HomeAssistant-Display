@@ -55,7 +55,25 @@ internal static class Program
     };
 
     var simWorker = new SimConnectWorker(hub, settings.RateHz);
-    await simWorker.RunAsync(cts.Token);
+    while (!cts.Token.IsCancellationRequested)
+    {
+      try
+      {
+        await simWorker.RunAsync(cts.Token);
+      }
+      catch (FileNotFoundException)
+      {
+        Console.WriteLine("[Bridge] Managed SimConnect DLL missing. Copy it into simconnect-bridge/lib/.");
+        try
+        {
+          await Task.Delay(2000, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+          break;
+        }
+      }
+    }
 
     await hub.StopAsync();
   }
