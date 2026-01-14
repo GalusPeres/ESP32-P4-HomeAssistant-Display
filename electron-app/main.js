@@ -22,6 +22,11 @@ const store = new Store({
       mem_used: true,
       mem_pct: true,
       uptime: true
+    },
+    simconnect: {
+      enabled: false,
+      host: '127.0.0.1',
+      port: 13375
     }
   }
 });
@@ -35,6 +40,10 @@ let connectionAttempts = 0;
 let metricsInterval = null;
 let lastCpuSample = null;
 let metricsInFlight = false;
+let simWs = null;
+let simReconnectTimer = null;
+let simConnected = false;
+let lastSimSensors = [];
 
 const startHidden = process.argv.includes('--hidden');
 
@@ -51,6 +60,12 @@ const DEFAULT_METRICS = {
   mem_pct: true,
   uptime: true
 };
+const DEFAULT_SIMCONNECT = {
+  enabled: false,
+  host: '127.0.0.1',
+  port: 13375
+};
+const SIMCONNECT_RECONNECT_MS = 2000;
 const lastMetricValues = {};
 
 // Scan Code zu Robot Key Mapping
@@ -114,6 +129,30 @@ function setMetricsConfig(raw) {
   return cfg;
 }
 
+function normalizeSimConfig(raw) {
+  const cfg = { ...DEFAULT_SIMCONNECT };
+  if (!raw || typeof raw !== 'object') return cfg;
+  if (raw.enabled !== undefined) cfg.enabled = !!raw.enabled;
+  if (raw.host) cfg.host = String(raw.host);
+  if (raw.port !== undefined) {
+    const parsed = Number(raw.port);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      cfg.port = Math.floor(parsed);
+    }
+  }
+  return cfg;
+}
+
+function getSimConfig() {
+  return normalizeSimConfig(store.get('simconnect', {}));
+}
+
+function setSimConfig(raw) {
+  const cfg = normalizeSimConfig(raw);
+  store.set('simconnect', cfg);
+  return cfg;
+}
+
 function getMetricValue(entityId, value) {
   if (value === null || value === undefined) {
     if (Object.prototype.hasOwnProperty.call(lastMetricValues, entityId)) {
@@ -129,6 +168,27 @@ function updateMetricsPreview(sensors) {
   if (!mainWindow || !mainWindow.webContents) return;
   const payload = Array.isArray(sensors) ? sensors : [];
   mainWindow.webContents.send('metrics-update', payload);
+}
+
+function updateSimPreview(sensors) {
+  if (!mainWindow || !mainWindow.webContents) return;
+  const payload = Array.isArray(sensors) ? sensors : [];
+  mainWindow.webContents.send('sim-update', payload);
+}
+
+function normalizeIncomingSensors(rawSensors) {
+  if (!Array.isArray(rawSensors)) return [];
+  return rawSensors
+    .map((sensor) => {
+      if (!sensor || typeof sensor !== 'object') return null;
+      const entityId = sensor.entity_id || sensor.entityId;
+      if (!entityId) return null;
+      const name = sensor.name || entityId;
+      const unit = sensor.unit || '';
+      const value = getMetricValue(entityId, sensor.value);
+      return { entity_id: entityId, name, unit, value };
+    })
+    .filter(Boolean);
 }
 
 function normalizeTemperature(value) {
@@ -309,15 +369,20 @@ async function buildPcMetricsPayload() {
   return { type: 'pc_metrics', sensors };
 }
 
+function sendSensorsToTab5(sensors) {
+  if (!Array.isArray(sensors) || sensors.length === 0) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'pc_metrics', sensors }));
+  }
+}
+
 async function sendPcMetrics() {
   if (metricsInFlight) return;
   metricsInFlight = true;
   try {
     const payload = await buildPcMetricsPayload();
     if (!payload) return;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(payload));
-    }
+    sendSensorsToTab5(payload.sensors);
   } catch (err) {
     log(`Metrics send error: ${err.message}`);
   } finally {
@@ -338,6 +403,90 @@ function stopMetricsLoop() {
     clearInterval(metricsInterval);
     metricsInterval = null;
   }
+}
+
+function updateSimStatus(status) {
+  if (mainWindow) {
+    mainWindow.webContents.send('sim-status', status);
+  }
+}
+
+function handleSimBridgeMessage(data) {
+  let msg = null;
+  try {
+    msg = JSON.parse(data.toString());
+  } catch (err) {
+    log(`SimConnect parse error: ${err.message}`);
+    return;
+  }
+  if (!msg || !Array.isArray(msg.sensors)) return;
+  const sensors = normalizeIncomingSensors(msg.sensors);
+  if (!sensors.length) return;
+  lastSimSensors = sensors;
+  updateSimPreview(sensors);
+  sendSensorsToTab5(sensors);
+}
+
+function connectSimBridge() {
+  const cfg = getSimConfig();
+  if (!cfg.enabled) {
+    updateSimStatus('disconnected');
+    return;
+  }
+  if (simWs && (simWs.readyState === WebSocket.OPEN || simWs.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  const url = `ws://${cfg.host}:${cfg.port}`;
+  log(`Connecting SimConnect bridge: ${url}`);
+
+  simWs = new WebSocket(url, {
+    perMessageDeflate: false,
+    handshakeTimeout: 5000
+  });
+
+  simWs.on('open', () => {
+    simConnected = true;
+    updateSimStatus('connected');
+    log('SimConnect bridge connected');
+    if (simReconnectTimer) {
+      clearTimeout(simReconnectTimer);
+      simReconnectTimer = null;
+    }
+  });
+
+  simWs.on('message', (data) => {
+    handleSimBridgeMessage(data);
+  });
+
+  simWs.on('close', () => {
+    simConnected = false;
+    updateSimStatus('disconnected');
+    log('SimConnect bridge disconnected');
+    if (!getSimConfig().enabled) return;
+    if (simReconnectTimer) return;
+    simReconnectTimer = setTimeout(() => {
+      simReconnectTimer = null;
+      connectSimBridge();
+    }, SIMCONNECT_RECONNECT_MS);
+  });
+
+  simWs.on('error', (err) => {
+    log(`SimConnect bridge error: ${err.message}`);
+  });
+}
+
+function disconnectSimBridge() {
+  if (simReconnectTimer) {
+    clearTimeout(simReconnectTimer);
+    simReconnectTimer = null;
+  }
+  if (simWs) {
+    simWs.close();
+    simWs = null;
+  }
+  simConnected = false;
+  updateSimStatus('disconnected');
 }
 
 function createWindow() {
@@ -446,6 +595,9 @@ function connectToTab5() {
     }, 15000);
 
     startMetricsLoop();
+    if (lastSimSensors.length) {
+      sendSensorsToTab5(lastSimSensors);
+    }
   });
 
   ws.on('message', (data) => {
@@ -597,6 +749,19 @@ ipcMain.on('set-metrics-config', (event, config) => {
   log(`Metrics config updated: ${JSON.stringify(next)}`);
 });
 
+ipcMain.on('get-sim-config', (event) => {
+  event.returnValue = getSimConfig();
+});
+
+ipcMain.on('set-sim-config', (event, config) => {
+  const next = setSimConfig(config);
+  log(`SimConnect config updated: ${JSON.stringify(next)}`);
+  disconnectSimBridge();
+  if (next.enabled) {
+    connectSimBridge();
+  }
+});
+
 // Autostart Funktionen
 function setAutostart(enabled) {
   const loginItem = {
@@ -637,6 +802,9 @@ app.whenReady().then(() => {
   createTray();    // Tray zuerst erstellen
   createWindow();  // Dann Window (startet minimiert wenn Tray existiert)
   startMetricsLoop();
+  if (getSimConfig().enabled) {
+    connectSimBridge();
+  }
 
   // Auto-Connect nach 2 Sekunden
   setTimeout(() => {
@@ -658,6 +826,7 @@ app.on('activate', () => {
 
 app.on('before-quit', () => {
   stopMetricsLoop();
+  disconnectSimBridge();
   if (ws) {
     ws.close();
   }

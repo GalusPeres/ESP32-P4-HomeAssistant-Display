@@ -32,3 +32,9 @@ yarn-error.log*
 # OS-spezifisch
 .DS_Store
 Thumbs.db
+
+# SimConnect bridge
+simconnect-bridge/bin/
+simconnect-bridge/obj/
+simconnect-bridge/lib/SimConnect.dll
+simconnect-bridge/lib/SimConnect.pdb

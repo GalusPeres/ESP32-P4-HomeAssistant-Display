@@ -49,6 +49,25 @@
       color: white;
     }
 
+    .status-pill {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+
+    .status-pill.connected {
+      background: #10b981;
+      color: white;
+    }
+
+    .status-pill.disconnected {
+      background: #ef4444;
+      color: white;
+    }
+
     .config {
       background: #2a2a2a;
       padding: 20px;
@@ -331,6 +350,30 @@
     </div>
   </div>
 
+  <div class="metrics">
+    <div class="metrics-header">
+      <h3>Flight Simulator (SimConnect)</h3>
+      <div class="metrics-note">Reads live data from the local simconnect-bridge.</div>
+    </div>
+    <div class="config-row">
+      <label>Enable:</label>
+      <input type="checkbox" id="sim-enable">
+      <span id="sim-status" class="status-pill disconnected">Disconnected</span>
+    </div>
+    <div class="config-row">
+      <label>Host:</label>
+      <input type="text" id="sim-host" placeholder="127.0.0.1">
+    </div>
+    <div class="config-row">
+      <label>Port:</label>
+      <input type="text" id="sim-port" placeholder="13375">
+    </div>
+    <div class="metrics-live">
+      <div class="metrics-note">Live values</div>
+      <div id="sim-values" class="metrics-values"></div>
+    </div>
+  </div>
+
   <div class="button-activity">
     <h3>Last Button Press</h3>
     <div class="last-button" id="last-button">
@@ -357,6 +400,11 @@
       mem_used: true,
       mem_pct: true,
       uptime: true
+    };
+    const simDefaults = {
+      enabled: false,
+      host: '127.0.0.1',
+      port: 13375
     };
 
     function setMetricCheckbox(id, value) {
@@ -413,6 +461,40 @@
       });
     }
 
+    function loadSimConfig() {
+      const cfg = ipcRenderer.sendSync('get-sim-config') || {};
+      const merged = { ...simDefaults, ...cfg };
+      const enabled = document.getElementById('sim-enable');
+      const host = document.getElementById('sim-host');
+      const port = document.getElementById('sim-port');
+      if (enabled) enabled.checked = !!merged.enabled;
+      if (host) host.value = merged.host || simDefaults.host;
+      if (port) port.value = String(merged.port || simDefaults.port);
+    }
+
+    function collectSimConfig() {
+      const enabled = document.getElementById('sim-enable');
+      const host = document.getElementById('sim-host');
+      const port = document.getElementById('sim-port');
+      return {
+        enabled: !!(enabled && enabled.checked),
+        host: host ? host.value.trim() : simDefaults.host,
+        port: port ? Number(port.value) : simDefaults.port
+      };
+    }
+
+    function saveSimConfig() {
+      ipcRenderer.send('set-sim-config', collectSimConfig());
+    }
+
+    function bindSimInputs() {
+      const ids = ['sim-enable', 'sim-host', 'sim-port'];
+      ids.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', saveSimConfig);
+      });
+    }
+
     function formatMetricDisplay(value, unit) {
       let text = value === undefined || value === null ? '--' : String(value);
       if (text === '--') return text;
@@ -420,8 +502,8 @@
       return text;
     }
 
-    function renderMetricsPreview(metrics) {
-      const container = document.getElementById('metrics-values');
+    function renderMetricsPreview(metrics, elementId) {
+      const container = document.getElementById(elementId || 'metrics-values');
       if (!container) return;
       container.innerHTML = '';
       if (!Array.isArray(metrics) || metrics.length === 0) {
@@ -455,10 +537,23 @@
 
       loadMetricsConfig();
       bindMetricsInputs();
+      loadSimConfig();
+      bindSimInputs();
     });
 
     ipcRenderer.on('metrics-update', (event, metrics) => {
-      renderMetricsPreview(metrics);
+      renderMetricsPreview(metrics, 'metrics-values');
+    });
+
+    ipcRenderer.on('sim-update', (event, metrics) => {
+      renderMetricsPreview(metrics, 'sim-values');
+    });
+
+    ipcRenderer.on('sim-status', (event, status) => {
+      const statusEl = document.getElementById('sim-status');
+      if (!statusEl) return;
+      statusEl.className = `status-pill ${status}`;
+      statusEl.textContent = status === 'connected' ? 'Connected' : 'Disconnected';
     });
 
     // Status Updates

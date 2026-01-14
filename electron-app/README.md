@@ -94,3 +94,8 @@ Erstellt ausführbare `.exe` Datei in `dist/` Ordner.
 ## Lizenz
 
 MIT
+
+## SimConnect Bridge (MSFS 2024)
+
+Use the SimConnect bridge in `../simconnect-bridge` to stream flight data into the app.
+Enable "Flight Simulator (SimConnect)" in the UI to forward data to Tab5.
