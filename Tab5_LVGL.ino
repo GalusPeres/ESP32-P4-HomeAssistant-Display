@@ -26,7 +26,7 @@
 #include "src/tiles/tile_renderer.h"  // Für process_sensor_update_queue()
 #include "src/tiles/mdi_icons.h"      // MDI Icon Mapping
 
-// MDI Icons Font (48px, 4bpp) - definiert in mdi_icons_48.c
+// MDI Icons Font (48px, 4bpp) - definiert in src/fonts/mdi_icons_48.c
 LV_FONT_DECLARE(mdi_icons_48);
 
 // Mehr Stack fuer loopTask (verhindert Stack-Overflow bei lv_timer_handler).

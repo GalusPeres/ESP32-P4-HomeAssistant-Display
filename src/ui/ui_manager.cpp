@@ -9,8 +9,8 @@
 #include "src/tiles/mdi_icons.h"
 #include "src/tiles/tile_config.h"
 #include "src/fonts/ui_fonts.h"
-#include "font_roboto_mono_digits_48.h"
-#include "font_roboto_mono_digits_24.h"
+#include "src/fonts/font_roboto_mono_digits_48.h"
+#include "src/fonts/font_roboto_mono_digits_24.h"
 #include <WiFi.h>
 
 #include <time.h>
