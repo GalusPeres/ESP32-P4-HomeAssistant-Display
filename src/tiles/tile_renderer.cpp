@@ -1009,6 +1009,8 @@ lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint
       return render_switch_tile(parent, col, row, tile, index, grid_type);
     case TILE_IMAGE:
       return render_image_tile(parent, col, row, tile, index);
+    case TILE_CLOCK:
+      return render_clock_tile(parent, col, row, tile, index);
     default:
       return render_empty_tile(parent, col, row);
   }

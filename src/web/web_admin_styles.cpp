@@ -5,6 +5,7 @@
 #include "src/types/scene/web_styles.h"
 #include "src/types/sensor/web_styles.h"
 #include "src/types/switch/web_styles.h"
+#include "src/types/clock/web_styles.h"
 
 void appendAdminStyles(String& html) {
   html += R"html(
@@ -213,4 +214,5 @@ void appendAdminStyles(String& html) {
   append_navigate_styles(html);
   append_switch_styles(html);
   append_image_styles(html);
+  append_clock_styles(html);
 }

@@ -17,6 +17,7 @@
 #include "src/types/navigate/web_html.h"
 #include "src/types/switch/web_html.h"
 #include "src/types/image/web_html.h"
+#include "src/types/clock/web_html.h"
 
 // Helper function to generate tile tab HTML (unified for all folders)
 static void appendTileTabHTML(
@@ -128,6 +129,16 @@ static void appendTileTabHTML(
       } else {
         tileStyle = "background:#353535";
       }
+    } else if (tile.type == TILE_CLOCK) {
+      cssClass += " clock";
+      if (tile.bg_color != 0) {
+        char colorHex[8];
+        snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
+        tileStyle = "background:";
+        tileStyle += colorHex;
+      } else {
+        tileStyle = "background:#353535";
+      }
     }
 
     tileStyle += ";grid-column:";
@@ -215,6 +226,10 @@ static void appendTileTabHTML(
       html += "</div>";
     }
 
+    if (tile.type == TILE_CLOCK) {
+      html += "<div class=\"tile-clock-time\">--:--</div>";
+    }
+
     html += "</div>";
   }
 
@@ -242,6 +257,7 @@ static void appendTileTabHTML(
               <option value="4">Ordner</option>
               <option value="5">Schalter</option>
               <option value="6">Bild</option>
+              <option value="9">Uhr</option>
               <option value="7">Settings</option>
               <option value="8">Zurueck</option>
             </select>
@@ -299,6 +315,7 @@ static void appendTileTabHTML(
             append_navigate_fields_html(html, tab_id, navigateOptionsHtml);
             append_switch_fields_html(html, tab_id, switchOptions);
             append_image_fields_html(html, tab_id);
+            append_clock_fields_html(html, tab_id);
 
   html += R"html(
 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#64748b;gap:10px;">

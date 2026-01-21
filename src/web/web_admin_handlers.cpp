@@ -15,6 +15,7 @@
 #include "src/types/navigate/web_handler.h"
 #include "src/types/switch/web_handler.h"
 #include "src/types/image/web_handler.h"
+#include "src/types/clock/web_handler.h"
 #include <algorithm>
 #include <vector>
 #include <SD.h>
@@ -639,6 +640,8 @@ void WebAdminServer::handleSaveTiles() {
     apply_switch_fields_from_request(server, tile);
   } else if (type == TILE_IMAGE) {
     apply_image_fields_from_request(server, tile);
+  } else if (type == TILE_CLOCK) {
+    apply_clock_fields_from_request(server, tile);
   }
 
   if (deleting_folder) {

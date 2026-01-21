@@ -5,6 +5,7 @@
 #include "src/types/scene/web_scripts.h"
 #include "src/types/sensor/web_scripts.h"
 #include "src/types/switch/web_scripts.h"
+#include "src/types/clock/web_scripts.h"
 
 void appendAdminScripts(String& html) {
   html += R"html(
@@ -591,7 +592,8 @@ void appendAdminScripts(String& html) {
                     tileElem.classList.contains('key')      ? '3' :
                     tileElem.classList.contains('navigate') ? '4' :
                     tileElem.classList.contains('switch')   ? '5' :
-                    tileElem.classList.contains('image')    ? '6' : '0';
+                    tileElem.classList.contains('image')    ? '6' :
+                    tileElem.classList.contains('clock')    ? '9' : '0';
     const title = document.getElementById(prefix + '_tile_title').value;
     const color = document.getElementById(prefix + '_tile_color').value;
     const type = document.getElementById(prefix + '_tile_type').value;
@@ -631,6 +633,9 @@ void appendAdminScripts(String& html) {
     } else if (type === '6') {
       tileElem.classList.add('image');
       tileElem.style.background = color || '#353535';
+    } else if (type === '9') {
+      tileElem.classList.add('clock');
+      tileElem.style.background = color || '#353535';
     }
 
     let html = '';
@@ -659,6 +664,10 @@ void appendAdminScripts(String& html) {
           if (wasActive) tileElem.classList.add('active');
           updateSensorValuePreview(tab);
         }
+      }
+
+      if (type === '9') {
+        html += '<div class="tile-clock-time">' + getClockPreviewTime() + '</div>';
       }
 
       if (type === '5' && switchStyle === '1') {
@@ -815,6 +824,9 @@ void appendAdminScripts(String& html) {
       refreshImageSelect(tab, false);
       const path = document.getElementById(prefix + '_image_path')?.value || '';
       applyImageUiState(tab, path);
+    } else if (typeValue === '9') {
+      const clockFields = document.getElementById(prefix + '_clock_fields');
+      if (clockFields) clockFields.classList.add('show');
     }
     syncGaugeUi(tab);
     applySpecialTileUiState(tab);
@@ -1158,6 +1170,7 @@ void appendAdminScripts(String& html) {
       cls.push('switch');
       if (tile.switch_style === 1) cls.push('switch-toggle');
     } else if (tile.type === 6) cls.push('image');
+    else if (tile.type === 9) cls.push('clock');
     else cls.push('empty');
     el.className = cls.join(' ');
     if (tile.type === 0) el.style.background = 'transparent';
@@ -1189,6 +1202,9 @@ void appendAdminScripts(String& html) {
         if (tile.sensor_entity) value = formatSensorValue(sensorValues[tile.sensor_entity] ?? '--', tile.sensor_decimals);
         const unit = tile.sensor_unit || '';
         html += '<div class="tile-value ' + sensorValueClass + '" id="' + tab + '-tile-' + index + '-value">' + value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '') + '</div>';
+      }
+      if (tile.type === 9) {
+        html += '<div class="tile-clock-time">' + getClockPreviewTime() + '</div>';
       }
       if (tile.type === 5 && tile.switch_style === 1) {
         html += '<div class="tile-switch" id="' + tab + '-tile-' + index + '-switch"><div class="tile-switch-knob"></div></div>';
@@ -1362,6 +1378,7 @@ void appendAdminScripts(String& html) {
   append_switch_scripts(html);
   append_navigate_scripts(html);
   append_image_scripts(html);
+  append_clock_scripts(html);
 }
 
 
