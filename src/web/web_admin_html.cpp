@@ -227,7 +227,16 @@ static void appendTileTabHTML(
     }
 
     if (tile.type == TILE_CLOCK) {
-      html += "<div class=\"tile-clock-time\">--:--</div>";
+      uint8_t flags = tile.sensor_decimals;
+      if (flags == 0xFF) flags = 1;
+      flags &= 0x03;
+      if (flags == 0) flags = 1;
+      if (flags & 1) {
+        html += "<div class=\"tile-clock-time\">--:--</div>";
+      }
+      if (flags & 2) {
+        html += "<div class=\"tile-clock-date\">--.--.----</div>";
+      }
     }
 
     html += "</div>";

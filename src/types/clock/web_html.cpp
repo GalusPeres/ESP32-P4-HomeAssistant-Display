@@ -6,7 +6,18 @@ void append_clock_fields_html(String& html, const String& tab_id) {
             <div id=")html";
   html += tab_id;
   html += R"html(_clock_fields" class="type-fields">
-              <div style="font-size:12px;color:#64748b;margin-bottom:6px;">Keine Uhr-Einstellungen.</div>
+              <label class="inline-checkbox">
+                <input type="checkbox" id=")html";
+  html += tab_id;
+  html += R"html(_clock_show_time" checked>
+                Uhrzeit anzeigen
+              </label>
+              <label class="inline-checkbox">
+                <input type="checkbox" id=")html";
+  html += tab_id;
+  html += R"html(_clock_show_date">
+                Datum anzeigen
+              </label>
             </div>
 )html";
 }

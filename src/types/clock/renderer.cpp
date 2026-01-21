@@ -2,31 +2,52 @@
 #include "src/tiles/tile_renderer_shared.h"
 #include "src/tiles/tile_renderer_fonts.h"
 #include "src/tiles/mdi_icons.h"
+#include "src/fonts/font_roboto_mono_digits_24.h"
 #include "src/fonts/font_roboto_mono_digits_48.h"
 #include <Arduino.h>
 #include <time.h>
 
 struct ClockTileData {
   lv_obj_t* time_label = nullptr;
+  lv_obj_t* date_label = nullptr;
   lv_timer_t* timer = nullptr;
 };
 
-static void update_clock_label(lv_obj_t* label) {
-  if (!label) return;
+static uint8_t get_clock_flags(const Tile& tile) {
+  uint8_t flags = tile.sensor_decimals;
+  if (flags == 0xFF) flags = 1;
+  flags &= 0x03;
+  if (flags == 0) flags = 1;
+  return flags;
+}
+
+static void update_clock_labels(ClockTileData* data) {
+  if (!data) return;
   struct tm timeinfo;
-  char buf[6];
   if (getLocalTime(&timeinfo, 0)) {
-    snprintf(buf, sizeof(buf), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+    if (data->time_label) {
+      char buf[6];
+      snprintf(buf, sizeof(buf), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+      lv_label_set_text(data->time_label, buf);
+    }
+    if (data->date_label) {
+      char buf[12];
+      snprintf(buf, sizeof(buf), "%02d.%02d.%04d",
+               timeinfo.tm_mday,
+               timeinfo.tm_mon + 1,
+               timeinfo.tm_year + 1900);
+      lv_label_set_text(data->date_label, buf);
+    }
   } else {
-    snprintf(buf, sizeof(buf), "--:--");
+    if (data->time_label) lv_label_set_text(data->time_label, "--:--");
+    if (data->date_label) lv_label_set_text(data->date_label, "--.--.----");
   }
-  lv_label_set_text(label, buf);
 }
 
 static void clock_timer_cb(lv_timer_t* timer) {
   ClockTileData* data = static_cast<ClockTileData*>(lv_timer_get_user_data(timer));
   if (!data) return;
-  update_clock_label(data->time_label);
+  update_clock_labels(data);
 }
 
 lv_obj_t* render_clock_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index) {
@@ -71,16 +92,45 @@ lv_obj_t* render_clock_tile(lv_obj_t* parent, int col, int row, const Tile& tile
     }
   }
 
-  lv_obj_t* time_lbl = lv_label_create(card);
-  if (time_lbl) {
-    set_label_style(time_lbl, lv_color_white(), &font_roboto_mono_digits_48);
-    update_clock_label(time_lbl);
-    const bool has_header = tile.title.length() > 0 || tile.icon_name.length() > 0;
-    lv_obj_align(time_lbl, LV_ALIGN_CENTER, 0, has_header ? 18 : 0);
+  uint8_t flags = get_clock_flags(tile);
+  const bool show_time = (flags & 1) != 0;
+  const bool show_date = (flags & 2) != 0;
+  const bool has_header = tile.title.length() > 0 || tile.icon_name.length() > 0;
+
+  lv_obj_t* stack = lv_obj_create(card);
+  lv_obj_remove_style_all(stack);
+  lv_obj_set_size(stack, LV_PCT(100), LV_PCT(100));
+  lv_obj_set_flex_flow(stack, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(stack, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_gap(stack, 12, 0);
+  lv_obj_set_style_bg_opa(stack, LV_OPA_TRANSP, 0);
+  lv_obj_remove_flag(stack, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_align(stack, LV_ALIGN_CENTER, 0, has_header ? 18 : 0);
+
+  lv_obj_t* time_lbl = nullptr;
+  if (show_time) {
+    time_lbl = lv_label_create(stack);
+    if (time_lbl) {
+      set_label_style(time_lbl, lv_color_white(), &font_roboto_mono_digits_48);
+      lv_obj_set_width(time_lbl, LV_PCT(100));
+      lv_obj_set_style_text_align(time_lbl, LV_TEXT_ALIGN_CENTER, 0);
+    }
+  }
+
+  lv_obj_t* date_lbl = nullptr;
+  if (show_date) {
+    date_lbl = lv_label_create(stack);
+    if (date_lbl) {
+      set_label_style(date_lbl, lv_color_hex(0xD0D0D0), &font_roboto_mono_digits_24);
+      lv_obj_set_width(date_lbl, LV_PCT(100));
+      lv_obj_set_style_text_align(date_lbl, LV_TEXT_ALIGN_CENTER, 0);
+    }
   }
 
   ClockTileData* data = new ClockTileData{};
   data->time_label = time_lbl;
+  data->date_label = date_lbl;
+  update_clock_labels(data);
   data->timer = lv_timer_create(clock_timer_cb, 1000, data);
 
   lv_obj_add_event_cb(

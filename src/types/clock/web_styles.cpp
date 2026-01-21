@@ -3,7 +3,7 @@
 void append_clock_styles(String& html) {
   html += R"html(
   <style>
-    .tile.clock { display:flex; align-items:center; justify-content:center; }
+    .tile.clock { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; }
     .tile.clock .tile-title {
       position:absolute;
       top:8px;
@@ -23,6 +23,12 @@ void append_clock_styles(String& html) {
       font-size:28px;
       font-weight:600;
       line-height:1;
+    }
+    .tile-clock-date {
+      color:#cbd5e1;
+      font-size:16px;
+      font-weight:500;
+      line-height:1.1;
     }
   </style>
 )html";

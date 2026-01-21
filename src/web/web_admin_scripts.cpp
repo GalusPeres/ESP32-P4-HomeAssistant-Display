@@ -280,6 +280,7 @@ void appendAdminScripts(String& html) {
       switch_style: document.getElementById(prefix + '_switch_style')?.value || '0',
       image_path: document.getElementById(prefix + '_image_path')?.value || '',
       image_slideshow_sec: document.getElementById(prefix + '_image_slideshow_sec')?.value || '10',
+      clock_flags: getClockFlagsFromInputs(prefix),
       _dirty: true
     };
     drafts[tab][currentTileIndex] = d;
@@ -336,6 +337,8 @@ void appendAdminScripts(String& html) {
       }
       applyImageUiState(tab, d.image_path || '');
       refreshImageSelect(tab, false);
+    } else if (d.type === '9') {
+      applyClockFlagsToInputs(prefix, d.clock_flags);
     }
     updateTilePreview(tab);
     return true;
@@ -374,7 +377,8 @@ void appendAdminScripts(String& html) {
       switch_entity: document.getElementById(prefix + '_switch_entity')?.value || '',
       switch_style: document.getElementById(prefix + '_switch_style')?.value || '0',
       image_path: document.getElementById(prefix + '_image_path')?.value || '',
-      image_slideshow_sec: document.getElementById(prefix + '_image_slideshow_sec')?.value || '10'
+      image_slideshow_sec: document.getElementById(prefix + '_image_slideshow_sec')?.value || '10',
+      clock_flags: getClockFlagsFromInputs(prefix)
     };
   }
 
@@ -431,6 +435,11 @@ void appendAdminScripts(String& html) {
       if (intervalEl) intervalEl.value = data.image_slideshow_sec || '10';
       applyImageUiState(tab, data.image_path || '');
       refreshImageSelect(tab, false);
+    } else if (typeValue === '9') {
+      const flags = (data.clock_flags !== undefined && data.clock_flags !== null)
+        ? data.clock_flags
+        : data.sensor_decimals;
+      applyClockFlagsToInputs(prefix, flags);
     }
   }
 
@@ -513,7 +522,8 @@ void appendAdminScripts(String& html) {
         '_tile_title','_tile_color','_tile_col','_tile_row','_tile_span_w','_tile_span_h','_tile_type','_sensor_entity','_sensor_unit',
         '_sensor_decimals','_sensor_value_font','_sensor_gauge','_sensor_gauge_min','_sensor_gauge_max',
         '_scene_alias','_key_macro','_navigate_target','_switch_entity','_switch_style',
-        '_image_path','_image_select','_image_slideshow_sec','_image_url'
+        '_image_path','_image_select','_image_slideshow_sec','_image_url',
+        '_clock_show_time','_clock_show_date'
       ];
     fields.forEach(id => {
       const el = document.getElementById(prefix + id);
@@ -543,6 +553,8 @@ void appendAdminScripts(String& html) {
     const imageSelect = document.getElementById(prefix + '_image_select');
     const imageUrlInput = document.getElementById(prefix + '_image_url');
     const imageIntervalInput = document.getElementById(prefix + '_image_slideshow_sec');
+    const clockTimeCheck = document.getElementById(prefix + '_clock_show_time');
+    const clockDateCheck = document.getElementById(prefix + '_clock_show_date');
 
     if (titleInput) titleInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (iconInput) iconInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -577,6 +589,18 @@ void appendAdminScripts(String& html) {
       setImageUrl(tab, imageUrlInput.value || '');
     });
     if (imageIntervalInput) imageIntervalInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    if (clockTimeCheck) clockTimeCheck.addEventListener('change', () => {
+      ensureClockSelection(prefix);
+      updateTilePreview(tab);
+      updateDraft(tab);
+      scheduleAutoSave(tab);
+    });
+    if (clockDateCheck) clockDateCheck.addEventListener('change', () => {
+      ensureClockSelection(prefix);
+      updateTilePreview(tab);
+      updateDraft(tab);
+      scheduleAutoSave(tab);
+    });
   }
 
   function updateTilePreview(tab) {
@@ -667,7 +691,9 @@ void appendAdminScripts(String& html) {
       }
 
       if (type === '9') {
-        html += '<div class="tile-clock-time">' + getClockPreviewTime() + '</div>';
+        const flags = getClockFlagsFromInputs(prefix);
+        if (flags & 1) html += '<div class="tile-clock-time">' + getClockPreviewTime() + '</div>';
+        if (flags & 2) html += '<div class="tile-clock-date">' + getClockPreviewDate() + '</div>';
       }
 
       if (type === '5' && switchStyle === '1') {
@@ -756,6 +782,8 @@ void appendAdminScripts(String& html) {
           if (intervalEl) intervalEl.value = data.image_slideshow_sec || '10';
           applyImageUiState(tab, data.image_path || '');
           refreshImageSelect(tab, false);
+        } else if (data.type === 9) {
+          applyClockFlagsToInputs(prefix, data.sensor_decimals);
         }
       const decEl = document.getElementById(prefix + '_sensor_decimals');
       if (data.type !== 1 && decEl) decEl.value = '';
@@ -873,6 +901,7 @@ void appendAdminScripts(String& html) {
     if (urlEl) urlEl.value = '';
     updateImageUrlVisibility(tab, '', '');
     applyImageUiState(tab, '');
+    applyClockFlagsToInputs(prefix, 1);
     syncGaugeUi(tab);
     updateTileType(tab);
     updateTilePreview(tab);
@@ -935,6 +964,11 @@ void appendAdminScripts(String& html) {
         }
         formData.append('image_path', finalPath);
         formData.append('image_slideshow_sec', document.getElementById(prefix + '_image_slideshow_sec').value);
+      } else if (typeValue === '9') {
+        ensureClockSelection(prefix);
+        const flags = getClockFlagsFromInputs(prefix);
+        formData.append('clock_show_time', (flags & 1) ? '1' : '0');
+        formData.append('clock_show_date', (flags & 2) ? '1' : '0');
       }
       fetch('/api/tiles', { method:'POST', body:formData })
         .then(res => res.json())
@@ -1204,7 +1238,9 @@ void appendAdminScripts(String& html) {
         html += '<div class="tile-value ' + sensorValueClass + '" id="' + tab + '-tile-' + index + '-value">' + value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '') + '</div>';
       }
       if (tile.type === 9) {
-        html += '<div class="tile-clock-time">' + getClockPreviewTime() + '</div>';
+        const flags = normalizeClockFlags(tile.sensor_decimals);
+        if (flags & 1) html += '<div class="tile-clock-time">' + getClockPreviewTime() + '</div>';
+        if (flags & 2) html += '<div class="tile-clock-date">' + getClockPreviewDate() + '</div>';
       }
       if (tile.type === 5 && tile.switch_style === 1) {
         html += '<div class="tile-switch" id="' + tab + '-tile-' + index + '-switch"><div class="tile-switch-knob"></div></div>';
