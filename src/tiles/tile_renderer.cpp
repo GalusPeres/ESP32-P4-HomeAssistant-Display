@@ -18,17 +18,17 @@
 /* === Layout-Konstanten === */
 
 /* === Globale State f++r Updates === */
-static SensorTileWidgets g_tab0_sensors[TILES_PER_GRID];
-static SensorTileWidgets g_tab1_sensors[TILES_PER_GRID];
-static SensorTileWidgets g_tab2_sensors[TILES_PER_GRID];
+SensorTileWidgets g_tab0_sensors[TILES_PER_GRID];
+SensorTileWidgets g_tab1_sensors[TILES_PER_GRID];
+SensorTileWidgets g_tab2_sensors[TILES_PER_GRID];
 
-static SwitchTileWidgets g_tab0_switches[TILES_PER_GRID];
-static SwitchTileWidgets g_tab1_switches[TILES_PER_GRID];
-static SwitchTileWidgets g_tab2_switches[TILES_PER_GRID];
+SwitchTileWidgets g_tab0_switches[TILES_PER_GRID];
+SwitchTileWidgets g_tab1_switches[TILES_PER_GRID];
+SwitchTileWidgets g_tab2_switches[TILES_PER_GRID];
 
-static SwitchState g_tab0_switch_states[TILES_PER_GRID];
-static SwitchState g_tab1_switch_states[TILES_PER_GRID];
-static SwitchState g_tab2_switch_states[TILES_PER_GRID];
+SwitchState g_tab0_switch_states[TILES_PER_GRID];
+SwitchState g_tab1_switch_states[TILES_PER_GRID];
+SwitchState g_tab2_switch_states[TILES_PER_GRID];
 
 SensorTileWidgets* tile_renderer_get_sensor_widgets(GridType grid_type) {
   if (grid_type == GridType::TAB1) return g_tab1_sensors;
@@ -127,7 +127,7 @@ void tile_renderer_restore_tab0(const TileWidgetCache* in) {
   memcpy(g_tab0_switch_states, in->switch_states, sizeof(g_tab0_switch_states));
 }
 
-/* === Thread-Safe Update Queue (MQTT ÔåÆ Main Loop) === */
+/* === Thread-Safe Update Queue (MQTT ï¿½ï¿½ï¿½ Main Loop) === */
 struct SensorUpdate {
   GridType grid_type;
   uint8_t grid_index;
@@ -985,7 +985,7 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
   int32_t heap_used = heap_before - heap_after;
   int32_t psram_used = psram_before - psram_after;
 
-  Serial.printf("[TileRenderer] Ô£ô Alle Tiles geladen | Heap: %u KB (-%d KB) | PSRAM: %u KB (-%d KB)\n",
+  Serial.printf("[TileRenderer] Ô£ï¿½ Alle Tiles geladen | Heap: %u KB (-%d KB) | PSRAM: %u KB (-%d KB)\n",
                 heap_after / 1024, heap_used / 1024,
                 psram_after / 1024, psram_used / 1024);
   Serial.printf("[TileRenderer] Min Free Heap seit Boot: %u KB\n", ESP.getMinFreeHeap() / 1024);
@@ -1061,7 +1061,7 @@ void update_sensor_tile_value(GridType grid_type, uint8_t grid_index, const char
     displayValue = "--";
   }
 
-  // Kombiniere Wert + Einheit in einem Label (gleiche Gr+Â+ƒe)
+  // Kombiniere Wert + Einheit in einem Label (gleiche Gr+ï¿½+ï¿½e)
   String combined = displayValue;
   if (unit && strlen(unit) > 0 && displayValue != "--") {
     combined += " ";

@@ -111,7 +111,7 @@ static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
     add_route(cfg.sensor_slots[slot], slot);
   }
 
-  // Sensor tiles from active grid (no slot index, entity-based update)
+  // Sensor tiles from ALL folders (no slot index, entity-based update)
   auto add_grid_entities = [&](const TileGridConfig& grid) {
     for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
       const Tile& tile = grid.tiles[i];
@@ -120,13 +120,21 @@ static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
       }
     }
   };
-  add_grid_entities(tileConfig.getActiveGrid());
+
+  // Scan all folders, not just the active one
+  const std::vector<FolderEntry>& folders = tileConfig.getFolders();
+  for (const auto& folder : folders) {
+    TileGridConfig grid;
+    if (tileConfig.loadFolderGrid(folder.id, grid)) {
+      add_grid_entities(grid);
+    }
+  }
 }
 
 static bool tryHandleDynamicSensor(const char* topic, const char* payload) {
   for (const auto& route : g_dynamic_routes) {
     if (route.topic == topic) {
-      // Update tile-based system (display) - all grids
+      // Update tile-based system (display) - active folder only
       tiles_update_sensor_by_entity(GridType::TAB0, route.entity_id.c_str(), payload);
       // Update sensor values map (for web interface)
       haBridgeConfig.updateSensorValue(route.entity_id, payload);
