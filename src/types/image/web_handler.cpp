@@ -8,7 +8,7 @@ void apply_image_fields_from_request(WebServer& server, Tile& tile) {
   Serial.printf("[WebAdmin] IMAGE Tile - Empfangener Pfad: '%s'\n", tile.image_path.c_str());
   tile.sensor_decimals = 0xFF;
   tile.sensor_value_font = 0;
-  tile.sensor_gauge_enabled = false;
+  tile.sensor_display_mode = 0;
   tile.sensor_gauge_min = 0;
   tile.sensor_gauge_max = 100;
 }

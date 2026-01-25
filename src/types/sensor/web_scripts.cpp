@@ -75,14 +75,21 @@ void append_sensor_scripts(String& html) {
     const prefix = tab;
     const typeValue = document.getElementById(prefix + '_tile_type')?.value || '0';
     const gaugeWrap = document.getElementById(prefix + '_sensor_gauge_fields');
-    if (!gaugeWrap) return;
+    const graphWrap = document.getElementById(prefix + '_sensor_graph_fields');
     if (typeValue !== '1') {
-      gaugeWrap.classList.add('hidden');
+      if (gaugeWrap) gaugeWrap.classList.add('hidden');
+      if (graphWrap) graphWrap.classList.add('hidden');
       return;
     }
-    const gaugeEnabled = document.getElementById(prefix + '_sensor_gauge')?.checked;
-    if (gaugeEnabled) gaugeWrap.classList.remove('hidden');
-    else gaugeWrap.classList.add('hidden');
+    const displayMode = document.getElementById(prefix + '_sensor_display_mode')?.value || '0';
+    if (gaugeWrap) {
+      if (displayMode === '1') gaugeWrap.classList.remove('hidden');
+      else gaugeWrap.classList.add('hidden');
+    }
+    if (graphWrap) {
+      if (displayMode === '2') graphWrap.classList.remove('hidden');
+      else graphWrap.classList.add('hidden');
+    }
   }
   </script>
 )html";

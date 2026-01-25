@@ -434,8 +434,8 @@ void WebAdminServer::handleGetTiles() {
     out += String(tile.sensor_decimals == 0xFF ? -1 : static_cast<int>(tile.sensor_decimals));
     out += ",\"sensor_value_font\":";
     out += String(tile.sensor_value_font);
-    out += ",\"sensor_gauge\":";
-    out += String(tile.sensor_gauge_enabled ? 1 : 0);
+    out += ",\"sensor_display_mode\":";
+    out += String(tile.sensor_display_mode);
     out += ",\"sensor_gauge_min\":";
     out += String(tile.sensor_gauge_min);
     out += ",\"sensor_gauge_max\":";
@@ -448,6 +448,8 @@ void WebAdminServer::handleGetTiles() {
     out += String(tile.sensor_gauge_y_offset);
     out += ",\"sensor_value_y_offset\":";
     out += String(tile.sensor_value_y_offset);
+    out += ",\"sensor_graph_height\":";
+    out += String(tile.sensor_graph_height);
     out += ",\"scene_alias\":\"";
     appendJsonEscaped(out, tile.scene_alias);
     out += "\",\"key_macro\":\"";
@@ -632,7 +634,7 @@ void WebAdminServer::handleSaveTiles() {
     tile.key_code = 0;
     tile.key_modifier = 0;
     tile.sensor_value_font = 0;
-    tile.sensor_gauge_enabled = false;
+    tile.sensor_display_mode = 0;
     tile.sensor_gauge_min = 0;
     tile.sensor_gauge_max = 100;
   } else if (type == TILE_BACK) {
@@ -641,7 +643,7 @@ void WebAdminServer::handleSaveTiles() {
     tile.key_code = 0;
     tile.key_modifier = 0;
     tile.sensor_value_font = 0;
-    tile.sensor_gauge_enabled = false;
+    tile.sensor_display_mode = 0;
     tile.sensor_gauge_min = 0;
     tile.sensor_gauge_max = 100;
   } else if (type == TILE_SWITCH) {

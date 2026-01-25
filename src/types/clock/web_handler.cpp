@@ -15,7 +15,7 @@ void apply_clock_fields_from_request(WebServer& server, Tile& tile) {
   if (flags == 0) flags = 1;
   tile.sensor_decimals = flags;
   tile.sensor_value_font = 0;
-  tile.sensor_gauge_enabled = false;
+  tile.sensor_display_mode = 0;
   tile.sensor_gauge_min = 0;
   tile.sensor_gauge_max = 100;
   tile.key_code = 0;

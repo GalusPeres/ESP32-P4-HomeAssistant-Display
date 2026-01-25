@@ -40,12 +40,14 @@ void append_sensor_fields_html(String& html, const String& tab_id, const std::ve
                   <option value="1">20</option>
                   <option value="2">24</option>
                 </select>
-                <label class="inline-checkbox">
-                  <input type="checkbox" id=")html";
+                <label>Anzeige-Modus</label>
+                <select id=")html";
   html += tab_id;
-  html += R"html(_sensor_gauge">
-                  Zeiger-Gauge anzeigen
-                </label>
+  html += R"html(_sensor_display_mode">
+                  <option value="0">Keine</option>
+                  <option value="1">Gauge</option>
+                  <option value="2">Graph</option>
+                </select>
                 <div id=")html";
   html += tab_id;
   html += R"html(_sensor_gauge_fields" class="gauge-fields hidden">
@@ -69,6 +71,14 @@ void append_sensor_fields_html(String& html, const String& tab_id, const std::ve
                   <input type="number" id=")html";
   html += tab_id;
   html += R"html(_sensor_gauge_y_offset" min="-100" max="200" step="1" placeholder="12">
+                </div>
+                <div id=")html";
+  html += tab_id;
+  html += R"html(_sensor_graph_fields" class="graph-fields hidden">
+                  <label>Graph Hoehe (20-200 px)</label>
+                  <input type="number" id=")html";
+  html += tab_id;
+  html += R"html(_sensor_graph_height" min="20" max="200" step="1" placeholder="60">
                 </div>
                 <label>Wert Y-Offset (-100 bis 200)</label>
                 <input type="number" id=")html";

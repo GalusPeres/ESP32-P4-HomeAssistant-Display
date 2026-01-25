@@ -1,6 +1,7 @@
 #include "src/types/sensor/renderer.h"
 #include "src/tiles/tile_renderer_shared.h"
 #include "src/tiles/tile_renderer_fonts.h"
+#include "src/tiles/tile_renderer.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/ui/sensor_popup.h"
@@ -30,7 +31,9 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
     return nullptr;
   }
 
-  const bool gauge_enabled = tile.sensor_gauge_enabled;
+  const uint8_t display_mode = tile.sensor_display_mode;  // 0=none, 1=gauge, 2=graph
+  const bool gauge_enabled = (display_mode == 1);
+  const bool graph_enabled = (display_mode == 2);
   int32_t gauge_min = tile.sensor_gauge_min;
   int32_t gauge_max = tile.sensor_gauge_max;
   if (gauge_max <= gauge_min) {
@@ -141,6 +144,48 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
     if (title_label) lv_obj_move_foreground(title_label);
   }
 
+  // Graph rendering (display_mode == 2) - positioned BELOW value
+  // Same settings as popup: 288 points, line width 4, white color
+  lv_obj_t* chart = nullptr;
+  lv_chart_series_t* series = nullptr;
+  if (graph_enabled) {
+    // Get graph height from tile settings (with defaults and clamping)
+    uint16_t graph_height = tile.sensor_graph_height;
+    if (graph_height < 20) graph_height = 20;
+    if (graph_height > 200) graph_height = 200;
+
+    chart = lv_chart_create(card);
+    if (chart) {
+      lv_obj_set_size(chart, LV_PCT(100), graph_height);
+      // Position graph at bottom of tile (below value)
+      lv_obj_align(chart, LV_ALIGN_BOTTOM_MID, 0, 0);
+      lv_obj_remove_flag(chart, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_remove_flag(chart, LV_OBJ_FLAG_SCROLLABLE);
+
+      lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
+      lv_chart_set_point_count(chart, 288);  // Same as popup
+      lv_chart_set_div_line_count(chart, 0, 0);
+      lv_chart_set_update_mode(chart, LV_CHART_UPDATE_MODE_SHIFT);
+
+      // Styling - same as popup
+      lv_obj_set_style_bg_opa(chart, LV_OPA_TRANSP, LV_PART_MAIN);
+      lv_obj_set_style_border_width(chart, 0, LV_PART_MAIN);
+      lv_obj_set_style_pad_all(chart, 0, LV_PART_MAIN);
+
+      // Series - white color, line width 4 (same as popup)
+      series = lv_chart_add_series(chart, lv_color_white(), LV_CHART_AXIS_PRIMARY_Y);
+      lv_obj_set_style_line_width(chart, 4, LV_PART_ITEMS);
+      lv_obj_set_style_line_color(chart, lv_color_white(), LV_PART_ITEMS);
+      lv_obj_set_style_line_rounded(chart, true, LV_PART_ITEMS);
+      lv_obj_set_style_size(chart, 0, 0, LV_PART_INDICATOR);
+
+      // Initial mit LV_CHART_POINT_NONE (wird durch History ersetzt)
+      lv_chart_set_all_value(chart, series, LV_CHART_POINT_NONE);
+    }
+    if (icon_lbl) lv_obj_move_foreground(icon_lbl);
+    if (title_label) lv_obj_move_foreground(title_label);
+  }
+
   // Value Label (Wert + Einheit kombiniert)
   lv_obj_t* v = lv_label_create(card);
   if (!v) {
@@ -161,6 +206,9 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
 
   if (gauge_enabled) {
     lv_obj_align(v, LV_ALIGN_BOTTOM_MID, 0, 12 + value_y_offset);
+  } else if (graph_enabled) {
+    // Value above graph: center vertically in upper area
+    lv_obj_align(v, LV_ALIGN_CENTER, 0, -20 + value_y_offset);
   } else {
     lv_obj_align(v, LV_ALIGN_CENTER, 0, 28 + value_y_offset);  // Nach unten verschoben (war 18)
   }
@@ -173,6 +221,8 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
     target[index].gauge = gauge;
     target[index].gauge_min = gauge_min;
     target[index].gauge_max = gauge_max;
+    target[index].chart = chart;
+    target[index].series = series;
   }
 
   if (tile.sensor_entity.length()) {
@@ -219,6 +269,11 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
         },
         LV_EVENT_DELETE,
         data);
+  }
+
+  // Request history for graph tiles
+  if (graph_enabled && tile.sensor_entity.length()) {
+    request_tile_graph_history(tile.sensor_entity.c_str());
   }
 
   return card;

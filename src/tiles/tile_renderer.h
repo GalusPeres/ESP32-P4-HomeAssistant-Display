@@ -19,6 +19,8 @@ struct SensorTileWidgets {
   lv_obj_t* gauge = nullptr;
   int32_t gauge_min = 0;
   int32_t gauge_max = 100;
+  lv_obj_t* chart = nullptr;
+  lv_chart_series_t* series = nullptr;
 };
 
 struct SwitchTileWidgets {
@@ -81,6 +83,11 @@ void reset_switch_widgets(GridType grid_type);
 // THREAD-SAFE: Queue fuer Switch-Updates (MQTT Callback -> Main Loop)
 void queue_switch_tile_update(GridType grid_type, uint8_t grid_index, const char* payload);
 void process_switch_update_queue();  // Im Main Loop VOR lv_timer_handler() aufrufen!
+
+// THREAD-SAFE: Queue fuer Tile-Graph-History (MQTT Callback -> Main Loop)
+void queue_tile_graph_history(const char* entity_id, const char* payload, size_t len);
+void process_tile_graph_queue();  // Im Main Loop VOR lv_timer_handler() aufrufen!
+void request_tile_graph_history(const char* entity_id);  // Fordert History fuer entity an
 
 void tile_renderer_snapshot_tab0(TileWidgetCache* out);
 void tile_renderer_restore_tab0(const TileWidgetCache* in);

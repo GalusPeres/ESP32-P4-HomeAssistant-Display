@@ -9,7 +9,7 @@ void apply_switch_fields_from_request(WebServer& server, Tile& tile) {
   }
   tile.sensor_decimals = style;
   tile.sensor_value_font = 0;
-  tile.sensor_gauge_enabled = false;
+  tile.sensor_display_mode = 0;
   tile.sensor_gauge_min = 0;
   tile.sensor_gauge_max = 100;
 }

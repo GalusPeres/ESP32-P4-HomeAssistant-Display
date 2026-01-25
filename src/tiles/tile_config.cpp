@@ -372,7 +372,7 @@ static void packTile(const Tile& in, PackedTileV6& out) {
   out.span_h = span_h;
   out.sensor_value_font = clampSensorValueFont(in.sensor_value_font);
   out.image_slideshow_sec = clampImageSlideshowSeconds(in.image_slideshow_sec);
-  out.sensor_gauge_enabled = in.sensor_gauge_enabled ? 1 : 0;
+  out.sensor_gauge_enabled = (in.sensor_display_mode <= 2) ? in.sensor_display_mode : 0;
   out.sensor_gauge_min = in.sensor_gauge_min;
   out.sensor_gauge_max = in.sensor_gauge_max;
   normalizeGaugeRange(out.sensor_gauge_min, out.sensor_gauge_max);
@@ -407,6 +407,12 @@ static void packTile(const Tile& in, PackedTileV6& out) {
     if (val_y_off > 200) val_y_off = 200;
     out.scene_alias[7] = static_cast<char>(val_y_off & 0xFF);
     out.scene_alias[8] = static_cast<char>((val_y_off >> 8) & 0xFF);
+    // Clamp and store graph height (20-200, default 60)
+    uint16_t graph_h = in.sensor_graph_height;
+    if (graph_h < 20) graph_h = 20;
+    if (graph_h > 200) graph_h = 200;
+    out.scene_alias[9] = static_cast<char>(graph_h & 0xFF);
+    out.scene_alias[10] = static_cast<char>((graph_h >> 8) & 0xFF);
   } else {
     copyString(in.scene_alias, out.scene_alias, sizeof(out.scene_alias));
   }
@@ -472,7 +478,7 @@ static void unpackTileV6(const PackedTileV6& in, Tile& out) {
     out.sensor_decimals = 0xFF;
   }
   out.sensor_value_font = clampSensorValueFont(in.sensor_value_font);
-  out.sensor_gauge_enabled = (in.sensor_gauge_enabled != 0);
+  out.sensor_display_mode = (in.sensor_gauge_enabled <= 2) ? in.sensor_gauge_enabled : 0;
   out.sensor_gauge_min = in.sensor_gauge_min;
   out.sensor_gauge_max = in.sensor_gauge_max;
   normalizeGaugeRange(out.sensor_gauge_min, out.sensor_gauge_max);
@@ -481,6 +487,7 @@ static void unpackTileV6(const PackedTileV6& in, Tile& out) {
   out.sensor_gauge_size = 350;    // Default
   out.sensor_gauge_y_offset = 12; // Default
   out.sensor_value_y_offset = 0;  // Default
+  out.sensor_graph_height = 60;   // Default
   if (out.type == TILE_SENSOR && in.scene_alias[0] == 0x01) {
     // Magic byte found, extract gauge appearance data
     uint16_t arc = static_cast<uint8_t>(in.scene_alias[1]) |
@@ -497,6 +504,9 @@ static void unpackTileV6(const PackedTileV6& in, Tile& out) {
         static_cast<uint8_t>(in.scene_alias[7]) |
         (static_cast<uint8_t>(in.scene_alias[8]) << 8));
     if (val_y_off >= -100 && val_y_off <= 200) out.sensor_value_y_offset = val_y_off;
+    uint16_t graph_h = static_cast<uint8_t>(in.scene_alias[9]) |
+                       (static_cast<uint8_t>(in.scene_alias[10]) << 8);
+    if (graph_h >= 20 && graph_h <= 200) out.sensor_graph_height = graph_h;
   }
   out.key_code = in.key_code;
   out.key_modifier = in.key_modifier;
@@ -547,7 +557,7 @@ static void unpackTileV5(const PackedTileV5& in, Tile& out, uint8_t index) {
     out.sensor_decimals = 0xFF;
   }
   out.sensor_value_font = clampSensorValueFont(in.sensor_value_font);
-  out.sensor_gauge_enabled = (in.sensor_gauge_enabled != 0);
+  out.sensor_display_mode = (in.sensor_gauge_enabled != 0) ? 1 : 0;  // Legacy: map bool to mode
   out.sensor_gauge_min = in.sensor_gauge_min;
   out.sensor_gauge_max = in.sensor_gauge_max;
   normalizeGaugeRange(out.sensor_gauge_min, out.sensor_gauge_max);
@@ -555,6 +565,7 @@ static void unpackTileV5(const PackedTileV5& in, Tile& out, uint8_t index) {
   out.sensor_gauge_size = 350;
   out.sensor_gauge_y_offset = 12;
   out.sensor_value_y_offset = 0;
+  out.sensor_graph_height = 60;
   out.key_code = in.key_code;
   out.key_modifier = in.key_modifier;
   if (out.type == TILE_SETTINGS || out.type == TILE_BACK) {
@@ -599,13 +610,14 @@ static void unpackTileV3(const PackedTileV3& in, Tile& out, uint8_t index) {
     out.sensor_decimals = 0xFF;
   }
   out.sensor_value_font = clampSensorValueFont(in.sensor_value_font);
-  out.sensor_gauge_enabled = false;
+  out.sensor_display_mode = 0;
   out.sensor_gauge_min = 0;
   out.sensor_gauge_max = 100;
   out.sensor_gauge_arc = 100;
   out.sensor_gauge_size = 350;
   out.sensor_gauge_y_offset = 12;
   out.sensor_value_y_offset = 0;
+  out.sensor_graph_height = 60;
   out.key_code = in.key_code;
   out.key_modifier = in.key_modifier;
   if (out.type == TILE_SETTINGS || out.type == TILE_BACK) {
@@ -650,13 +662,14 @@ static void unpackTileV2(const PackedTileV2& in, Tile& out, uint8_t index) {
     out.sensor_decimals = 0xFF;
   }
   out.sensor_value_font = clampSensorValueFont(in.sensor_value_font);
-  out.sensor_gauge_enabled = false;
+  out.sensor_display_mode = 0;
   out.sensor_gauge_min = 0;
   out.sensor_gauge_max = 100;
   out.sensor_gauge_arc = 100;
   out.sensor_gauge_size = 350;
   out.sensor_gauge_y_offset = 12;
   out.sensor_value_y_offset = 0;
+  out.sensor_graph_height = 60;
   out.key_code = in.key_code;
   out.key_modifier = in.key_modifier;
   if (out.type == TILE_SETTINGS || out.type == TILE_BACK) {
@@ -701,13 +714,14 @@ static void unpackTileV4(const PackedTileV4& in, Tile& out, uint8_t index) {
     out.sensor_decimals = 0xFF;
   }
   out.sensor_value_font = clampSensorValueFont(in.sensor_value_font);
-  out.sensor_gauge_enabled = false;
+  out.sensor_display_mode = 0;
   out.sensor_gauge_min = 0;
   out.sensor_gauge_max = 100;
   out.sensor_gauge_arc = 100;
   out.sensor_gauge_size = 350;
   out.sensor_gauge_y_offset = 12;
   out.sensor_value_y_offset = 0;
+  out.sensor_graph_height = 60;
   out.key_code = in.key_code;
   out.key_modifier = in.key_modifier;
   if (out.type == TILE_SETTINGS || out.type == TILE_BACK) {
@@ -752,13 +766,14 @@ static void unpackTileV1(const PackedTileV1& in, Tile& out, uint8_t index) {
     out.sensor_decimals = 0xFF;
   }
   out.sensor_value_font = 0;
-  out.sensor_gauge_enabled = false;
+  out.sensor_display_mode = 0;
   out.sensor_gauge_min = 0;
   out.sensor_gauge_max = 100;
   out.sensor_gauge_arc = 100;
   out.sensor_gauge_size = 350;
   out.sensor_gauge_y_offset = 12;
   out.sensor_value_y_offset = 0;
+  out.sensor_graph_height = 60;
   out.key_code = in.key_code;
   out.key_modifier = in.key_modifier;
   if (out.type == TILE_SETTINGS || out.type == TILE_BACK) {
@@ -996,13 +1011,14 @@ static bool loadGridLegacy(const char* prefix, TileGridConfig& grid) {
     snprintf(key, sizeof(key), "%s_t%u_prec", prefix, static_cast<unsigned>(i));
     grid.tiles[i].sensor_decimals = clampDecimals(prefs.getUChar(key, 0xFF));
     grid.tiles[i].sensor_value_font = 0;
-    grid.tiles[i].sensor_gauge_enabled = false;
+    grid.tiles[i].sensor_display_mode = 0;
     grid.tiles[i].sensor_gauge_min = 0;
     grid.tiles[i].sensor_gauge_max = 100;
     grid.tiles[i].sensor_gauge_arc = 100;
     grid.tiles[i].sensor_gauge_size = 350;
     grid.tiles[i].sensor_gauge_y_offset = 12;
     grid.tiles[i].sensor_value_y_offset = 0;
+    grid.tiles[i].sensor_graph_height = 60;
 
     snprintf(key, sizeof(key), "%s_t%u_scene", prefix, static_cast<unsigned>(i));
     grid.tiles[i].scene_alias = prefs.getString(key, "");

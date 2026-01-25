@@ -5,7 +5,7 @@ void apply_key_fields_from_request(WebServer& server, Tile& tile) {
   tile.key_macro = server.hasArg("key_macro") ? server.arg("key_macro") : "";
   tile.sensor_decimals = 0xFF;
   tile.sensor_value_font = 0;
-  tile.sensor_gauge_enabled = false;
+  tile.sensor_display_mode = 0;
   tile.sensor_gauge_min = 0;
   tile.sensor_gauge_max = 100;
 

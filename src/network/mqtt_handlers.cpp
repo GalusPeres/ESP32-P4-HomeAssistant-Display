@@ -5,6 +5,7 @@
 #include "src/ui/tab_tiles_unified.h"
 #include "src/ui/sensor_popup.h"
 #include "src/tiles/tile_config.h"
+#include "src/tiles/tile_renderer.h"
 #include <PubSubClient.h>
 #include <algorithm>
 #include <vector>
@@ -214,6 +215,7 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
     memcpy(large_buf, payload, copy_len);
     large_buf[copy_len] = '\0';
     queue_sensor_popup_history(nullptr, large_buf, copy_len);
+    queue_tile_graph_history(nullptr, large_buf, copy_len);
     return;
   }
 

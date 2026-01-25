@@ -14,6 +14,7 @@
 #include <cstring>
 #include <math.h>
 #include <stdlib.h>
+#include <vector>
 
 /* === Layout-Konstanten === */
 
@@ -872,6 +873,177 @@ void process_switch_update_queue() {
     }
     g_switch_tail = (g_switch_tail + 1) % SWITCH_QUEUE_SIZE;
   }
+}
+
+/* === Thread-Safe Queue fuer Tile Graph History (MQTT -> Main Loop) === */
+struct TileGraphHistoryUpdate {
+  String entity_id;
+  String payload;
+  bool valid = false;
+};
+
+static TileGraphHistoryUpdate g_tile_graph_history;
+
+static bool extract_numeric_for_chart(const String& text, float& out) {
+  String normalized = text;
+  normalized.trim();
+  if (!normalized.length()) return false;
+  normalized.replace(",", ".");
+  char* end = nullptr;
+  float f = strtof(normalized.c_str(), &end);
+  if (!end || end == normalized.c_str()) return false;
+  if (isnan(f) || isinf(f)) return false;
+  out = f;
+  return true;
+}
+
+static void apply_tile_graph_history(const char* target_entity, const char* payload) {
+  if (!payload || !*payload) return;
+
+  // Parse JSON to get entity_id and values
+  String json = payload;
+  String entity_id;
+  if (!extract_json_string_field(json, "entity_id", entity_id)) return;
+
+  // Find matching tile with graph in active grid
+  const TileGridConfig& grid = tileConfig.getActiveGrid();
+  SensorTileWidgets* sensors = g_tab0_sensors;  // Active grid is always TAB0
+
+  for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
+    const Tile& tile = grid.tiles[i];
+    if (tile.type != TILE_SENSOR) continue;
+    if (tile.sensor_display_mode != 2) continue;  // Only graph mode
+    if (!tile.sensor_entity.equalsIgnoreCase(entity_id)) continue;
+
+    SensorTileWidgets& w = sensors[i];
+    if (!w.chart || !w.series) continue;
+
+    // Extract values array
+    String values_str;
+    int start = json.indexOf("\"values\"");
+    if (start < 0) continue;
+    int arr_start = json.indexOf('[', start);
+    int arr_end = json.indexOf(']', arr_start);
+    if (arr_start < 0 || arr_end < arr_start) continue;
+    values_str = json.substring(arr_start + 1, arr_end);
+
+    // Count and parse values
+    std::vector<float> values;
+    values.reserve(100);
+    const char* ptr = values_str.c_str();
+    while (*ptr) {
+      while (*ptr && (*ptr == ' ' || *ptr == ',')) ++ptr;
+      if (!*ptr) break;
+
+      // Handle "null" or "unavailable"
+      if (strncmp(ptr, "null", 4) == 0) {
+        values.push_back(NAN);
+        ptr += 4;
+        continue;
+      }
+      if (*ptr == '"') {
+        // Skip string values like "unavailable"
+        ++ptr;
+        while (*ptr && *ptr != '"') ++ptr;
+        if (*ptr == '"') ++ptr;
+        values.push_back(NAN);
+        continue;
+      }
+
+      char* end = nullptr;
+      float val = strtof(ptr, &end);
+      if (end == ptr) {
+        ++ptr;
+        continue;
+      }
+      ptr = end;
+      if (isfinite(val)) {
+        values.push_back(val);
+      } else {
+        values.push_back(NAN);
+      }
+    }
+
+    if (values.empty()) continue;
+
+    // Use all points (same as popup - no downsampling)
+    // Calculate min/max for range
+    float min_v = 0.0f, max_v = 0.0f;
+    bool has_range = false;
+    for (float v : values) {
+      if (!isfinite(v)) continue;
+      if (!has_range) {
+        min_v = max_v = v;
+        has_range = true;
+      } else {
+        if (v < min_v) min_v = v;
+        if (v > max_v) max_v = v;
+      }
+    }
+
+    // Determine scale factor
+    int scale = 1;
+    if (has_range) {
+      float span = max_v - min_v;
+      if (span <= 10.0f) {
+        scale = 100;
+      } else if (span <= 100.0f) {
+        scale = 10;
+      }
+      float max_abs = fmaxf(fabsf(min_v), fabsf(max_v));
+      while (scale > 1 && (max_abs * scale) > 30000.0f) {
+        scale /= 10;
+      }
+    }
+
+    // Update chart
+    lv_chart_set_point_count(w.chart, static_cast<uint16_t>(values.size()));
+    for (size_t j = 0; j < values.size(); ++j) {
+      float v = values[j];
+      if (!isfinite(v)) {
+        lv_chart_set_value_by_id(w.chart, w.series, static_cast<uint16_t>(j), LV_CHART_POINT_NONE);
+      } else {
+        lv_chart_set_value_by_id(w.chart, w.series, static_cast<uint16_t>(j),
+                                 static_cast<lv_coord_t>(lroundf(v * scale)));
+      }
+    }
+
+    // Set range
+    if (has_range) {
+      if (min_v == max_v) {
+        min_v -= 1.0f;
+        max_v += 1.0f;
+      }
+      lv_chart_set_range(w.chart, LV_CHART_AXIS_PRIMARY_Y,
+                         static_cast<lv_coord_t>(floorf(min_v * scale)),
+                         static_cast<lv_coord_t>(ceilf(max_v * scale)));
+    }
+
+    lv_chart_refresh(w.chart);
+    Serial.printf("[TileGraph] History applied for %s (%zu points)\n", entity_id.c_str(), values.size());
+  }
+}
+
+void queue_tile_graph_history(const char* entity_id, const char* payload, size_t len) {
+  if (!payload || len == 0) return;
+  g_tile_graph_history.entity_id = entity_id ? entity_id : "";
+  g_tile_graph_history.payload = String(payload).substring(0, len);
+  g_tile_graph_history.valid = true;
+}
+
+void process_tile_graph_queue() {
+  if (!g_tile_graph_history.valid) return;
+
+  apply_tile_graph_history(g_tile_graph_history.entity_id.c_str(),
+                           g_tile_graph_history.payload.c_str());
+  g_tile_graph_history.valid = false;
+}
+
+void request_tile_graph_history(const char* entity_id) {
+  if (!entity_id || !*entity_id) return;
+  if (String(entity_id).startsWith("__")) return;  // Skip preload entities
+  mqttPublishHistoryRequest(entity_id);
+  Serial.printf("[TileGraph] History requested for %s\n", entity_id);
 }
 
 /* === Helfer === */

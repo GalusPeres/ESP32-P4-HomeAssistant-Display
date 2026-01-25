@@ -22,11 +22,12 @@ void apply_sensor_fields_from_request(WebServer& server, Tile& tile) {
     value_font = (raw == 1 || raw == 2) ? static_cast<uint8_t>(raw) : 0;
   }
   tile.sensor_value_font = value_font;
-  tile.sensor_gauge_enabled = false;
+  tile.sensor_display_mode = 0;
   tile.sensor_gauge_min = 0;
   tile.sensor_gauge_max = 100;
-  if (server.hasArg("sensor_gauge")) {
-    tile.sensor_gauge_enabled = (server.arg("sensor_gauge").toInt() == 1);
+  if (server.hasArg("sensor_display_mode")) {
+    int mode = server.arg("sensor_display_mode").toInt();
+    if (mode >= 0 && mode <= 2) tile.sensor_display_mode = static_cast<uint8_t>(mode);
   }
   if (server.hasArg("sensor_gauge_min")) {
     String raw = server.arg("sensor_gauge_min");
@@ -83,5 +84,16 @@ void apply_sensor_fields_from_request(WebServer& server, Tile& tile) {
     }
   } else if (tile.sensor_value_y_offset < -100 || tile.sensor_value_y_offset > 200) {
     tile.sensor_value_y_offset = 0;  // Default only if current value is invalid
+  }
+  // Graph height settings - preserve existing values if no new value sent
+  if (server.hasArg("sensor_graph_height")) {
+    String raw = server.arg("sensor_graph_height");
+    raw.trim();
+    if (raw.length() > 0) {
+      int val = raw.toInt();
+      if (val >= 20 && val <= 200) tile.sensor_graph_height = static_cast<uint16_t>(val);
+    }
+  } else if (tile.sensor_graph_height < 20 || tile.sensor_graph_height > 200) {
+    tile.sensor_graph_height = 60;  // Default only if current value is invalid
   }
 }
