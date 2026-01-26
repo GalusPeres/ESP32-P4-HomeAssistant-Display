@@ -637,6 +637,7 @@ static bool ends_with_ignore_case(const String& value, const char* suffix) {
 struct ThumbJob {
   String src_path;
   String dst_path;
+  String key;
   bool force_refresh = false;
   uint16_t dst_w = 0;
   uint16_t dst_h = 0;
@@ -894,6 +895,7 @@ static bool get_next_thumbnail_job(ThumbJob& job) {
 
     job.src_path = src_path;
     job.dst_path = dst_path;
+    job.key = key;
     job.force_refresh = force_refresh;
     job.dst_w = dst_w;
     job.dst_h = dst_h;
@@ -922,7 +924,9 @@ static void service_tile_thumbnails(uint32_t now) {
         }
       }
     }
-    // Kein Full-Reload hier, sonst flackern Sensorwerte bei jedem Thumb.
+    if (job.key.length()) {
+      tiles_refresh_image_previews_for_key(GridType::TAB0, job.key);
+    }
   } else if (error.length() > 0) {
     Serial.printf("[Thumb] Fehler: %s\n", error.c_str());
   }

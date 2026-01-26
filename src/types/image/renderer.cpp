@@ -93,8 +93,11 @@ static bool resolve_preview_path(const Tile& tile, String& out_path) {
 
   return false;
 }
-
 }  // namespace
+
+bool image_tile_get_preview_path(const Tile& tile, String& out_path) {
+  return resolve_preview_path(tile, out_path);
+}
 
 struct ImageEventData {
   String image_path;
@@ -151,6 +154,7 @@ lv_obj_t* render_image_tile(lv_obj_t* parent, int col, int row, const Tile& tile
             lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);
           }
           lv_image_set_inner_align(img, LV_IMAGE_ALIGN_COVER);
+          lv_obj_add_flag(img, LV_OBJ_FLAG_USER_1);
           lv_obj_add_flag(img, LV_OBJ_FLAG_IGNORE_LAYOUT);
           lv_obj_add_flag(img, LV_OBJ_FLAG_EVENT_BUBBLE);
           lv_obj_add_flag(img, LV_OBJ_FLAG_CLICKABLE);
@@ -389,5 +393,3 @@ lv_obj_t* render_image_tile(lv_obj_t* parent, int col, int row, const Tile& tile
 
   return btn;
 }
-
-

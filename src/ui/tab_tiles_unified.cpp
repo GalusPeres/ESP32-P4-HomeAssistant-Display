@@ -4,6 +4,8 @@
 #include "src/tiles/tile_renderer.h"
 #include "src/ui/sensor_popup.h"
 #include "src/network/ha_bridge_config.h"
+#include "src/types/image/renderer.h"
+#include <misc/cache/instance/lv_image_cache.h>
 #include <Arduino.h>
 
 /* === Layout-Konstanten === */
@@ -86,6 +88,34 @@ static bool get_cached_entity_payload(const char* entity_id, String& out) {
     }
   }
   return false;
+}
+
+static bool is_url_path_local(const String& value) {
+  return value.startsWith("http://") || value.startsWith("https://");
+}
+
+static bool is_slideshow_token_local(const String& value) {
+  return value.startsWith("__slideshow");
+}
+
+static String normalize_preview_key_local(String raw) {
+  raw.trim();
+  if (raw.startsWith("S:")) raw = raw.substring(2);
+  if (!raw.length()) return raw;
+  if (is_url_path_local(raw)) return raw;
+  if (!raw.startsWith("/")) raw = "/" + raw;
+  return raw;
+}
+
+static lv_obj_t* find_preview_image_child(lv_obj_t* parent) {
+  if (!parent) return nullptr;
+  uint32_t count = lv_obj_get_child_count(parent);
+  for (uint32_t i = 0; i < count; ++i) {
+    lv_obj_t* child = lv_obj_get_child(parent, static_cast<int32_t>(i));
+    if (!child) continue;
+    if (lv_obj_has_flag(child, LV_OBJ_FLAG_USER_1)) return child;
+  }
+  return nullptr;
 }
 
 static lv_obj_t* create_tiles_grid(lv_obj_t* parent);
@@ -544,6 +574,40 @@ void tiles_process_reload_requests() {
       tiles_reload_layout(grid_type);
     }
     break;  // nur ein Reload pro Loop
+  }
+}
+
+void tiles_refresh_image_previews_for_key(GridType grid_type, const String& raw_key) {
+  uint8_t idx = static_cast<uint8_t>(grid_type);
+  if (!g_tiles_grids[idx]) return;
+  if (!g_tiles_loaded[idx]) return;
+
+  String key = normalize_preview_key_local(raw_key);
+  if (!key.length()) return;
+
+  const TileGridConfig& config = getGridConfig(grid_type);
+  for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
+    const Tile& tile = config.tiles[i];
+    if (tile.type != TILE_IMAGE) continue;
+    if (tile.sensor_display_mode == 0) continue;
+    if (!tile.image_path.length()) continue;
+    if (is_slideshow_token_local(tile.image_path)) continue;
+
+    String tile_key = normalize_preview_key_local(tile.image_path);
+    if (tile_key != key) continue;
+
+    String preview_path;
+    if (!image_tile_get_preview_path(tile, preview_path)) continue;
+
+    lv_obj_t* btn = g_tiles_objs[idx][i];
+    if (!btn) continue;
+    lv_obj_t* img = find_preview_image_child(btn);
+    if (!img) continue;
+
+    String src = "S:" + preview_path;
+    lv_image_cache_drop(src.c_str());
+    lv_img_set_src(img, src.c_str());
+    lv_obj_invalidate(img);
   }
 }
 

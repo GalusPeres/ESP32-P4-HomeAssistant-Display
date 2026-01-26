@@ -13,6 +13,7 @@ bool tiles_is_loaded(GridType grid_type);
 void tiles_request_reload(GridType grid_type);
 void tiles_request_reload_if_loaded(GridType grid_type);
 void tiles_request_reload_all();
+void tiles_refresh_image_previews_for_key(GridType grid_type, const String& raw_key);
 void tiles_request_release(GridType grid_type);
 void tiles_request_release_all();
 void tiles_process_reload_requests();
