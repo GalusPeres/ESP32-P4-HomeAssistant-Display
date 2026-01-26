@@ -451,8 +451,9 @@ void appendAdminScripts(String& html) {
         '_sensor_decimals','_sensor_value_font','_sensor_display_mode','_sensor_gauge_min','_sensor_gauge_max',
         '_sensor_gauge_arc','_sensor_gauge_size','_sensor_gauge_y_offset','_sensor_value_y_offset','_sensor_graph_height',
         '_scene_alias','_key_macro','_text_value','_text_value_font','_navigate_target','_switch_entity','_switch_style',
-        '_image_path','_image_select','_image_slideshow_sec','_image_url',
-        '_clock_show_time','_clock_show_date'
+        '_image_path','_image_select','_image_slideshow_sec','_image_url','_image_preview',
+        '_clock_show_time','_clock_show_date',
+        '_counter_value'
       ];
     fields.forEach(id => {
       const el = document.getElementById(prefix + id);
@@ -489,8 +490,10 @@ void appendAdminScripts(String& html) {
     const imageSelect = document.getElementById(prefix + '_image_select');
     const imageUrlInput = document.getElementById(prefix + '_image_url');
     const imageIntervalInput = document.getElementById(prefix + '_image_slideshow_sec');
+    const imagePreviewCheck = document.getElementById(prefix + '_image_preview');
     const clockTimeCheck = document.getElementById(prefix + '_clock_show_time');
     const clockDateCheck = document.getElementById(prefix + '_clock_show_date');
+    const counterInput = document.getElementById(prefix + '_counter_value');
 
     if (titleInput) titleInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (iconInput) iconInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -516,6 +519,7 @@ void appendAdminScripts(String& html) {
     if (keyInput) keyInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (textInput) textInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (textFontInput) textFontInput.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    if (counterInput) counterInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (navigateSelect) navigateSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (switchSelect) switchSelect.addEventListener('change', () => { maybeFillTitleFromSwitch(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (switchStyleSelect) switchStyleSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -532,6 +536,7 @@ void appendAdminScripts(String& html) {
       setImageUrl(tab, imageUrlInput.value || '');
     });
     if (imageIntervalInput) imageIntervalInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    if (imagePreviewCheck) imagePreviewCheck.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (clockTimeCheck) clockTimeCheck.addEventListener('change', () => {
       ensureClockSelection(prefix);
       updateTilePreview(tab);
@@ -625,6 +630,11 @@ void appendAdminScripts(String& html) {
         const textClass = getSensorValueFontClass(textFont);
         html += '<div class="tile-text ' + textClass + '">' + textValue + '</div>';
       }
+    }
+
+    if (previewKind === 'counter') {
+      const counterVal = document.getElementById(prefix + '_counter_value')?.value || '0';
+      html += '<div class="tile-counter-value">' + counterVal + '</div>';
     }
 
     if (previewKind === 'switch' && switchStyle === '1') {
@@ -1033,9 +1043,15 @@ void appendAdminScripts(String& html) {
     } else if (safeType === 6) {
       fd.append('image_path', tile.image_path || '');
       fd.append('image_slideshow_sec', tile.image_slideshow_sec || '10');
+      const preview = (tile.image_preview !== undefined && tile.image_preview !== null)
+        ? tile.image_preview
+        : (tile.sensor_display_mode !== undefined && tile.sensor_display_mode !== null ? tile.sensor_display_mode : 0);
+      fd.append('image_preview', preview ? '1' : '0');
     } else if (safeType === 10) {
       fd.append('text_value', tile.text_value || tile.scene_alias || tile.key_macro || '');
       fd.append('text_value_font', tile.text_value_font || tile.sensor_value_font || '0');
+    } else if (safeType === 11) {
+      fd.append('counter_value', tile.counter_value || tile.scene_alias || '0');
     }
 
     const res = await fetch('/api/tiles', { method: 'POST', body: fd });
@@ -1100,6 +1116,10 @@ void appendAdminScripts(String& html) {
           const textClass = getSensorValueFontClass(tile.sensor_value_font);
           html += '<div class="tile-text ' + textClass + '">' + textValue + '</div>';
         }
+      }
+      if (previewKind === 'counter') {
+        const counterVal = tile.counter_value || tile.scene_alias || '0';
+        html += '<div class="tile-counter-value">' + counterVal + '</div>';
       }
       if (previewKind === 'switch' && tile.switch_style === 1) {
         html += '<div class="tile-switch" id="' + tab + '-tile-' + index + '-switch"><div class="tile-switch-knob"></div></div>';

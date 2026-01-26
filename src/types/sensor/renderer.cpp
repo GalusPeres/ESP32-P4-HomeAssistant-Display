@@ -174,7 +174,7 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
 
       // Series - white color, line width 4 (same as popup)
       series = lv_chart_add_series(chart, lv_color_white(), LV_CHART_AXIS_PRIMARY_Y);
-      lv_obj_set_style_line_width(chart, 4, LV_PART_ITEMS);
+      lv_obj_set_style_line_width(chart, 3, LV_PART_ITEMS);
       lv_obj_set_style_line_color(chart, lv_color_white(), LV_PART_ITEMS);
       lv_obj_set_style_line_rounded(chart, true, LV_PART_ITEMS);
       lv_obj_set_style_size(chart, 0, 0, LV_PART_INDICATOR);

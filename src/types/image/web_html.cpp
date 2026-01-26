@@ -25,6 +25,12 @@ void append_image_fields_html(String& html, const String& tab_id) {
               <input type="number" min="1" max="3600" step="1" id=")html";
   html += tab_id;
   html += R"html(_image_slideshow_sec" value="10">
+              <label class="inline-checkbox">
+                <input type="checkbox" id=")html";
+  html += tab_id;
+  html += R"html(_image_preview">
+                Kachelvorschau anzeigen (nur Display)
+              </label>
               <input type="hidden" id=")html";
   html += tab_id;
   html += R"html(_image_path">

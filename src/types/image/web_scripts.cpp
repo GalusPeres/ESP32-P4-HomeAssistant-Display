@@ -172,6 +172,11 @@ void append_image_scripts(String& html) {
     if (pathEl) pathEl.value = data.image_path || '';
     const intervalEl = document.getElementById(prefix + '_image_slideshow_sec');
     if (intervalEl) intervalEl.value = data.image_slideshow_sec || '10';
+    const previewEl = document.getElementById(prefix + '_image_preview');
+    if (previewEl) {
+      const raw = (data && data.image_preview !== undefined) ? data.image_preview : data.sensor_display_mode;
+      previewEl.checked = String(raw) === '1' || raw === 1 || raw === true;
+    }
     applyImageUiState(tab, data.image_path || '');
     refreshImageSelect(tab, false);
   }
@@ -181,6 +186,7 @@ void append_image_scripts(String& html) {
     const imgSelect = document.getElementById(prefix + '_image_select');
     const imgUrl = document.getElementById(prefix + '_image_url');
     const imgPath = document.getElementById(prefix + '_image_path');
+    const previewEl = document.getElementById(prefix + '_image_preview');
     let finalPath = imgPath ? imgPath.value : '';
     if (imgSelect && imgSelect.value === imageUrlToken && imgUrl && imgUrl.value.trim().length > 0) {
       finalPath = imgUrl.value.trim();
@@ -188,6 +194,7 @@ void append_image_scripts(String& html) {
     }
     formData.append('image_path', finalPath);
     formData.append('image_slideshow_sec', document.getElementById(prefix + '_image_slideshow_sec')?.value || '10');
+    formData.append('image_preview', (previewEl && previewEl.checked) ? '1' : '0');
   }
 
   function resetImageFields(tab) {
@@ -198,6 +205,8 @@ void append_image_scripts(String& html) {
     if (intervalEl) intervalEl.value = '10';
     const urlEl = document.getElementById(prefix + '_image_url');
     if (urlEl) urlEl.value = '';
+    const previewEl = document.getElementById(prefix + '_image_preview');
+    if (previewEl) previewEl.checked = false;
     updateImageUrlVisibility(tab, '', '');
     applyImageUiState(tab, '');
   }

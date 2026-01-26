@@ -26,7 +26,8 @@ enum TileType : uint8_t {
   TILE_SETTINGS = 7,
   TILE_BACK = 8,
   TILE_CLOCK = 9,
-  TILE_TEXT = 10
+  TILE_TEXT = 10,
+  TILE_COUNTER = 11
 };
 
 struct Tile {

@@ -12,6 +12,7 @@
 #include "src/types/sensor/renderer.h"
 #include "src/types/switch/renderer.h"
 #include "src/types/text/renderer.h"
+#include "src/types/counter/renderer.h"
 
 #include "src/types/clock/web_handler.h"
 #include "src/types/image/web_handler.h"
@@ -21,6 +22,7 @@
 #include "src/types/sensor/web_handler.h"
 #include "src/types/switch/web_handler.h"
 #include "src/types/text/web_handler.h"
+#include "src/types/counter/web_handler.h"
 
 #include "src/types/clock/web_html.h"
 #include "src/types/image/web_html.h"
@@ -30,6 +32,7 @@
 #include "src/types/sensor/web_html.h"
 #include "src/types/switch/web_html.h"
 #include "src/types/text/web_html.h"
+#include "src/types/counter/web_html.h"
 
 #include "src/types/clock/web_scripts.h"
 #include "src/types/image/web_scripts.h"
@@ -39,6 +42,7 @@
 #include "src/types/sensor/web_scripts.h"
 #include "src/types/switch/web_scripts.h"
 #include "src/types/text/web_scripts.h"
+#include "src/types/counter/web_scripts.h"
 
 #include "src/types/clock/web_styles.h"
 #include "src/types/image/web_styles.h"
@@ -48,6 +52,7 @@
 #include "src/types/sensor/web_styles.h"
 #include "src/types/switch/web_styles.h"
 #include "src/types/text/web_styles.h"
+#include "src/types/counter/web_styles.h"
 
 #include "src/web/web_admin_utils.h"
 
@@ -149,6 +154,16 @@ lv_obj_t* render_text_wrapper(lv_obj_t* parent,
   return render_text_tile(parent, col, row, tile, index);
 }
 
+lv_obj_t* render_counter_wrapper(lv_obj_t* parent,
+                                 int col,
+                                 int row,
+                                 const Tile& tile,
+                                 uint8_t index,
+                                 GridType grid_type,
+                                 scene_publish_cb_t) {
+  return render_counter_tile(parent, col, row, tile, index, grid_type);
+}
+
 lv_obj_t* render_empty_wrapper(lv_obj_t* parent,
                                int col,
                                int row,
@@ -198,6 +213,11 @@ bool apply_clock_wrapper(WebServer& server, Tile& tile, const TileTypeApplyConte
 
 bool apply_text_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
   apply_text_fields_from_request(server, tile);
+  return true;
+}
+
+bool apply_counter_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
+  apply_counter_fields_from_request(server, tile);
   return true;
 }
 
@@ -256,6 +276,10 @@ void append_clock_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
 
 void append_text_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
   append_text_fields_html(html, safeString(ctx.tab_id));
+}
+
+void append_counter_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
+  append_counter_fields_html(html, safeString(ctx.tab_id));
 }
 
 const TileTypeDescriptor kTileTypes[] = {
@@ -420,6 +444,24 @@ const TileTypeDescriptor kTileTypes[] = {
     append_text_fields_wrapper,
     append_text_styles,
     append_text_scripts
+  },
+  {
+    TILE_COUNTER,
+    "Counter",
+    "counter",
+    "counter",
+    "counter",
+    nullptr,
+    "loadCounterFields",
+    "saveCounterFields",
+    "resetCounterFields",
+    0x353535,
+    false,
+    render_counter_wrapper,
+    apply_counter_wrapper,
+    append_counter_fields_wrapper,
+    append_counter_styles,
+    append_counter_scripts
   },
   {
     TILE_SETTINGS,
