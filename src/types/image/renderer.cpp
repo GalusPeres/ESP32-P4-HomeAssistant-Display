@@ -126,41 +126,34 @@ lv_obj_t* render_image_tile(lv_obj_t* parent, int col, int row, const Tile& tile
 
   set_tile_grid_cell(btn, col, row, tile.span_w, tile.span_h);
 
-  bool has_preview = false;
+  const bool wants_preview =
+      (tile.sensor_display_mode != 0 && tile.image_path.length() > 0 && !is_slideshow_token(tile.image_path));
+  bool has_preview = wants_preview;
   const bool has_icon = tile.icon_name.length() > 0;
   const bool has_title = tile.title.length() > 0;
-  if (tile.sensor_display_mode != 0 && tile.image_path.length() > 0) {
-    String full_path;
-    if (resolve_preview_path(tile, full_path)) {
-      String src = "S:" + full_path;
-      lv_image_header_t header{};
-      if (lv_image_decoder_get_info(src.c_str(), &header) == LV_RESULT_OK) {
-        lv_obj_set_style_pad_all(btn, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(btn, 0, LV_PART_MAIN | LV_STATE_PRESSED);
-        lv_obj_set_style_clip_corner(btn, true, 0);
-        lv_obj_set_style_clip_corner(btn, true, LV_STATE_PRESSED);
-        lv_obj_update_layout(btn);
-        lv_obj_t* img = lv_img_create(btn);
-        if (img) {
-          lv_img_set_src(img, src.c_str());
-          lv_coord_t btn_w = lv_obj_get_width(btn);
-          lv_coord_t btn_h = lv_obj_get_height(btn);
-          const lv_coord_t bleed = 2;
-          if (btn_w > 0 && btn_h > 0) {
-            lv_obj_set_size(img, btn_w + bleed * 2, btn_h + bleed * 2);
-            lv_obj_set_pos(img, -bleed, -bleed);
-          } else {
-            lv_obj_set_size(img, LV_PCT(100), LV_PCT(100));
-            lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);
-          }
-          lv_image_set_inner_align(img, LV_IMAGE_ALIGN_COVER);
-          lv_obj_add_flag(img, LV_OBJ_FLAG_USER_1);
-          lv_obj_add_flag(img, LV_OBJ_FLAG_IGNORE_LAYOUT);
-          lv_obj_add_flag(img, LV_OBJ_FLAG_EVENT_BUBBLE);
-          lv_obj_add_flag(img, LV_OBJ_FLAG_CLICKABLE);
-          has_preview = true;
-        }
+  if (wants_preview) {
+    lv_obj_set_style_pad_all(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(btn, 0, LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_clip_corner(btn, true, 0);
+    lv_obj_set_style_clip_corner(btn, true, LV_STATE_PRESSED);
+    lv_obj_update_layout(btn);
+    lv_obj_t* img = lv_img_create(btn);
+    if (img) {
+      lv_coord_t btn_w = lv_obj_get_width(btn);
+      lv_coord_t btn_h = lv_obj_get_height(btn);
+      const lv_coord_t bleed = 2;
+      if (btn_w > 0 && btn_h > 0) {
+        lv_obj_set_size(img, btn_w + bleed * 2, btn_h + bleed * 2);
+        lv_obj_set_pos(img, -bleed, -bleed);
+      } else {
+        lv_obj_set_size(img, LV_PCT(100), LV_PCT(100));
+        lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);
       }
+      lv_image_set_inner_align(img, LV_IMAGE_ALIGN_COVER);
+      lv_obj_add_flag(img, LV_OBJ_FLAG_USER_1);
+      lv_obj_add_flag(img, LV_OBJ_FLAG_IGNORE_LAYOUT);
+      lv_obj_add_flag(img, LV_OBJ_FLAG_EVENT_BUBBLE);
+      lv_obj_add_flag(img, LV_OBJ_FLAG_CLICKABLE);
     }
   }
 

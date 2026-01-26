@@ -120,6 +120,42 @@ static lv_obj_t* find_preview_image_child(lv_obj_t* parent) {
 
 static lv_obj_t* create_tiles_grid(lv_obj_t* parent);
 
+/* === Deferred image preview loading === */
+static lv_timer_t* g_preview_timer = nullptr;
+static GridType g_preview_timer_grid = GridType::TAB0;
+static constexpr uint32_t kPreviewDelayMs = 100;
+static uint32_t g_preview_block_until_ms[3] = {0, 0, 0};
+
+static void tiles_refresh_all_image_previews(GridType grid_type, bool only_missing);
+static void hide_preview_images(GridType grid_type);
+
+static void preview_timer_cb(lv_timer_t* timer) {
+  (void)timer;
+  g_preview_timer = nullptr;
+  const uint8_t idx = static_cast<uint8_t>(g_preview_timer_grid);
+  if (idx < 3) {
+    g_preview_block_until_ms[idx] = 0;
+  }
+  tiles_refresh_all_image_previews(g_preview_timer_grid, true);
+}
+
+static void schedule_preview_load(GridType grid_type) {
+  if (g_preview_timer) {
+    lv_timer_del(g_preview_timer);
+    g_preview_timer = nullptr;
+  }
+  const uint8_t idx = static_cast<uint8_t>(grid_type);
+  if (idx < 3) {
+    g_preview_block_until_ms[idx] = millis() + kPreviewDelayMs;
+  }
+  hide_preview_images(grid_type);
+  g_preview_timer_grid = grid_type;
+  g_preview_timer = lv_timer_create(preview_timer_cb, kPreviewDelayMs, nullptr);
+  if (g_preview_timer) {
+    lv_timer_set_repeat_count(g_preview_timer, 1);
+  }
+}
+
 /* === Helper: Get grid config by type === */
 static const TileGridConfig& getGridConfig(GridType type) {
   (void)type;
@@ -412,6 +448,7 @@ void tiles_reload_layout(GridType grid_type) {
     g_active_cache->last_used_ms = millis();
   }
   Serial.printf("[%s] Layout neu geladen\n", getGridName(grid_type));
+  schedule_preview_load(grid_type);
 }
 
 void tiles_release_layout(GridType grid_type) {
@@ -536,6 +573,7 @@ void tiles_switch_to_folder(uint16_t folder_id) {
     lv_obj_invalidate(target->grid);
     lv_refr_now(disp);
   }
+  schedule_preview_load(GridType::TAB0);
 }
 
 void tiles_invalidate_folder(uint16_t folder_id) {
@@ -577,10 +615,55 @@ void tiles_process_reload_requests() {
   }
 }
 
+static void tiles_refresh_all_image_previews(GridType grid_type, bool only_missing) {
+  uint8_t idx = static_cast<uint8_t>(grid_type);
+  if (!g_tiles_grids[idx]) return;
+  if (!g_tiles_loaded[idx]) return;
+  if (idx < 3) {
+    uint32_t now = millis();
+    if (g_preview_block_until_ms[idx] != 0 &&
+        (int32_t)(now - g_preview_block_until_ms[idx]) < 0) {
+      return;
+    }
+  }
+
+  const TileGridConfig& config = getGridConfig(grid_type);
+  for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
+    const Tile& tile = config.tiles[i];
+    if (tile.type != TILE_IMAGE) continue;
+    if (tile.sensor_display_mode == 0) continue;
+    if (!tile.image_path.length()) continue;
+    if (is_slideshow_token_local(tile.image_path)) continue;
+
+    lv_obj_t* btn = g_tiles_objs[idx][i];
+    if (!btn) continue;
+    lv_obj_t* img = find_preview_image_child(btn);
+    if (!img) continue;
+    if (only_missing && lv_obj_has_flag(img, LV_OBJ_FLAG_USER_2)) continue;
+
+    String preview_path;
+    if (!image_tile_get_preview_path(tile, preview_path)) continue;
+
+    String src = "S:" + preview_path;
+    lv_image_cache_drop(src.c_str());
+    lv_img_set_src(img, src.c_str());
+    lv_obj_add_flag(img, LV_OBJ_FLAG_USER_2);
+    lv_obj_clear_flag(img, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_invalidate(img);
+  }
+}
+
 void tiles_refresh_image_previews_for_key(GridType grid_type, const String& raw_key) {
   uint8_t idx = static_cast<uint8_t>(grid_type);
   if (!g_tiles_grids[idx]) return;
   if (!g_tiles_loaded[idx]) return;
+  if (idx < 3) {
+    uint32_t now = millis();
+    if (g_preview_block_until_ms[idx] != 0 &&
+        (int32_t)(now - g_preview_block_until_ms[idx]) < 0) {
+      return;
+    }
+  }
 
   String key = normalize_preview_key_local(raw_key);
   if (!key.length()) return;
@@ -607,7 +690,24 @@ void tiles_refresh_image_previews_for_key(GridType grid_type, const String& raw_
     String src = "S:" + preview_path;
     lv_image_cache_drop(src.c_str());
     lv_img_set_src(img, src.c_str());
+    lv_obj_add_flag(img, LV_OBJ_FLAG_USER_2);
+    lv_obj_clear_flag(img, LV_OBJ_FLAG_HIDDEN);
     lv_obj_invalidate(img);
+  }
+}
+
+static void hide_preview_images(GridType grid_type) {
+  uint8_t idx = static_cast<uint8_t>(grid_type);
+  if (!g_tiles_grids[idx]) return;
+  if (!g_tiles_loaded[idx]) return;
+
+  for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
+    lv_obj_t* btn = g_tiles_objs[idx][i];
+    if (!btn) continue;
+    lv_obj_t* img = find_preview_image_child(btn);
+    if (!img) continue;
+    lv_obj_add_flag(img, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(img, LV_OBJ_FLAG_USER_2);
   }
 }
 
