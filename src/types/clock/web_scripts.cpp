@@ -49,6 +49,34 @@ void append_clock_scripts(String& html) {
     if (!timeEl || !dateEl) return;
     if (!timeEl.checked && !dateEl.checked) timeEl.checked = true;
   }
+
+  function loadClockFields(tab, data) {
+    if (data && (data.clock_show_time !== undefined || data.clock_show_date !== undefined)) {
+      const showTime = String(data.clock_show_time || '0') === '1';
+      const showDate = String(data.clock_show_date || '0') === '1';
+      let flags = 0;
+      if (showTime) flags |= 1;
+      if (showDate) flags |= 2;
+      if (flags === 0) flags = 1;
+      applyClockFlagsToInputs(tab, flags);
+      return;
+    }
+    const flags = (data && data.clock_flags !== undefined && data.clock_flags !== null)
+      ? data.clock_flags
+      : (data ? data.sensor_decimals : 1);
+    applyClockFlagsToInputs(tab, flags);
+  }
+
+  function saveClockFields(tab, formData) {
+    ensureClockSelection(tab);
+    const flags = getClockFlagsFromInputs(tab);
+    formData.append('clock_show_time', (flags & 1) ? '1' : '0');
+    formData.append('clock_show_date', (flags & 2) ? '1' : '0');
+  }
+
+  function resetClockFields(tab) {
+    applyClockFlagsToInputs(tab, 1);
+  }
   </script>
 )html";
 }

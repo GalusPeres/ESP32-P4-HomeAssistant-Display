@@ -17,6 +17,24 @@ void append_scene_scripts(String& html) {
     const title = label.split(' - ')[0] || opt.value || '';
     if (title.trim().length) titleInput.value = title.trim();
   }
+
+  function loadSceneFields(tab, data) {
+    const prefix = tab;
+    const sceneEl = document.getElementById(prefix + '_scene_alias');
+    if (sceneEl) sceneEl.value = data.scene_alias || '';
+    maybeFillTitleFromScene(tab);
+  }
+
+  function saveSceneFields(tab, formData) {
+    const prefix = tab;
+    formData.append('scene_alias', document.getElementById(prefix + '_scene_alias')?.value || '');
+  }
+
+  function resetSceneFields(tab) {
+    const prefix = tab;
+    const sceneEl = document.getElementById(prefix + '_scene_alias');
+    if (sceneEl) sceneEl.value = '';
+  }
   </script>
 )html";
 }

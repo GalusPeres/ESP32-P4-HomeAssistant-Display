@@ -8,6 +8,7 @@
 #include "src/ui/light_popup.h"
 #include "src/ui/sensor_popup.h"
 #include "src/ui/image_popup.h"
+#include "src/types/types_registry.h"
 #include "src/tiles/tile_renderer_fonts.h"
 #include "src/tiles/tile_renderer_shared.h"
 #include <Arduino.h>
@@ -1166,27 +1167,11 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
 lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type, scene_publish_cb_t scene_cb) {
   Serial.printf("[render_tile] Index=%d, Type=%d, Title='%s'\n", index, tile.type, tile.title.c_str());
 
-  switch (tile.type) {
-    case TILE_SENSOR:
-      return render_sensor_tile(parent, col, row, tile, index, grid_type);
-    case TILE_SCENE:
-      return render_scene_tile(parent, col, row, tile, index, scene_cb);
-    case TILE_KEY:
-      return render_key_tile(parent, col, row, tile, index, grid_type);
-    case TILE_FOLDER:
-    case TILE_SETTINGS:
-    case TILE_BACK:
-      return render_navigate_tile(parent, col, row, tile, index);
-    case TILE_SWITCH:
-      return render_switch_tile(parent, col, row, tile, index, grid_type);
-    case TILE_IMAGE:
-      return render_image_tile(parent, col, row, tile, index);
-    case TILE_CLOCK:
-      return render_clock_tile(parent, col, row, tile, index);
-    default:
-      return render_empty_tile(parent, col, row);
+  const TileTypeDescriptor* desc = get_tile_type_descriptor(tile.type);
+  if (desc && desc->render) {
+    return desc->render(parent, col, row, tile, index, grid_type, scene_cb);
   }
-  return nullptr;
+  return render_empty_tile(parent, col, row);
 }
 
 void update_sensor_tile_value(GridType grid_type, uint8_t grid_index, const char* value, const char* unit) {

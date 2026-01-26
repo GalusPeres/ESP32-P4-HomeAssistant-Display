@@ -1,15 +1,12 @@
 #include "src/web/web_admin_scripts.h"
-#include "src/types/image/web_scripts.h"
-#include "src/types/key/web_scripts.h"
-#include "src/types/navigate/web_scripts.h"
-#include "src/types/scene/web_scripts.h"
-#include "src/types/sensor/web_scripts.h"
-#include "src/types/switch/web_scripts.h"
-#include "src/types/clock/web_scripts.h"
+#include "src/types/types_registry.h"
 
 void appendAdminScripts(String& html) {
   html += R"html(
   <script>
+)html";
+  append_tile_type_registry_js(html);
+  html += R"html(
   function switchTab(tabName) {
     const tabs = document.querySelectorAll('.tab-content');
     tabs.forEach(tab => tab.classList.remove('active'));
@@ -34,6 +31,33 @@ void appendAdminScripts(String& html) {
   let drafts = {};
   let tilesData = {};
   let autoSaveTimers = {};
+
+  function getTileTypeMeta(typeValue) {
+    const key = String(typeValue ?? '0');
+    return TILE_TYPE_REGISTRY[key] || TILE_TYPE_REGISTRY['0'] || {};
+  }
+
+  function callTypeHandler(meta, handlerKey, ...args) {
+    if (!meta || !handlerKey) return;
+    const fnName = meta[handlerKey];
+    if (!fnName) return;
+    const fn = window[fnName];
+    if (typeof fn === 'function') return fn(...args);
+  }
+
+  function collectTypeFieldValues(tab) {
+    const prefix = tab;
+    const typeValue = document.getElementById(prefix + '_tile_type')?.value || '0';
+    const meta = getTileTypeMeta(typeValue);
+    if (!meta.save) return {};
+    const fd = new FormData();
+    callTypeHandler(meta, 'save', prefix, fd);
+    const out = {};
+    for (const [key, value] of fd.entries()) {
+      out[key] = value;
+    }
+    return out;
+  }
 
   function initTileTabs() {
     tileTabs.length = 0;
@@ -265,29 +289,10 @@ void appendAdminScripts(String& html) {
       col: document.getElementById(prefix + '_tile_col')?.value || '1',
       row: document.getElementById(prefix + '_tile_row')?.value || '1',
       span_w: document.getElementById(prefix + '_tile_span_w')?.value || '1',
-      span_h: document.getElementById(prefix + '_tile_span_h')?.value || '1',
-      sensor_entity: document.getElementById(prefix + '_sensor_entity')?.value || '',
-      sensor_unit: document.getElementById(prefix + '_sensor_unit')?.value || '',
-      sensor_decimals: document.getElementById(prefix + '_sensor_decimals')?.value || '',
-      sensor_value_font: document.getElementById(prefix + '_sensor_value_font')?.value || '0',
-      sensor_display_mode: document.getElementById(prefix + '_sensor_display_mode')?.value || '0',
-      sensor_gauge_min: document.getElementById(prefix + '_sensor_gauge_min')?.value || '',
-      sensor_gauge_max: document.getElementById(prefix + '_sensor_gauge_max')?.value || '',
-      sensor_gauge_arc: document.getElementById(prefix + '_sensor_gauge_arc')?.value || '',
-      sensor_gauge_size: document.getElementById(prefix + '_sensor_gauge_size')?.value || '',
-      sensor_gauge_y_offset: document.getElementById(prefix + '_sensor_gauge_y_offset')?.value || '',
-      sensor_value_y_offset: document.getElementById(prefix + '_sensor_value_y_offset')?.value || '',
-      sensor_graph_height: document.getElementById(prefix + '_sensor_graph_height')?.value || '',
-      scene_alias: document.getElementById(prefix + '_scene_alias')?.value || '',
-      key_macro: document.getElementById(prefix + '_key_macro')?.value || '',
-      navigate_target: document.getElementById(prefix + '_navigate_target')?.value || '0',
-      switch_entity: document.getElementById(prefix + '_switch_entity')?.value || '',
-      switch_style: document.getElementById(prefix + '_switch_style')?.value || '0',
-      image_path: document.getElementById(prefix + '_image_path')?.value || '',
-      image_slideshow_sec: document.getElementById(prefix + '_image_slideshow_sec')?.value || '10',
-      clock_flags: getClockFlagsFromInputs(prefix),
-      _dirty: true
+      span_h: document.getElementById(prefix + '_tile_span_h')?.value || '1'
     };
+    Object.assign(d, collectTypeFieldValues(tab));
+    d._dirty = true;
     drafts[tab][currentTileIndex] = d;
     persistDrafts();
   }
@@ -297,6 +302,7 @@ void appendAdminScripts(String& html) {
     if (!d || !d._dirty) return false;
     const prefix = tab;
     document.getElementById(prefix + '_tile_type').value = d.type || '0';
+    resetAllTypeFields(tab);
     updateTileType(tab);
     document.getElementById(prefix + '_tile_title').value = d.title || '';
     document.getElementById(prefix + '_tile_icon').value = d.icon || '';
@@ -309,52 +315,9 @@ void appendAdminScripts(String& html) {
     if (spanWEl) spanWEl.value = d.span_w || '1';
     const spanHEl = document.getElementById(prefix + '_tile_span_h');
     if (spanHEl) spanHEl.value = d.span_h || '1';
-    if (d.type === '1') {
-      document.getElementById(prefix + '_sensor_entity').value = d.sensor_entity || '';
-      document.getElementById(prefix + '_sensor_unit').value = d.sensor_unit || '';
-      const decEl = document.getElementById(prefix + '_sensor_decimals');
-      if (decEl) decEl.value = d.sensor_decimals || '';
-      const fontEl = document.getElementById(prefix + '_sensor_value_font');
-      if (fontEl) fontEl.value = d.sensor_value_font || '0';
-      const displayModeEl = document.getElementById(prefix + '_sensor_display_mode');
-      if (displayModeEl) displayModeEl.value = d.sensor_display_mode || '0';
-      const gaugeMinEl = document.getElementById(prefix + '_sensor_gauge_min');
-      if (gaugeMinEl) gaugeMinEl.value = d.sensor_gauge_min || '';
-      const gaugeMaxEl = document.getElementById(prefix + '_sensor_gauge_max');
-      if (gaugeMaxEl) gaugeMaxEl.value = d.sensor_gauge_max || '';
-      const gaugeArcEl = document.getElementById(prefix + '_sensor_gauge_arc');
-      if (gaugeArcEl) gaugeArcEl.value = d.sensor_gauge_arc || '';
-      const gaugeSizeEl = document.getElementById(prefix + '_sensor_gauge_size');
-      if (gaugeSizeEl) gaugeSizeEl.value = d.sensor_gauge_size || '';
-      const gaugeYOffsetEl = document.getElementById(prefix + '_sensor_gauge_y_offset');
-      if (gaugeYOffsetEl) gaugeYOffsetEl.value = d.sensor_gauge_y_offset || '';
-      const valueYOffsetEl = document.getElementById(prefix + '_sensor_value_y_offset');
-      if (valueYOffsetEl) valueYOffsetEl.value = d.sensor_value_y_offset || '';
-      const graphHeightEl = document.getElementById(prefix + '_sensor_graph_height');
-      if (graphHeightEl) graphHeightEl.value = d.sensor_graph_height || '';
-      syncGaugeUi(tab);
-    } else if (d.type === '2') {
-      document.getElementById(prefix + '_scene_alias').value = d.scene_alias || '';
-    } else if (d.type === '3') {
-      document.getElementById(prefix + '_key_macro').value = d.key_macro || '';
-    } else if (d.type === '4') {
-      const navEl = document.getElementById(prefix + '_navigate_target');
-      if (navEl) navEl.value = d.navigate_target || '0';
-    } else if (d.type === '5') {
-      document.getElementById(prefix + '_switch_entity').value = d.switch_entity || '';
-      const styleEl = document.getElementById(prefix + '_switch_style');
-      if (styleEl) styleEl.value = d.switch_style || '0';
-    } else if (d.type === '6') {
-      document.getElementById(prefix + '_image_path').value = d.image_path || '';
-      const intervalEl = document.getElementById(prefix + '_image_slideshow_sec');
-      if (intervalEl && d.image_slideshow_sec !== undefined && d.image_slideshow_sec !== null && String(d.image_slideshow_sec).length > 0) {
-        intervalEl.value = d.image_slideshow_sec;
-      }
-      applyImageUiState(tab, d.image_path || '');
-      refreshImageSelect(tab, false);
-    } else if (d.type === '9') {
-      applyClockFlagsToInputs(prefix, d.clock_flags);
-    }
+    const meta = getTileTypeMeta(d.type || '0');
+    callTypeHandler(meta, 'load', prefix, d);
+    syncGaugeUi(tab);
     updateTilePreview(tab);
     return true;
   }
@@ -372,34 +335,16 @@ void appendAdminScripts(String& html) {
 
   function collectTileFormData(tab) {
     const prefix = tab;
-    return {
+    const data = {
       type: document.getElementById(prefix + '_tile_type')?.value || '0',
       title: document.getElementById(prefix + '_tile_title')?.value || '',
       icon: document.getElementById(prefix + '_tile_icon')?.value || '',
       color: document.getElementById(prefix + '_tile_color')?.value || '#2A2A2A',
       span_w: document.getElementById(prefix + '_tile_span_w')?.value || '1',
-      span_h: document.getElementById(prefix + '_tile_span_h')?.value || '1',
-      sensor_entity: document.getElementById(prefix + '_sensor_entity')?.value || '',
-      sensor_unit: document.getElementById(prefix + '_sensor_unit')?.value || '',
-      sensor_decimals: document.getElementById(prefix + '_sensor_decimals')?.value || '',
-      sensor_value_font: document.getElementById(prefix + '_sensor_value_font')?.value || '0',
-      sensor_display_mode: document.getElementById(prefix + '_sensor_display_mode')?.value || '0',
-      sensor_gauge_min: document.getElementById(prefix + '_sensor_gauge_min')?.value || '',
-      sensor_gauge_max: document.getElementById(prefix + '_sensor_gauge_max')?.value || '',
-      sensor_gauge_arc: document.getElementById(prefix + '_sensor_gauge_arc')?.value || '',
-      sensor_gauge_size: document.getElementById(prefix + '_sensor_gauge_size')?.value || '',
-      sensor_gauge_y_offset: document.getElementById(prefix + '_sensor_gauge_y_offset')?.value || '',
-      sensor_value_y_offset: document.getElementById(prefix + '_sensor_value_y_offset')?.value || '',
-      sensor_graph_height: document.getElementById(prefix + '_sensor_graph_height')?.value || '',
-      scene_alias: document.getElementById(prefix + '_scene_alias')?.value || '',
-      key_macro: document.getElementById(prefix + '_key_macro')?.value || '',
-      navigate_target: document.getElementById(prefix + '_navigate_target')?.value || '0',
-      switch_entity: document.getElementById(prefix + '_switch_entity')?.value || '',
-      switch_style: document.getElementById(prefix + '_switch_style')?.value || '0',
-      image_path: document.getElementById(prefix + '_image_path')?.value || '',
-      image_slideshow_sec: document.getElementById(prefix + '_image_slideshow_sec')?.value || '10',
-      clock_flags: getClockFlagsFromInputs(prefix)
+      span_h: document.getElementById(prefix + '_tile_span_h')?.value || '1'
     };
+    Object.assign(data, collectTypeFieldValues(tab));
+    return data;
   }
 
   function applyTileFormData(tab, data) {
@@ -408,6 +353,7 @@ void appendAdminScripts(String& html) {
     const typeValue = data.type || '0';
     const typeEl = document.getElementById(prefix + '_tile_type');
     if (typeEl) typeEl.value = typeValue;
+    resetAllTypeFields(tab);
     updateTileType(tab);
 
     const titleEl = document.getElementById(prefix + '_tile_title');
@@ -420,57 +366,9 @@ void appendAdminScripts(String& html) {
     if (spanWEl) spanWEl.value = data.span_w || '1';
     const spanHEl = document.getElementById(prefix + '_tile_span_h');
     if (spanHEl) spanHEl.value = data.span_h || '1';
-
-    const sensorEntityEl = document.getElementById(prefix + '_sensor_entity');
-    if (sensorEntityEl) sensorEntityEl.value = data.sensor_entity || '';
-    const sensorUnitEl = document.getElementById(prefix + '_sensor_unit');
-    if (sensorUnitEl) sensorUnitEl.value = data.sensor_unit || '';
-    const sensorDecEl = document.getElementById(prefix + '_sensor_decimals');
-    if (sensorDecEl) sensorDecEl.value = data.sensor_decimals || '';
-    const sensorFontEl = document.getElementById(prefix + '_sensor_value_font');
-    if (sensorFontEl) sensorFontEl.value = data.sensor_value_font || '0';
-    const sensorDisplayModeEl = document.getElementById(prefix + '_sensor_display_mode');
-    if (sensorDisplayModeEl) sensorDisplayModeEl.value = data.sensor_display_mode || '0';
-    const sensorGaugeMinEl = document.getElementById(prefix + '_sensor_gauge_min');
-    if (sensorGaugeMinEl) sensorGaugeMinEl.value = data.sensor_gauge_min || '';
-    const sensorGaugeMaxEl = document.getElementById(prefix + '_sensor_gauge_max');
-    if (sensorGaugeMaxEl) sensorGaugeMaxEl.value = data.sensor_gauge_max || '';
-    const sensorGaugeArcEl = document.getElementById(prefix + '_sensor_gauge_arc');
-    if (sensorGaugeArcEl) sensorGaugeArcEl.value = data.sensor_gauge_arc || '';
-    const sensorGaugeSizeEl = document.getElementById(prefix + '_sensor_gauge_size');
-    if (sensorGaugeSizeEl) sensorGaugeSizeEl.value = data.sensor_gauge_size || '';
-    const sensorGaugeYOffsetEl = document.getElementById(prefix + '_sensor_gauge_y_offset');
-    if (sensorGaugeYOffsetEl) sensorGaugeYOffsetEl.value = data.sensor_gauge_y_offset || '';
-    const sensorValueYOffsetEl = document.getElementById(prefix + '_sensor_value_y_offset');
-    if (sensorValueYOffsetEl) sensorValueYOffsetEl.value = data.sensor_value_y_offset || '';
-    const sensorGraphHeightEl = document.getElementById(prefix + '_sensor_graph_height');
-    if (sensorGraphHeightEl) sensorGraphHeightEl.value = data.sensor_graph_height || '';
+    const meta = getTileTypeMeta(typeValue);
+    callTypeHandler(meta, 'load', prefix, data);
     syncGaugeUi(tab);
-
-    const sceneEl = document.getElementById(prefix + '_scene_alias');
-    if (sceneEl) sceneEl.value = data.scene_alias || '';
-    const keyEl = document.getElementById(prefix + '_key_macro');
-    if (keyEl) keyEl.value = data.key_macro || '';
-    const navEl = document.getElementById(prefix + '_navigate_target');
-    if (navEl) navEl.value = data.navigate_target || '0';
-
-    const switchEntityEl = document.getElementById(prefix + '_switch_entity');
-    if (switchEntityEl) switchEntityEl.value = data.switch_entity || '';
-    const switchStyleEl = document.getElementById(prefix + '_switch_style');
-    if (switchStyleEl) switchStyleEl.value = data.switch_style || '0';
-    if (typeValue === '6') {
-      const imagePathEl = document.getElementById(prefix + '_image_path');
-      if (imagePathEl) imagePathEl.value = data.image_path || '';
-      const intervalEl = document.getElementById(prefix + '_image_slideshow_sec');
-      if (intervalEl) intervalEl.value = data.image_slideshow_sec || '10';
-      applyImageUiState(tab, data.image_path || '');
-      refreshImageSelect(tab, false);
-    } else if (typeValue === '9') {
-      const flags = (data.clock_flags !== undefined && data.clock_flags !== null)
-        ? data.clock_flags
-        : data.sensor_decimals;
-      applyClockFlagsToInputs(prefix, flags);
-    }
   }
 
   function copyTile(tab) {
@@ -652,94 +550,72 @@ void appendAdminScripts(String& html) {
     if (!tileElem) return;
 
     const wasActive = tileElem.classList.contains('active');
-    const typeWas = tileElem.classList.contains('sensor')   ? '1' :
-                    tileElem.classList.contains('scene')    ? '2' :
-                    tileElem.classList.contains('key')      ? '3' :
-                    tileElem.classList.contains('navigate') ? '4' :
-                    tileElem.classList.contains('switch')   ? '5' :
-                    tileElem.classList.contains('image')    ? '6' :
-                    tileElem.classList.contains('clock')    ? '9' : '0';
+    const typeWas = tileElem.dataset.type || '0';
     const title = document.getElementById(prefix + '_tile_title').value;
     const color = document.getElementById(prefix + '_tile_color').value;
     const type = document.getElementById(prefix + '_tile_type').value;
+    const meta = getTileTypeMeta(type);
     const iconInput = document.getElementById(prefix + '_tile_icon');
     const switchStyle = document.getElementById(prefix + '_switch_style')?.value || '0';
     const sensorValueFont = document.getElementById(prefix + '_sensor_value_font')?.value || '0';
     const sensorValueClass = getSensorValueFontClass(sensorValueFont);
     let iconName = iconInput ? iconInput.value.trim().toLowerCase() : '';
 
-    // Normalize icon name (remove mdi: or mdi- prefix)
     if (iconName.startsWith('mdi:')) iconName = iconName.substring(4);
     else if (iconName.startsWith('mdi-')) iconName = iconName.substring(4);
 
     tileElem.className = 'tile';
+    if (meta.css) tileElem.classList.add(meta.css);
+    if (type === '5' && switchStyle === '1') tileElem.classList.add('switch-toggle');
     tileElem.style.background = '';
+    tileElem.dataset.type = type;
 
     if (type === '0') {
       tileElem.classList.add('empty');
+      tileElem.style.background = 'transparent';
       tileElem.innerHTML = '';
       if (wasActive) tileElem.classList.add('active');
-    } else if (type === '1') {
-      tileElem.classList.add('sensor');
-      tileElem.style.background = color || '#2A2A2A';
-    } else if (type === '2') {
-      tileElem.classList.add('scene');
-      tileElem.style.background = color || '#353535';
-    } else if (type === '3') {
-      tileElem.classList.add('key');
-      tileElem.style.background = color || '#353535';
-    } else if (type === '4' || type === '7' || type === '8') {
-      tileElem.classList.add('navigate');
-      tileElem.style.background = color || '#353535';
-    } else if (type === '5') {
-      tileElem.classList.add('switch');
-      if (switchStyle === '1') tileElem.classList.add('switch-toggle');
-      tileElem.style.background = color || '#353535';
-    } else if (type === '6') {
-      tileElem.classList.add('image');
-      tileElem.style.background = color || '#353535';
-    } else if (type === '9') {
-      tileElem.classList.add('clock');
-      tileElem.style.background = color || '#353535';
+      updateLayoutFromInputs(tab);
+      return;
     }
+
+    const defaultBg = meta.defaultBg || '#353535';
+    tileElem.style.background = color || defaultBg;
 
     let html = '';
 
-    if (type !== '0') {
-      // Icon (optional)
-      if (iconName) {
-        html += '<i class="mdi mdi-' + iconName + ' tile-icon"></i>';
-      }
+    if (iconName) {
+      html += '<i class="mdi mdi-' + iconName + ' tile-icon"></i>';
+    }
 
-      // Title (nur wenn vorhanden)
-      if (title) {
-        html += '<div class="tile-title" id="' + tileId + '-title">' + title + '</div>';
-      }
+    if (title) {
+      html += '<div class="tile-title" id="' + tileId + '-title">' + title + '</div>';
+    }
 
-      if (type === '1') {
-        const entitySelect = document.getElementById(prefix + '_sensor_entity');
-        const unitInput = document.getElementById(prefix + '_sensor_unit');
-        const entity = entitySelect ? entitySelect.value : '';
-        const unit = unitInput ? unitInput.value : '';
-        html += '<div class="tile-value ' + sensorValueClass + '" id="' + tileId + '-value">--';
-        if (unit) html += '<span class="tile-unit">' + unit + '</span>';
-        html += '</div>';
-        if (entity) {
-          tileElem.innerHTML = html;
-          if (wasActive) tileElem.classList.add('active');
-          updateSensorValuePreview(tab);
-        }
+    const previewKind = meta.preview || 'none';
+    if (previewKind === 'sensor') {
+      const entitySelect = document.getElementById(prefix + '_sensor_entity');
+      const unitInput = document.getElementById(prefix + '_sensor_unit');
+      const entity = entitySelect ? entitySelect.value : '';
+      const unit = unitInput ? unitInput.value : '';
+      html += '<div class="tile-value ' + sensorValueClass + '" id="' + tileId + '-value">--';
+      if (unit) html += '<span class="tile-unit">' + unit + '</span>';
+      html += '</div>';
+      if (entity) {
+        tileElem.innerHTML = html;
+        if (wasActive) tileElem.classList.add('active');
+        updateSensorValuePreview(tab);
       }
+    }
 
-      if (type === '9') {
-        const flags = getClockFlagsFromInputs(prefix);
-        if (flags & 1) html += '<div class="tile-clock-time">' + getClockPreviewTime() + '</div>';
-        if (flags & 2) html += '<div class="tile-clock-date">' + getClockPreviewDate() + '</div>';
-      }
+    if (previewKind === 'clock') {
+      const flags = getClockFlagsFromInputs(prefix);
+      if (flags & 1) html += '<div class="tile-clock-time">' + getClockPreviewTime() + '</div>';
+      if (flags & 2) html += '<div class="tile-clock-date">' + getClockPreviewDate() + '</div>';
+    }
 
-      if (type === '5' && switchStyle === '1') {
-        html += '<div class="tile-switch" id="' + tileId + '-switch"><div class="tile-switch-knob"></div></div>';
-      }
+    if (previewKind === 'switch' && switchStyle === '1') {
+      html += '<div class="tile-switch" id="' + tileId + '-switch"><div class="tile-switch-knob"></div></div>';
     }
 
     tileElem.innerHTML = html;
@@ -751,7 +627,7 @@ void appendAdminScripts(String& html) {
     }
     if (type === '5') updateSwitchValuePreview(tab);
     updateLayoutFromInputs(tab);
-}
+  }
 
   function loadTileData(index, tab) {
     const folderId = getFolderIdForTab(tab);
@@ -763,6 +639,7 @@ void appendAdminScripts(String& html) {
         tilesData[tab][index] = data;
         const prefix = tab;
         document.getElementById(prefix + '_tile_type').value = data.type || 0;
+        resetAllTypeFields(tab);
         updateTileType(tab);
         document.getElementById(prefix + '_tile_title').value = data.title || '';
         document.getElementById(prefix + '_tile_icon').value = data.icon_name || '';
@@ -791,69 +668,8 @@ void appendAdminScripts(String& html) {
           spanWEl.value = String(layout.span_w);
           spanHEl.value = String(layout.span_h);
         }
-      if (data.type === 1) {
-        document.getElementById(prefix + '_sensor_entity').value = data.sensor_entity || '';
-        document.getElementById(prefix + '_sensor_unit').value = data.sensor_unit || '';
-        const decEl = document.getElementById(prefix + '_sensor_decimals');
-        if (decEl) decEl.value = (data.sensor_decimals !== undefined && data.sensor_decimals >= 0) ? data.sensor_decimals : '';
-        const fontEl = document.getElementById(prefix + '_sensor_value_font');
-        if (fontEl) fontEl.value = (data.sensor_value_font !== undefined) ? String(data.sensor_value_font) : '0';
-        const displayModeEl = document.getElementById(prefix + '_sensor_display_mode');
-        if (displayModeEl) displayModeEl.value = (data.sensor_display_mode !== undefined) ? String(data.sensor_display_mode) : '0';
-        const gaugeMinEl = document.getElementById(prefix + '_sensor_gauge_min');
-        if (gaugeMinEl) gaugeMinEl.value = (data.sensor_gauge_min !== undefined && data.sensor_gauge_min !== null) ? String(data.sensor_gauge_min) : '';
-        const gaugeMaxEl = document.getElementById(prefix + '_sensor_gauge_max');
-        if (gaugeMaxEl) gaugeMaxEl.value = (data.sensor_gauge_max !== undefined && data.sensor_gauge_max !== null) ? String(data.sensor_gauge_max) : '';
-        const gaugeArcEl = document.getElementById(prefix + '_sensor_gauge_arc');
-        if (gaugeArcEl) gaugeArcEl.value = (data.sensor_gauge_arc !== undefined && data.sensor_gauge_arc !== null) ? String(data.sensor_gauge_arc) : '';
-        const gaugeSizeEl = document.getElementById(prefix + '_sensor_gauge_size');
-        if (gaugeSizeEl) gaugeSizeEl.value = (data.sensor_gauge_size !== undefined && data.sensor_gauge_size !== null) ? String(data.sensor_gauge_size) : '';
-        const gaugeYOffsetEl = document.getElementById(prefix + '_sensor_gauge_y_offset');
-        if (gaugeYOffsetEl) gaugeYOffsetEl.value = (data.sensor_gauge_y_offset !== undefined && data.sensor_gauge_y_offset !== null) ? String(data.sensor_gauge_y_offset) : '';
-        const valueYOffsetEl = document.getElementById(prefix + '_sensor_value_y_offset');
-        if (valueYOffsetEl) valueYOffsetEl.value = (data.sensor_value_y_offset !== undefined && data.sensor_value_y_offset !== null) ? String(data.sensor_value_y_offset) : '';
-        const graphHeightEl = document.getElementById(prefix + '_sensor_graph_height');
-        if (graphHeightEl) graphHeightEl.value = (data.sensor_graph_height !== undefined && data.sensor_graph_height !== null) ? String(data.sensor_graph_height) : '';
-        syncGaugeUi(tab);
-      } else if (data.type === 2) {
-          document.getElementById(prefix + '_scene_alias').value = data.scene_alias || '';
-          maybeFillTitleFromScene(tab);
-        } else if (data.type === 3) {
-          document.getElementById(prefix + '_key_macro').value = data.key_macro || '';
-        } else if (data.type === 4) {
-          const navEl = document.getElementById(prefix + '_navigate_target');
-          if (navEl) navEl.value = (data.navigate_target !== undefined && data.navigate_target !== null) ? String(data.navigate_target) : '0';
-        } else if (data.type === 5) {
-          document.getElementById(prefix + '_switch_entity').value = data.sensor_entity || '';
-          const styleEl = document.getElementById(prefix + '_switch_style');
-          if (styleEl) styleEl.value = (data.switch_style !== undefined) ? String(data.switch_style) : '0';
-        } else if (data.type === 6) {
-          document.getElementById(prefix + '_image_path').value = data.image_path || '';
-          const intervalEl = document.getElementById(prefix + '_image_slideshow_sec');
-          if (intervalEl) intervalEl.value = data.image_slideshow_sec || '10';
-          applyImageUiState(tab, data.image_path || '');
-          refreshImageSelect(tab, false);
-        } else if (data.type === 9) {
-          applyClockFlagsToInputs(prefix, data.sensor_decimals);
-        }
-      const decEl = document.getElementById(prefix + '_sensor_decimals');
-      if (data.type !== 1 && decEl) decEl.value = '';
-      const fontEl = document.getElementById(prefix + '_sensor_value_font');
-      if (data.type !== 1 && fontEl) fontEl.value = '0';
-      const displayModeEl = document.getElementById(prefix + '_sensor_display_mode');
-      if (data.type !== 1 && displayModeEl) displayModeEl.value = '0';
-        const gaugeMinEl = document.getElementById(prefix + '_sensor_gauge_min');
-        if (data.type !== 1 && gaugeMinEl) gaugeMinEl.value = '';
-        const gaugeMaxEl = document.getElementById(prefix + '_sensor_gauge_max');
-        if (data.type !== 1 && gaugeMaxEl) gaugeMaxEl.value = '';
-        const gaugeArcEl = document.getElementById(prefix + '_sensor_gauge_arc');
-        if (data.type !== 1 && gaugeArcEl) gaugeArcEl.value = '';
-        const gaugeSizeEl = document.getElementById(prefix + '_sensor_gauge_size');
-        if (data.type !== 1 && gaugeSizeEl) gaugeSizeEl.value = '';
-        const gaugeYOffsetEl = document.getElementById(prefix + '_sensor_gauge_y_offset');
-        if (data.type !== 1 && gaugeYOffsetEl) gaugeYOffsetEl.value = '';
-        const valueYOffsetEl = document.getElementById(prefix + '_sensor_value_y_offset');
-        if (data.type !== 1 && valueYOffsetEl) valueYOffsetEl.value = '';
+        const meta = getTileTypeMeta(data.type || 0);
+        callTypeHandler(meta, 'load', prefix, data);
         syncGaugeUi(tab);
         const tileElem = document.getElementById(tab + '-tile-' + index);
         if (tileElem) tileElem.classList.add('active');
@@ -877,7 +693,8 @@ void appendAdminScripts(String& html) {
   }
 
   function isLockedTileType(typeValue) {
-    return String(typeValue) === '7' || String(typeValue) === '8';
+    const meta = getTileTypeMeta(typeValue);
+    return !!meta.locked;
   }
 
   function applySpecialTileUiState(tab) {
@@ -886,9 +703,10 @@ void appendAdminScripts(String& html) {
     const navSelect = document.getElementById(prefix + '_navigate_target');
     const noteEl = document.getElementById(prefix + '_navigate_note');
     const typeValue = typeEl ? String(typeEl.value) : '0';
-    const locked = isLockedTileType(typeValue);
+    const meta = getTileTypeMeta(typeValue);
+    const locked = !!meta.locked;
     if (typeEl) typeEl.disabled = locked;
-    if (navSelect) navSelect.disabled = (typeValue !== '4');
+    if (navSelect) navSelect.disabled = (!meta.fields || meta.fields !== 'navigate' || locked);
     if (noteEl) {
       if (typeValue === '7') noteEl.textContent = 'Settings-Kachel (fest)';
       else if (typeValue === '8') noteEl.textContent = 'Zurueck-Kachel (fest)';
@@ -901,19 +719,13 @@ void appendAdminScripts(String& html) {
     const typeEl = document.getElementById(prefix + '_tile_type');
     let typeValue = typeEl ? typeEl.value : '0';
     document.querySelectorAll('#' + prefix + 'Settings .type-fields').forEach(f => f.classList.remove('show'));
-    if (typeValue === '1') document.getElementById(prefix + '_sensor_fields').classList.add('show');
-    else if (typeValue === '2') document.getElementById(prefix + '_scene_fields').classList.add('show');
-    else if (typeValue === '3') document.getElementById(prefix + '_key_fields').classList.add('show');
-    else if (typeValue === '4') document.getElementById(prefix + '_navigate_fields').classList.add('show');
-    else if (typeValue === '5') document.getElementById(prefix + '_switch_fields').classList.add('show');
-    else if (typeValue === '6') {
-      document.getElementById(prefix + '_image_fields').classList.add('show');
-      refreshImageSelect(tab, false);
-      const path = document.getElementById(prefix + '_image_path')?.value || '';
-      applyImageUiState(tab, path);
-    } else if (typeValue === '9') {
-      const clockFields = document.getElementById(prefix + '_clock_fields');
-      if (clockFields) clockFields.classList.add('show');
+    const meta = getTileTypeMeta(typeValue);
+    if (meta.fields) {
+      const fieldsEl = document.getElementById(prefix + '_' + meta.fields + '_fields');
+      if (fieldsEl) fieldsEl.classList.add('show');
+    }
+    if (meta.onSelect) {
+      callTypeHandler(meta, 'onSelect', tab);
     }
     syncGaugeUi(tab);
     applySpecialTileUiState(tab);
@@ -932,6 +744,11 @@ void appendAdminScripts(String& html) {
     autoSaveTimers[tab] = setTimeout(() => saveTile(tab, true), 250);
   }
 
+  function resetAllTypeFields(tab) {
+    const metas = Object.values(TILE_TYPE_REGISTRY || {});
+    metas.forEach(meta => callTypeHandler(meta, 'reset', tab));
+  }
+
   function resetTile(tab) {
     if (currentTileIndex === -1) return;
     const tileType = getCurrentTileType(tab);
@@ -944,33 +761,7 @@ void appendAdminScripts(String& html) {
     document.getElementById(prefix + '_tile_title').value = '';
     document.getElementById(prefix + '_tile_icon').value = '';
     document.getElementById(prefix + '_tile_color').value = '#2A2A2A';
-    ['_sensor_entity','_sensor_unit','_sensor_decimals','_sensor_value_font','_scene_alias','_key_macro','_switch_entity','_switch_style','_image_path'].forEach(suf => {
-      const el = document.getElementById(prefix + suf);
-      if (el) el.value = (suf === '_switch_style' || suf === '_sensor_value_font') ? '0' : '';
-    });
-    const displayModeEl = document.getElementById(prefix + '_sensor_display_mode');
-    if (displayModeEl) displayModeEl.value = '0';
-    const gaugeMinEl = document.getElementById(prefix + '_sensor_gauge_min');
-    if (gaugeMinEl) gaugeMinEl.value = '';
-    const gaugeMaxEl = document.getElementById(prefix + '_sensor_gauge_max');
-    if (gaugeMaxEl) gaugeMaxEl.value = '';
-    const gaugeArcEl = document.getElementById(prefix + '_sensor_gauge_arc');
-    if (gaugeArcEl) gaugeArcEl.value = '';
-    const gaugeSizeEl = document.getElementById(prefix + '_sensor_gauge_size');
-    if (gaugeSizeEl) gaugeSizeEl.value = '';
-    const gaugeYOffsetEl = document.getElementById(prefix + '_sensor_gauge_y_offset');
-    if (gaugeYOffsetEl) gaugeYOffsetEl.value = '';
-    const valueYOffsetEl = document.getElementById(prefix + '_sensor_value_y_offset');
-    if (valueYOffsetEl) valueYOffsetEl.value = '';
-    const graphHeightEl = document.getElementById(prefix + '_sensor_graph_height');
-    if (graphHeightEl) graphHeightEl.value = '';
-    const intervalEl = document.getElementById(prefix + '_image_slideshow_sec');
-    if (intervalEl) intervalEl.value = '10';
-    const urlEl = document.getElementById(prefix + '_image_url');
-    if (urlEl) urlEl.value = '';
-    updateImageUrlVisibility(tab, '', '');
-    applyImageUiState(tab, '');
-    applyClockFlagsToInputs(prefix, 1);
+    resetAllTypeFields(tab);
     syncGaugeUi(tab);
     updateTileType(tab);
     updateTilePreview(tab);
@@ -1002,72 +793,32 @@ void appendAdminScripts(String& html) {
     formData.append('icon_name', document.getElementById(prefix + '_tile_icon').value);
     formData.append('bg_color', hexToRgb(document.getElementById(prefix + '_tile_color').value));
     const typeValue = document.getElementById(prefix + '_tile_type').value;
-      if (typeValue === '1') {
-        formData.append('sensor_entity', document.getElementById(prefix + '_sensor_entity').value);
-        formData.append('sensor_unit', document.getElementById(prefix + '_sensor_unit').value);
-        formData.append('sensor_decimals', document.getElementById(prefix + '_sensor_decimals').value);
-        formData.append('sensor_value_font', document.getElementById(prefix + '_sensor_value_font').value);
-        formData.append('sensor_display_mode', document.getElementById(prefix + '_sensor_display_mode')?.value || '0');
-        formData.append('sensor_gauge_min', document.getElementById(prefix + '_sensor_gauge_min')?.value || '');
-        formData.append('sensor_gauge_max', document.getElementById(prefix + '_sensor_gauge_max')?.value || '');
-        formData.append('sensor_gauge_arc', document.getElementById(prefix + '_sensor_gauge_arc')?.value || '');
-        formData.append('sensor_gauge_size', document.getElementById(prefix + '_sensor_gauge_size')?.value || '');
-        formData.append('sensor_gauge_y_offset', document.getElementById(prefix + '_sensor_gauge_y_offset')?.value || '');
-        formData.append('sensor_value_y_offset', document.getElementById(prefix + '_sensor_value_y_offset')?.value || '');
-        formData.append('sensor_graph_height', document.getElementById(prefix + '_sensor_graph_height')?.value || '');
-      } else if (typeValue === '2') {
-      formData.append('scene_alias', document.getElementById(prefix + '_scene_alias').value);
-    } else if (typeValue === '3') {
-      formData.append('key_macro', document.getElementById(prefix + '_key_macro').value);
-      } else if (typeValue === '4') {
-        const navTargetElement = document.getElementById(prefix + '_navigate_target');
-        const navTargetValue = navTargetElement ? navTargetElement.value : '0';
-        formData.append('navigate_target', navTargetValue);
-        } else if (typeValue === '5') {
-        formData.append('switch_entity', document.getElementById(prefix + '_switch_entity').value);
-        const styleEl = document.getElementById(prefix + '_switch_style');
-        formData.append('switch_style', styleEl ? styleEl.value : '0');
-      } else if (typeValue === '6') {
-        const imgSelect = document.getElementById(prefix + '_image_select');
-        const imgUrl = document.getElementById(prefix + '_image_url');
-        const imgPath = document.getElementById(prefix + '_image_path');
-        let finalPath = imgPath ? imgPath.value : '';
-        if (imgSelect && imgSelect.value === imageUrlToken && imgUrl && imgUrl.value.trim().length > 0) {
-          finalPath = imgUrl.value.trim();
-          if (imgPath) imgPath.value = finalPath;
-        }
-        formData.append('image_path', finalPath);
-        formData.append('image_slideshow_sec', document.getElementById(prefix + '_image_slideshow_sec').value);
-      } else if (typeValue === '9') {
-        ensureClockSelection(prefix);
-        const flags = getClockFlagsFromInputs(prefix);
-        formData.append('clock_show_time', (flags & 1) ? '1' : '0');
-        formData.append('clock_show_date', (flags & 2) ? '1' : '0');
-      }
-      fetch('/api/tiles', { method:'POST', body:formData })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            if (!silent) showNotification('Kachel gespeichert & Display aktualisiert!');
-            clearDraft(tab, currentTileIndex);
-            loadSensorValues();
-            if (typeValue === '4') {
-              const navTarget = document.getElementById(prefix + '_navigate_target')?.value || '';
-              if (String(navTarget) === '0') {
-                setTimeout(() => location.reload(), 400);
-              } else {
-                const titleVal = document.getElementById(prefix + '_tile_title')?.value || '';
-                const iconVal = document.getElementById(prefix + '_tile_icon')?.value || '';
-                updateFolderTabUi(navTarget, titleVal, iconVal);
-              }
-            }
-            if (previousType === 4 && typeValue === '0') {
+    const meta = getTileTypeMeta(typeValue);
+    callTypeHandler(meta, 'save', prefix, formData);
+    fetch('/api/tiles', { method:'POST', body:formData })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          if (!silent) showNotification('Kachel gespeichert & Display aktualisiert!');
+          clearDraft(tab, currentTileIndex);
+          loadSensorValues();
+          if (typeValue === '4') {
+            const navTarget = document.getElementById(prefix + '_navigate_target')?.value || '';
+            if (String(navTarget) === '0') {
               setTimeout(() => location.reload(), 400);
+            } else {
+              const titleVal = document.getElementById(prefix + '_tile_title')?.value || '';
+              const iconVal = document.getElementById(prefix + '_tile_icon')?.value || '';
+              updateFolderTabUi(navTarget, titleVal, iconVal);
             }
-          } else {
-            showNotification('Fehler: ' + (data.error || 'Unbekannt'), false);
           }
-        })
+          if (previousType === 4 && typeValue === '0') {
+            setTimeout(() => location.reload(), 400);
+          }
+        } else {
+          showNotification('Fehler: ' + (data.error || 'Unbekannt'), false);
+        }
+      })
       .catch(() => showNotification('Netzwerkfehler beim Speichern', false));
   }
 
@@ -1285,60 +1036,55 @@ void appendAdminScripts(String& html) {
     const el = document.getElementById(tab + '-tile-' + index);
     if (!el) return;
     el.dataset.index = index.toString();
+    const typeValue = String(tile?.type ?? '0');
+    const meta = getTileTypeMeta(typeValue);
     let cls = ['tile'];
-    if (tile.type === 1) cls.push('sensor');
-    else if (tile.type === 2) cls.push('scene');
-    else if (tile.type === 3) cls.push('key');
-    else if (tile.type === 4 || tile.type === 7 || tile.type === 8) cls.push('navigate');
-    else if (tile.type === 5) {
-      cls.push('switch');
-      if (tile.switch_style === 1) cls.push('switch-toggle');
-    } else if (tile.type === 6) cls.push('image');
-    else if (tile.type === 9) cls.push('clock');
-    else cls.push('empty');
+    if (meta.css) cls.push(meta.css);
+    if (typeValue === '5' && tile.switch_style === 1) cls.push('switch-toggle');
+    if (typeValue === '0' && (!meta.css || meta.css !== 'empty')) cls.push('empty');
     el.className = cls.join(' ');
-    if (tile.type === 0) el.style.background = 'transparent';
-    else if (tile.type === 1) el.style.background = tile.bg_color ? ('#' + ('000000' + tile.bg_color.toString(16)).slice(-6)) : '#2A2A2A';
-    else el.style.background = tile.bg_color ? ('#' + ('000000' + tile.bg_color.toString(16)).slice(-6)) : '#353535';
-      const sensorValueClass = getSensorValueFontClass(tile.sensor_value_font);
-      if (tile.type === 0) { el.innerHTML = ''; }
-      else {
-      // Icon (optional) - normalize icon name
+    el.dataset.type = typeValue;
+    if (typeValue === '0') el.style.background = 'transparent';
+    else {
+      const bg = tile.bg_color ? rgbToHex(tile.bg_color) : (meta.defaultBg || '#353535');
+      el.style.background = bg;
+    }
+    const sensorValueClass = getSensorValueFontClass(tile.sensor_value_font);
+    if (typeValue === '0') { el.innerHTML = ''; }
+    else {
       let iconName = (tile.icon_name || '').trim().toLowerCase();
       if (iconName.startsWith('mdi:')) iconName = iconName.substring(4);
       else if (iconName.startsWith('mdi-')) iconName = iconName.substring(4);
 
       let html = '';
 
-      // Icon (if exists)
       if (iconName) {
         html += '<i class="mdi mdi-' + iconName + ' tile-icon"></i>';
       }
 
-      // Title (nur wenn vorhanden)
       if (tile.title && tile.title.length) {
         html += '<div class="tile-title" id="' + tab + '-tile-' + index + '-title">' + tile.title + '</div>';
       }
 
-      // Sensor value
-      if (tile.type === 1) {
+      const previewKind = meta.preview || 'none';
+      if (previewKind === 'sensor') {
         let value = '--';
         if (tile.sensor_entity) value = formatSensorValue(sensorValues[tile.sensor_entity] ?? '--', tile.sensor_decimals);
         const unit = tile.sensor_unit || '';
         html += '<div class="tile-value ' + sensorValueClass + '" id="' + tab + '-tile-' + index + '-value">' + value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '') + '</div>';
       }
-      if (tile.type === 9) {
+      if (previewKind === 'clock') {
         const flags = normalizeClockFlags(tile.sensor_decimals);
         if (flags & 1) html += '<div class="tile-clock-time">' + getClockPreviewTime() + '</div>';
         if (flags & 2) html += '<div class="tile-clock-date">' + getClockPreviewDate() + '</div>';
       }
-      if (tile.type === 5 && tile.switch_style === 1) {
+      if (previewKind === 'switch' && tile.switch_style === 1) {
         html += '<div class="tile-switch" id="' + tab + '-tile-' + index + '-switch"><div class="tile-switch-knob"></div></div>';
       }
       el.innerHTML = html;
     }
     if (currentTileTab === tab && currentTileIndex === index) el.classList.add('active');
-    if (tile.type === 5 && tile.sensor_entity) {
+    if (typeValue === '5' && tile.sensor_entity) {
       const state = parseSwitchPayload(sensorValues[tile.sensor_entity] ?? '');
       applySwitchPreviewState(el, state);
     }
@@ -1498,13 +1244,7 @@ void appendAdminScripts(String& html) {
   </script>
 )html";
 
-  append_sensor_scripts(html);
-  append_scene_scripts(html);
-  append_key_scripts(html);
-  append_switch_scripts(html);
-  append_navigate_scripts(html);
-  append_image_scripts(html);
-  append_clock_scripts(html);
+  append_tile_type_scripts(html);
 }
 
 

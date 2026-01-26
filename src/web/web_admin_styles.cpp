@@ -1,11 +1,5 @@
 #include "src/web/web_admin_styles.h"
-#include "src/types/image/web_styles.h"
-#include "src/types/key/web_styles.h"
-#include "src/types/navigate/web_styles.h"
-#include "src/types/scene/web_styles.h"
-#include "src/types/sensor/web_styles.h"
-#include "src/types/switch/web_styles.h"
-#include "src/types/clock/web_styles.h"
+#include "src/types/types_registry.h"
 
 void appendAdminStyles(String& html) {
   html += R"html(
@@ -208,11 +202,5 @@ void appendAdminStyles(String& html) {
   </style>
 )html";
 
-  append_sensor_styles(html);
-  append_scene_styles(html);
-  append_key_styles(html);
-  append_navigate_styles(html);
-  append_switch_styles(html);
-  append_image_styles(html);
-  append_clock_styles(html);
+  append_tile_type_styles(html);
 }

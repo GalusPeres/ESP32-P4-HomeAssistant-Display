@@ -11,13 +11,8 @@
 #include "src/web/web_admin_scripts.h"
 #include "src/web/web_admin_styles.h"
 #include "src/tiles/tile_config.h"
-#include "src/types/sensor/web_html.h"
-#include "src/types/scene/web_html.h"
-#include "src/types/key/web_html.h"
-#include "src/types/navigate/web_html.h"
-#include "src/types/switch/web_html.h"
-#include "src/types/image/web_html.h"
-#include "src/types/clock/web_html.h"
+#include "src/types/types_registry.h"
+#include <cstring>
 
 // Helper function to generate tile tab HTML (unified for all folders)
 static void appendTileTabHTML(
@@ -60,6 +55,8 @@ static void appendTileTabHTML(
     const Tile& tile = grid.tiles[i];
     String cssClass = "tile";
     String tileStyle = "";
+    const TileTypeDescriptor* type_desc = get_tile_type_descriptor(tile.type);
+    const char* type_css = type_desc ? type_desc->css_class : nullptr;
     uint8_t col = (tile.col < GRID_COLS) ? tile.col : 0;
     uint8_t row = (tile.row < GRID_ROWS) ? tile.row : 0;
     uint8_t span_w = (tile.span_w < 1) ? 1 : tile.span_w;
@@ -67,78 +64,21 @@ static void appendTileTabHTML(
     if (span_w > GRID_COLS - col) span_w = GRID_COLS - col;
     if (span_h > GRID_ROWS - row) span_h = GRID_ROWS - row;
 
-    if (tile.type == TILE_EMPTY) {
+    if (type_css && type_css[0]) {
+      cssClass += " ";
+      cssClass += type_css;
+    } else if (tile.type == TILE_EMPTY) {
       cssClass += " empty";
-    } else if (tile.type == TILE_SENSOR) {
-      cssClass += " sensor";
-      if (tile.bg_color != 0) {
-        char colorHex[8];
-        snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
-        tileStyle = "background:";
-        tileStyle += colorHex;
-      } else {
-        tileStyle = "background:#2A2A2A";
-      }
-    } else if (tile.type == TILE_SCENE) {
-      cssClass += " scene";
-      if (tile.bg_color != 0) {
-        char colorHex[8];
-        snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
-        tileStyle = "background:";
-        tileStyle += colorHex;
-      } else {
-        tileStyle = "background:#353535";
-      }
-    } else if (tile.type == TILE_KEY) {
-      cssClass += " key";
-      if (tile.bg_color != 0) {
-        char colorHex[8];
-        snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
-        tileStyle = "background:";
-        tileStyle += colorHex;
-      } else {
-        tileStyle = "background:#353535";
-      }
-    } else if (tile.type == TILE_FOLDER || tile.type == TILE_SETTINGS || tile.type == TILE_BACK) {
-      cssClass += " navigate";
-      if (tile.bg_color != 0) {
-        char colorHex[8];
-        snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
-        tileStyle = "background:";
-        tileStyle += colorHex;
-      } else {
-        tileStyle = "background:#353535";
-      }
-    } else if (tile.type == TILE_SWITCH) {
-      cssClass += " switch";
-      if (tile.bg_color != 0) {
-        char colorHex[8];
-        snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
-        tileStyle = "background:";
-        tileStyle += colorHex;
-      } else {
-        tileStyle = "background:#353535";
-      }
-    } else if (tile.type == TILE_IMAGE) {
-      cssClass += " image";
-      if (tile.bg_color != 0) {
-        char colorHex[8];
-        snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
-        tileStyle = "background:";
-        tileStyle += colorHex;
-      } else {
-        tileStyle = "background:#353535";
-      }
-    } else if (tile.type == TILE_CLOCK) {
-      cssClass += " clock";
-      if (tile.bg_color != 0) {
-        char colorHex[8];
-        snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)tile.bg_color);
-        tileStyle = "background:";
-        tileStyle += colorHex;
-      } else {
-        tileStyle = "background:#353535";
-      }
+    }
+
+    if (tile.type != TILE_EMPTY) {
+      uint32_t bg_color = tile.bg_color;
+      if (bg_color == 0 && type_desc) bg_color = type_desc->default_bg_color;
+      if (bg_color == 0) bg_color = 0x353535;
+      char colorHex[8];
+      snprintf(colorHex, sizeof(colorHex), "#%06X", (unsigned int)bg_color);
+      tileStyle = "background:";
+      tileStyle += colorHex;
     }
 
     tileStyle += ";grid-column:";
@@ -163,6 +103,8 @@ static void appendTileTabHTML(
     html += String(static_cast<unsigned>(span_w));
     html += "\" data-span-h=\"";
     html += String(static_cast<unsigned>(span_h));
+    html += "\" data-type=\"";
+    html += String(static_cast<unsigned>(tile.type));
     html += "\" draggable=\"true\" id=\"";
     html += tab_id;
     html += "-tile-";
@@ -201,7 +143,8 @@ static void appendTileTabHTML(
       }
     }
 
-    if (tile.type == TILE_SENSOR) {
+    const char* preview_kind = get_tile_type_preview_kind(tile.type);
+    if (preview_kind && strcmp(preview_kind, "sensor") == 0) {
       html += "<div class=\"tile-value\" id=\"";
       html += tab_id;
       html += "-tile-";
@@ -226,7 +169,7 @@ static void appendTileTabHTML(
       html += "</div>";
     }
 
-    if (tile.type == TILE_CLOCK) {
+    if (preview_kind && strcmp(preview_kind, "clock") == 0) {
       uint8_t flags = tile.sensor_decimals;
       if (flags == 0xFF) flags = 1;
       flags &= 0x03;
@@ -259,16 +202,9 @@ static void appendTileTabHTML(
   html += R"html(_tile_type" onchange="updateTileType(')html";
   html += tab_id;
   html += R"html(')">
-              <option value="0">Leer</option>
-              <option value="1">Sensor</option>
-              <option value="2">Szene</option>
-              <option value="3">Key</option>
-              <option value="4">Ordner</option>
-              <option value="5">Schalter</option>
-              <option value="6">Bild</option>
-              <option value="9">Uhr</option>
-              <option value="7">Settings</option>
-              <option value="8">Zurueck</option>
+            )html";
+  append_tile_type_select_options(html);
+  html += R"html(
             </select>
 
             <label>Titel</label>
@@ -318,13 +254,13 @@ static void appendTileTabHTML(
 
 )html";
 
-            append_sensor_fields_html(html, tab_id, sensorOptions);
-            append_scene_fields_html(html, tab_id, sceneOptions);
-            append_key_fields_html(html, tab_id);
-            append_navigate_fields_html(html, tab_id, navigateOptionsHtml);
-            append_switch_fields_html(html, tab_id, switchOptions);
-            append_image_fields_html(html, tab_id);
-            append_clock_fields_html(html, tab_id);
+            TileTypeWebContext type_ctx;
+            type_ctx.tab_id = &tab_id;
+            type_ctx.sensor_options = &sensorOptions;
+            type_ctx.scene_options = &sceneOptions;
+            type_ctx.switch_options = &switchOptions;
+            type_ctx.navigate_options_html = &navigateOptionsHtml;
+            append_tile_type_fields_html(html, type_ctx);
 
   html += R"html(
 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#64748b;gap:10px;">

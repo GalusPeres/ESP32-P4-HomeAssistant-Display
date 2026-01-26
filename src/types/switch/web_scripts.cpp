@@ -160,6 +160,32 @@ void append_switch_scripts(String& html) {
       })
       .catch(err => console.error('Fehler beim Laden des Switch-Status:', err));
   }
+
+  function loadSwitchFields(tab, data) {
+    const prefix = tab;
+    const entityEl = document.getElementById(prefix + '_switch_entity');
+    if (entityEl) entityEl.value = data.sensor_entity || data.switch_entity || '';
+    const styleEl = document.getElementById(prefix + '_switch_style');
+    if (styleEl) {
+      styleEl.value = (data.switch_style !== undefined && data.switch_style !== null) ? String(data.switch_style) : '0';
+    }
+    maybeFillTitleFromSwitch(tab);
+  }
+
+  function saveSwitchFields(tab, formData) {
+    const prefix = tab;
+    formData.append('switch_entity', document.getElementById(prefix + '_switch_entity')?.value || '');
+    const styleEl = document.getElementById(prefix + '_switch_style');
+    formData.append('switch_style', styleEl ? styleEl.value : '0');
+  }
+
+  function resetSwitchFields(tab) {
+    const prefix = tab;
+    const entityEl = document.getElementById(prefix + '_switch_entity');
+    if (entityEl) entityEl.value = '';
+    const styleEl = document.getElementById(prefix + '_switch_style');
+    if (styleEl) styleEl.value = '0';
+  }
   </script>
 )html";
 }

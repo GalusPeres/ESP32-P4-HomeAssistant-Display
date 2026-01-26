@@ -9,13 +9,7 @@
 #include "src/ui/tab_tiles_unified.h"
 #include "src/ui/ui_manager.h"
 #include "src/web/web_admin_tile_helpers.h"
-#include "src/types/sensor/web_handler.h"
-#include "src/types/scene/web_handler.h"
-#include "src/types/key/web_handler.h"
-#include "src/types/navigate/web_handler.h"
-#include "src/types/switch/web_handler.h"
-#include "src/types/image/web_handler.h"
-#include "src/types/clock/web_handler.h"
+#include "src/types/types_registry.h"
 #include <algorithm>
 #include <vector>
 #include <SD.h>
@@ -613,45 +607,22 @@ void WebAdminServer::handleSaveTiles() {
   tile.span_h = span_h;
 
   // Type-specific fields
-  if (type == TILE_SENSOR) {
-    apply_sensor_fields_from_request(server, tile);
-  } else if (type == TILE_SCENE) {
-    apply_scene_fields_from_request(server, tile);
-  } else if (type == TILE_KEY) {
-    apply_key_fields_from_request(server, tile);
-  } else if (type == TILE_FOLDER) {
-    String error_message;
-    if (!apply_navigate_fields_from_request(server, tile, folder_id, tileConfig, error_message)) {
+  String error_message;
+  TileTypeApplyContext apply_ctx;
+  apply_ctx.folder_id = folder_id;
+  apply_ctx.tile_config = &tileConfig;
+  apply_ctx.error_message = &error_message;
+  const TileTypeDescriptor* desc = get_tile_type_descriptor(tile.type);
+  if (desc && desc->apply) {
+    if (!desc->apply(server, tile, apply_ctx)) {
       tile = previous_tile;
-      String err = error_message.length() ? error_message : "Folder create failed";
+      String err = error_message;
+      if (!err.length()) {
+        err = (type == TILE_FOLDER) ? "Folder create failed" : "Tile apply failed";
+      }
       server.send(500, "application/json", String("{\"success\":false,\"error\":\"") + err + "\"}");
       return;
     }
-  } else if (type == TILE_SETTINGS) {
-    if (!tile.title.length()) tile.title = "Settings";
-    if (!tile.icon_name.length()) tile.icon_name = "cog";
-    tile.sensor_decimals = 0xFF;
-    tile.key_code = 0;
-    tile.key_modifier = 0;
-    tile.sensor_value_font = 0;
-    tile.sensor_display_mode = 0;
-    tile.sensor_gauge_min = 0;
-    tile.sensor_gauge_max = 100;
-  } else if (type == TILE_BACK) {
-    if (!tile.icon_name.length()) tile.icon_name = "arrow-left";
-    tile.sensor_decimals = 0xFF;
-    tile.key_code = 0;
-    tile.key_modifier = 0;
-    tile.sensor_value_font = 0;
-    tile.sensor_display_mode = 0;
-    tile.sensor_gauge_min = 0;
-    tile.sensor_gauge_max = 100;
-  } else if (type == TILE_SWITCH) {
-    apply_switch_fields_from_request(server, tile);
-  } else if (type == TILE_IMAGE) {
-    apply_image_fields_from_request(server, tile);
-  } else if (type == TILE_CLOCK) {
-    apply_clock_fields_from_request(server, tile);
   }
 
   if (deleting_folder) {

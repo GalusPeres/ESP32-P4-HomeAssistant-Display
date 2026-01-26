@@ -91,6 +91,79 @@ void append_sensor_scripts(String& html) {
       else graphWrap.classList.add('hidden');
     }
   }
+
+  function loadSensorFields(tab, data) {
+    const prefix = tab;
+    const entityEl = document.getElementById(prefix + '_sensor_entity');
+    if (entityEl) entityEl.value = data.sensor_entity || '';
+    const unitEl = document.getElementById(prefix + '_sensor_unit');
+    if (unitEl) unitEl.value = data.sensor_unit || '';
+    const decEl = document.getElementById(prefix + '_sensor_decimals');
+    if (decEl) decEl.value = (data.sensor_decimals !== undefined && data.sensor_decimals >= 0) ? data.sensor_decimals : '';
+    const fontEl = document.getElementById(prefix + '_sensor_value_font');
+    if (fontEl) fontEl.value = (data.sensor_value_font !== undefined) ? String(data.sensor_value_font) : '0';
+    const displayModeEl = document.getElementById(prefix + '_sensor_display_mode');
+    if (displayModeEl) displayModeEl.value = (data.sensor_display_mode !== undefined) ? String(data.sensor_display_mode) : '0';
+    const gaugeMinEl = document.getElementById(prefix + '_sensor_gauge_min');
+    if (gaugeMinEl) gaugeMinEl.value = (data.sensor_gauge_min !== undefined && data.sensor_gauge_min !== null) ? String(data.sensor_gauge_min) : '';
+    const gaugeMaxEl = document.getElementById(prefix + '_sensor_gauge_max');
+    if (gaugeMaxEl) gaugeMaxEl.value = (data.sensor_gauge_max !== undefined && data.sensor_gauge_max !== null) ? String(data.sensor_gauge_max) : '';
+    const gaugeArcEl = document.getElementById(prefix + '_sensor_gauge_arc');
+    if (gaugeArcEl) gaugeArcEl.value = (data.sensor_gauge_arc !== undefined && data.sensor_gauge_arc !== null) ? String(data.sensor_gauge_arc) : '';
+    const gaugeSizeEl = document.getElementById(prefix + '_sensor_gauge_size');
+    if (gaugeSizeEl) gaugeSizeEl.value = (data.sensor_gauge_size !== undefined && data.sensor_gauge_size !== null) ? String(data.sensor_gauge_size) : '';
+    const gaugeYOffsetEl = document.getElementById(prefix + '_sensor_gauge_y_offset');
+    if (gaugeYOffsetEl) gaugeYOffsetEl.value = (data.sensor_gauge_y_offset !== undefined && data.sensor_gauge_y_offset !== null) ? String(data.sensor_gauge_y_offset) : '';
+    const valueYOffsetEl = document.getElementById(prefix + '_sensor_value_y_offset');
+    if (valueYOffsetEl) valueYOffsetEl.value = (data.sensor_value_y_offset !== undefined && data.sensor_value_y_offset !== null) ? String(data.sensor_value_y_offset) : '';
+    const graphHeightEl = document.getElementById(prefix + '_sensor_graph_height');
+    if (graphHeightEl) graphHeightEl.value = (data.sensor_graph_height !== undefined && data.sensor_graph_height !== null) ? String(data.sensor_graph_height) : '';
+    syncGaugeUi(tab);
+  }
+
+  function saveSensorFields(tab, formData) {
+    const prefix = tab;
+    formData.append('sensor_entity', document.getElementById(prefix + '_sensor_entity')?.value || '');
+    formData.append('sensor_unit', document.getElementById(prefix + '_sensor_unit')?.value || '');
+    formData.append('sensor_decimals', document.getElementById(prefix + '_sensor_decimals')?.value || '');
+    formData.append('sensor_value_font', document.getElementById(prefix + '_sensor_value_font')?.value || '0');
+    formData.append('sensor_display_mode', document.getElementById(prefix + '_sensor_display_mode')?.value || '0');
+    formData.append('sensor_gauge_min', document.getElementById(prefix + '_sensor_gauge_min')?.value || '');
+    formData.append('sensor_gauge_max', document.getElementById(prefix + '_sensor_gauge_max')?.value || '');
+    formData.append('sensor_gauge_arc', document.getElementById(prefix + '_sensor_gauge_arc')?.value || '');
+    formData.append('sensor_gauge_size', document.getElementById(prefix + '_sensor_gauge_size')?.value || '');
+    formData.append('sensor_gauge_y_offset', document.getElementById(prefix + '_sensor_gauge_y_offset')?.value || '');
+    formData.append('sensor_value_y_offset', document.getElementById(prefix + '_sensor_value_y_offset')?.value || '');
+    formData.append('sensor_graph_height', document.getElementById(prefix + '_sensor_graph_height')?.value || '');
+  }
+
+  function resetSensorFields(tab) {
+    const prefix = tab;
+    const entityEl = document.getElementById(prefix + '_sensor_entity');
+    if (entityEl) entityEl.value = '';
+    const unitEl = document.getElementById(prefix + '_sensor_unit');
+    if (unitEl) unitEl.value = '';
+    const decEl = document.getElementById(prefix + '_sensor_decimals');
+    if (decEl) decEl.value = '';
+    const fontEl = document.getElementById(prefix + '_sensor_value_font');
+    if (fontEl) fontEl.value = '0';
+    const displayModeEl = document.getElementById(prefix + '_sensor_display_mode');
+    if (displayModeEl) displayModeEl.value = '0';
+    const gaugeMinEl = document.getElementById(prefix + '_sensor_gauge_min');
+    if (gaugeMinEl) gaugeMinEl.value = '';
+    const gaugeMaxEl = document.getElementById(prefix + '_sensor_gauge_max');
+    if (gaugeMaxEl) gaugeMaxEl.value = '';
+    const gaugeArcEl = document.getElementById(prefix + '_sensor_gauge_arc');
+    if (gaugeArcEl) gaugeArcEl.value = '';
+    const gaugeSizeEl = document.getElementById(prefix + '_sensor_gauge_size');
+    if (gaugeSizeEl) gaugeSizeEl.value = '';
+    const gaugeYOffsetEl = document.getElementById(prefix + '_sensor_gauge_y_offset');
+    if (gaugeYOffsetEl) gaugeYOffsetEl.value = '';
+    const valueYOffsetEl = document.getElementById(prefix + '_sensor_value_y_offset');
+    if (valueYOffsetEl) valueYOffsetEl.value = '';
+    const graphHeightEl = document.getElementById(prefix + '_sensor_graph_height');
+    if (graphHeightEl) graphHeightEl.value = '';
+  }
   </script>
 )html";
 }

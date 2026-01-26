@@ -158,6 +158,49 @@ void append_image_scripts(String& html) {
       }
     }
   }
+
+  function onImageTypeSelected(tab) {
+    const prefix = tab;
+    const path = document.getElementById(prefix + '_image_path')?.value || '';
+    refreshImageSelect(tab, false);
+    applyImageUiState(tab, path);
+  }
+
+  function loadImageFields(tab, data) {
+    const prefix = tab;
+    const pathEl = document.getElementById(prefix + '_image_path');
+    if (pathEl) pathEl.value = data.image_path || '';
+    const intervalEl = document.getElementById(prefix + '_image_slideshow_sec');
+    if (intervalEl) intervalEl.value = data.image_slideshow_sec || '10';
+    applyImageUiState(tab, data.image_path || '');
+    refreshImageSelect(tab, false);
+  }
+
+  function saveImageFields(tab, formData) {
+    const prefix = tab;
+    const imgSelect = document.getElementById(prefix + '_image_select');
+    const imgUrl = document.getElementById(prefix + '_image_url');
+    const imgPath = document.getElementById(prefix + '_image_path');
+    let finalPath = imgPath ? imgPath.value : '';
+    if (imgSelect && imgSelect.value === imageUrlToken && imgUrl && imgUrl.value.trim().length > 0) {
+      finalPath = imgUrl.value.trim();
+      if (imgPath) imgPath.value = finalPath;
+    }
+    formData.append('image_path', finalPath);
+    formData.append('image_slideshow_sec', document.getElementById(prefix + '_image_slideshow_sec')?.value || '10');
+  }
+
+  function resetImageFields(tab) {
+    const prefix = tab;
+    const pathEl = document.getElementById(prefix + '_image_path');
+    if (pathEl) pathEl.value = '';
+    const intervalEl = document.getElementById(prefix + '_image_slideshow_sec');
+    if (intervalEl) intervalEl.value = '10';
+    const urlEl = document.getElementById(prefix + '_image_url');
+    if (urlEl) urlEl.value = '';
+    updateImageUrlVisibility(tab, '', '');
+    applyImageUiState(tab, '');
+  }
   </script>
 )html";
 }

@@ -1,0 +1,65 @@
+#pragma once
+
+#include <Arduino.h>
+#include <vector>
+#include "src/tiles/tile_renderer.h"
+#include "src/web/web_admin_utils.h"
+
+class WebServer;
+class TileConfig;
+
+struct TileTypeWebContext {
+  const String* tab_id = nullptr;
+  const std::vector<String>* sensor_options = nullptr;
+  const std::vector<SceneOption>* scene_options = nullptr;
+  const std::vector<String>* switch_options = nullptr;
+  const String* navigate_options_html = nullptr;
+};
+
+struct TileTypeApplyContext {
+  uint16_t folder_id = 0;
+  TileConfig* tile_config = nullptr;
+  String* error_message = nullptr;
+};
+
+using TileRenderFn = lv_obj_t* (*)(lv_obj_t* parent,
+                                   int col,
+                                   int row,
+                                   const Tile& tile,
+                                   uint8_t index,
+                                   GridType grid_type,
+                                   scene_publish_cb_t scene_cb);
+
+using TileApplyFn = bool (*)(WebServer& server, Tile& tile, const TileTypeApplyContext& ctx);
+using TileAppendFieldsFn = void (*)(String& html, const TileTypeWebContext& ctx);
+using TileAppendFn = void (*)(String& html);
+
+struct TileTypeDescriptor {
+  TileType type;
+  const char* label;
+  const char* css_class;
+  const char* fields_suffix;
+  const char* preview_kind;
+  const char* js_on_select;
+  const char* js_load;
+  const char* js_save;
+  const char* js_reset;
+  uint32_t default_bg_color;
+  bool locked;
+  TileRenderFn render;
+  TileApplyFn apply;
+  TileAppendFieldsFn append_fields;
+  TileAppendFn append_styles;
+  TileAppendFn append_scripts;
+};
+
+const TileTypeDescriptor* get_tile_type_descriptor(TileType type);
+uint32_t get_tile_type_default_bg(TileType type);
+const char* get_tile_type_css_class(TileType type);
+const char* get_tile_type_preview_kind(TileType type);
+
+void append_tile_type_fields_html(String& html, const TileTypeWebContext& ctx);
+void append_tile_type_styles(String& html);
+void append_tile_type_scripts(String& html);
+void append_tile_type_select_options(String& html);
+void append_tile_type_registry_js(String& html);

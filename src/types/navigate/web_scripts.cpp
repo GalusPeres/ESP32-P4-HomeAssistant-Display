@@ -53,6 +53,25 @@ void append_navigate_scripts(String& html) {
       if (opt) opt.textContent = label;
     });
   }
+
+  function loadNavigateFields(tab, data) {
+    const prefix = tab;
+    const navEl = document.getElementById(prefix + '_navigate_target');
+    if (navEl) navEl.value = (data.navigate_target !== undefined && data.navigate_target !== null) ? String(data.navigate_target) : '0';
+  }
+
+  function saveNavigateFields(tab, formData) {
+    const prefix = tab;
+    const navEl = document.getElementById(prefix + '_navigate_target');
+    const navValue = navEl ? navEl.value : '0';
+    formData.append('navigate_target', navValue);
+  }
+
+  function resetNavigateFields(tab) {
+    const prefix = tab;
+    const navEl = document.getElementById(prefix + '_navigate_target');
+    if (navEl) navEl.value = '0';
+  }
   </script>
 )html";
 }
