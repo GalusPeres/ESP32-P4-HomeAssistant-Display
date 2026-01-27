@@ -353,7 +353,11 @@ void build_tiles_tab(lv_obj_t *parent, GridType grid_type, scene_publish_cb_t sc
       reset_cache_entry(g_folder_cache[i]);
     }
     g_active_cache = nullptr;
-    tiles_switch_to_folder(tileConfig.getActiveFolderId());
+    g_tiles_grids[idx] = create_tiles_grid(parent);
+    g_tiles_loaded[idx] = (g_tiles_grids[idx] != nullptr);
+    if (g_tiles_grids[idx]) {
+      tiles_reload_layout(grid_type);
+    }
   } else {
     g_tiles_grids[idx] = create_tiles_grid(parent);
     g_tiles_loaded[idx] = (g_tiles_grids[idx] != nullptr);
@@ -534,46 +538,16 @@ void tiles_switch_to_folder(uint16_t folder_id) {
   if (!g_tiles_roots[idx]) return;
   if (!tileConfig.folderExists(folder_id)) return;
 
-  FolderCacheEntry* target = find_folder_cache(folder_id);
-  if (!target) {
-    target = allocate_folder_cache(folder_id);
+  if (!tileConfig.setActiveFolder(folder_id)) return;
+
+  if (!g_tiles_grids[idx]) {
+    g_tiles_grids[idx] = create_tiles_grid(g_tiles_roots[idx]);
+    g_tiles_loaded[idx] = (g_tiles_grids[idx] != nullptr);
   }
-  if (!target) return;
+  if (!g_tiles_grids[idx]) return;
 
-  if (!target->loaded || target->dirty) {
-    build_folder_cache_entry(*target, GridType::TAB0);
-  }
-  if (!target->grid) return;
-
-  if (target->grid_loaded) {
-    tileConfig.setActiveFolderCached(folder_id, target->grid_config);
-  }
-
-  if (g_active_cache && g_active_cache != target) {
-    snapshot_active_cache();
-    if (g_active_cache->grid) {
-      lv_obj_add_flag(g_active_cache->grid, LV_OBJ_FLAG_HIDDEN);
-    }
-  }
-
-  if (target->widgets_valid) {
-    tile_renderer_restore_tab0(&target->widgets);
-  }
-
-  g_tiles_grids[idx] = target->grid;
-  g_tiles_loaded[idx] = true;
-  g_active_cache = target;
-  target->last_used_ms = millis();
-
-  lv_obj_clear_flag(target->grid, LV_OBJ_FLAG_HIDDEN);
-  apply_cached_states(GridType::TAB0, tileConfig.getActiveGrid());
-
-  lv_display_t* disp = lv_obj_get_display(target->grid);
-  if (disp) {
-    lv_obj_invalidate(target->grid);
-    lv_refr_now(disp);
-  }
-  schedule_preview_load(GridType::TAB0);
+  lv_obj_clear_flag(g_tiles_grids[idx], LV_OBJ_FLAG_HIDDEN);
+  tiles_reload_layout(GridType::TAB0);
 }
 
 void tiles_invalidate_folder(uint16_t folder_id) {
