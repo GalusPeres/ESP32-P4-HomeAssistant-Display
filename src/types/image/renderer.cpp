@@ -134,10 +134,24 @@ lv_obj_t* render_image_tile(lv_obj_t* parent, int col, int row, const Tile& tile
   if (wants_preview) {
     lv_obj_set_style_pad_all(btn, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(btn, 0, LV_PART_MAIN | LV_STATE_PRESSED);
-    lv_obj_set_style_clip_corner(btn, true, 0);
-    lv_obj_set_style_clip_corner(btn, true, LV_STATE_PRESSED);
+    lv_obj_set_style_clip_corner(btn, false, 0);
+    lv_obj_set_style_clip_corner(btn, false, LV_STATE_PRESSED);
     lv_obj_update_layout(btn);
-    lv_obj_t* img = lv_img_create(btn);
+    lv_obj_t* preview_wrap = lv_obj_create(btn);
+    if (preview_wrap) {
+      lv_obj_set_size(preview_wrap, LV_PCT(100), LV_PCT(100));
+      lv_obj_align(preview_wrap, LV_ALIGN_TOP_LEFT, 0, 0);
+      lv_obj_set_style_bg_opa(preview_wrap, LV_OPA_TRANSP, 0);
+      lv_obj_set_style_border_width(preview_wrap, 0, 0);
+      lv_obj_set_style_pad_all(preview_wrap, 0, 0);
+      lv_obj_set_style_radius(preview_wrap, 22, 0);
+      lv_obj_set_style_clip_corner(preview_wrap, true, 0);
+      lv_obj_clear_flag(preview_wrap, LV_OBJ_FLAG_SCROLLABLE);
+      lv_obj_clear_flag(preview_wrap, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_add_flag(preview_wrap, LV_OBJ_FLAG_IGNORE_LAYOUT);
+      lv_obj_add_flag(preview_wrap, LV_OBJ_FLAG_EVENT_BUBBLE);
+    }
+    lv_obj_t* img = lv_img_create(preview_wrap ? preview_wrap : btn);
     if (img) {
       lv_coord_t btn_w = lv_obj_get_width(btn);
       lv_coord_t btn_h = lv_obj_get_height(btn);

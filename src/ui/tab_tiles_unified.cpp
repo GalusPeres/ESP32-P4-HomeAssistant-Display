@@ -114,6 +114,8 @@ static lv_obj_t* find_preview_image_child(lv_obj_t* parent) {
     lv_obj_t* child = lv_obj_get_child(parent, static_cast<int32_t>(i));
     if (!child) continue;
     if (lv_obj_has_flag(child, LV_OBJ_FLAG_USER_1)) return child;
+    lv_obj_t* nested = find_preview_image_child(child);
+    if (nested) return nested;
   }
   return nullptr;
 }
