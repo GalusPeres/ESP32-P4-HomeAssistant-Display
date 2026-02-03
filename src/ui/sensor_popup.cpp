@@ -124,12 +124,19 @@ static void apply_init_to_context(SensorPopupContext* ctx, const SensorPopupInit
   }
   if (ctx->icon_label) {
     String icon_name = init.icon_name;
-    if (icon_name.isEmpty()) {
-      icon_name = "home-analytics";
-    }
-    String icon_char = getMdiChar(icon_name);
-    if (!icon_char.isEmpty()) {
-      lv_label_set_text(ctx->icon_label, icon_char.c_str());
+    icon_name.trim();
+    if (!icon_name.length() || isMdiIconDisabled(icon_name)) {
+      lv_label_set_text(ctx->icon_label, "");
+      lv_obj_add_flag(ctx->icon_label, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      String icon_char = getMdiChar(icon_name);
+      if (!icon_char.isEmpty()) {
+        lv_label_set_text(ctx->icon_label, icon_char.c_str());
+        lv_obj_clear_flag(ctx->icon_label, LV_OBJ_FLAG_HIDDEN);
+      } else {
+        lv_label_set_text(ctx->icon_label, "");
+        lv_obj_add_flag(ctx->icon_label, LV_OBJ_FLAG_HIDDEN);
+      }
     }
   }
   update_value_label(ctx, init.value, init.unit);
@@ -377,7 +384,7 @@ void preload_sensor_popup() {
   SensorPopupInit init;
   init.entity_id = "__preload__";
   init.title = "";
-  init.icon_name = "home-analytics";
+  init.icon_name = "";
   init.value = "";
   init.unit = "";
   show_sensor_popup(init);
