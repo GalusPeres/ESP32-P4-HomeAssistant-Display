@@ -1186,7 +1186,7 @@ void appendAdminScripts(String& html) {
     }
     if (currentTileTab === tab && currentTileIndex === index) el.classList.add('active');
     if (typeValue === '5' && tile.sensor_entity) {
-      const state = parseSwitchPayload(sensorValues[tile.sensor_entity] ?? '');
+      const state = parseSwitchPayload(metaValues[tile.sensor_entity] ?? '');
       applySwitchPreviewState(el, state);
     }
   }
