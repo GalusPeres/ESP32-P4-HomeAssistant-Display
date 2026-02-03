@@ -7510,8 +7510,8 @@ uint32_t getMdiCodepoint(const String& iconName) {
     searchName.remove(0, 4);
   }
 
-  Serial.printf("[MDI] Looking up icon: '%s' (from '%s', count=%d)\n",
-                searchName.c_str(), iconName.c_str(), ICON_COUNT);
+  Serial.printf("[MDI] Looking up icon: '%s' (from '%s', count=%lu)\n",
+                searchName.c_str(), iconName.c_str(), (unsigned long)ICON_COUNT);
 
   int32_t index = findIconIndex(searchName.c_str());
 

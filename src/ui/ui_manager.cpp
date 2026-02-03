@@ -191,7 +191,7 @@ lv_obj_t* UIManager::setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char
   // Icon (wenn gesetzt)
   if (has_icon) {
     String iconChar = getMdiChar(String(icon_name));
-    if (iconChar.length() > 0 && FONT_MDI_ICONS != nullptr) {
+    if (iconChar.length() > 0) {
       icon_label = lv_label_create(btn);
       lv_label_set_text(icon_label, iconChar.c_str());
       lv_obj_set_style_text_color(icon_label, lv_color_white(), 0);
@@ -213,8 +213,8 @@ lv_obj_t* UIManager::setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char
     text_label = lv_label_create(btn);
     const char* fallback = (tab_index == 3) ? "Settings" : "";
     if (fallback[0] == '\0') {
-      char num_fallback[2];
-      snprintf(num_fallback, sizeof(num_fallback), "%d", tab_index + 1);
+      char num_fallback[4];
+      snprintf(num_fallback, sizeof(num_fallback), "%u", static_cast<unsigned>(tab_index + 1));
       lv_label_set_text(text_label, num_fallback);
     } else {
       lv_label_set_text(text_label, fallback);

@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <inttypes.h>
 
 #include "src/types/clock/renderer.h"
 #include "src/types/empty/renderer.h"
@@ -610,8 +611,9 @@ void append_tile_type_registry_js(String& html) {
       html += "\",";
     }
     if (entry.default_bg_color) {
-      char color_hex[8] = {0};
-      snprintf(color_hex, sizeof(color_hex), "#%06X", static_cast<unsigned>(entry.default_bg_color));
+      char color_hex[10] = {0};
+      const uint32_t color24 = static_cast<uint32_t>(entry.default_bg_color) & 0x00FFFFFFu;
+      snprintf(color_hex, sizeof(color_hex), "#%06" PRIX32, color24);
       html += "defaultBg:\"";
       html += color_hex;
       html += "\",";

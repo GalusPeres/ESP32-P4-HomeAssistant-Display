@@ -382,8 +382,8 @@ void mqttPublishDiscovery() {
   uint64_t mac = ESP.getEfuseMac();
   snprintf(did, sizeof(did), "tab5_lvgl_%04X", (uint16_t)(mac & 0xFFFF));
 
-  char tpc[96];
-  char js[256];
+  char tpc[128];
+  char js[512];
 
   const char* stat_topic = mqttTopics.topic(TopicKey::STAT_CONN);
 
