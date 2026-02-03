@@ -25,6 +25,7 @@ constexpr int kHistoryPointsDefault = 288;
 struct SensorPopupContext {
   String entity_id;
   String unit;
+  uint8_t decimals = 0xFF;
   lv_obj_t* overlay = nullptr;
   lv_obj_t* card = nullptr;
   lv_obj_t* title_label = nullptr;
@@ -39,6 +40,7 @@ struct PendingValueUpdate {
   String entity_id;
   String value;
   String unit;
+  uint8_t decimals = 0xFF;
   bool valid = false;
 };
 
@@ -75,6 +77,19 @@ static bool is_popup_visible(SensorPopupContext* ctx) {
   return !lv_obj_has_flag(ctx->card, LV_OBJ_FLAG_HIDDEN);
 }
 
+static bool apply_decimals(String& value, uint8_t decimals) {
+  if (decimals == 0xFF) return false;
+  String normalized = value;
+  normalized.replace(",", ".");
+  char* end = nullptr;
+  float f = strtof(normalized.c_str(), &end);
+  if (!end || end == normalized.c_str()) return false;
+  if (isnan(f) || isinf(f)) return false;
+  uint8_t d = decimals > 6 ? 6 : decimals;
+  value = String(f, static_cast<unsigned int>(d));
+  return true;
+}
+
 static void update_value_label(SensorPopupContext* ctx, const String& value, const String& unit) {
   if (!ctx || !ctx->value_label) return;
   String display = value;
@@ -86,6 +101,9 @@ static void update_value_label(SensorPopupContext* ctx, const String& value, con
   }
   if (display.isEmpty()) {
     display = "--";
+  }
+  if (display.length() > 0 && display != "--" && !display.equalsIgnoreCase("unavailable")) {
+    apply_decimals(display, ctx->decimals);
   }
   if (!unit.isEmpty() && display != "--") {
     display += " ";
@@ -119,6 +137,7 @@ static bool extract_numeric(JsonVariant v, float& out) {
 static void apply_init_to_context(SensorPopupContext* ctx, const SensorPopupInit& init) {
   if (!ctx) return;
   ctx->entity_id = init.entity_id;
+  ctx->decimals = init.decimals;
   if (ctx->title_label) {
     lv_label_set_text(ctx->title_label, init.title.c_str());
   }
@@ -387,6 +406,7 @@ void preload_sensor_popup() {
   init.icon_name = "";
   init.value = "";
   init.unit = "";
+  init.decimals = 0xFF;
   show_sensor_popup(init);
   if (g_sensor_popup_ctx && g_sensor_popup_ctx->card && g_sensor_popup_ctx->overlay) {
     lv_obj_add_flag(g_sensor_popup_ctx->card, LV_OBJ_FLAG_HIDDEN);
@@ -400,11 +420,12 @@ void hide_sensor_popup() {
   lv_obj_clear_flag(g_sensor_popup_ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
 }
 
-void queue_sensor_popup_value(const char* entity_id, const char* value, const char* unit) {
+void queue_sensor_popup_value(const char* entity_id, const char* value, const char* unit, uint8_t decimals) {
   if (!entity_id || !*entity_id || !value) return;
   g_pending_value.entity_id = entity_id;
   g_pending_value.value = value;
   g_pending_value.unit = unit ? unit : "";
+  g_pending_value.decimals = decimals;
   g_pending_value.valid = true;
 }
 
@@ -425,6 +446,7 @@ void process_sensor_popup_queue() {
   if (g_pending_value.valid) {
     if (g_sensor_popup_ctx->entity_id.equalsIgnoreCase(g_pending_value.entity_id) &&
         is_popup_visible(g_sensor_popup_ctx)) {
+      g_sensor_popup_ctx->decimals = g_pending_value.decimals;
       update_value_label(g_sensor_popup_ctx, g_pending_value.value, g_pending_value.unit);
     }
     g_pending_value.valid = false;

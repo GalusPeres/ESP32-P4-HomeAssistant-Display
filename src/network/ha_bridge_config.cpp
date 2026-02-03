@@ -7,6 +7,11 @@ static const char* PREF_NAMESPACE = "tab5_config";
 static void logList(const char* label, const String& text);
 static bool sensorExistsInList(const String& list, const String& candidate);
 static bool aliasExistsInList(const String& list, const String& alias);
+static int countListEntries(const String& text);
+static int countMapEntries(const String& text);
+static bool listEqualsIgnoringOrder(const String& a, const String& b);
+static bool mapEqualsIgnoringOrder(const String& a, const String& b);
+static bool bridgeConfigEquals(const HaBridgeConfigData& a, const HaBridgeConfigData& b);
 static void parseSensorMetaSection(const String& body, String& units, String& names, String& values);
 static void parseIconMetaSections(const String& body, String& icons);
 static bool extractStringField(const String& object, const char* key, String& out);
@@ -281,7 +286,10 @@ static void parseObjectSection(const String& body, String& out) {
   out = result;
 }
 
-bool HaBridgeConfig::applyJson(const char* json_payload) {
+bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload) {
+  if (out_reload) {
+    *out_reload = false;
+  }
   if (!json_payload || !*json_payload) {
     return false;
   }
@@ -309,8 +317,12 @@ bool HaBridgeConfig::applyJson(const char* json_payload) {
     parseObjectSection(json.substring(scene_idx), merged.scene_alias_text);
   }
 
+  const String prev_icons = data.entity_icons_map;
   parseSensorMetaSection(json, merged.sensor_units_map, merged.sensor_names_map, merged.sensor_values_map);
   parseIconMetaSections(json, merged.entity_icons_map);
+  if (!merged.entity_icons_map.length() && prev_icons.length()) {
+    merged.entity_icons_map = prev_icons;
+  }
 
   for (size_t i = 0; i < HA_SENSOR_SLOT_COUNT; ++i) {
     if (merged.sensor_slots[i].length() &&
@@ -328,15 +340,26 @@ bool HaBridgeConfig::applyJson(const char* json_payload) {
     }
   }
 
-  bool ok = save(merged);
-  if (ok) {
-    Serial.println("[Bridge] Konfiguration aus Home Assistant uebernommen");
-    logList("Sensoren", data.sensors_text);
-    logList("Lichter", data.lights_text);
-    logList("Schalter", data.switches_text);
-    logList("Szenen", data.scene_alias_text);
+  bool icon_map_filled = (!data.entity_icons_map.length() && merged.entity_icons_map.length());
+  bool needs_reload = (!bridgeConfigEquals(merged, data) || icon_map_filled);
+  if (needs_reload) {
+    bool ok = save(merged);
+    if (ok) {
+      Serial.println("[Bridge] Konfiguration aus Home Assistant uebernommen");
+      logList("Sensoren", data.sensors_text);
+      logList("Lichter", data.lights_text);
+      logList("Schalter", data.switches_text);
+      logList("Szenen", data.scene_alias_text);
+      if (out_reload) {
+        *out_reload = true;
+      }
+    }
+    return ok;
   }
-  return ok;
+
+  // No structural change: keep the latest meta in memory without triggering a reload.
+  data = merged;
+  return true;
 }
 
 static void logList(const char* label, const String& text) {
@@ -395,6 +418,145 @@ static bool aliasExistsInList(const String& list, const String& alias) {
     start = end + 1;
   }
   return false;
+}
+
+static int countListEntries(const String& text) {
+  int count = 0;
+  int start = 0;
+  while (start < text.length()) {
+    int end = text.indexOf('\n', start);
+    if (end < 0) end = text.length();
+    String line = normalizeLine(text.substring(start, end));
+    if (line.length()) {
+      ++count;
+    }
+    start = end + 1;
+  }
+  return count;
+}
+
+static int countMapEntries(const String& text) {
+  int count = 0;
+  int start = 0;
+  while (start < text.length()) {
+    int end = text.indexOf('\n', start);
+    if (end < 0) end = text.length();
+    String line = normalizeLine(text.substring(start, end));
+    if (line.length()) {
+      int eq = line.indexOf('=');
+      if (eq > 0) {
+        String key = line.substring(0, eq);
+        String value = line.substring(eq + 1);
+        key.trim();
+        value.trim();
+        if (key.length() && value.length()) {
+          ++count;
+        }
+      }
+    }
+    start = end + 1;
+  }
+  return count;
+}
+
+static bool listEqualsIgnoringOrder(const String& a, const String& b) {
+  if (countListEntries(a) != countListEntries(b)) return false;
+
+  int start = 0;
+  while (start < a.length()) {
+    int end = a.indexOf('\n', start);
+    if (end < 0) end = a.length();
+    String line = normalizeLine(a.substring(start, end));
+    if (line.length() && !sensorExistsInList(b, line)) {
+      return false;
+    }
+    start = end + 1;
+  }
+
+  start = 0;
+  while (start < b.length()) {
+    int end = b.indexOf('\n', start);
+    if (end < 0) end = b.length();
+    String line = normalizeLine(b.substring(start, end));
+    if (line.length() && !sensorExistsInList(a, line)) {
+      return false;
+    }
+    start = end + 1;
+  }
+
+  return true;
+}
+
+static bool mapEqualsIgnoringOrder(const String& a, const String& b) {
+  if (countMapEntries(a) != countMapEntries(b)) return false;
+
+  int start = 0;
+  while (start < a.length()) {
+    int end = a.indexOf('\n', start);
+    if (end < 0) end = a.length();
+    String line = normalizeLine(a.substring(start, end));
+    if (line.length()) {
+      int eq = line.indexOf('=');
+      if (eq > 0) {
+        String key = line.substring(0, eq);
+        String value = line.substring(eq + 1);
+        key.trim();
+        value.trim();
+        if (key.length()) {
+          String other = lookupKeyValue(b, key);
+          if (!other.equals(value)) {
+            return false;
+          }
+        }
+      }
+    }
+    start = end + 1;
+  }
+
+  start = 0;
+  while (start < b.length()) {
+    int end = b.indexOf('\n', start);
+    if (end < 0) end = b.length();
+    String line = normalizeLine(b.substring(start, end));
+    if (line.length()) {
+      int eq = line.indexOf('=');
+      if (eq > 0) {
+        String key = line.substring(0, eq);
+        String value = line.substring(eq + 1);
+        key.trim();
+        value.trim();
+        if (key.length()) {
+          String other = lookupKeyValue(a, key);
+          if (!other.equals(value)) {
+            return false;
+          }
+        }
+      }
+    }
+    start = end + 1;
+  }
+
+  return true;
+}
+
+static bool bridgeConfigEquals(const HaBridgeConfigData& a, const HaBridgeConfigData& b) {
+  if (!listEqualsIgnoringOrder(a.sensors_text, b.sensors_text)) return false;
+  if (!listEqualsIgnoringOrder(a.lights_text, b.lights_text)) return false;
+  if (!listEqualsIgnoringOrder(a.switches_text, b.switches_text)) return false;
+  if (!mapEqualsIgnoringOrder(a.scene_alias_text, b.scene_alias_text)) return false;
+
+  for (size_t i = 0; i < HA_SENSOR_SLOT_COUNT; ++i) {
+    if (!a.sensor_slots[i].equals(b.sensor_slots[i])) return false;
+    if (!a.sensor_titles[i].equals(b.sensor_titles[i])) return false;
+    if (!a.sensor_custom_units[i].equals(b.sensor_custom_units[i])) return false;
+    if (a.sensor_colors[i] != b.sensor_colors[i]) return false;
+  }
+  for (size_t i = 0; i < HA_SCENE_SLOT_COUNT; ++i) {
+    if (!a.scene_slots[i].equals(b.scene_slots[i])) return false;
+    if (!a.scene_titles[i].equals(b.scene_titles[i])) return false;
+    if (a.scene_colors[i] != b.scene_colors[i]) return false;
+  }
+  return true;
 }
 
 static bool isHexDigit(char c) {

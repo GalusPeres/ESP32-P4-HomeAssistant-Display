@@ -23,6 +23,7 @@ struct SensorEventData {
   String title;
   String icon_name;
   String unit;
+  uint8_t decimals = 0xFF;
 };
 
 static bool is_disabled_token(const String& value) {
@@ -245,7 +246,8 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
       tile.sensor_entity,
       tile.title,
       icon_name,
-      tile.sensor_unit
+      tile.sensor_unit,
+      tile.sensor_decimals
     };
 
     lv_obj_add_event_cb(
@@ -271,6 +273,7 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
             unit = haBridgeConfig.findSensorUnit(data->entity_id);
           }
           init.unit = unit;
+          init.decimals = data->decimals;
           init.value = haBridgeConfig.findSensorInitialValue(data->entity_id);
           show_sensor_popup(init);
         },

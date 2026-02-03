@@ -737,7 +737,7 @@ void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, co
       queue_sensor_tile_update(grid_type, i, value, unit_cstr);
       Serial.printf("[%s] Sensor %s@%u queued: %s %s\n", getGridName(grid_type), entity_id, i, value, unit_cstr ? unit_cstr : "");
       if (!popup_queued) {
-        queue_sensor_popup_value(entity_id, value, unit.length() ? unit.c_str() : nullptr);
+        queue_sensor_popup_value(entity_id, value, unit.length() ? unit.c_str() : nullptr, tile.sensor_decimals);
         popup_queued = true;
       }
     }
