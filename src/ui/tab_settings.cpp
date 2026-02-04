@@ -51,9 +51,8 @@ static const int kSettingsColGap = 12;
 static const int kSettingsColRowGap = 6;
 static const int kSettingsBtnHeight = 88;
 static const int kSettingsButtonWidthPct = 90;
-static const int kSettingsSliderWidthPct = 45;
 static const int kSettingsSliderLabelWidth = 220;
-static const int kSettingsSliderValueWidth = 70;
+static const int kSettingsSliderValueWidth = 100;
 static const int kSettingsSliderHeight = 18;
 static const int kSettingsSliderKnobSize = 40;
 static const int kSettingsSliderClickPad = 22;
@@ -498,7 +497,7 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
   lv_obj_set_style_text_color(brightness_row_label, lv_color_white(), 0);
   lv_obj_t *brightness_slider = lv_slider_create(brightness_row);
   style_settings_slider(brightness_slider);
-  lv_obj_set_width(brightness_slider, LV_PCT(kSettingsSliderWidthPct));
+  lv_obj_set_flex_grow(brightness_slider, 1);
   lv_slider_set_range(brightness_slider, 75, 255);
   int current_brightness = M5.Display.getBrightness();
   lv_slider_set_value(brightness_slider, current_brightness, LV_ANIM_OFF);
@@ -632,7 +631,7 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
   lv_obj_set_style_text_color(sleep_label, lv_color_white(), 0);
   sleep_slider = lv_slider_create(sleep_row);
   style_settings_slider(sleep_slider);
-  lv_obj_set_width(sleep_slider, LV_PCT(kSettingsSliderWidthPct));
+  lv_obj_set_flex_grow(sleep_slider, 1);
   lv_slider_set_range(sleep_slider, 0, sleep_slider_max_index());
   int32_t sleep_index = cfg.auto_sleep_enabled
                         ? sleep_index_from_seconds(cfg.auto_sleep_seconds)
@@ -690,7 +689,7 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
   lv_obj_set_style_text_color(sleep_battery_label, lv_color_white(), 0);
   sleep_battery_slider = lv_slider_create(sleep_battery_row);
   style_settings_slider(sleep_battery_slider);
-  lv_obj_set_width(sleep_battery_slider, LV_PCT(kSettingsSliderWidthPct));
+  lv_obj_set_flex_grow(sleep_battery_slider, 1);
   lv_slider_set_range(sleep_battery_slider, 0, sleep_slider_max_index());
   int32_t sleep_battery_index = cfg.auto_sleep_battery_enabled
                                 ? sleep_index_from_seconds(cfg.auto_sleep_battery_seconds)
