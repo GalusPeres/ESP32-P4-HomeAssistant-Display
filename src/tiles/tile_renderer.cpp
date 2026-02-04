@@ -1102,9 +1102,16 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
 
   String condition_text = weather_condition_to_german(condition);
 
+  const TileGridConfig& grid = tileConfig.getActiveGrid();
+  const Tile& tile = grid.tiles[grid_index];
+  const bool has_condition_text = condition_text.length() && condition_text != "--";
+  const bool show_condition = (tile.span_w > 1) && has_condition_text;
+
   if (widgets.temp_label) {
     String temp_text = has_temp ? format_weather_temp(temperature, unit) : String("--");
-    if (!widgets.condition_label) {
+    if (!show_condition) {
+      lv_label_set_text(widgets.temp_label, temp_text.c_str());
+    } else if (!widgets.condition_label) {
       String combined = temp_text;
       if (condition_text.length() && condition_text != "--") {
         combined += " ";
@@ -1118,13 +1125,26 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
   }
 
   if (widgets.condition_label) {
-    lv_label_set_text(widgets.condition_label, condition_text.c_str());
-    lv_obj_clear_flag(widgets.condition_label, LV_OBJ_FLAG_HIDDEN);
+    if (show_condition) {
+      lv_label_set_text(widgets.condition_label, condition_text.c_str());
+      lv_obj_clear_flag(widgets.condition_label, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_label_set_text(widgets.condition_label, "");
+      lv_obj_add_flag(widgets.condition_label, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+
+  if (widgets.condition_sep_label) {
+    if (show_condition) {
+      lv_label_set_text(widgets.condition_sep_label, "|");
+      lv_obj_clear_flag(widgets.condition_sep_label, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_label_set_text(widgets.condition_sep_label, "");
+      lv_obj_add_flag(widgets.condition_sep_label, LV_OBJ_FLAG_HIDDEN);
+    }
   }
 
   if (widgets.location_label) {
-    const TileGridConfig& grid = tileConfig.getActiveGrid();
-    const Tile& tile = grid.tiles[grid_index];
     String name = tile.title;
     name.trim();
     if (!name.length()) {
@@ -1244,34 +1264,18 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
       }
     }
   } else {
-    static const char* dummy_days[WEATHER_FORECAST_MAX] = {"Morgen", "Di", "Mi", "Do", "Fr"};
-    static const char* dummy_icons[WEATHER_FORECAST_MAX] = {
-      "weather-cloudy", "weather-partly-cloudy", "weather-rainy", "weather-sunny", "weather-windy"
-    };
-    static const float dummy_hi[WEATHER_FORECAST_MAX] = {5.0f, 6.0f, 4.0f, 7.0f, 3.0f};
-    static const float dummy_lo[WEATHER_FORECAST_MAX] = {-2.0f, -1.0f, -3.0f, 0.0f, -4.0f};
-
     for (uint8_t i = 0; i < WEATHER_FORECAST_MAX; ++i) {
       WeatherForecastWidgets& fw = widgets.forecast[i];
       if (fw.day_label) {
-        lv_label_set_text(fw.day_label, dummy_days[i]);
+        lv_label_set_text(fw.day_label, "--");
         lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
       }
       if (fw.icon_label) {
-        String iconChar = getMdiChar(dummy_icons[i]);
-        if (iconChar.length()) {
-          lv_label_set_text(fw.icon_label, iconChar.c_str());
-          lv_obj_clear_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
-        } else {
-          lv_label_set_text(fw.icon_label, "");
-          lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
-        }
+        lv_label_set_text(fw.icon_label, "");
+        lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
       }
       if (fw.temp_label) {
-        String hi_text = format_weather_temp(dummy_hi[i], unit);
-        String lo_text = format_weather_temp(dummy_lo[i], unit);
-        String temp_text = hi_text + "\n" + lo_text;
-        lv_label_set_text(fw.temp_label, temp_text.c_str());
+        lv_label_set_text(fw.temp_label, "--");
         lv_obj_clear_flag(fw.temp_label, LV_OBJ_FLAG_HIDDEN);
       }
     }

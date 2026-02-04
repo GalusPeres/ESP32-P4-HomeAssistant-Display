@@ -19,6 +19,8 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
 
   lv_obj_t* card = lv_button_create(parent);
   if (!card) return nullptr;
+  lv_obj_clear_flag(card, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_clear_flag(card, LV_OBJ_FLAG_CLICK_FOCUSABLE);
 
   uint32_t card_color = (tile.bg_color != 0) ? tile.bg_color : 0x2A2A2A;
   lv_obj_set_style_bg_color(card, lv_color_hex(card_color), LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -79,20 +81,34 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
   lv_obj_set_size(value_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(value_row, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(value_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_gap(value_row, 8, 0);
+  lv_obj_set_style_pad_gap(value_row, 14, 0);
   lv_obj_set_style_bg_opa(value_row, LV_OPA_TRANSP, 0);
   lv_obj_remove_flag(value_row, LV_OBJ_FLAG_SCROLLABLE);
 
-  lv_obj_t* temp_label = lv_label_create(value_row);
+  lv_obj_t* condition_label = nullptr;
+  lv_obj_t* sep_label = nullptr;
+  lv_obj_t* temp_label = nullptr;
+
+  if (span_w > 1) {
+    const lv_font_t* condition_font = FONT_TITLE;
+
+    condition_label = lv_label_create(value_row);
+    set_label_style(condition_label, lv_color_hex(0xD0D0D0), condition_font);
+    lv_label_set_long_mode(condition_label, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(condition_label, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_width(condition_label, (span_w >= 3) ? 220 : 140, 0);
+    lv_label_set_text(condition_label, "--");
+    lv_obj_add_flag(condition_label, LV_OBJ_FLAG_HIDDEN);
+
+    sep_label = lv_label_create(value_row);
+    set_label_style(sep_label, lv_color_hex(0xB0B0B0), condition_font);
+    lv_label_set_text(sep_label, "|");
+    lv_obj_add_flag(sep_label, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  temp_label = lv_label_create(value_row);
   set_label_style(temp_label, lv_color_white(), FONT_VALUE);
   lv_label_set_text(temp_label, "--");
-
-  lv_obj_t* condition_label = lv_label_create(value_row);
-  set_label_style(condition_label, lv_color_hex(0xD0D0D0), FONT_TITLE);
-  lv_label_set_long_mode(condition_label, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(condition_label, LV_SIZE_CONTENT);
-  lv_obj_set_style_max_width(condition_label, (span_w >= 3) ? 220 : 140, 0);
-  lv_label_set_text(condition_label, "--");
 
   // Position like a 1x1 sensor tile: keep the same top offset regardless of span.
   lv_obj_update_layout(value_row);
@@ -122,20 +138,10 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
     widgets.icon_label = icon_label;
     widgets.temp_label = temp_label;
     widgets.condition_label = condition_label;
+    widgets.condition_sep_label = sep_label;
     widgets.location_label = location_label;
 
     if (forecast_row && forecast_cols > 0) {
-      static const char* dummy_days[WEATHER_FORECAST_MAX] = {"Morgen", "Di", "Mi", "Do", "Fr"};
-      static const char* dummy_hi[WEATHER_FORECAST_MAX] = {
-        "5 \xC2\xB0C", "6 \xC2\xB0C", "4 \xC2\xB0C", "7 \xC2\xB0C", "3 \xC2\xB0C"
-      };
-      static const char* dummy_lo[WEATHER_FORECAST_MAX] = {
-        "-2 \xC2\xB0C", "-1 \xC2\xB0C", "-3 \xC2\xB0C", "0 \xC2\xB0C", "-4 \xC2\xB0C"
-      };
-      static const char* dummy_icons[WEATHER_FORECAST_MAX] = {
-        "weather-cloudy", "weather-partly-cloudy", "weather-rainy", "weather-sunny", "weather-windy"
-      };
-
       for (uint8_t i = 0; i < forecast_cols; ++i) {
         lv_obj_t* col = lv_obj_create(forecast_row);
         lv_obj_remove_style_all(col);
@@ -150,20 +156,14 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
         set_label_style(day, lv_color_white(), FONT_TITLE);
         lv_label_set_long_mode(day, LV_LABEL_LONG_DOT);
         lv_obj_set_width(day, LV_PCT(70));
-        lv_label_set_text(day, dummy_days[i]);
-        lv_obj_align(day, LV_ALIGN_TOP_LEFT, 0, 4);
+        lv_label_set_text(day, "--");
+        lv_obj_align(day, LV_ALIGN_TOP_LEFT, 12, 4);
 
         lv_obj_t* icon = lv_label_create(col);
         set_label_style(icon, lv_color_white(), FONT_MDI_ICONS);
-        String iconChar = getMdiChar(dummy_icons[i]);
-        if (iconChar.length()) {
-          lv_label_set_text(icon, iconChar.c_str());
-          lv_obj_clear_flag(icon, LV_OBJ_FLAG_HIDDEN);
-        } else {
-          lv_label_set_text(icon, "");
-          lv_obj_add_flag(icon, LV_OBJ_FLAG_HIDDEN);
-        }
-        lv_obj_align(icon, LV_ALIGN_TOP_RIGHT, 4, -8);
+        lv_label_set_text(icon, "");
+        lv_obj_add_flag(icon, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_align(icon, LV_ALIGN_TOP_RIGHT, -12, -8);
 
         lv_obj_t* temp = lv_label_create(col);
         set_label_style(temp, lv_color_white(), &ui_font_24);
@@ -171,8 +171,7 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
         lv_obj_set_width(temp, LV_PCT(100));
         lv_obj_set_style_text_align(temp, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_line_space(temp, 8, 0);
-        String temp_text = String(dummy_hi[i]) + "\n" + String(dummy_lo[i]);
-        lv_label_set_text(temp, temp_text.c_str());
+        lv_label_set_text(temp, "--");
         lv_obj_align(temp, LV_ALIGN_CENTER, 0, 28);
 
         widgets.forecast[i].day_label = day;
