@@ -13,7 +13,7 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
 
   const uint8_t span_w = tile.span_w < 1 ? 1 : tile.span_w;
   const uint8_t span_h = tile.span_h < 1 ? 1 : tile.span_h;
-  const bool show_forecast = (span_w >= 3 && span_h >= 2);
+  const bool show_forecast = (span_w >= 2 && span_h >= 2);
   uint8_t forecast_cols = show_forecast ? span_w : 0;
   if (forecast_cols > WEATHER_FORECAST_MAX) forecast_cols = WEATHER_FORECAST_MAX;
 
