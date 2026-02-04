@@ -14,6 +14,10 @@ extern SwitchTileWidgets g_tab0_switches[];
 extern SwitchTileWidgets g_tab1_switches[];
 extern SwitchTileWidgets g_tab2_switches[];
 
+extern WeatherTileWidgets g_tab0_weather[];
+extern WeatherTileWidgets g_tab1_weather[];
+extern WeatherTileWidgets g_tab2_weather[];
+
 extern SwitchState g_tab0_switch_states[];
 extern SwitchState g_tab1_switch_states[];
 extern SwitchState g_tab2_switch_states[];
@@ -23,6 +27,7 @@ void set_tile_grid_cell(lv_obj_t* obj, uint8_t col, uint8_t row, uint8_t span_w,
 
 SensorTileWidgets* tile_renderer_get_sensor_widgets(GridType grid_type);
 SwitchTileWidgets* tile_renderer_get_switch_widgets(GridType grid_type);
+WeatherTileWidgets* tile_renderer_get_weather_widgets(GridType grid_type);
 SwitchState* tile_renderer_get_switch_states(GridType grid_type);
 
 bool is_light_entity_id(const String& entity_id);

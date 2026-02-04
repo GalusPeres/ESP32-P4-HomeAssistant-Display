@@ -506,6 +506,7 @@ void appendAdminScripts(String& html) {
         '_tile_title','_tile_color','_tile_col','_tile_row','_tile_span_w','_tile_span_h','_tile_type','_sensor_entity','_sensor_unit',
         '_sensor_decimals','_sensor_value_font','_sensor_display_mode','_sensor_gauge_min','_sensor_gauge_max',
         '_sensor_gauge_arc','_sensor_gauge_size','_sensor_gauge_y_offset','_sensor_value_y_offset','_sensor_graph_height',
+        '_weather_entity',
         '_scene_alias','_key_macro','_text_value','_text_value_font','_navigate_target','_switch_entity','_switch_style',
         '_image_path','_image_select','_image_slideshow_sec','_image_url','_image_preview',
         '_clock_show_time','_clock_show_date',
@@ -536,6 +537,7 @@ void appendAdminScripts(String& html) {
       const gaugeYOffsetInput = document.getElementById(prefix + '_sensor_gauge_y_offset');
       const valueYOffsetInput = document.getElementById(prefix + '_sensor_value_y_offset');
       const graphHeightInput = document.getElementById(prefix + '_sensor_graph_height');
+      const weatherSelect = document.getElementById(prefix + '_weather_entity');
       const sceneInput = document.getElementById(prefix + '_scene_alias');
     const keyInput = document.getElementById(prefix + '_key_macro');
     const textInput = document.getElementById(prefix + '_text_value');
@@ -560,6 +562,7 @@ void appendAdminScripts(String& html) {
     if (spanHInput) spanHInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (typeSelect) typeSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (entitySelect) entitySelect.addEventListener('change', () => { maybeFillTitleFromSensor(tab); updateTilePreview(tab); updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    if (weatherSelect) weatherSelect.addEventListener('change', () => { maybeFillTitleFromWeather(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
       if (unitInput) unitInput.addEventListener('input', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
       if (decimalsInput) decimalsInput.addEventListener('input', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
       if (valueFontSelect) valueFontSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -626,8 +629,13 @@ void appendAdminScripts(String& html) {
     const sensorValueClass = getSensorValueFontClass(sensorValueFont);
     const previewKind = meta.preview || 'none';
     const sensorEntity = document.getElementById(prefix + '_sensor_entity')?.value || '';
+    const weatherEntity = document.getElementById(prefix + '_weather_entity')?.value || '';
     const switchEntity = document.getElementById(prefix + '_switch_entity')?.value || '';
-    const iconEntity = (previewKind === 'sensor') ? sensorEntity : (previewKind === 'switch' ? switchEntity : '');
+    const iconEntity = (previewKind === 'sensor')
+      ? sensorEntity
+      : (previewKind === 'switch'
+        ? switchEntity
+        : (previewKind === 'weather' ? weatherEntity : ''));
     const iconName = resolveIconName(iconInput ? iconInput.value : '', iconEntity, sensorMetaCache.icons);
 
     tileElem.className = 'tile';
@@ -1108,6 +1116,8 @@ void appendAdminScripts(String& html) {
       fd.append('text_value_font', tile.text_value_font || tile.sensor_value_font || '0');
     } else if (safeType === 11) {
       fd.append('counter_value', tile.counter_value || tile.scene_alias || '0');
+    } else if (safeType === 12) {
+      fd.append('weather_entity', tile.sensor_entity || tile.weather_entity || '');
     }
 
     const res = await fetch('/api/tiles', { method: 'POST', body: fd });
@@ -1144,7 +1154,9 @@ void appendAdminScripts(String& html) {
     if (typeValue === '0') { el.innerHTML = ''; }
     else {
       const previewKind = meta.preview || 'none';
-      const iconEntity = (previewKind === 'sensor' || previewKind === 'switch') ? (tile.sensor_entity || '') : '';
+      const iconEntity = (previewKind === 'sensor' || previewKind === 'switch' || previewKind === 'weather')
+        ? (tile.sensor_entity || '')
+        : '';
       const iconName = resolveIconName(tile.icon_name || '', iconEntity, metaIcons);
 
       let html = '';

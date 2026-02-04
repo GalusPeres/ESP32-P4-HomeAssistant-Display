@@ -33,6 +33,7 @@ bool HaBridgeConfig::load() {
   }
 
   data.sensors_text = prefs.getString("ha_sensors", "");
+  data.weathers_text = "";
   data.lights_text = "";
   data.switches_text = "";
   data.scene_alias_text = prefs.getString("ha_scene_alias", "");
@@ -106,6 +107,7 @@ bool HaBridgeConfig::save(const HaBridgeConfigData& incoming) {
 
 bool HaBridgeConfig::hasData() const {
   return data.sensors_text.length() > 0 ||
+         data.weathers_text.length() > 0 ||
          data.lights_text.length() > 0 ||
          data.switches_text.length() > 0 ||
          data.scene_alias_text.length() > 0;
@@ -306,6 +308,11 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
     parseArraySection(json.substring(sensors_idx), merged.sensors_text);
   }
 
+  int weathers_idx = json.indexOf("\"weathers\"");
+  if (weathers_idx >= 0) {
+    parseArraySection(json.substring(weathers_idx), merged.weathers_text);
+  }
+
   int lights_idx = json.indexOf("\"lights\"");
   if (lights_idx >= 0) {
     parseArraySection(json.substring(lights_idx), merged.lights_text);
@@ -355,6 +362,7 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
     if (ok) {
       Serial.println("[Bridge] Konfiguration aus Home Assistant uebernommen");
       logList("Sensoren", data.sensors_text);
+      logList("Wetter", data.weathers_text);
       logList("Lichter", data.lights_text);
       logList("Schalter", data.switches_text);
       logList("Szenen", data.scene_alias_text);
@@ -556,6 +564,7 @@ static bool mapEqualsIgnoringOrder(const String& a, const String& b) {
 
 static bool bridgeConfigEquals(const HaBridgeConfigData& a, const HaBridgeConfigData& b) {
   if (!listEqualsIgnoringOrder(a.sensors_text, b.sensors_text)) return false;
+  if (!listEqualsIgnoringOrder(a.weathers_text, b.weathers_text)) return false;
   if (!listEqualsIgnoringOrder(a.lights_text, b.lights_text)) return false;
   if (!listEqualsIgnoringOrder(a.switches_text, b.switches_text)) return false;
   if (!mapEqualsIgnoringOrder(a.scene_alias_text, b.scene_alias_text)) return false;
@@ -765,6 +774,7 @@ static void parseEntityIconSection(const String& body, const char* key, String& 
 static void parseIconMetaSections(const String& body, String& icons) {
   icons = "";
   parseEntityIconSection(body, "sensor_meta", icons);
+  parseEntityIconSection(body, "weather_meta", icons);
   parseEntityIconSection(body, "light_meta", icons);
   parseEntityIconSection(body, "switch_meta", icons);
   parseEntityIconSection(body, "scene_meta", icons);

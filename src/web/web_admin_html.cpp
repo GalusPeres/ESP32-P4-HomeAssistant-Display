@@ -21,6 +21,7 @@ static void appendTileTabHTML(
     const FolderEntry& folder,
     const TileGridConfig& grid,
     const std::vector<String>& sensorOptions,
+    const std::vector<String>& weatherOptions,
     const std::vector<SceneOption>& sceneOptions,
     const std::vector<String>& switchOptions,
     const std::function<String(const String&, uint8_t)>& formatSensorValue,
@@ -43,7 +44,7 @@ static void appendTileTabHTML(
   html += R"html(" data-folder-icon=")html";
   appendHtmlEscaped(html, folder.icon_name);
   html += R"html(">
-        <p class="hint">Klicke auf eine Kachel, um sie zu bearbeiten. Waehle den Typ (Sensor/Szene/Key/Ordner/Settings/Switch/Bild/Uhr/Text) und passe die Einstellungen an.</p>
+        <p class="hint">Klicke auf eine Kachel, um sie zu bearbeiten. Waehle den Typ (Sensor/Wetter/Szene/Key/Ordner/Settings/Switch/Bild/Uhr/Text) und passe die Einstellungen an.</p>
 
         <div class="tile-editor">
           <!-- Grid Preview -->
@@ -257,6 +258,7 @@ static void appendTileTabHTML(
             TileTypeWebContext type_ctx;
             type_ctx.tab_id = &tab_id;
             type_ctx.sensor_options = &sensorOptions;
+            type_ctx.weather_options = &weatherOptions;
             type_ctx.scene_options = &sceneOptions;
             type_ctx.switch_options = &switchOptions;
             type_ctx.navigate_options_html = &navigateOptionsHtml;
@@ -303,6 +305,7 @@ String WebAdminServer::getAdminPage() {
   const DeviceConfig& cfg = configManager.getConfig();
   const HaBridgeConfigData& ha = haBridgeConfig.get();
   const auto sensorOptions = parseSensorList(ha.sensors_text);
+  const auto weatherOptions = parseSensorList(ha.weathers_text);
   const auto sceneOptions = parseSceneList(ha.scene_alias_text);
   const auto lightOptions = parseSensorList(ha.lights_text);
   const auto switchOptionsRaw = parseSensorList(ha.switches_text);
@@ -427,7 +430,7 @@ String WebAdminServer::getAdminPage() {
   for (const auto& entry : folders) {
     TileGridConfig grid{};
     tileConfig.loadFolderGrid(entry.id, grid);
-    appendTileTabHTML(html, entry.id, entry, grid, sensorOptions, sceneOptions, switchOptions, formatSensorValue, navigateOptionsHtml);
+    appendTileTabHTML(html, entry.id, entry, grid, sensorOptions, weatherOptions, sceneOptions, switchOptions, formatSensorValue, navigateOptionsHtml);
   }
 
   html += R"html(

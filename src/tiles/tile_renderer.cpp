@@ -28,6 +28,10 @@ SwitchTileWidgets g_tab0_switches[TILES_PER_GRID];
 SwitchTileWidgets g_tab1_switches[TILES_PER_GRID];
 SwitchTileWidgets g_tab2_switches[TILES_PER_GRID];
 
+WeatherTileWidgets g_tab0_weather[TILES_PER_GRID];
+WeatherTileWidgets g_tab1_weather[TILES_PER_GRID];
+WeatherTileWidgets g_tab2_weather[TILES_PER_GRID];
+
 SwitchState g_tab0_switch_states[TILES_PER_GRID];
 SwitchState g_tab1_switch_states[TILES_PER_GRID];
 SwitchState g_tab2_switch_states[TILES_PER_GRID];
@@ -42,6 +46,12 @@ SwitchTileWidgets* tile_renderer_get_switch_widgets(GridType grid_type) {
   if (grid_type == GridType::TAB1) return g_tab1_switches;
   if (grid_type == GridType::TAB2) return g_tab2_switches;
   return g_tab0_switches;
+}
+
+WeatherTileWidgets* tile_renderer_get_weather_widgets(GridType grid_type) {
+  if (grid_type == GridType::TAB1) return g_tab1_weather;
+  if (grid_type == GridType::TAB2) return g_tab2_weather;
+  return g_tab0_weather;
 }
 
 SwitchState* tile_renderer_get_switch_states(GridType grid_type) {
@@ -115,11 +125,33 @@ void reset_switch_widgets(GridType grid_type) {
   clear_switch_widgets(grid_type);
 }
 
+static void clear_weather_widgets(GridType grid_type) {
+  WeatherTileWidgets* target = g_tab0_weather;
+  if (grid_type == GridType::TAB1) target = g_tab1_weather;
+  else if (grid_type == GridType::TAB2) target = g_tab2_weather;
+  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+    target[i] = {};
+  }
+}
+
+void reset_weather_widget(GridType grid_type, uint8_t grid_index) {
+  if (grid_index >= TILES_PER_GRID) return;
+  WeatherTileWidgets* target = g_tab0_weather;
+  if (grid_type == GridType::TAB1) target = g_tab1_weather;
+  else if (grid_type == GridType::TAB2) target = g_tab2_weather;
+  target[grid_index] = {};
+}
+
+void reset_weather_widgets(GridType grid_type) {
+  clear_weather_widgets(grid_type);
+}
+
 void tile_renderer_snapshot_tab0(TileWidgetCache* out) {
   if (!out) return;
   memcpy(out->sensors, g_tab0_sensors, sizeof(g_tab0_sensors));
   memcpy(out->switches, g_tab0_switches, sizeof(g_tab0_switches));
   memcpy(out->switch_states, g_tab0_switch_states, sizeof(g_tab0_switch_states));
+  memcpy(out->weather, g_tab0_weather, sizeof(g_tab0_weather));
 }
 
 void tile_renderer_restore_tab0(const TileWidgetCache* in) {
@@ -127,6 +159,7 @@ void tile_renderer_restore_tab0(const TileWidgetCache* in) {
   memcpy(g_tab0_sensors, in->sensors, sizeof(g_tab0_sensors));
   memcpy(g_tab0_switches, in->switches, sizeof(g_tab0_switches));
   memcpy(g_tab0_switch_states, in->switch_states, sizeof(g_tab0_switch_states));
+  memcpy(g_tab0_weather, in->weather, sizeof(g_tab0_weather));
 }
 
 /* === Thread-Safe Update Queue (MQTT ��� Main Loop) === */
@@ -442,6 +475,131 @@ static bool extract_json_object_field(const String& src, const char* key, String
     }
   }
   return false;
+}
+
+static bool extract_json_number_or_string_field(const String& src, const char* key, float& out) {
+  if (extract_json_number_field(src, key, out)) return true;
+  String text;
+  if (!extract_json_string_field(src, key, text)) return false;
+  text.trim();
+  if (!text.length()) return false;
+  text.replace(",", ".");
+  char* end = nullptr;
+  float val = strtof(text.c_str(), &end);
+  if (!end || end == text.c_str()) return false;
+  out = val;
+  return true;
+}
+
+static String format_weather_temp(float temp, const String& unit) {
+  String text = String(temp, 1);
+  if (text.endsWith(".0")) {
+    text.remove(text.length() - 2);
+  }
+  if (unit.length()) {
+    text += " ";
+    text += unit;
+  }
+  return text;
+}
+
+static void decode_basic_json_escapes(String& text) {
+  if (!text.length()) return;
+  text.replace("\\u00b0", "\xC2\xB0");
+  text.replace("\\u00B0", "\xC2\xB0");
+  text.replace("\\/", "/");
+  text.replace("\\\"", "\"");
+  text.replace("\\\\", "\\");
+}
+
+static String weather_icon_from_condition(const String& condition) {
+  String key = condition;
+  key.trim();
+  key.toLowerCase();
+  if (!key.length()) return "";
+  if (key == "clear-night") return "mdi:weather-night";
+  if (key == "cloudy") return "mdi:weather-cloudy";
+  if (key == "exceptional") return "mdi:alert-circle-outline";
+  if (key == "fog") return "mdi:weather-fog";
+  if (key == "hail") return "mdi:weather-hail";
+  if (key == "lightning") return "mdi:weather-lightning";
+  if (key == "lightning-rainy") return "mdi:weather-lightning-rainy";
+  if (key == "partlycloudy") return "mdi:weather-partly-cloudy";
+  if (key == "pouring") return "mdi:weather-pouring";
+  if (key == "rainy") return "mdi:weather-rainy";
+  if (key == "snowy") return "mdi:weather-snowy";
+  if (key == "snowy-rainy") return "mdi:weather-snowy-rainy";
+  if (key == "sunny") return "mdi:weather-sunny";
+  if (key == "windy") return "mdi:weather-windy";
+  if (key == "windy-variant") return "mdi:weather-windy-variant";
+  return "";
+}
+
+static String weather_condition_to_german(const String& condition) {
+  String key = condition;
+  key.trim();
+  key.toLowerCase();
+  if (!key.length()) return "--";
+  if (key == "clear-night") return "Klare Nacht";
+  if (key == "cloudy") return "Bewölkt";
+  if (key == "exceptional") return "Ausnahme";
+  if (key == "fog") return "Nebel";
+  if (key == "hail") return "Hagel";
+  if (key == "lightning") return "Gewitter";
+  if (key == "lightning-rainy") return "Gewitterregen";
+  if (key == "partlycloudy") return "Teilw. bewölkt";
+  if (key == "pouring") return "Starkregen";
+  if (key == "rainy") return "Regen";
+  if (key == "snowy") return "Schnee";
+  if (key == "snowy-rainy") return "Schneeregen";
+  if (key == "sunny") return "Sonnig";
+  if (key == "windy") return "Windig";
+  if (key == "windy-variant") return "Böig";
+  String text = condition;
+  text.replace("-", " ");
+  text.replace("_", " ");
+  text.trim();
+  return text.length() ? text : "--";
+}
+
+static String short_date_from_iso(const String& iso) {
+  int dash1 = iso.indexOf('-');
+  if (dash1 < 0) return "";
+  int dash2 = iso.indexOf('-', dash1 + 1);
+  if (dash2 < 0) return "";
+  String mm = iso.substring(dash1 + 1, dash2);
+  if (dash2 + 2 > iso.length()) return "";
+  String dd = iso.substring(dash2 + 1, dash2 + 3);
+  if (!dd.length() || !mm.length()) return "";
+  return dd + "." + mm;
+}
+
+static bool parse_iso_date(const String& iso, int& y, int& m, int& d) {
+  if (iso.length() < 10) return false;
+  if (iso.charAt(4) != '-' || iso.charAt(7) != '-') return false;
+  y = iso.substring(0, 4).toInt();
+  m = iso.substring(5, 7).toInt();
+  d = iso.substring(8, 10).toInt();
+  return (y > 0 && m >= 1 && m <= 12 && d >= 1 && d <= 31);
+}
+
+static String weekday_from_iso(const String& iso) {
+  int y = 0, m = 0, d = 0;
+  if (!parse_iso_date(iso, y, m, d)) return "";
+  int mm = m;
+  int yy = y;
+  if (mm < 3) {
+    mm += 12;
+    yy -= 1;
+  }
+  int K = yy % 100;
+  int J = yy / 100;
+  int h = (d + (13 * (mm + 1)) / 5 + K + (K / 4) + (J / 4) + (5 * J)) % 7;
+  // h: 0=Saturday, 1=Sunday, 2=Monday, ...
+  int dow = (h + 6) % 7;  // 0=Sunday, 1=Monday, ...
+  static const char* kDaysDe[] = {"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"};
+  if (dow < 0 || dow > 6) return "";
+  return String(kDaysDe[dow]);
 }
 
 static bool list_contains_mode(String list, const char* mode) {
@@ -876,6 +1034,291 @@ void process_switch_update_queue() {
   }
 }
 
+/* === Thread-Safe Queue fuer Weather Updates (MQTT -> Main Loop) === */
+struct WeatherUpdate {
+  GridType grid_type;
+  uint8_t grid_index;
+  String payload;
+  bool valid = false;
+};
+
+static const uint8_t WEATHER_QUEUE_SIZE = 16;
+static WeatherUpdate g_weather_queue[WEATHER_QUEUE_SIZE];
+static volatile uint8_t g_weather_head = 0;
+static volatile uint8_t g_weather_tail = 0;
+static uint32_t g_weather_overflow_count = 0;
+
+static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, const char* payload) {
+  if (grid_index >= TILES_PER_GRID || !payload) return;
+  WeatherTileWidgets* target = g_tab0_weather;
+  if (grid_type == GridType::TAB1) target = g_tab1_weather;
+  else if (grid_type == GridType::TAB2) target = g_tab2_weather;
+
+  WeatherTileWidgets& widgets = target[grid_index];
+  if (!widgets.icon_label && !widgets.temp_label && !widgets.condition_label && !widgets.location_label) {
+    return;
+  }
+
+  String json = payload;
+  json.trim();
+  if (!json.length()) return;
+
+  String condition;
+  if (!extract_json_string_field(json, "state", condition)) {
+    extract_json_string_field(json, "condition", condition);
+  }
+
+  String icon_name;
+  extract_json_string_field(json, "icon", icon_name);
+  if (!icon_name.length() && condition.length()) {
+    icon_name = weather_icon_from_condition(condition);
+  }
+
+  float temperature = 0.0f;
+  bool has_temp = extract_json_number_or_string_field(json, "temperature", temperature);
+
+  String unit;
+  String units_obj;
+  if (extract_json_object_field(json, "units", units_obj)) {
+    extract_json_string_field(units_obj, "temperature", unit);
+  } else {
+    extract_json_string_field(json, "temperature_unit", unit);
+  }
+  decode_basic_json_escapes(unit);
+
+  if (widgets.icon_label) {
+    if (icon_name.length()) {
+      String iconChar = getMdiChar(icon_name);
+      if (iconChar.length()) {
+        lv_label_set_text(widgets.icon_label, iconChar.c_str());
+        lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
+      } else {
+        lv_obj_add_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
+      }
+    } else {
+      lv_obj_add_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+
+  String condition_text = weather_condition_to_german(condition);
+
+  if (widgets.temp_label) {
+    String temp_text = has_temp ? format_weather_temp(temperature, unit) : String("--");
+    if (!widgets.condition_label) {
+      String combined = temp_text;
+      if (condition_text.length() && condition_text != "--") {
+        combined += " ";
+        combined += condition_text;
+      }
+      lv_label_set_text(widgets.temp_label, combined.c_str());
+    } else {
+      lv_label_set_text(widgets.temp_label, temp_text.c_str());
+    }
+    lv_obj_clear_flag(widgets.temp_label, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  if (widgets.condition_label) {
+    lv_label_set_text(widgets.condition_label, condition_text.c_str());
+    lv_obj_clear_flag(widgets.condition_label, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  if (widgets.location_label) {
+    const TileGridConfig& grid = tileConfig.getActiveGrid();
+    const Tile& tile = grid.tiles[grid_index];
+    String name = tile.title;
+    name.trim();
+    if (!name.length()) {
+      String payload_name;
+      if (extract_json_string_field(json, "name", payload_name)) {
+        decode_basic_json_escapes(payload_name);
+        name = payload_name;
+      }
+    }
+    if (!name.length()) name = "--";
+    lv_label_set_text(widgets.location_label, name.c_str());
+    lv_obj_clear_flag(widgets.location_label, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  // Forecast handling (up to WEATHER_FORECAST_MAX entries)
+  String forecast_raw;
+  uint8_t forecast_count = 0;
+  bool has_forecast = false;
+  if (extract_json_array_field(json, "forecast", forecast_raw)) {
+    if (forecast_raw.indexOf('{') >= 0) {
+      has_forecast = true;
+    }
+  }
+  if (has_forecast) {
+    bool in_string = false;
+    int depth = 0;
+    int start = -1;
+    for (int i = 0; i < forecast_raw.length() && forecast_count < WEATHER_FORECAST_MAX; ++i) {
+      char c = forecast_raw.charAt(i);
+      if (c == '"' && (i == 0 || forecast_raw.charAt(i - 1) != '\\')) {
+        in_string = !in_string;
+      }
+      if (in_string) continue;
+      if (c == '{') {
+        if (depth == 0) start = i;
+        depth++;
+      } else if (c == '}') {
+        depth--;
+        if (depth == 0 && start >= 0) {
+          String obj = forecast_raw.substring(start, i + 1);
+          String f_condition;
+          String f_icon;
+          String f_day;
+          float f_temp = 0.0f;
+          float f_low = 0.0f;
+          bool f_has_temp = extract_json_number_or_string_field(obj, "temperature", f_temp);
+          bool f_has_low = false;
+          if (extract_json_number_or_string_field(obj, "templow", f_low)) f_has_low = true;
+          if (!f_has_low && extract_json_number_or_string_field(obj, "temperature_low", f_low)) f_has_low = true;
+          if (!f_has_low && extract_json_number_or_string_field(obj, "temp_low", f_low)) f_has_low = true;
+          if (!f_has_low && extract_json_number_or_string_field(obj, "low", f_low)) f_has_low = true;
+          extract_json_string_field(obj, "condition", f_condition);
+          extract_json_string_field(obj, "icon", f_icon);
+          String datetime;
+          if (extract_json_string_field(obj, "datetime", datetime)) {
+            f_day = weekday_from_iso(datetime);
+          }
+          if (!f_day.length() && forecast_count == 0) {
+            f_day = "Morgen";
+          }
+          if (!f_icon.length() && f_condition.length()) {
+            f_icon = weather_icon_from_condition(f_condition);
+          }
+
+          WeatherForecastWidgets& fw = widgets.forecast[forecast_count];
+          if (fw.day_label) {
+            if (f_day.length()) {
+              lv_label_set_text(fw.day_label, f_day.c_str());
+              lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_label_set_text(fw.day_label, "--");
+              lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
+            }
+          }
+          if (fw.icon_label) {
+            if (f_icon.length()) {
+              String iconChar = getMdiChar(f_icon);
+              if (iconChar.length()) {
+                lv_label_set_text(fw.icon_label, iconChar.c_str());
+                lv_obj_clear_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
+              } else {
+                lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
+              }
+            } else {
+              lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
+            }
+          }
+          if (fw.temp_label) {
+            String hi_text = f_has_temp ? format_weather_temp(f_temp, unit) : String("--");
+            String lo_text = f_has_low ? format_weather_temp(f_low, unit) : String("--");
+            String temp_text = hi_text + "\n" + lo_text;
+            lv_label_set_text(fw.temp_label, temp_text.c_str());
+            lv_obj_clear_flag(fw.temp_label, LV_OBJ_FLAG_HIDDEN);
+          }
+
+          forecast_count++;
+          start = -1;
+        }
+      }
+    }
+  }
+
+  if (has_forecast) {
+    for (uint8_t i = forecast_count; i < WEATHER_FORECAST_MAX; ++i) {
+      WeatherForecastWidgets& fw = widgets.forecast[i];
+      if (fw.day_label) {
+        lv_label_set_text(fw.day_label, "--");
+        lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
+      }
+      if (fw.icon_label) {
+        lv_label_set_text(fw.icon_label, "");
+        lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
+      }
+      if (fw.temp_label) {
+        lv_label_set_text(fw.temp_label, "--");
+        lv_obj_clear_flag(fw.temp_label, LV_OBJ_FLAG_HIDDEN);
+      }
+    }
+  } else {
+    static const char* dummy_days[WEATHER_FORECAST_MAX] = {"Morgen", "Di", "Mi", "Do", "Fr"};
+    static const char* dummy_icons[WEATHER_FORECAST_MAX] = {
+      "weather-cloudy", "weather-partly-cloudy", "weather-rainy", "weather-sunny", "weather-windy"
+    };
+    static const float dummy_hi[WEATHER_FORECAST_MAX] = {5.0f, 6.0f, 4.0f, 7.0f, 3.0f};
+    static const float dummy_lo[WEATHER_FORECAST_MAX] = {-2.0f, -1.0f, -3.0f, 0.0f, -4.0f};
+
+    for (uint8_t i = 0; i < WEATHER_FORECAST_MAX; ++i) {
+      WeatherForecastWidgets& fw = widgets.forecast[i];
+      if (fw.day_label) {
+        lv_label_set_text(fw.day_label, dummy_days[i]);
+        lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
+      }
+      if (fw.icon_label) {
+        String iconChar = getMdiChar(dummy_icons[i]);
+        if (iconChar.length()) {
+          lv_label_set_text(fw.icon_label, iconChar.c_str());
+          lv_obj_clear_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
+        } else {
+          lv_label_set_text(fw.icon_label, "");
+          lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
+        }
+      }
+      if (fw.temp_label) {
+        String hi_text = format_weather_temp(dummy_hi[i], unit);
+        String lo_text = format_weather_temp(dummy_lo[i], unit);
+        String temp_text = hi_text + "\n" + lo_text;
+        lv_label_set_text(fw.temp_label, temp_text.c_str());
+        lv_obj_clear_flag(fw.temp_label, LV_OBJ_FLAG_HIDDEN);
+      }
+    }
+  }
+}
+
+void queue_weather_tile_update(GridType grid_type, uint8_t grid_index, const char* payload) {
+  if (grid_index >= TILES_PER_GRID || !payload) return;
+
+  uint8_t idx = g_weather_tail;
+  while (idx != g_weather_head) {
+    WeatherUpdate& pending = g_weather_queue[idx];
+    if (pending.valid &&
+        pending.grid_type == grid_type &&
+        pending.grid_index == grid_index) {
+      pending.payload = String(payload);
+      return;
+    }
+    idx = (idx + 1) % WEATHER_QUEUE_SIZE;
+  }
+
+  uint8_t next_head = (g_weather_head + 1) % WEATHER_QUEUE_SIZE;
+  if (next_head == g_weather_tail) {
+    if ((g_weather_overflow_count++ % 10) == 0) {
+      Serial.println("[Queue] VOLL! Aeltestes Weather-Update wird ueberschrieben");
+    }
+    g_weather_tail = (g_weather_tail + 1) % WEATHER_QUEUE_SIZE;
+  }
+
+  g_weather_queue[g_weather_head].grid_type = grid_type;
+  g_weather_queue[g_weather_head].grid_index = grid_index;
+  g_weather_queue[g_weather_head].payload = String(payload);
+  g_weather_queue[g_weather_head].valid = true;
+  g_weather_head = next_head;
+}
+
+void process_weather_update_queue() {
+  while (g_weather_tail != g_weather_head) {
+    WeatherUpdate& upd = g_weather_queue[g_weather_tail];
+    if (upd.valid) {
+      update_weather_tile_state(upd.grid_type, upd.grid_index, upd.payload.c_str());
+      upd.valid = false;
+    }
+    g_weather_tail = (g_weather_tail + 1) % WEATHER_QUEUE_SIZE;
+  }
+}
+
 /* === Thread-Safe Queue fuer Tile Graph History (MQTT -> Main Loop) === */
 struct TileGraphHistoryUpdate {
   String entity_id;
@@ -1095,6 +1538,7 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
   // Reset sensor widget pointers for this grid to avoid stale references
   clear_sensor_widgets(grid_type);
   clear_switch_widgets(grid_type);
+  clear_weather_widgets(grid_type);
 
   if (parent == nullptr) {
     Serial.println("[TileRenderer] ERROR: Parent ist NULL!");

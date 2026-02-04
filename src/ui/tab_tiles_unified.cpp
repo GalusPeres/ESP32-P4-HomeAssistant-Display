@@ -343,7 +343,7 @@ static lv_obj_t* create_tiles_grid(lv_obj_t* parent) {
 static void apply_cached_states(GridType grid_type, const TileGridConfig& config) {
   for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
     const Tile& tile = config.tiles[i];
-    if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH) continue;
+    if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH && tile.type != TILE_WEATHER) continue;
     if (tile.sensor_entity.length() == 0) continue;
 
     String payload;
@@ -360,6 +360,8 @@ static void apply_cached_states(GridType grid_type, const TileGridConfig& config
       queue_sensor_tile_update(grid_type, i, payload.c_str(), unit_cstr);
     } else if (tile.type == TILE_SWITCH) {
       queue_switch_tile_update(grid_type, i, payload.c_str());
+    } else if (tile.type == TILE_WEATHER) {
+      queue_weather_tile_update(grid_type, i, payload.c_str());
     }
   }
 }
@@ -367,7 +369,7 @@ static void apply_cached_states(GridType grid_type, const TileGridConfig& config
 static void apply_cached_state_for_index(GridType grid_type, const TileGridConfig& config, uint8_t index) {
   if (index >= TILES_PER_GRID) return;
   const Tile& tile = config.tiles[index];
-  if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH) return;
+  if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH && tile.type != TILE_WEATHER) return;
   if (tile.sensor_entity.length() == 0) return;
 
   String payload;
@@ -384,6 +386,8 @@ static void apply_cached_state_for_index(GridType grid_type, const TileGridConfi
     queue_sensor_tile_update(grid_type, index, payload.c_str(), unit_cstr);
   } else if (tile.type == TILE_SWITCH) {
     queue_switch_tile_update(grid_type, index, payload.c_str());
+  } else if (tile.type == TILE_WEATHER) {
+    queue_weather_tile_update(grid_type, index, payload.c_str());
   }
 }
 
@@ -441,6 +445,8 @@ void tiles_reload_layout(GridType grid_type) {
 
   reset_sensor_widgets(grid_type);
   reset_switch_widgets(grid_type);
+  reset_weather_widgets(grid_type);
+  reset_weather_widgets(grid_type);
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     g_tiles_objs[idx][i] = nullptr;
   }
@@ -778,6 +784,7 @@ static void rebuild_tile_at_index(GridType grid_type, uint8_t index) {
   }
   reset_sensor_widget(grid_type, index);
   reset_switch_widget(grid_type, index);
+  reset_weather_widget(grid_type, index);
 
   Tile layout_tile = tile;
   layout_tile.col = col;
@@ -887,6 +894,23 @@ void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, co
     if (tile.type == TILE_SWITCH && tile.sensor_entity.equalsIgnoreCase(entity_id)) {
       queue_switch_tile_update(grid_type, i, value);
       Serial.printf("[%s] Switch %s@%u queued: %s\n", getGridName(grid_type), entity_id, i, value);
+    }
+  }
+}
+
+void tiles_update_weather_by_entity(GridType grid_type, const char* entity_id, const char* payload) {
+  if (!entity_id || !payload) return;
+
+  cache_entity_payload(entity_id, payload);
+  if (!tiles_is_loaded(grid_type)) return;
+
+  const TileGridConfig& config = getGridConfig(grid_type);
+
+  for (uint8_t i = 0; i < TILES_PER_GRID; i++) {
+    const Tile& tile = config.tiles[i];
+    if (tile.type == TILE_WEATHER && tile.sensor_entity.equalsIgnoreCase(entity_id)) {
+      queue_weather_tile_update(grid_type, i, payload);
+      Serial.printf("[%s] Weather %s@%u queued\n", getGridName(grid_type), entity_id, i);
     }
   }
 }

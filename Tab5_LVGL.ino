@@ -264,6 +264,7 @@ void loop() {
     if (configManager.isConfigured()) networkManager.update();
     process_sensor_update_queue();  // Sensor-Warteschlange auch im Sleep leeren
     process_switch_update_queue();
+    process_weather_update_queue();
     process_sensor_popup_queue();
     process_tile_graph_queue();
     lgfx::touch_point_t tp;
@@ -285,6 +286,7 @@ void loop() {
   if (first_run) Serial.println("[Loop] process_sensor_update_queue()...");
   process_sensor_update_queue();  // WICHTIG: VOR lv_timer_handler()!
   process_switch_update_queue();
+  process_weather_update_queue();
   process_sensor_popup_queue();
   process_tile_graph_queue();
   tiles_process_reload_requests();

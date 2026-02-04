@@ -29,6 +29,22 @@ struct SwitchTileWidgets {
   lv_obj_t* switch_obj = nullptr;
 };
 
+struct WeatherForecastWidgets {
+  lv_obj_t* day_label = nullptr;
+  lv_obj_t* icon_label = nullptr;
+  lv_obj_t* temp_label = nullptr;
+};
+
+static constexpr uint8_t WEATHER_FORECAST_MAX = 5;
+
+struct WeatherTileWidgets {
+  lv_obj_t* icon_label = nullptr;
+  lv_obj_t* temp_label = nullptr;
+  lv_obj_t* condition_label = nullptr;
+  lv_obj_t* location_label = nullptr;
+  WeatherForecastWidgets forecast[WEATHER_FORECAST_MAX];
+};
+
 struct SwitchState {
   bool has_state = false;
   bool is_on = false;
@@ -49,6 +65,7 @@ struct TileWidgetCache {
   SensorTileWidgets sensors[TILES_PER_GRID];
   SwitchTileWidgets switches[TILES_PER_GRID];
   SwitchState switch_states[TILES_PER_GRID];
+  WeatherTileWidgets weather[TILES_PER_GRID];
 };
 
 // Rendert ein komplettes Tile-Grid (6x4)
@@ -67,6 +84,7 @@ lv_obj_t* render_image_tile(lv_obj_t* parent, int col, int row, const Tile& tile
 lv_obj_t* render_clock_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index);
 lv_obj_t* render_text_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index);
 lv_obj_t* render_counter_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type);
+lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type);
 lv_obj_t* render_empty_tile(lv_obj_t* parent, int col, int row);
 
 // Update-Funktionen (für Sensoren)
@@ -85,6 +103,11 @@ void reset_switch_widgets(GridType grid_type);
 // THREAD-SAFE: Queue fuer Switch-Updates (MQTT Callback -> Main Loop)
 void queue_switch_tile_update(GridType grid_type, uint8_t grid_index, const char* payload);
 void process_switch_update_queue();  // Im Main Loop VOR lv_timer_handler() aufrufen!
+
+void reset_weather_widget(GridType grid_type, uint8_t grid_index);
+void reset_weather_widgets(GridType grid_type);
+void queue_weather_tile_update(GridType grid_type, uint8_t grid_index, const char* payload);
+void process_weather_update_queue();  // Im Main Loop VOR lv_timer_handler() aufrufen!
 
 // THREAD-SAFE: Queue fuer Tile-Graph-History (MQTT Callback -> Main Loop)
 void queue_tile_graph_history(const char* entity_id, const char* payload, size_t len);

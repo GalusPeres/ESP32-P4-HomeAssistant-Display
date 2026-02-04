@@ -31,6 +31,13 @@ struct DynamicSensorRoute {
 
 static std::vector<DynamicSensorRoute> g_dynamic_routes;
 
+struct DynamicWeatherRoute {
+  String topic;
+  String entity_id;
+};
+
+static std::vector<DynamicWeatherRoute> g_dynamic_weather_routes;
+
 static void handleOutside(const char* payload, size_t) {
   g_outside_c = atof(payload);
 }
@@ -60,7 +67,7 @@ static const TopicRoute kRoutes[] = {
   {TopicKey::HA_WOHN_TEMP, handleHaWohnTemp, false},
 };
 
-static String buildHaStatestreamTopic(const String& entity_id) {
+static String buildHaStatestreamTopic(const String& entity_id, const char* suffix) {
   String topic = mqttTopics.haPrefix();
   if (!topic.length()) {
     topic = "ha/statestream";
@@ -70,7 +77,8 @@ static String buildHaStatestreamTopic(const String& entity_id) {
     char c = entity_id.charAt(i);
     topic += (c == '.') ? '/' : c;
   }
-  topic += "/state";
+  topic += "/";
+  topic += (suffix && *suffix) ? suffix : "state";
   return topic;
 }
 
@@ -82,7 +90,7 @@ static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
     ent.trim();
     if (!ent.length()) return;
 
-    String topic = buildHaStatestreamTopic(ent);
+    String topic = buildHaStatestreamTopic(ent, "state");
     auto it = std::find_if(
         routes.begin(),
         routes.end(),
@@ -132,6 +140,44 @@ static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
   }
 }
 
+static void rebuildDynamicWeatherRoutes(std::vector<DynamicWeatherRoute>& routes) {
+  routes.clear();
+
+  auto add_route = [&](const String& entity) {
+    String ent = entity;
+    ent.trim();
+    if (!ent.length()) return;
+
+    String topic = buildHaStatestreamTopic(ent, "weather");
+    auto it = std::find_if(
+        routes.begin(),
+        routes.end(),
+        [&](const DynamicWeatherRoute& r) { return r.topic == topic; });
+
+    if (it == routes.end()) {
+      DynamicWeatherRoute route;
+      route.topic = topic;
+      route.entity_id = ent;
+      routes.push_back(route);
+    } else if (!it->entity_id.equalsIgnoreCase(ent)) {
+      it->entity_id = ent;
+    }
+  };
+
+  const std::vector<FolderEntry>& folders = tileConfig.getFolders();
+  for (const auto& folder : folders) {
+    TileGridConfig grid;
+    if (tileConfig.loadFolderGrid(folder.id, grid)) {
+      for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
+        const Tile& tile = grid.tiles[i];
+        if (tile.type == TILE_WEATHER && tile.sensor_entity.length()) {
+          add_route(tile.sensor_entity);
+        }
+      }
+    }
+  }
+}
+
 static bool tryHandleDynamicSensor(const char* topic, const char* payload) {
   for (const auto& route : g_dynamic_routes) {
     if (route.topic == topic) {
@@ -139,6 +185,16 @@ static bool tryHandleDynamicSensor(const char* topic, const char* payload) {
       tiles_update_sensor_by_entity(GridType::TAB0, route.entity_id.c_str(), payload);
       // Update sensor values map (for web interface)
       haBridgeConfig.updateSensorValue(route.entity_id, payload);
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool tryHandleDynamicWeather(const char* topic, const char* payload) {
+  for (const auto& route : g_dynamic_weather_routes) {
+    if (route.topic == topic) {
+      tiles_update_weather_by_entity(GridType::TAB0, route.entity_id.c_str(), payload);
       return true;
     }
   }
@@ -210,6 +266,10 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
   dyn_buf[copy_len] = '\0';
   if (tryHandleDynamicSensor(topic, dyn_buf)) {
     yield();  // Nach Sensor-Update
+    return;
+  }
+  if (tryHandleDynamicWeather(topic, dyn_buf)) {
+    yield();
     return;
   }
 
@@ -442,10 +502,18 @@ void mqttReloadDynamicSlots() {
     for (const auto& route : g_dynamic_routes) {
       mqtt.unsubscribe(route.topic.c_str());
     }
+    for (const auto& route : g_dynamic_weather_routes) {
+      mqtt.unsubscribe(route.topic.c_str());
+    }
   }
   rebuildDynamicRoutes(g_dynamic_routes);
+  rebuildDynamicWeatherRoutes(g_dynamic_weather_routes);
   if (mqtt.connected()) {
     for (const auto& route : g_dynamic_routes) {
+      mqtt.subscribe(route.topic.c_str());
+      Serial.printf("MQTT: subscribed %s\n", route.topic.c_str());
+    }
+    for (const auto& route : g_dynamic_weather_routes) {
       mqtt.subscribe(route.topic.c_str());
       Serial.printf("MQTT: subscribed %s\n", route.topic.c_str());
     }

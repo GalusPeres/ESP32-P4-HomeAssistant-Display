@@ -8,6 +8,7 @@ static constexpr size_t HA_SCENE_SLOT_COUNT = 6;
 
 struct HaBridgeConfigData {
   String sensors_text;
+  String weathers_text;
   String lights_text;
   String switches_text;
   String scene_alias_text;
