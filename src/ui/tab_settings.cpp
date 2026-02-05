@@ -171,7 +171,7 @@ static const char* battery_icon_name(bool charging, int percent) {
   if (bracket < 1) bracket = 1;
   if (bracket > 10) bracket = 10;
   switch (bracket) {
-    case 10: return charging ? "battery-charging-100" : "battery-100";
+    case 10: return charging ? "battery-charging-100" : "battery";
     case 9: return charging ? "battery-charging-90" : "battery-90";
     case 8: return charging ? "battery-charging-80" : "battery-80";
     case 7: return charging ? "battery-charging-70" : "battery-70";
