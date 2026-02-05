@@ -374,8 +374,15 @@ void PowerManager::enterDisplaySleep() {
     M5.Imu.setClock(kImuI2cSleepHz);
     imuSetAccelOnly(true);
   }
-  M5.Display.sleep();
-  displayManager.setInputEnabled(isTouchWakeEnabled());
+  bool touch_wake = isTouchWakeEnabled();
+  if (!touch_wake) {
+    M5.Display.sleep();
+    display_hw_sleeping = true;
+  } else {
+    display_hw_sleeping = false;
+    M5.Display.setBrightness(0);
+  }
+  displayManager.setInputEnabled(touch_wake);
   applyCpuFrequency(CPU_FREQ_SLEEP);
 
 #if LV_VERSION_MAJOR >= 9
@@ -398,7 +405,10 @@ void PowerManager::wakeFromDisplaySleep() {
   if (!is_display_sleeping) return;
 
   displayManager.setInputEnabled(true);
-  M5.Display.wakeup();
+  if (display_hw_sleeping) {
+    M5.Display.wakeup();
+    display_hw_sleeping = false;
+  }
   if (imu_ready) {
     M5.Imu.setClock(kImuI2cWakeHz);
     imuSetAccelOnly(false);

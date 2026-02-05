@@ -80,6 +80,7 @@ private:
   bool imu_auto_rotate_valid = false;
   uint8_t imu_auto_rotate_hits = 0;
   uint32_t imu_last_auto_rotate_ms = 0;
+  bool display_hw_sleeping = false;
 };
 
 // Globale Instanz
