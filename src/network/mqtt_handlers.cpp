@@ -4,6 +4,7 @@
 #include "src/network/ha_bridge_config.h"
 #include "src/ui/tab_tiles_unified.h"
 #include "src/ui/sensor_popup.h"
+#include "src/ui/tab_settings.h"
 #include "src/tiles/tile_config.h"
 #include "src/tiles/tile_renderer.h"
 #include "src/core/config_manager.h"
@@ -194,6 +195,7 @@ static void handleDisplayRotateCommand(const char* payload, size_t) {
   bool rotate = false;
   if (!parseBoolPayload(payload, &rotate)) return;
   M5.Display.setRotation(rotate ? kDisplayRotationFlipped : kDisplayRotationDefault);
+  settings_sync_display_rotation(rotate);
 
   const DeviceConfig& cfg = configManager.getConfig();
   configManager.saveDisplaySettings(

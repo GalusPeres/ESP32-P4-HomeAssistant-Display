@@ -13,6 +13,7 @@ void settings_update_wifi_status(bool connected, const char* ssid, const char* i
 void settings_update_wifi_status_ap(const char* ssid, const char* password);
 void settings_show_mqtt_warning(bool show);
 void settings_update_ap_mode(bool running);
+void settings_sync_display_rotation(bool rotated);
 
 // Update Power-Status (aufgerufen von main loop)
 void settings_update_power_status();

@@ -116,6 +116,16 @@ static void update_display_rotate_label() {
   lv_label_set_text(display_rotate_label, display_rotated_180 ? "Normal" : "Rotate 180");
 }
 
+void settings_sync_display_rotation(bool rotated) {
+  display_rotated_180 = rotated;
+  update_display_rotate_label();
+  lv_obj_invalidate(lv_scr_act());
+  lv_display_t* disp = lv_display_get_default();
+  if (disp) {
+    lv_refr_now(disp);
+  }
+}
+
 static void on_display_rotate_clicked(lv_event_t *e) {
   (void)e;
   display_rotated_180 = !display_rotated_180;
@@ -129,9 +139,7 @@ static void on_display_rotate_clicked(lv_event_t *e) {
       cfg.auto_sleep_battery_seconds,
       display_rotated_180);
   mqttPublishDeviceSettings();
-  update_display_rotate_label();
-  lv_obj_invalidate(lv_scr_act());
-  lv_refr_now(lv_display_get_default());
+  settings_sync_display_rotation(display_rotated_180);
 }
 
 static void on_brightness(lv_event_t *e) {
