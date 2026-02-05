@@ -24,7 +24,6 @@ static constexpr float kImuTapPeakMin = 0.05f;
 static constexpr float kImuTapJerk = 0.03f;
 static constexpr float kImuWakeStrong = 0.14f;
 static constexpr float kImuWakeStrongJerk = 0.06f;
-static constexpr uint32_t kImuTapWindowMs = 220;
 static constexpr uint32_t kImuWakeCooldownMs = 250;
 static constexpr uint32_t kImuI2cSleepHz = 100000;
 static constexpr uint32_t kImuI2cWakeHz = 400000;
@@ -58,7 +57,6 @@ void PowerManager::serviceImuWake() {
     imu_grav_z = az;
     imu_last_lin_mag = 0.0f;
     imu_noise_ema = 0.0f;
-    imu_last_peak_ms = 0;
     imu_last_wake_ms = 0;
     imu_have_last = true;
     return;
@@ -97,25 +95,19 @@ void PowerManager::serviceImuWake() {
 
   if (lin_mag >= kImuWakeStrong || lin_jerk >= kImuWakeStrongJerk) {
     imu_last_wake_ms = now_ms;
-    imu_last_peak_ms = 0;
     wakeFromDisplaySleep();
     return;
   }
 
   bool peak = (lin_mag >= tap_threshold) || (lin_jerk >= kImuTapJerk);
   if (peak) {
-    if (imu_last_peak_ms != 0 && (now_ms - imu_last_peak_ms) <= kImuTapWindowMs) {
-      imu_last_wake_ms = now_ms;
-      imu_last_peak_ms = 0;
-      wakeFromDisplaySleep();
-      return;
-    }
-    imu_last_peak_ms = now_ms;
+    imu_last_wake_ms = now_ms;
+    wakeFromDisplaySleep();
+    return;
   }
 
   if (grav_delta >= kImuWakeGravDelta) {
     imu_last_wake_ms = now_ms;
-    imu_last_peak_ms = 0;
     wakeFromDisplaySleep();
   }
 }
@@ -222,7 +214,6 @@ void PowerManager::enterDisplaySleep() {
   imu_have_last = false;
   imu_last_poll_ms = 0;
   imu_noise_ema = 0.0f;
-  imu_last_peak_ms = 0;
   imu_last_wake_ms = 0;
   if (ensureImuReady()) {
     M5.Imu.setClock(kImuI2cSleepHz);

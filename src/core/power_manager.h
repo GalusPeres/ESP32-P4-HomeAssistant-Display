@@ -69,7 +69,6 @@ private:
   float imu_grav_z = 0.0f;
   float imu_last_lin_mag = 0.0f;
   float imu_noise_ema = 0.0f;
-  uint32_t imu_last_peak_ms = 0;
   uint32_t imu_last_wake_ms = 0;
 };
 
