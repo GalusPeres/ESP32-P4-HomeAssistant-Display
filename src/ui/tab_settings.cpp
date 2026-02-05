@@ -52,6 +52,7 @@ static lv_obj_t *sleep_battery_label = nullptr;
 // Power Status Labels
 static lv_obj_t *power_status_label = nullptr;
 static lv_obj_t *power_level_label = nullptr;
+static lv_obj_t *battery_icon_label = nullptr;
 
 static const int kSettingsColLeftPct = 12;
 static const int kSettingsColMidPct = 26;
@@ -160,6 +161,26 @@ static void update_wake_button(lv_obj_t *main_label, lv_obj_t *sub_label, uint8_
   lv_label_set_text(main_label, main_buf);
   if (sub_label) {
     lv_label_set_text(sub_label, sub_buf);
+  }
+}
+
+static const char* battery_icon_name(bool charging, int percent) {
+  if (percent < 0) percent = 0;
+  if (percent > 100) percent = 100;
+  int bracket = (percent + 9) / 10;
+  if (bracket < 1) bracket = 1;
+  if (bracket > 10) bracket = 10;
+  switch (bracket) {
+    case 10: return charging ? "battery-charging-100" : "battery-100";
+    case 9: return charging ? "battery-charging-90" : "battery-90";
+    case 8: return charging ? "battery-charging-80" : "battery-80";
+    case 7: return charging ? "battery-charging-70" : "battery-70";
+    case 6: return charging ? "battery-charging-60" : "battery-60";
+    case 5: return charging ? "battery-charging-50" : "battery-50";
+    case 4: return charging ? "battery-charging-40" : "battery-40";
+    case 3: return charging ? "battery-charging-30" : "battery-30";
+    case 2: return charging ? "battery-charging-20" : "battery-20";
+    default: return charging ? "battery-charging-10" : "battery-10";
   }
 }
 
@@ -424,6 +445,13 @@ void settings_update_power_status() {
 
   lv_label_set_text(power_status_label, status_buf);
   lv_label_set_text(power_level_label, level_buf);
+
+  if (battery_icon_label) {
+    bool charging = lastPoweredState; // am Netzteil -> Lade-Icons
+    const char* icon_name = battery_icon_name(charging, displayLevel);
+    String icon_char = getMdiChar(String(icon_name));
+    lv_label_set_text(battery_icon_label, icon_char.c_str());
+  }
 }
 
 static void clear_ap_confirm_timer() {
@@ -807,7 +835,19 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
   lv_obj_t *card_battery = create_settings_card(tab, kSettingsCardColStart, 3);
   lv_obj_t *battery_col_left = create_settings_column(
       card_battery, kSettingsColLeftPct, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  create_icon_block(battery_col_left, "battery", "Batterie");
+  battery_icon_label = lv_label_create(battery_col_left);
+  String battery_icon = getMdiChar(String("battery"));
+  lv_label_set_text(battery_icon_label, battery_icon.c_str());
+  if (FONT_MDI_ICONS) {
+    lv_obj_set_style_text_font(battery_icon_label, FONT_MDI_ICONS, 0);
+  }
+  lv_obj_set_style_text_color(battery_icon_label, lv_color_white(), 0);
+
+  lv_obj_t *battery_label = lv_label_create(battery_col_left);
+  lv_label_set_text(battery_label, "Batterie");
+  lv_obj_set_style_text_font(battery_label, &ui_font_24, 0);
+  lv_obj_set_style_text_color(battery_label, lv_color_white(), 0);
+  lv_obj_set_style_margin_top(battery_label, 8, 0);
 
   lv_obj_t *battery_col_mid = create_settings_column(
       card_battery, kSettingsColMidPct, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
