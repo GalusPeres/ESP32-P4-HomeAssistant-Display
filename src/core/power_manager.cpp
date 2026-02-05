@@ -11,24 +11,45 @@
 
 PowerManager powerManager;
 
-static constexpr uint32_t kImuWakePollMs = 5;
-static constexpr float kImuGravityAlpha = 0.90f;
-static constexpr float kImuWakeLinMag = 0.05f;
-static constexpr float kImuWakeLinJerk = 0.01f;
-static constexpr float kImuWakeGravDelta = 0.03f;
+static constexpr uint32_t kImuWakePollMsSleep = 30;
+static constexpr uint32_t kImuWakePollMsAwake = 80;
+static constexpr float kImuGravityAlpha = 0.95f;
+static constexpr float kImuWakeLinMag = 0.024f;
+static constexpr float kImuWakeLinJerk = 0.005f;
+static constexpr float kImuWakeGravDelta = 0.025f;
 static constexpr float kImuNoiseAlpha = 0.90f;
-static constexpr float kImuNoiseClamp = 0.03f;
-static constexpr float kImuTapNoiseMult = 2.0f;
-static constexpr float kImuTapNoiseOffset = 0.008f;
-static constexpr float kImuTapPeakMin = 0.02f;
-static constexpr float kImuTapJerk = 0.015f;
-static constexpr float kImuWakeStrong = 0.10f;
-static constexpr float kImuWakeStrongJerk = 0.04f;
-static constexpr uint32_t kImuWakeCooldownMs = 150;
+static constexpr float kImuNoiseClamp = 0.015f;
+static constexpr float kImuTapNoiseMult = 1.3f;
+static constexpr float kImuTapNoiseOffset = 0.004f;
+static constexpr float kImuTapPeakMin = 0.012f;
+static constexpr float kImuTapJerk = 0.005f;
+static constexpr float kImuHoldNoiseMult = 1.2f;
+static constexpr float kImuHoldNoiseOffset = 0.006f;
+static constexpr float kImuHoldMin = 0.012f;
+static constexpr float kImuHoldJerk = 0.006f;
+static constexpr float kImuHoldGravDelta = 0.015f;
+static constexpr uint8_t kImuHoldSamples = 2;
+static constexpr uint32_t kImuHoldMs = 20000;
+static constexpr float kImuWakeStrong = 0.07f;
+static constexpr float kImuWakeStrongJerk = 0.025f;
+static constexpr uint32_t kImuWakeCooldownMs = 100;
 static constexpr bool kImuWakeDebug = true;
 static constexpr uint32_t kImuWakeLogMs = 200;
 static constexpr uint32_t kImuI2cSleepHz = 100000;
 static constexpr uint32_t kImuI2cWakeHz = 400000;
+static constexpr uint8_t kBmi270RegPwrCtrl = 0x7D;
+static constexpr uint8_t kBmi270PwrCtrlAccelOnly = 0x04;
+static constexpr uint8_t kBmi270PwrCtrlAllOn = 0x0F;
+
+static void imuSetAccelOnly(bool enable) {
+  auto imu = M5.Imu.getImuInstancePtr(0);
+  if (!imu) return;
+  if (enable) {
+    imu->writeRegister8(kBmi270RegPwrCtrl, kBmi270PwrCtrlAccelOnly);
+  } else {
+    imu->writeRegister8(kBmi270RegPwrCtrl, kBmi270PwrCtrlAllOn);
+  }
+}
 
 bool PowerManager::ensureImuReady() {
   if (imu_checked) return imu_ready;
@@ -44,7 +65,8 @@ bool PowerManager::ensureImuReady() {
 void PowerManager::serviceImuWake() {
   if (!ensureImuReady()) return;
   uint32_t now = millis();
-  if (now - imu_last_poll_ms < kImuWakePollMs) return;
+  uint32_t poll_ms = is_display_sleeping ? kImuWakePollMsSleep : kImuWakePollMsAwake;
+  if (now - imu_last_poll_ms < poll_ms) return;
   imu_last_poll_ms = now;
 
   auto mask = M5.Imu.update();
@@ -91,7 +113,26 @@ void PowerManager::serviceImuWake() {
   float tap_threshold = imu_noise_ema * kImuTapNoiseMult + kImuTapNoiseOffset;
   if (tap_threshold < kImuTapPeakMin) tap_threshold = kImuTapPeakMin;
 
+  float hold_threshold = imu_noise_ema * kImuHoldNoiseMult + kImuHoldNoiseOffset;
+  if (hold_threshold < kImuHoldMin) hold_threshold = kImuHoldMin;
+
   uint32_t now_ms = millis();
+  bool hold_motion = (lin_mag >= hold_threshold) ||
+                     (lin_jerk >= kImuHoldJerk) ||
+                     (grav_delta >= kImuHoldGravDelta);
+  if (hold_motion) {
+    if (imu_hold_hits < kImuHoldSamples) imu_hold_hits++;
+  } else if (imu_hold_hits > 0) {
+    imu_hold_hits--;
+  }
+  if (imu_hold_hits >= kImuHoldSamples) {
+    imu_last_motion_ms = now_ms;
+    if (!is_display_sleeping) {
+      displayManager.resetActivityTimer();
+      setHighPerformance(true);
+    }
+  }
+
   if (now_ms - imu_last_wake_ms < kImuWakeCooldownMs) {
     return;
   }
@@ -206,6 +247,12 @@ void PowerManager::update(uint32_t last_activity_time) {
     return;
   }
   uint32_t now = millis();
+  uint32_t sleep_timeout = getSleepTimeout();
+  if (sleep_timeout != 0xFFFFFFFF) {
+    serviceImuWake();
+  }
+
+  uint32_t last_activity = last_activity_time;
 
   // Schlaf-Sperre aktiv? -> Keine Sleep-Checks, optional Timeout pruefen
   if (sleep_blocked) {
@@ -218,13 +265,17 @@ void PowerManager::update(uint32_t last_activity_time) {
     }
   }
 
-  if (is_high_performance && (now - last_activity_time > IDLE_TIMEOUT_MS)) {
+  if (is_high_performance && (now - last_activity > IDLE_TIMEOUT_MS)) {
     setHighPerformance(false); 
   }
 
-  uint32_t sleep_timeout = getSleepTimeout();
-  if (!is_high_performance && (now - last_activity_time > sleep_timeout)) {
-    enterDisplaySleep();
+  if (!is_high_performance && sleep_timeout != 0xFFFFFFFF) {
+    uint32_t quiet_ms = (sleep_timeout <= 10000) ? sleep_timeout : 10000;
+    if (now - last_activity > sleep_timeout) {
+      if (imu_last_motion_ms == 0 || (now - imu_last_motion_ms) >= quiet_ms) {
+        enterDisplaySleep();
+      }
+    }
   }
 }
 
@@ -239,8 +290,11 @@ void PowerManager::enterDisplaySleep() {
   imu_noise_ema = 0.0f;
   imu_last_wake_ms = 0;
   imu_last_log_ms = 0;
+  imu_last_motion_ms = 0;
+  imu_hold_hits = 0;
   if (ensureImuReady()) {
     M5.Imu.setClock(kImuI2cSleepHz);
+    imuSetAccelOnly(true);
   }
   M5.Display.sleep();
   displayManager.setInputEnabled(false);
@@ -269,6 +323,7 @@ void PowerManager::wakeFromDisplaySleep() {
   M5.Display.wakeup();
   if (imu_ready) {
     M5.Imu.setClock(kImuI2cWakeHz);
+    imuSetAccelOnly(false);
   }
   M5.Display.setBrightness(saved_brightness);
   applyCpuFrequency(CPU_FREQ_HIGH);

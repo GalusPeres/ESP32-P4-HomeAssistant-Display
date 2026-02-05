@@ -71,6 +71,8 @@ private:
   float imu_noise_ema = 0.0f;
   uint32_t imu_last_wake_ms = 0;
   uint32_t imu_last_log_ms = 0;
+  uint32_t imu_last_motion_ms = 0;
+  uint8_t imu_hold_hits = 0;
 };
 
 // Globale Instanz
