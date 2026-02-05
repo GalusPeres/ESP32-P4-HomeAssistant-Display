@@ -4,11 +4,60 @@
 #include "src/core/config_manager.h"
 #include "src/network/network_manager.h"
 #include "src/network/mqtt_handlers.h"
+#include <cmath>
 #if defined(ARDUINO_ARCH_ESP32)
 #include "esp32-hal-cpu.h"
 #endif
 
 PowerManager powerManager;
+
+static constexpr uint32_t kImuWakePollMs = 250;
+static constexpr float kImuWakeDelta = 0.35f;
+static constexpr uint32_t kImuI2cSleepHz = 100000;
+static constexpr uint32_t kImuI2cWakeHz = 400000;
+
+bool PowerManager::ensureImuReady() {
+  if (imu_checked) return imu_ready;
+  imu_checked = true;
+  if (M5.Imu.isEnabled()) {
+    imu_ready = true;
+    return true;
+  }
+  imu_ready = M5.Imu.begin();
+  return imu_ready;
+}
+
+void PowerManager::serviceImuWake() {
+  if (!ensureImuReady()) return;
+  uint32_t now = millis();
+  if (now - imu_last_poll_ms < kImuWakePollMs) return;
+  imu_last_poll_ms = now;
+
+  auto mask = M5.Imu.update();
+  if (!(mask & m5::IMU_Class::sensor_mask_accel)) return;
+
+  float ax = 0.0f, ay = 0.0f, az = 0.0f;
+  if (!M5.Imu.getAccel(&ax, &ay, &az)) return;
+
+  if (!imu_have_last) {
+    imu_last_ax = ax;
+    imu_last_ay = ay;
+    imu_last_az = az;
+    imu_have_last = true;
+    return;
+  }
+
+  float delta = std::fabs(ax - imu_last_ax) +
+                std::fabs(ay - imu_last_ay) +
+                std::fabs(az - imu_last_az);
+  imu_last_ax = ax;
+  imu_last_ay = ay;
+  imu_last_az = az;
+
+  if (delta >= kImuWakeDelta) {
+    wakeFromDisplaySleep();
+  }
+}
 
 void PowerManager::applyCpuFrequency(uint16_t mhz) {
 #if defined(ARDUINO_ARCH_ESP32)
@@ -76,7 +125,10 @@ bool PowerManager::isPoweredByMains() const {
 }
 
 void PowerManager::update(uint32_t last_activity_time) {
-  if (is_display_sleeping) return;
+  if (is_display_sleeping) {
+    serviceImuWake();
+    return;
+  }
   uint32_t now = millis();
 
   // Schlaf-Sperre aktiv? -> Keine Sleep-Checks, optional Timeout pruefen
@@ -106,6 +158,11 @@ void PowerManager::enterDisplaySleep() {
   
   saved_brightness = M5.Display.getBrightness();
   M5.update();
+  imu_have_last = false;
+  imu_last_poll_ms = 0;
+  if (ensureImuReady()) {
+    M5.Imu.setClock(kImuI2cSleepHz);
+  }
   M5.Display.sleep();
   displayManager.setInputEnabled(false);
   applyCpuFrequency(CPU_FREQ_SLEEP);
@@ -131,6 +188,9 @@ void PowerManager::wakeFromDisplaySleep() {
 
   displayManager.setInputEnabled(true);
   M5.Display.wakeup();
+  if (imu_ready) {
+    M5.Imu.setClock(kImuI2cWakeHz);
+  }
   M5.Display.setBrightness(saved_brightness);
   applyCpuFrequency(CPU_FREQ_HIGH);
   

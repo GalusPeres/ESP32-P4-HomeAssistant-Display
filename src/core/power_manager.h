@@ -50,6 +50,8 @@ public:
 
 private:
   void applyCpuFrequency(uint16_t mhz);
+  void serviceImuWake();
+  bool ensureImuReady();
   bool last_power_mode = true;  // true = Netzteil, false = Batterie
   bool is_high_performance = true;
   bool is_display_sleeping = false;
@@ -58,6 +60,13 @@ private:
   uint16_t last_cpu_mhz = 0;
   bool sleep_blocked = false;
   uint32_t sleep_block_until = 0; // millis-Deadline, 0 = keine Deadline
+  bool imu_checked = false;
+  bool imu_ready = false;
+  bool imu_have_last = false;
+  uint32_t imu_last_poll_ms = 0;
+  float imu_last_ax = 0.0f;
+  float imu_last_ay = 0.0f;
+  float imu_last_az = 0.0f;
 };
 
 // Globale Instanz
