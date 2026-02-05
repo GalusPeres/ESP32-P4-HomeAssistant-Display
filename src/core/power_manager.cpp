@@ -11,20 +11,20 @@
 
 PowerManager powerManager;
 
-static constexpr uint32_t kImuWakePollMs = 10;
+static constexpr uint32_t kImuWakePollMs = 5;
 static constexpr float kImuGravityAlpha = 0.90f;
-static constexpr float kImuWakeLinMag = 0.08f;
-static constexpr float kImuWakeLinJerk = 0.02f;
-static constexpr float kImuWakeGravDelta = 0.04f;
+static constexpr float kImuWakeLinMag = 0.05f;
+static constexpr float kImuWakeLinJerk = 0.01f;
+static constexpr float kImuWakeGravDelta = 0.03f;
 static constexpr float kImuNoiseAlpha = 0.90f;
-static constexpr float kImuNoiseClamp = 0.05f;
-static constexpr float kImuTapNoiseMult = 3.0f;
-static constexpr float kImuTapNoiseOffset = 0.015f;
-static constexpr float kImuTapPeakMin = 0.05f;
-static constexpr float kImuTapJerk = 0.03f;
-static constexpr float kImuWakeStrong = 0.14f;
-static constexpr float kImuWakeStrongJerk = 0.06f;
-static constexpr uint32_t kImuWakeCooldownMs = 250;
+static constexpr float kImuNoiseClamp = 0.03f;
+static constexpr float kImuTapNoiseMult = 2.0f;
+static constexpr float kImuTapNoiseOffset = 0.008f;
+static constexpr float kImuTapPeakMin = 0.02f;
+static constexpr float kImuTapJerk = 0.015f;
+static constexpr float kImuWakeStrong = 0.10f;
+static constexpr float kImuWakeStrongJerk = 0.04f;
+static constexpr uint32_t kImuWakeCooldownMs = 150;
 static constexpr bool kImuWakeDebug = true;
 static constexpr uint32_t kImuWakeLogMs = 200;
 static constexpr uint32_t kImuI2cSleepHz = 100000;
