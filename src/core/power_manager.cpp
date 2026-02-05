@@ -15,6 +15,7 @@ static constexpr uint32_t kImuWakePollMs = 10;
 static constexpr float kImuGravityAlpha = 0.90f;
 static constexpr float kImuWakeLinMag = 0.08f;
 static constexpr float kImuWakeLinJerk = 0.02f;
+static constexpr float kImuWakeGravDelta = 0.04f;
 static constexpr uint32_t kImuI2cSleepHz = 100000;
 static constexpr uint32_t kImuI2cWakeHz = 400000;
 
@@ -50,6 +51,10 @@ void PowerManager::serviceImuWake() {
     return;
   }
 
+  float prev_grav_x = imu_grav_x;
+  float prev_grav_y = imu_grav_y;
+  float prev_grav_z = imu_grav_z;
+
   imu_grav_x = kImuGravityAlpha * imu_grav_x + (1.0f - kImuGravityAlpha) * ax;
   imu_grav_y = kImuGravityAlpha * imu_grav_y + (1.0f - kImuGravityAlpha) * ay;
   imu_grav_z = kImuGravityAlpha * imu_grav_z + (1.0f - kImuGravityAlpha) * az;
@@ -61,7 +66,13 @@ void PowerManager::serviceImuWake() {
   float lin_jerk = std::fabs(lin_mag - imu_last_lin_mag);
   imu_last_lin_mag = lin_mag;
 
-  if (lin_mag >= kImuWakeLinMag || lin_jerk >= kImuWakeLinJerk) {
+  float grav_delta = std::fabs(imu_grav_x - prev_grav_x) +
+                     std::fabs(imu_grav_y - prev_grav_y) +
+                     std::fabs(imu_grav_z - prev_grav_z);
+
+  if (lin_mag >= kImuWakeLinMag ||
+      lin_jerk >= kImuWakeLinJerk ||
+      grav_delta >= kImuWakeGravDelta) {
     wakeFromDisplaySleep();
   }
 }
