@@ -631,7 +631,13 @@ static LightPopupInit build_popup_init_from_state(const Tile& tile, const Switch
   LightPopupInit init;
   init.entity_id = tile.sensor_entity;
   init.title = tile.title;
-  init.icon_name = tile.icon_name;
+  String icon_name = tile.icon_name;
+  bool icon_disabled = isMdiIconDisabled(icon_name);
+  icon_name = normalizeMdiIconName(icon_name);
+  if (!icon_disabled && !icon_name.length() && tile.sensor_entity.length()) {
+    icon_name = normalizeMdiIconName(haBridgeConfig.findEntityIcon(tile.sensor_entity));
+  }
+  init.icon_name = icon_name;
   init.is_light = is_light_entity_id(tile.sensor_entity);
   init.has_state = state.has_state;
   init.has_color = state.has_color;
