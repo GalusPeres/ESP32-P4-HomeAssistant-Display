@@ -17,8 +17,10 @@ static bool display_rotated_180 = false;
 static uint8_t display_rotation_mode = kDisplayRotationNormal;
 static lv_obj_t *mains_wake_btn = nullptr;
 static lv_obj_t *mains_wake_label = nullptr;
+static lv_obj_t *mains_wake_sub_label = nullptr;
 static lv_obj_t *battery_wake_btn = nullptr;
 static lv_obj_t *battery_wake_label = nullptr;
+static lv_obj_t *battery_wake_sub_label = nullptr;
 static uint8_t wake_mode_mains = kWakeModeImu;
 static uint8_t wake_mode_battery = kWakeModeImu;
 static hotspot_callback_t g_hotspot_callback = nullptr;
@@ -127,10 +129,23 @@ static void update_display_rotate_label() {
   lv_label_set_text(display_rotate_label, text);
 }
 
-static void update_wake_label(lv_obj_t *label, uint8_t mode) {
-  if (!label) return;
-  const char* text = (mode == kWakeModeTouch) ? "Touch" : "IMU";
-  lv_label_set_text(label, text);
+static const char* wake_mode_text(uint8_t mode) {
+  return (mode == kWakeModeTouch) ? "Touch" : "Bewegung";
+}
+
+static void update_wake_button(lv_obj_t *main_label, lv_obj_t *sub_label, uint8_t mode) {
+  if (!main_label) return;
+  uint8_t next = (mode == kWakeModeTouch) ? kWakeModeImu : kWakeModeTouch;
+  const char* next_text = wake_mode_text(next);
+  const char* cur_text = wake_mode_text(mode);
+  static char main_buf[24];
+  static char sub_buf[32];
+  snprintf(main_buf, sizeof(main_buf), "Wechsel zu %s", next_text);
+  snprintf(sub_buf, sizeof(sub_buf), "Aktuell: %s", cur_text);
+  lv_label_set_text(main_label, main_buf);
+  if (sub_label) {
+    lv_label_set_text(sub_label, sub_buf);
+  }
 }
 
 void settings_sync_display_rotation(bool rotated) {
@@ -181,7 +196,7 @@ static void on_display_rotate_clicked(lv_event_t *e) {
 static void on_mains_wake_clicked(lv_event_t *e) {
   (void)e;
   wake_mode_mains = (wake_mode_mains == kWakeModeTouch) ? kWakeModeImu : kWakeModeTouch;
-  update_wake_label(mains_wake_label, wake_mode_mains);
+  update_wake_button(mains_wake_label, mains_wake_sub_label, wake_mode_mains);
   const DeviceConfig& cfg = configManager.getConfig();
   configManager.saveDisplaySettings(
       cfg.display_brightness,
@@ -199,7 +214,7 @@ static void on_mains_wake_clicked(lv_event_t *e) {
 static void on_battery_wake_clicked(lv_event_t *e) {
   (void)e;
   wake_mode_battery = (wake_mode_battery == kWakeModeTouch) ? kWakeModeImu : kWakeModeTouch;
-  update_wake_label(battery_wake_label, wake_mode_battery);
+  update_wake_button(battery_wake_label, battery_wake_sub_label, wake_mode_battery);
   const DeviceConfig& cfg = configManager.getConfig();
   configManager.saveDisplaySettings(
       cfg.display_brightness,
@@ -727,8 +742,13 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
   mains_wake_label = lv_label_create(mains_wake_btn);
   lv_obj_set_style_text_font(mains_wake_label, &ui_font_24, 0);
   lv_obj_set_style_text_color(mains_wake_label, lv_color_white(), 0);
-  lv_obj_center(mains_wake_label);
-  update_wake_label(mains_wake_label, wake_mode_mains);
+  lv_obj_align(mains_wake_label, LV_ALIGN_TOP_MID, 0, 8);
+
+  mains_wake_sub_label = lv_label_create(mains_wake_btn);
+  lv_obj_set_style_text_font(mains_wake_sub_label, &ui_font_20, 0);
+  lv_obj_set_style_text_color(mains_wake_sub_label, lv_color_hex(0xE0E0E0), 0);
+  lv_obj_align(mains_wake_sub_label, LV_ALIGN_BOTTOM_MID, 0, -8);
+  update_wake_button(mains_wake_label, mains_wake_sub_label, wake_mode_mains);
 
   lv_obj_t *mains_col_right = create_settings_column(
       card_mains, kSettingsColRightPct, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
@@ -786,8 +806,13 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
   battery_wake_label = lv_label_create(battery_wake_btn);
   lv_obj_set_style_text_font(battery_wake_label, &ui_font_24, 0);
   lv_obj_set_style_text_color(battery_wake_label, lv_color_white(), 0);
-  lv_obj_center(battery_wake_label);
-  update_wake_label(battery_wake_label, wake_mode_battery);
+  lv_obj_align(battery_wake_label, LV_ALIGN_TOP_MID, 0, 8);
+
+  battery_wake_sub_label = lv_label_create(battery_wake_btn);
+  lv_obj_set_style_text_font(battery_wake_sub_label, &ui_font_20, 0);
+  lv_obj_set_style_text_color(battery_wake_sub_label, lv_color_hex(0xE0E0E0), 0);
+  lv_obj_align(battery_wake_sub_label, LV_ALIGN_BOTTOM_MID, 0, -8);
+  update_wake_button(battery_wake_label, battery_wake_sub_label, wake_mode_battery);
   power_status_label = lv_label_create(battery_col_mid);
   lv_label_set_text(power_status_label, "Status: ---");
   lv_obj_set_width(power_status_label, LV_PCT(100));
