@@ -12,6 +12,14 @@ const MqttTopicRegistry::TopicDescriptor MqttTopicRegistry::kDescriptors[] = {
   {TopicKey::STAT_CONN, TopicDomain::State, "connected"},
   {TopicKey::TELE_UP, TopicDomain::Telemetry, "uptime"},
   {TopicKey::HA_WOHN_TEMP, TopicDomain::HaStatestream, "sensor/og_wohnbereich_sensor_temperatur/state"},
+  {TopicKey::DISPLAY_BRIGHTNESS_CMND, TopicDomain::Command, "display_brightness"},
+  {TopicKey::DISPLAY_BRIGHTNESS_STAT, TopicDomain::State, "display_brightness"},
+  {TopicKey::DISPLAY_ROTATE_CMND, TopicDomain::Command, "display_rotate"},
+  {TopicKey::DISPLAY_ROTATE_STAT, TopicDomain::State, "display_rotate"},
+  {TopicKey::SLEEP_MAINS_CMND, TopicDomain::Command, "sleep_mains"},
+  {TopicKey::SLEEP_MAINS_STAT, TopicDomain::State, "sleep_mains"},
+  {TopicKey::SLEEP_BAT_CMND, TopicDomain::Command, "sleep_battery"},
+  {TopicKey::SLEEP_BAT_STAT, TopicDomain::State, "sleep_battery"},
 };
 
 void MqttTopicRegistry::begin(const TopicSettings& settings) {

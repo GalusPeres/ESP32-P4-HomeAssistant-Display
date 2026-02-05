@@ -7,6 +7,7 @@
 #include "src/tiles/tile_config.h"
 #include "src/ui/ui_manager.h"
 #include "src/fonts/ui_fonts.h"
+#include "src/network/mqtt_handlers.h"
 
 static lv_obj_t *brightness_label = nullptr;
 static lv_obj_t *display_rotate_btn = nullptr;
@@ -127,6 +128,7 @@ static void on_display_rotate_clicked(lv_event_t *e) {
       cfg.auto_sleep_battery_enabled,
       cfg.auto_sleep_battery_seconds,
       display_rotated_180);
+  mqttPublishDeviceSettings();
   update_display_rotate_label();
   lv_obj_invalidate(lv_scr_act());
   lv_refr_now(lv_display_get_default());
@@ -155,6 +157,7 @@ static void on_brightness(lv_event_t *e) {
         cfg.auto_sleep_battery_enabled,
         cfg.auto_sleep_battery_seconds,
         display_rotated_180);
+    mqttPublishDeviceSettings();
   }
 }
 
@@ -242,6 +245,7 @@ static void on_sleep_slider(lv_event_t *e) {
         cfg.auto_sleep_battery_enabled,
         cfg.auto_sleep_battery_seconds,
         display_rotated_180);
+    mqttPublishDeviceSettings();
   }
 }
 
@@ -265,6 +269,7 @@ static void on_sleep_battery_slider(lv_event_t *e) {
         enabled,
         seconds,
         display_rotated_180);
+    mqttPublishDeviceSettings();
   }
 }
 

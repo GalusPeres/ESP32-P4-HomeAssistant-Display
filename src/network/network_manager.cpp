@@ -135,6 +135,7 @@ void Tab5NetworkManager::connectMqtt() {
     Serial.printf("[MQTT] Listening for history responses on %s\n", history_response_topic_.c_str());
   }
   mqttPublishDiscovery();
+  mqttPublishDeviceSettings();
   publishBridgeConfig();
   publishBridgeRequest();
 }

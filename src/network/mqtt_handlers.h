@@ -12,6 +12,7 @@ void mqttPublishSwitchCommand(const char* entity_id, const char* state);
 void mqttPublishLightCommand(const char* entity_id, const char* state, int brightness_pct, bool has_color, uint32_t color);
 void mqttPublishHistoryRequest(const char* entity_id);
 void mqttPublishHomeSnapshot();
+void mqttPublishDeviceSettings();
 void mqttReloadDynamicSlots();
 
 #endif // MQTT_HANDLERS_H

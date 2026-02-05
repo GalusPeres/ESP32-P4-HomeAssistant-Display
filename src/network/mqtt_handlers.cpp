@@ -6,6 +6,8 @@
 #include "src/ui/sensor_popup.h"
 #include "src/tiles/tile_config.h"
 #include "src/tiles/tile_renderer.h"
+#include "src/core/config_manager.h"
+#include <M5Unified.h>
 #include <PubSubClient.h>
 #include <algorithm>
 #include <vector>
@@ -14,6 +16,27 @@
 static float g_outside_c = 21.7f;
 static float g_inside_c = 22.4f;
 static int g_soc_pct = 73;
+
+static const uint8_t kDisplayRotationDefault = 1;
+static const uint8_t kDisplayRotationFlipped = 3;
+
+static const char* kSleepOptionLabels[] = {
+  "5 s",
+  "15 s",
+  "30 s",
+  "60 s",
+  "5 min",
+  "15 min",
+  "30 min",
+  "60 min",
+  "Nie"
+};
+
+static constexpr size_t kSleepOptionLabelCount =
+    sizeof(kSleepOptionLabels) / sizeof(kSleepOptionLabels[0]);
+
+static const char* kSleepOptionsJson =
+    "[\"5 s\",\"15 s\",\"30 s\",\"60 s\",\"5 min\",\"15 min\",\"30 min\",\"60 min\",\"Nie\"]";
 
 using RouteHandler = void (*)(const char* payload, size_t len);
 
@@ -59,12 +82,174 @@ static void handleHaWohnTemp(const char* payload, size_t) {
   Serial.printf("HA Wohnbereich Temperatur: %s -> %.2f C\n", payload, v);
 }
 
+static bool parseBoolPayload(const char* payload, bool* out) {
+  if (!payload || !out) return false;
+  String s(payload);
+  s.trim();
+  s.toLowerCase();
+  if (s == "1" || s == "on" || s == "true" || s == "yes") {
+    *out = true;
+    return true;
+  }
+  if (s == "0" || s == "off" || s == "false" || s == "no") {
+    *out = false;
+    return true;
+  }
+  return false;
+}
+
+static const char* sleepLabelFromConfig(bool enabled, uint16_t seconds) {
+  if (!enabled) return "Nie";
+  uint16_t closest = kSleepOptionsSec[0];
+  size_t closest_index = 0;
+  uint16_t best_diff = (seconds > closest) ? (seconds - closest) : (closest - seconds);
+  for (size_t i = 1; i < kSleepOptionsSecCount; ++i) {
+    uint16_t option = kSleepOptionsSec[i];
+    uint16_t diff = (seconds > option) ? (seconds - option) : (option - seconds);
+    if (diff < best_diff) {
+      best_diff = diff;
+      closest = option;
+      closest_index = i;
+    }
+  }
+  if (closest_index >= kSleepOptionLabelCount - 1) {
+    closest_index = kSleepOptionLabelCount - 2;
+  }
+  return kSleepOptionLabels[closest_index];
+}
+
+static bool parseSleepPayload(const char* payload, bool* enabled, uint16_t* seconds) {
+  if (!payload || !enabled || !seconds) return false;
+  String s(payload);
+  s.trim();
+  s.toLowerCase();
+  if (!s.length()) return false;
+
+  if (s == "nie" || s == "never" || s == "off" || s == "0") {
+    *enabled = false;
+    return true;
+  }
+
+  for (size_t i = 0; i + 1 < kSleepOptionLabelCount; ++i) {
+    String label = kSleepOptionLabels[i];
+    label.toLowerCase();
+    if (s == label) {
+      *enabled = true;
+      *seconds = kSleepOptionsSec[i];
+      return true;
+    }
+  }
+
+  String compact = s;
+  compact.replace(" ", "");
+  bool is_min = compact.endsWith("min") || compact.endsWith("m");
+  bool is_sec = compact.endsWith("s");
+  int value = 0;
+  bool found_digit = false;
+  for (size_t i = 0; i < compact.length(); ++i) {
+    char c = compact.charAt(i);
+    if (c >= '0' && c <= '9') {
+      value = value * 10 + (c - '0');
+      found_digit = true;
+    } else if (found_digit) {
+      break;
+    }
+  }
+  if (!found_digit) return false;
+
+  uint32_t secs = is_min ? (uint32_t)value * 60u : (uint32_t)value;
+  if (!is_min && !is_sec && value > 0 && value <= 3600) {
+    secs = (uint32_t)value;
+  }
+  if (secs == 0) {
+    *enabled = false;
+    return true;
+  }
+
+  *enabled = true;
+  *seconds = static_cast<uint16_t>(secs);
+  return true;
+}
+
+static void handleDisplayBrightnessCommand(const char* payload, size_t) {
+  if (!payload || !*payload) return;
+  int value = atoi(payload);
+  if (value < 75) value = 75;
+  if (value > 255) value = 255;
+
+  M5.Display.setBrightness(value);
+
+  const DeviceConfig& cfg = configManager.getConfig();
+  configManager.saveDisplaySettings(
+      static_cast<uint8_t>(value),
+      cfg.auto_sleep_enabled,
+      cfg.auto_sleep_seconds,
+      cfg.auto_sleep_battery_enabled,
+      cfg.auto_sleep_battery_seconds,
+      cfg.display_rotated_180);
+  mqttPublishDeviceSettings();
+}
+
+static void handleDisplayRotateCommand(const char* payload, size_t) {
+  bool rotate = false;
+  if (!parseBoolPayload(payload, &rotate)) return;
+  M5.Display.setRotation(rotate ? kDisplayRotationFlipped : kDisplayRotationDefault);
+
+  const DeviceConfig& cfg = configManager.getConfig();
+  configManager.saveDisplaySettings(
+      cfg.display_brightness,
+      cfg.auto_sleep_enabled,
+      cfg.auto_sleep_seconds,
+      cfg.auto_sleep_battery_enabled,
+      cfg.auto_sleep_battery_seconds,
+      rotate);
+  mqttPublishDeviceSettings();
+}
+
+static void handleSleepMainsCommand(const char* payload, size_t) {
+  bool enabled = false;
+  uint16_t seconds = 0;
+  if (!parseSleepPayload(payload, &enabled, &seconds)) return;
+
+  const DeviceConfig& cfg = configManager.getConfig();
+  uint16_t new_seconds = enabled ? seconds : cfg.auto_sleep_seconds;
+  configManager.saveDisplaySettings(
+      cfg.display_brightness,
+      enabled,
+      new_seconds,
+      cfg.auto_sleep_battery_enabled,
+      cfg.auto_sleep_battery_seconds,
+      cfg.display_rotated_180);
+  mqttPublishDeviceSettings();
+}
+
+static void handleSleepBatteryCommand(const char* payload, size_t) {
+  bool enabled = false;
+  uint16_t seconds = 0;
+  if (!parseSleepPayload(payload, &enabled, &seconds)) return;
+
+  const DeviceConfig& cfg = configManager.getConfig();
+  uint16_t new_seconds = enabled ? seconds : cfg.auto_sleep_battery_seconds;
+  configManager.saveDisplaySettings(
+      cfg.display_brightness,
+      cfg.auto_sleep_enabled,
+      cfg.auto_sleep_seconds,
+      enabled,
+      new_seconds,
+      cfg.display_rotated_180);
+  mqttPublishDeviceSettings();
+}
+
 static const TopicRoute kRoutes[] = {
   {TopicKey::SENSOR_OUT, handleOutside, false},
   {TopicKey::SENSOR_IN, handleInside, false},
   {TopicKey::SENSOR_SOC, handleSoc, false},
   {TopicKey::SCENE_CMND, handleSceneCommand, false},
   {TopicKey::HA_WOHN_TEMP, handleHaWohnTemp, false},
+  {TopicKey::DISPLAY_BRIGHTNESS_CMND, handleDisplayBrightnessCommand, false},
+  {TopicKey::DISPLAY_ROTATE_CMND, handleDisplayRotateCommand, false},
+  {TopicKey::SLEEP_MAINS_CMND, handleSleepMainsCommand, false},
+  {TopicKey::SLEEP_BAT_CMND, handleSleepBatteryCommand, false},
 };
 
 static String buildHaStatestreamTopic(const String& entity_id, const char* suffix) {
@@ -320,6 +505,30 @@ void mqttPublishHomeSnapshot() {
   mqtt.publish(mqttTopics.topic(TopicKey::SENSOR_SOC), buf, true);
 }
 
+// ========== Device Settings publizieren ==========
+void mqttPublishDeviceSettings() {
+  PubSubClient& mqtt = networkManager.getMqttClient();
+  if (!mqtt.connected()) return;
+
+  const DeviceConfig& cfg = configManager.getConfig();
+
+  auto publish_state = [&](TopicKey key, const char* payload) {
+    const char* tpc = mqttTopics.topic(key);
+    if (!tpc || !*tpc || !payload) return;
+    mqtt.publish(tpc, payload, true);
+  };
+
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(cfg.display_brightness));
+  publish_state(TopicKey::DISPLAY_BRIGHTNESS_STAT, buf);
+  publish_state(TopicKey::DISPLAY_ROTATE_STAT, cfg.display_rotated_180 ? "ON" : "OFF");
+
+  publish_state(TopicKey::SLEEP_MAINS_STAT,
+                sleepLabelFromConfig(cfg.auto_sleep_enabled, cfg.auto_sleep_seconds));
+  publish_state(TopicKey::SLEEP_BAT_STAT,
+                sleepLabelFromConfig(cfg.auto_sleep_battery_enabled, cfg.auto_sleep_battery_seconds));
+}
+
 // ========== Scene Command publizieren ==========
 void mqttPublishScene(const char* scene_name) {
   if (!scene_name || !*scene_name) return;
@@ -447,7 +656,7 @@ void mqttPublishDiscovery() {
   snprintf(did, sizeof(did), "tab5_lvgl_%04X", (uint16_t)(mac & 0xFFFF));
 
   char tpc[128];
-  char js[512];
+  char js[1024];
 
   const char* stat_topic = mqttTopics.topic(TopicKey::STAT_CONN);
 
