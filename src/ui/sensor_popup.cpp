@@ -8,6 +8,7 @@
 #include <ArduinoJson.h>
 #include <math.h>
 #include <stdlib.h>
+#include <time.h>
 
 namespace {
 
@@ -17,9 +18,11 @@ constexpr int kCardPad = 20;
 constexpr int kHeaderPadTop = 4;
 constexpr int kHeaderIconOffsetX = 4;
 constexpr int kHeaderIconOffsetY = -8;
-constexpr int kContentPadTop = 85;
-constexpr int kContentRowGap = 35;
+constexpr int kContentPadTop = 65;
+constexpr int kContentRowGap = 15;
 constexpr int kChartHeight = 190;
+constexpr int kTimeAxisHeight = 20;  // space for time labels below chart
+constexpr int kTimeAxisMarkerCount = 4;  // 4 time markers (every 6h)
 constexpr int kChartLineWidth = 4;
 constexpr int kHistoryPointsDefault = 288;
 
@@ -35,6 +38,13 @@ struct SensorPopupContext {
   lv_obj_t* value_label = nullptr;
   lv_obj_t* chart = nullptr;
   lv_chart_series_t* series = nullptr;
+  lv_obj_t* y_max_label = nullptr;
+  lv_obj_t* y_min_label = nullptr;
+  lv_obj_t* y_max_line = nullptr;
+  lv_obj_t* y_min_line = nullptr;
+  lv_obj_t* time_labels[kTimeAxisMarkerCount] = {};
+  lv_obj_t* time_lines[kTimeAxisMarkerCount] = {};
+  lv_obj_t* chart_wrap = nullptr;
   uint16_t point_count = kHistoryPointsDefault;
 };
 
@@ -168,12 +178,141 @@ static void apply_init_to_context(SensorPopupContext* ctx, const SensorPopupInit
   update_value_label(ctx, init.value, init.unit);
 }
 
+// Measure actual rendered text width of a label by temporarily setting it to content-size.
+static lv_coord_t measure_label_text_width(lv_obj_t* label) {
+  if (!label) return 0;
+  const char* txt = lv_label_get_text(label);
+  if (!txt || !*txt) return 0;
+  lv_obj_set_width(label, LV_SIZE_CONTENT);
+  lv_obj_update_layout(label);
+  return lv_obj_get_width(label);
+}
+
+// Get current local hour (0-23). Returns -1 if time not available.
+static int get_local_hour() {
+  struct tm timeinfo;
+  if (getLocalTime(&timeinfo, 0)) {
+    return timeinfo.tm_hour;
+  }
+  return -1;
+}
+
+// Calculate time axis marker positions and labels.
+// History covers the last 24h ending at "now".  We place markers at full
+// 6-hour boundaries (0:00, 6:00, 12:00, 18:00) that fall within that window.
+// out_labels[i] receives the hour string ("0","6","12","18").
+// out_frac[i] receives the fractional X position (0.0 = left, 1.0 = right).
+// Returns number of markers placed (0-4).
+static int calc_time_axis(String out_labels[], float out_frac[], int max_markers) {
+  int hour = get_local_hour();
+  if (hour < 0 || max_markers < 1) return 0;
+
+  // The chart spans 24h ending at the current hour.
+  // Position 0.0 = 24h ago, position 1.0 = now.
+  // A clock-hour H occurred (hour - H) hours ago  (mod 24).
+  // Its fractional position = 1.0 - (hours_ago / 24.0).
+  int count = 0;
+  for (int m = 0; m < 4 && count < max_markers; ++m) {
+    int h = m * 6;  // 0, 6, 12, 18
+    int hours_ago = (hour - h + 24) % 24;
+    if (hours_ago == 0) hours_ago = 24;  // "now" maps to 24h ago at same hour
+    float frac = 1.0f - (static_cast<float>(hours_ago) / 24.0f);
+    if (frac < 0.02f || frac > 0.98f) continue;  // skip if too close to edges
+    out_labels[count] = String(h) + " Uhr";
+    out_frac[count] = frac;
+    ++count;
+  }
+  return count;
+}
+
+// Recalculate Y-axis layout based on actual label text widths.
+// Measures max/min labels, repositions guide lines and chart padding.
+static void update_y_axis_layout(SensorPopupContext* ctx) {
+  if (!ctx || !ctx->chart || !ctx->chart_wrap) return;
+  constexpr int kLineOverlap = 6;
+  constexpr int kLabelGap = 16;   // gap between label right edge and guide line start
+  constexpr int kMinAxisW = 10;   // minimum width even if labels empty
+  const int kAvailW = kCardWidth - (kCardPad * 2);
+
+  // Measure actual rendered text widths
+  lv_coord_t max_w = measure_label_text_width(ctx->y_max_label);
+  lv_coord_t min_w = measure_label_text_width(ctx->y_min_label);
+
+  lv_coord_t text_w = LV_MAX(max_w, min_w);
+  if (text_w < kMinAxisW) text_w = kMinAxisW;
+  int label_w = text_w + 2;  // text width + small safety margin
+  int axis_w = label_w + kLabelGap;  // label + visible gap before lines
+
+  // Reposition labels — width must fit full text
+  if (ctx->y_max_label) {
+    lv_obj_set_width(ctx->y_max_label, label_w);
+  }
+  if (ctx->y_min_label) {
+    lv_obj_set_width(ctx->y_min_label, label_w);
+  }
+
+  // Chart drawing starts directly after label area
+  int chart_left = axis_w;
+
+  // Reposition guide lines (keep Y unchanged, only adjust X and width)
+  int line_start = axis_w - kLineOverlap;
+  int line_w = kAvailW - line_start;
+  if (ctx->y_max_line) {
+    lv_obj_set_width(ctx->y_max_line, line_w);
+    lv_obj_set_x(ctx->y_max_line, line_start);
+  }
+  if (ctx->y_min_line) {
+    lv_obj_set_width(ctx->y_min_line, line_w);
+    lv_obj_set_x(ctx->y_min_line, line_start);
+  }
+
+  // Adjust chart left padding so graph starts after labels
+  lv_obj_set_style_pad_left(ctx->chart, chart_left, 0);
+
+  // Reposition time axis markers based on new chart area
+  int chart_draw_w = kAvailW - chart_left;
+  if (chart_draw_w < 10) return;
+  constexpr int kLabelOverhang = 12;
+
+  String labels[kTimeAxisMarkerCount];
+  float fracs[kTimeAxisMarkerCount];
+  int n = calc_time_axis(labels, fracs, kTimeAxisMarkerCount);
+
+  for (int i = 0; i < kTimeAxisMarkerCount; ++i) {
+    if (i < n) {
+      int x = chart_left + static_cast<int>(fracs[i] * chart_draw_w);
+      if (ctx->time_lines[i]) {
+        lv_obj_set_x(ctx->time_lines[i], x);
+        lv_obj_clear_flag(ctx->time_lines[i], LV_OBJ_FLAG_HIDDEN);
+      }
+      if (ctx->time_labels[i]) {
+        lv_label_set_text(ctx->time_labels[i], labels[i].c_str());
+        lv_obj_update_layout(ctx->time_labels[i]);
+        lv_coord_t lbl_w = lv_obj_get_width(ctx->time_labels[i]);
+        lv_obj_set_pos(ctx->time_labels[i], x - lbl_w / 2, kLabelOverhang + kChartHeight + 8);
+        lv_obj_clear_flag(ctx->time_labels[i], LV_OBJ_FLAG_HIDDEN);
+      }
+    } else {
+      if (ctx->time_lines[i]) lv_obj_add_flag(ctx->time_lines[i], LV_OBJ_FLAG_HIDDEN);
+      if (ctx->time_labels[i]) lv_obj_add_flag(ctx->time_labels[i], LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+}
+
 static void clear_chart(SensorPopupContext* ctx, uint16_t points) {
   if (!ctx || !ctx->chart || !ctx->series) return;
   ctx->point_count = points;
   lv_chart_set_point_count(ctx->chart, points);
   lv_chart_set_all_value(ctx->chart, ctx->series, LV_CHART_POINT_NONE);
   lv_chart_refresh(ctx->chart);
+  if (ctx->y_max_label) lv_label_set_text(ctx->y_max_label, "");
+  if (ctx->y_min_label) lv_label_set_text(ctx->y_min_label, "");
+  if (ctx->y_max_line) lv_obj_add_flag(ctx->y_max_line, LV_OBJ_FLAG_HIDDEN);
+  if (ctx->y_min_line) lv_obj_add_flag(ctx->y_min_line, LV_OBJ_FLAG_HIDDEN);
+  for (int i = 0; i < kTimeAxisMarkerCount; ++i) {
+    if (ctx->time_lines[i]) lv_obj_add_flag(ctx->time_lines[i], LV_OBJ_FLAG_HIDDEN);
+    if (ctx->time_labels[i]) lv_obj_add_flag(ctx->time_labels[i], LV_OBJ_FLAG_HIDDEN);
+  }
 }
 
 static void apply_history_payload(SensorPopupContext* ctx, const char* payload) {
@@ -279,6 +418,44 @@ static void apply_history_payload(SensorPopupContext* ctx, const char* payload) 
     );
   }
   lv_chart_refresh(ctx->chart);
+
+  // Update Y-axis labels with min/max values
+  if (has_range) {
+    auto format_y = [](float val, uint8_t decimals) -> String {
+      if (decimals != 0xFF && decimals <= 6) {
+        if (decimals == 0) return String(static_cast<int>(roundf(val)));
+        return String(val, static_cast<unsigned int>(decimals));
+      }
+      // Auto: use integer if close to whole number, else 1 decimal
+      if (fabsf(val - roundf(val)) < 0.05f) {
+        return String(static_cast<int>(roundf(val)));
+      }
+      return String(val, 1u);
+    };
+    String unit_suffix = "";
+    if (ctx->unit.length()) {
+      unit_suffix = " " + ctx->unit;
+    }
+    if (ctx->y_max_label) {
+      lv_label_set_text(ctx->y_max_label, (format_y(max_v, ctx->decimals) + unit_suffix).c_str());
+    }
+    if (ctx->y_min_label) {
+      lv_label_set_text(ctx->y_min_label, (format_y(min_v, ctx->decimals) + unit_suffix).c_str());
+    }
+    update_y_axis_layout(ctx);
+    if (ctx->y_max_line) lv_obj_clear_flag(ctx->y_max_line, LV_OBJ_FLAG_HIDDEN);
+    if (ctx->y_min_line) lv_obj_clear_flag(ctx->y_min_line, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    if (ctx->y_max_label) lv_label_set_text(ctx->y_max_label, "");
+    if (ctx->y_min_label) lv_label_set_text(ctx->y_min_label, "");
+    if (ctx->y_max_line) lv_obj_add_flag(ctx->y_max_line, LV_OBJ_FLAG_HIDDEN);
+    if (ctx->y_min_line) lv_obj_add_flag(ctx->y_min_line, LV_OBJ_FLAG_HIDDEN);
+    // No valid range → hide time axis too
+    for (int i = 0; i < kTimeAxisMarkerCount; ++i) {
+      if (ctx->time_lines[i]) lv_obj_add_flag(ctx->time_lines[i], LV_OBJ_FLAG_HIDDEN);
+      if (ctx->time_labels[i]) lv_obj_add_flag(ctx->time_labels[i], LV_OBJ_FLAG_HIDDEN);
+    }
+  }
 }
 
 static void on_overlay_click(lv_event_t* e) {
@@ -353,13 +530,92 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
   lv_obj_set_style_text_align(value, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_width(value, LV_PCT(100));
 
-  lv_obj_t* chart = lv_chart_create(content);
+  // Chart wrapper: Y-axis labels on the left, chart on the right, time labels below.
+  // Extra vertical space (kLabelOverhang) at top/bottom so labels don't get clipped.
+  constexpr int kLabelOverhang = 12;  // half of ui_font_20 line height + margin
+  lv_obj_t* chart_wrap = lv_obj_create(content);
+  ctx->chart_wrap = chart_wrap;
+  lv_obj_remove_style_all(chart_wrap);
+  lv_obj_set_size(chart_wrap, LV_PCT(100), kChartHeight + 2 * kLabelOverhang + kTimeAxisHeight);
+  lv_obj_set_style_bg_opa(chart_wrap, LV_OPA_TRANSP, 0);
+  lv_obj_remove_flag(chart_wrap, LV_OBJ_FLAG_SCROLLABLE);
+
+  // Layout: [labels] [chart fills rest]
+  constexpr int kYAxisWidth = 48;
+  const int kChartLeft = kYAxisWidth;
+  const lv_font_t* y_font = &ui_font_20;
+
+  // Max label: vertically centered on top guide line (at y = kLabelOverhang)
+  lv_obj_t* y_max = lv_label_create(chart_wrap);
+  ctx->y_max_label = y_max;
+  set_label_style(y_max, lv_color_white(), y_font);
+  lv_obj_set_style_text_align(y_max, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_set_width(y_max, kYAxisWidth - 10);
+  lv_label_set_text(y_max, "");
+  lv_obj_set_pos(y_max, 0, 0);  // font center ~kLabelOverhang = on top guide line
+
+  // Min label: vertically centered on bottom guide line (at y = kLabelOverhang + kChartHeight - 1)
+  lv_obj_t* y_min = lv_label_create(chart_wrap);
+  ctx->y_min_label = y_min;
+  set_label_style(y_min, lv_color_white(), y_font);
+  lv_obj_set_style_text_align(y_min, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_set_width(y_min, kYAxisWidth - 10);
+  lv_label_set_text(y_min, "");
+  lv_obj_set_pos(y_min, 0, kChartHeight);  // font center ~kChartHeight+kLabelOverhang = on bottom guide line
+
+  // Horizontal guide lines at max/min — extend 6px left of Y-axis for label alignment
+  constexpr int kLineOverlap = 6;
+  const int kLineStart = kYAxisWidth - kLineOverlap;
+  const int kLineWidth = kCardWidth - (kCardPad * 2) - kLineStart;
+  auto make_guide_line = [&](int16_t y_pos) -> lv_obj_t* {
+    lv_obj_t* line = lv_obj_create(chart_wrap);
+    lv_obj_remove_style_all(line);
+    lv_obj_set_size(line, kLineWidth, 1);
+    lv_obj_set_style_bg_color(line, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(line, LV_OPA_30, 0);
+    lv_obj_remove_flag(line, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(line, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_pos(line, kLineStart, y_pos);
+    lv_obj_add_flag(line, LV_OBJ_FLAG_HIDDEN);
+    return line;
+  };
+  ctx->y_max_line = make_guide_line(kLabelOverhang);
+  ctx->y_min_line = make_guide_line(kLabelOverhang + kChartHeight - 1);
+
+  // Vertical time marker lines (thin, same opacity as horizontal guides)
+  // Created hidden; positioned and shown in apply_history_payload.
+  for (int i = 0; i < kTimeAxisMarkerCount; ++i) {
+    lv_obj_t* vline = lv_obj_create(chart_wrap);
+    lv_obj_remove_style_all(vline);
+    lv_obj_set_size(vline, 1, kChartHeight);
+    lv_obj_set_style_bg_color(vline, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(vline, LV_OPA_30, 0);
+    lv_obj_remove_flag(vline, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(vline, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_pos(vline, 0, kLabelOverhang);
+    lv_obj_add_flag(vline, LV_OBJ_FLAG_HIDDEN);
+    ctx->time_lines[i] = vline;
+
+    lv_obj_t* tlbl = lv_label_create(chart_wrap);
+    set_label_style(tlbl, lv_color_white(), &ui_font_20);
+    lv_obj_set_style_text_align(tlbl, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(tlbl, LV_SIZE_CONTENT);
+    lv_label_set_text(tlbl, "");
+    lv_obj_set_pos(tlbl, 0, kLabelOverhang + kChartHeight + 2);
+    lv_obj_add_flag(tlbl, LV_OBJ_FLAG_HIDDEN);
+    ctx->time_labels[i] = tlbl;
+  }
+
+  lv_obj_t* chart = lv_chart_create(chart_wrap);
   ctx->chart = chart;
-  lv_obj_set_width(chart, LV_PCT(100));
-  lv_obj_set_height(chart, kChartHeight);
+  lv_obj_set_size(chart, LV_PCT(100), kChartHeight);
+  lv_obj_set_style_pad_left(chart, kChartLeft, 0);
   lv_obj_set_style_bg_opa(chart, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(chart, 0, 0);
-  lv_obj_set_style_pad_all(chart, 0, 0);
+  lv_obj_set_style_pad_top(chart, 0, 0);
+  lv_obj_set_style_pad_right(chart, 0, 0);
+  lv_obj_set_style_pad_bottom(chart, 0, 0);
+  lv_obj_set_pos(chart, 0, kLabelOverhang);
   lv_chart_set_div_line_count(chart, 0, 0);
   lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
   lv_chart_set_update_mode(chart, LV_CHART_UPDATE_MODE_SHIFT);
