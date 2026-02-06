@@ -207,7 +207,6 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
       show_weather_popup(init);
     };
 
-    lv_obj_add_event_cb(card, show_popup, LV_EVENT_CLICKED, data);
     lv_obj_add_event_cb(card, show_popup, LV_EVENT_LONG_PRESSED, data);
 
     lv_obj_add_event_cb(
