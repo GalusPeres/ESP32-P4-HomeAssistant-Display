@@ -3,6 +3,7 @@
 #include "src/tiles/tile_config.h"
 #include "src/tiles/tile_renderer.h"
 #include "src/ui/sensor_popup.h"
+#include "src/ui/weather_popup.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/types/image/renderer.h"
 #include "src/tiles/mdi_icons.h"
@@ -90,6 +91,10 @@ static bool get_cached_entity_payload(const char* entity_id, String& out) {
     }
   }
   return false;
+}
+
+bool tiles_get_cached_entity_payload(const char* entity_id, String& out) {
+  return get_cached_entity_payload(entity_id, out);
 }
 
 static bool get_cached_or_initial_payload(const Tile& tile, String& out) {
@@ -923,6 +928,7 @@ void tiles_update_weather_by_entity(GridType grid_type, const char* entity_id, c
     const Tile& tile = config.tiles[i];
     if (tile.type == TILE_WEATHER && tile.sensor_entity.equalsIgnoreCase(entity_id)) {
       queue_weather_tile_update(grid_type, i, payload);
+      queue_weather_popup_payload(entity_id, payload);
       Serial.printf("[%s] Weather %s@%u queued\n", getGridName(grid_type), entity_id, i);
     }
   }

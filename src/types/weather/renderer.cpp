@@ -3,7 +3,14 @@
 #include "src/tiles/tile_renderer_fonts.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/network/ha_bridge_config.h"
+#include "src/ui/weather_popup.h"
 #include <Arduino.h>
+
+struct WeatherEventData {
+  String entity_id;
+  String title;
+  uint32_t bg_color = 0;
+};
 
 lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type) {
   if (!parent) {
@@ -19,7 +26,7 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
 
   lv_obj_t* card = lv_button_create(parent);
   if (!card) return nullptr;
-  lv_obj_clear_flag(card, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_clear_flag(card, LV_OBJ_FLAG_CLICK_FOCUSABLE);
 
   uint32_t card_color = (tile.bg_color != 0) ? tile.bg_color : 0x2A2A2A;
@@ -181,6 +188,39 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
     }
 
     target[index] = widgets;
+  }
+
+  if (tile.sensor_entity.length()) {
+    WeatherEventData* data = new WeatherEventData{
+      tile.sensor_entity,
+      location,
+      (tile.bg_color != 0) ? tile.bg_color : 0x2A2A2A
+    };
+
+    lv_obj_add_event_cb(
+        card,
+        [](lv_event_t* e) {
+          if (lv_event_get_code(e) != LV_EVENT_LONG_PRESSED) return;
+          WeatherEventData* data = static_cast<WeatherEventData*>(lv_event_get_user_data(e));
+          if (!data || !data->entity_id.length()) return;
+          WeatherPopupInit init;
+          init.entity_id = data->entity_id;
+          init.title = data->title;
+          init.bg_color = data->bg_color;
+          show_weather_popup(init);
+        },
+        LV_EVENT_LONG_PRESSED,
+        data);
+
+    lv_obj_add_event_cb(
+        card,
+        [](lv_event_t* e) {
+          if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
+          WeatherEventData* data = static_cast<WeatherEventData*>(lv_event_get_user_data(e));
+          delete data;
+        },
+        LV_EVENT_DELETE,
+        data);
   }
 
   return card;

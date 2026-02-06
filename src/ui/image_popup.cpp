@@ -1,6 +1,7 @@
 #include "image_popup.h"
 #include "sensor_popup.h"
 #include "light_popup.h"
+#include "weather_popup.h"
 #include "src/core/display_manager.h"
 #include "src/tiles/tile_config.h"
 #include "src/ui/tab_tiles_unified.h"
@@ -1823,6 +1824,7 @@ void show_image_popup(const char* path, uint16_t slideshow_sec) {
   // Andere Popups verstecken (wie light_popup und sensor_popup)
   hide_sensor_popup();
   hide_light_popup();
+  hide_weather_popup();
 
   if (!ensure_sd_ready()) {
     g_open_url = "";

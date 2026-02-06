@@ -5,6 +5,7 @@
 #include "src/ui/light_popup.h"
 #include "src/ui/sensor_popup.h"
 #include "src/ui/image_popup.h"
+#include "src/ui/weather_popup.h"
 #include "src/core/display_manager.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/tiles/tile_config.h"
@@ -86,6 +87,7 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   // Preload popups so first use is instant.
   preload_light_popup();
   preload_sensor_popup();
+  preload_weather_popup();
   preload_image_tiles_from_grid(tileConfig.getActiveGrid());
 
   // Warm settings buffer once to reduce the first-open hitch.

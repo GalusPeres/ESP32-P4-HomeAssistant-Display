@@ -14,6 +14,7 @@
 #include "src/ui/ui_manager.h"
 #include "src/ui/sensor_popup.h"
 #include "src/ui/image_popup.h"
+#include "src/ui/weather_popup.h"
 #include "src/network/network_manager.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/network/mqtt_topics.h"
@@ -279,6 +280,7 @@ void loop() {
     process_switch_update_queue();
     process_weather_update_queue();
     process_sensor_popup_queue();
+    process_weather_popup_queue();
     process_tile_graph_queue();
     lgfx::touch_point_t tp;
     if (M5.Display.getTouch(&tp)) {
@@ -301,6 +303,7 @@ void loop() {
   process_switch_update_queue();
   process_weather_update_queue();
   process_sensor_popup_queue();
+  process_weather_popup_queue();
   process_tile_graph_queue();
   tiles_process_reload_requests();
 
