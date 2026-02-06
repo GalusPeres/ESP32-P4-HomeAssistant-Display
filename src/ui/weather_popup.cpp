@@ -5,6 +5,7 @@
 #include "src/ui/tab_tiles_unified.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/tiles/tile_renderer_fonts.h"
+#include "src/tiles/tile_renderer.h"
 #include <math.h>
 #include <stdlib.h>
 
@@ -466,13 +467,10 @@ static void apply_weather_payload(WeatherPopupContext* ctx, const char* payload)
 
           ForecastWidgets& fw = ctx->forecast[forecast_count];
           if (fw.day_label) {
-            if (f_day.length()) {
-              lv_label_set_text(fw.day_label, f_day.c_str());
-              lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
-            } else {
-              lv_label_set_text(fw.day_label, "--");
-              lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
-            }
+            String day_text = f_day.length() ? f_day : "--";
+            if (f_icon.length()) day_text += " |";
+            lv_label_set_text(fw.day_label, day_text.c_str());
+            lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
           }
           if (fw.icon_label) {
             if (f_icon.length()) {
@@ -631,9 +629,14 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   lv_coord_t value_row_y = base_center - (row_h / 2);
   lv_obj_align(value_row, LV_ALIGN_TOP_MID, 0, value_row_y);
 
+  const lv_coord_t forecast_total_w = kCardWidth - (kCardPad * 2);
+  const lv_coord_t forecast_col_w = WEATHER_FORECAST_COL_W;
+  const lv_coord_t forecast_remaining = forecast_total_w - kCols * forecast_col_w;
+  const lv_coord_t forecast_spacing = forecast_remaining / (kCols + 1);
+
   lv_obj_t* forecast_row = lv_obj_create(card);
   lv_obj_remove_style_all(forecast_row);
-  lv_obj_set_size(forecast_row, (kCellW * kCols) + (kGridGap * (kCols - 1)), kCellH);
+  lv_obj_set_size(forecast_row, forecast_total_w, kCellH);
   lv_obj_set_style_bg_opa(forecast_row, LV_OPA_TRANSP, 0);
   lv_obj_set_style_pad_all(forecast_row, 0, 0);
   lv_obj_remove_flag(forecast_row, LV_OBJ_FLAG_SCROLLABLE);
@@ -642,25 +645,25 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   for (int i = 0; i < kCols; ++i) {
     lv_obj_t* col = lv_obj_create(forecast_row);
     lv_obj_remove_style_all(col);
-    lv_obj_set_size(col, kCellW, kCellH);
-    lv_obj_set_style_pad_hor(col, 12, 0);
-    lv_obj_set_style_pad_ver(col, 18, 0);
+    lv_obj_set_size(col, forecast_col_w, kCellH);
+    lv_obj_set_style_pad_hor(col, kCardPad, 0);
+    lv_obj_set_style_pad_ver(col, 24, 0);
     lv_obj_set_style_bg_opa(col, LV_OPA_TRANSP, 0);
     lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_pos(col, i * (kCellW + kGridGap), 0);
+    lv_obj_set_pos(col, forecast_spacing + i * (forecast_col_w + forecast_spacing), 0);
 
     lv_obj_t* day = lv_label_create(col);
     set_label_style(day, lv_color_white(), FONT_TITLE);
     lv_label_set_long_mode(day, LV_LABEL_LONG_DOT);
     lv_obj_set_width(day, LV_PCT(70));
     lv_label_set_text(day, "--");
-    lv_obj_align(day, LV_ALIGN_TOP_LEFT, 12, 4);
+    lv_obj_align(day, LV_ALIGN_TOP_LEFT, 4, 4);
 
     lv_obj_t* icon_day = lv_label_create(col);
     set_label_style(icon_day, lv_color_white(), FONT_MDI_ICONS);
     lv_label_set_text(icon_day, "");
     lv_obj_add_flag(icon_day, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_align(icon_day, LV_ALIGN_TOP_RIGHT, -12, -8);
+    lv_obj_align(icon_day, LV_ALIGN_TOP_RIGHT, -4, -8);
 
     lv_obj_t* temp = lv_label_create(col);
     set_label_style(temp, lv_color_white(), &ui_font_24);

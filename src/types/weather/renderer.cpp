@@ -22,8 +22,7 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
   const uint8_t span_w = tile.span_w < 1 ? 1 : tile.span_w;
   const uint8_t span_h = tile.span_h < 1 ? 1 : tile.span_h;
   const bool show_forecast = (span_h >= 2);
-  uint8_t forecast_cols = show_forecast ? span_w : 0;
-  if (forecast_cols > WEATHER_FORECAST_MAX) forecast_cols = WEATHER_FORECAST_MAX;
+  uint8_t forecast_cols = show_forecast ? weather_forecast_count(span_w) : 0;
 
   lv_obj_t* card = lv_button_create(parent);
   if (!card) return nullptr;
@@ -179,31 +178,36 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
     widgets.location_label = location_label;
 
     if (forecast_row && forecast_cols > 0) {
+      const lv_coord_t total_w = (span_w * GRID_CELL_W) + ((span_w - 1) * GRID_GAP);
+      const lv_coord_t cols_total = forecast_cols * WEATHER_FORECAST_COL_W;
+      const lv_coord_t remaining = total_w - cols_total;
+      // Gleichmäßig verteilen: Rand links + Gaps + Rand rechts = (forecast_cols + 1) Abstände
+      const lv_coord_t spacing = remaining / (forecast_cols + 1);
       for (uint8_t i = 0; i < forecast_cols; ++i) {
         lv_obj_t* col = lv_obj_create(forecast_row);
         lv_obj_remove_style_all(col);
-        lv_obj_set_size(col, GRID_CELL_W, GRID_CELL_H);
+        lv_obj_set_size(col, WEATHER_FORECAST_COL_W, GRID_CELL_H);
         lv_obj_set_style_pad_hor(col, pad_hor, 0);
         lv_obj_set_style_pad_ver(col, pad_ver, 0);
         lv_obj_set_style_bg_opa(col, LV_OPA_TRANSP, 0);
         enable_bubble(col);
         lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_pos(col, i * (GRID_CELL_W + GRID_GAP), 0);
+        lv_obj_set_pos(col, spacing + i * (WEATHER_FORECAST_COL_W + spacing), 0);
 
-        // Header: day left, icon right — gleichmäßig nach innen gerückt
+        // Header: day left, icon right
         lv_obj_t* day = lv_label_create(col);
         set_label_style(day, lv_color_white(), FONT_TITLE);
         lv_label_set_long_mode(day, LV_LABEL_LONG_DOT);
         lv_obj_set_width(day, LV_PCT(70));
         lv_label_set_text(day, "--");
-        lv_obj_align(day, LV_ALIGN_TOP_LEFT, 24, 4);
+        lv_obj_align(day, LV_ALIGN_TOP_LEFT, 4, 4);
         enable_bubble(day);
 
         lv_obj_t* icon = lv_label_create(col);
         set_label_style(icon, lv_color_white(), FONT_MDI_ICONS);
         lv_label_set_text(icon, "");
         lv_obj_add_flag(icon, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_align(icon, LV_ALIGN_TOP_RIGHT, -24, -8);
+        lv_obj_align(icon, LV_ALIGN_TOP_RIGHT, -4, -8);
         enable_bubble(icon);
 
         lv_obj_t* temp = lv_label_create(col);

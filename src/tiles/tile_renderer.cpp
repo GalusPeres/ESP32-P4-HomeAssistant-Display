@@ -1130,7 +1130,7 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
   const bool has_condition_text = condition_text.length() && condition_text != "--";
   const bool show_condition = (tile.span_w > 1) && has_condition_text;
   const uint8_t forecast_limit =
-      (tile.span_h >= 2) ? static_cast<uint8_t>(min<uint8_t>(tile.span_w, WEATHER_FORECAST_MAX)) : 0;
+      (tile.span_h >= 2) ? weather_forecast_count(tile.span_w) : 0;
 
   if (widgets.temp_label) {
     String temp_text = has_temp ? format_weather_temp(temperature, unit) : String("--");
