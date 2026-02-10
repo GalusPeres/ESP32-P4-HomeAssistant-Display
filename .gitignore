@@ -1,6 +1,3 @@
-# Claude Code lokale Einstellungen
-.claude/
-
 # Arduino Build-Artefakte
 *.bin
 *.elf
