@@ -39,6 +39,7 @@ static constexpr float kImuWakeStrongJerk = 0.025f;
 static constexpr uint32_t kImuWakeCooldownMs = 100;
 static constexpr bool kImuWakeDebug = false;
 static constexpr uint32_t kImuWakeLogMs = 200;
+static constexpr uint32_t kIdleTimeoutBatteryMs = 800;
 static constexpr uint32_t kImuI2cSleepHz = 100000;
 static constexpr uint32_t kImuI2cWakeHz = 400000;
 static constexpr uint8_t kBmi270RegPwrCtrl = 0x7D;
@@ -152,7 +153,7 @@ void PowerManager::serviceImuWake() {
   }
   if (imu_hold_hits >= kImuHoldSamples) {
     imu_last_motion_ms = now_ms;
-    if (!is_display_sleeping) {
+    if (!is_display_sleeping && isPoweredByMains()) {
       displayManager.resetActivityTimer();
       setHighPerformance(true);
     }
@@ -324,6 +325,7 @@ void PowerManager::update(uint32_t last_activity_time) {
     return;
   }
   uint32_t now = millis();
+  bool on_mains = isPoweredByMains();
   uint32_t sleep_timeout = getSleepTimeout();
   bool need_imu = (sleep_timeout != 0xFFFFFFFF);
   if (!need_imu) {
@@ -347,7 +349,12 @@ void PowerManager::update(uint32_t last_activity_time) {
     }
   }
 
-  if (is_high_performance && (now - last_activity > IDLE_TIMEOUT_MS)) {
+  if (!on_mains && is_high_performance) {
+    networkManager.setWifiPowerSaving(true);
+  }
+
+  uint32_t idle_timeout = on_mains ? IDLE_TIMEOUT_MS : kIdleTimeoutBatteryMs;
+  if (is_high_performance && (now - last_activity > idle_timeout)) {
     setHighPerformance(false); 
   }
 
