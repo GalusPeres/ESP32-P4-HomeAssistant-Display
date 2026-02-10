@@ -3,11 +3,11 @@
 
 namespace {
 
-static constexpr int32_t kCurrentToMainsMinMa = 20;
-static constexpr int32_t kCurrentToBatteryMaxMa = -20;
+static constexpr int32_t kCurrentToMainsMinMa = 40;
+static constexpr int32_t kCurrentToBatteryMaxMa = -40;
 static constexpr int16_t kVbusPresentMinMv = 4300;
 
-static constexpr uint32_t kPowerStateDebounceMs = 2000;
+static constexpr uint32_t kPowerStateDebounceMs = 1200;
 static constexpr uint32_t kBatteryMissingDebounceMs = 3000;
 static constexpr uint32_t kBatteryFreezeAfterPlugMs = 10000;
 static constexpr uint32_t kBatteryDropStepMs = 120000;          // on battery: max -1% every 2 min
@@ -53,18 +53,22 @@ bool detect_mains_raw(const BatteryStateInternal& state,
                       int16_t vbus_mv,
                       m5::Power_Class::is_charging_t charge_state) {
   if (vbus_mv >= 0) {
-    return vbus_mv >= kVbusPresentMinMv;
+    if (vbus_mv >= kVbusPresentMinMv) return true;
+    if (vbus_mv <= 1000) return false;
   }
 
-  if (charge_state == m5::Power_Class::is_charging_t::is_charging) {
-    return true;
+  if (current_ma <= kCurrentToBatteryMaxMa) {
+    return false;
   }
-
   if (current_ma >= kCurrentToMainsMinMa) {
     return true;
   }
-  if (current_ma <= kCurrentToBatteryMaxMa) {
+
+  if (charge_state == m5::Power_Class::is_charging_t::is_discharging) {
     return false;
+  }
+  if (charge_state == m5::Power_Class::is_charging_t::is_charging) {
+    return true;
   }
 
   if (state.initialized) {
@@ -106,6 +110,11 @@ void batteryStateUpdate() {
       } else if ((now - s.power_candidate_since_ms) >= kPowerStateDebounceMs) {
         s.out.on_mains = s.power_candidate;
         s.freeze_pct_until_ms = now + kBatteryFreezeAfterPlugMs;
+        Serial.printf("[BAT] power -> %s (I=%ldmA VBUS=%dmV CHG=%d)\n",
+                      s.out.on_mains ? "MAINS" : "BATTERY",
+                      static_cast<long>(raw_current),
+                      static_cast<int>(raw_vbus),
+                      static_cast<int>(charge_state));
       }
     } else {
       s.power_candidate = mains_raw;
@@ -193,4 +202,3 @@ int32_t batteryStateDisplayPercent() {
 int32_t batteryStateRawPercent() {
   return g_state.out.raw_level_pct;
 }
-
