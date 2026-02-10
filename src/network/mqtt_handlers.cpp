@@ -49,6 +49,16 @@ static bool g_external_history_valid[kExternalTempHistoryPoints] = {};
 static uint16_t g_external_history_head = 0;
 static uint16_t g_external_history_count = 0;
 static uint32_t g_external_history_last_store_ms = 0;
+static constexpr uint32_t kHistoryHaResponseTimeoutMs = 2000;
+static constexpr uint8_t kHistoryPendingSlots = 8;
+
+struct PendingHistoryRequest {
+  String entity_id;
+  uint32_t requested_at_ms = 0;
+  bool active = false;
+};
+
+static PendingHistoryRequest g_pending_history[kHistoryPendingSlots];
 
 static String buildHaStatestreamTopic(const String& entity_id, const char* suffix);
 
@@ -196,6 +206,131 @@ static String build_empty_history_payload(const char* entity_id) {
   payload += entity_id ? entity_id : "";
   payload += "\",\"values\":[]}";
   return payload;
+}
+
+static bool extract_json_string_field(const char* json, const char* key, String& out) {
+  out = "";
+  if (!json || !*json || !key || !*key) return false;
+
+  String pattern = "\"";
+  pattern += key;
+  pattern += "\"";
+
+  const char* found = strstr(json, pattern.c_str());
+  if (!found) return false;
+
+  const char* colon = strchr(found + pattern.length(), ':');
+  if (!colon) return false;
+
+  const char* q1 = strchr(colon + 1, '\"');
+  if (!q1) return false;
+
+  const char* q2 = strchr(q1 + 1, '\"');
+  if (!q2 || q2 <= q1 + 1) return false;
+
+  out = String(q1 + 1);
+  out.remove(static_cast<unsigned int>(q2 - (q1 + 1)));
+  out.trim();
+  return out.length() > 0;
+}
+
+static void clear_pending_history_request(const char* entity_id) {
+  if (!entity_id || !*entity_id) return;
+  for (uint8_t i = 0; i < kHistoryPendingSlots; ++i) {
+    if (!g_pending_history[i].active) continue;
+    if (g_pending_history[i].entity_id.equalsIgnoreCase(entity_id)) {
+      g_pending_history[i].active = false;
+      g_pending_history[i].entity_id = "";
+      g_pending_history[i].requested_at_ms = 0;
+    }
+  }
+}
+
+static void mark_pending_history_request(const char* entity_id, uint32_t now_ms) {
+  if (!entity_id || !*entity_id) return;
+
+  int free_idx = -1;
+  int oldest_idx = -1;
+  uint32_t oldest_ms = 0xFFFFFFFFu;
+
+  for (uint8_t i = 0; i < kHistoryPendingSlots; ++i) {
+    if (g_pending_history[i].active) {
+      if (g_pending_history[i].entity_id.equalsIgnoreCase(entity_id)) {
+        g_pending_history[i].requested_at_ms = now_ms;
+        return;
+      }
+      if (g_pending_history[i].requested_at_ms < oldest_ms) {
+        oldest_ms = g_pending_history[i].requested_at_ms;
+        oldest_idx = i;
+      }
+    } else if (free_idx < 0) {
+      free_idx = i;
+    }
+  }
+
+  int idx = (free_idx >= 0) ? free_idx : oldest_idx;
+  if (idx < 0) return;
+
+  g_pending_history[idx].active = true;
+  g_pending_history[idx].entity_id = entity_id;
+  g_pending_history[idx].requested_at_ms = now_ms;
+}
+
+static bool queue_history_fallback_for_entity(const char* entity_id, bool time_valid, const char* reason) {
+  if (!entity_id || !*entity_id) return false;
+
+  if (is_external_temp_entity(entity_id)) {
+    if (time_valid) {
+      store_external_temp_history(millis());
+      String local_payload = build_external_temp_history_payload(entity_id);
+      if (local_payload.length()) {
+        queue_sensor_popup_history(entity_id, local_payload.c_str(), local_payload.length());
+        queue_tile_graph_history(entity_id, local_payload.c_str(), local_payload.length());
+        const unsigned points = g_external_history_count;
+        Serial.printf("[History] %s -> lokale Historie fuer %s (%u Punkte)\n",
+                      reason ? reason : "Fallback", entity_id, points);
+      }
+    } else {
+      String empty_payload = build_empty_history_payload(entity_id);
+      queue_sensor_popup_history(entity_id, empty_payload.c_str(), empty_payload.length());
+      queue_tile_graph_history(entity_id, empty_payload.c_str(), empty_payload.length());
+      Serial.printf("[History] %s -> Zeit ungueltig, leere Historie fuer %s\n",
+                    reason ? reason : "Fallback", entity_id);
+    }
+    return true;
+  }
+
+  if (is_internal_tab5_entity(entity_id)) {
+    String empty_payload = build_empty_history_payload(entity_id);
+    queue_sensor_popup_history(entity_id, empty_payload.c_str(), empty_payload.length());
+    queue_tile_graph_history(entity_id, empty_payload.c_str(), empty_payload.length());
+    Serial.printf("[History] %s -> interne Historie fuer %s leer\n",
+                  reason ? reason : "Fallback", entity_id);
+    return true;
+  }
+
+  return false;
+}
+
+static void service_pending_history_fallback() {
+  const uint32_t now_ms = millis();
+  const bool time_valid = has_valid_local_time_for_history();
+
+  for (uint8_t i = 0; i < kHistoryPendingSlots; ++i) {
+    if (!g_pending_history[i].active) continue;
+    if ((int32_t)(now_ms - g_pending_history[i].requested_at_ms) <
+        static_cast<int32_t>(kHistoryHaResponseTimeoutMs)) {
+      continue;
+    }
+
+    String entity = g_pending_history[i].entity_id;
+    g_pending_history[i].active = false;
+    g_pending_history[i].entity_id = "";
+    g_pending_history[i].requested_at_ms = 0;
+
+    if (!entity.length()) continue;
+    queue_history_fallback_for_entity(entity.c_str(), time_valid, "HA Timeout");
+  }
 }
 
 #if TAB5_HAS_ONEWIRE_DS18X20
@@ -381,8 +516,16 @@ static void sync_external_temp_entity(bool publish_mqtt) {
   const uint32_t now_ms = millis();
   store_external_temp_history(now_ms);
 
-  haBridgeConfig.registerSensorMeta(kEntityExternalTemperature, "Tab5 Extern Temperatur", "C");
-  haBridgeConfig.updateEntityMeta(kEntityExternalTemperature, "Tab5 Extern Temperatur", "C", "thermometer");
+  String sensor_name = "Tab5 Intern DS18x20 Temperatur (GPIO 1/50)";
+#if TAB5_HAS_ONEWIRE_DS18X20
+  if (g_external_pin != 0xFF) {
+    sensor_name = "Tab5 Intern DS18x20 Temperatur (GPIO ";
+    sensor_name += String(static_cast<unsigned>(g_external_pin));
+    sensor_name += ")";
+  }
+#endif
+  haBridgeConfig.registerSensorMeta(kEntityExternalTemperature, sensor_name, "C");
+  haBridgeConfig.updateEntityMeta(kEntityExternalTemperature, sensor_name, "C", "thermometer");
 
   char temp_payload[24];
   const char* payload = "unavailable";
@@ -1017,6 +1160,10 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
     size_t copy_len = length < (LARGE_BUF - 1) ? length : (LARGE_BUF - 1);
     memcpy(large_buf, payload, copy_len);
     large_buf[copy_len] = '\0';
+    String response_entity;
+    if (extract_json_string_field(large_buf, "entity_id", response_entity) && response_entity.length()) {
+      clear_pending_history_request(response_entity.c_str());
+    }
     queue_sensor_popup_history(nullptr, large_buf, copy_len);
     queue_tile_graph_history(nullptr, large_buf, copy_len);
     return;
@@ -1086,6 +1233,8 @@ void mqttPublishDeviceSettings() {
 }
 
 void mqttServiceLocalSensors() {
+  service_pending_history_fallback();
+
   static uint32_t last_run_ms = 0;
   const uint32_t now_ms = millis();
   if (last_run_ms != 0 && (int32_t)(now_ms - last_run_ms) < 500) {
@@ -1199,7 +1348,10 @@ void mqttPublishHistoryRequest(const char* entity_id) {
   const bool can_request_ha = mqtt_online && history_topic && *history_topic;
   const bool time_valid = has_valid_local_time_for_history();
 
-  // HA hat Prioritaet: wenn erreichbar, immer dort Historie holen.
+  // Vorherige Pending-Eintraege fuer dieselbe Entity verwerfen.
+  clear_pending_history_request(entity_id);
+
+  // HA hat Prioritaet: wenn erreichbar, zuerst dort Historie holen.
   if (can_request_ha) {
     if (!time_valid && is_internal_tab5_entity(entity_id)) {
       Serial.printf("[History] Zeit lokal ungueltig, fordere HA-Historie fuer %s an\n", entity_id);
@@ -1211,37 +1363,14 @@ void mqttPublishHistoryRequest(const char* entity_id) {
     bool ok = mqtt.publish(history_topic, payload.c_str(), false);
     Serial.printf("History request -> MQTT '%s' (%s)\n", history_topic, ok ? "ok" : "fail");
     if (ok) {
+      mark_pending_history_request(entity_id, millis());
       return;
     }
-    Serial.printf("[History] HA request publish fehlgeschlagen, nutze lokalen Fallback fuer %s\n", entity_id);
-  }
-
-  // Fallback ohne HA-History: nur lokale externe Historie kann direkt geliefert werden.
-  if (is_external_temp_entity(entity_id)) {
-    if (time_valid) {
-      store_external_temp_history(millis());
-      String local_payload = build_external_temp_history_payload(entity_id);
-      if (local_payload.length()) {
-        queue_sensor_popup_history(entity_id, local_payload.c_str(), local_payload.length());
-        queue_tile_graph_history(entity_id, local_payload.c_str(), local_payload.length());
-        const unsigned points = g_external_history_count;
-        Serial.printf("[History] Lokale Historie fuer %s bereitgestellt (%u Punkte)\n", entity_id, points);
-      }
-    } else {
-      String empty_payload = build_empty_history_payload(entity_id);
-      queue_sensor_popup_history(entity_id, empty_payload.c_str(), empty_payload.length());
-      queue_tile_graph_history(entity_id, empty_payload.c_str(), empty_payload.length());
-      Serial.printf("[History] Zeit ungueltig und HA offline, leere Historie fuer %s\n", entity_id);
-    }
+    queue_history_fallback_for_entity(entity_id, time_valid, "HA Publish fehlgeschlagen");
     return;
   }
 
-  // Keine lokale Historie verfuegbar -> leer liefern statt alte Kurve stehen lassen.
-  if (is_internal_tab5_entity(entity_id)) {
-    String empty_payload = build_empty_history_payload(entity_id);
-    queue_sensor_popup_history(entity_id, empty_payload.c_str(), empty_payload.length());
-    queue_tile_graph_history(entity_id, empty_payload.c_str(), empty_payload.length());
-    Serial.printf("[History] HA nicht verfuegbar, interne Historie fuer %s leer\n", entity_id);
+  if (queue_history_fallback_for_entity(entity_id, time_valid, "HA nicht verfuegbar")) {
     return;
   }
 
@@ -1265,7 +1394,6 @@ void mqttPublishDiscovery() {
 
   char tpc[128];
   char js[1024];
-  String external_state_topic = buildHaStatestreamTopic(kEntityExternalTemperature, "state");
 
   const char* stat_topic = mqttTopics.topic(TopicKey::STAT_CONN);
 
@@ -1281,17 +1409,12 @@ void mqttPublishDiscovery() {
     mqttTopics.topic(TopicKey::SENSOR_IN), did, stat_topic, did);
   mqtt.publish(tpc, js, true);
 
+  // Legacy Discovery entfernen: diese Sensoren kommen jetzt konsistent ueber die
+  // HA-Integration (tab5_lvgl) und sonst entstuenden Dubletten.
   snprintf(tpc, sizeof(tpc), "homeassistant/sensor/%s_external_c/config", did);
-  snprintf(js, sizeof(js),
-    "{\"name\":\"Tab5 Extern Temperatur\",\"stat_t\":\"%s\",\"unit_of_meas\":\"C\",\"dev_cla\":\"temperature\",\"stat_cla\":\"measurement\",\"uniq_id\":\"%s_ext_c\",\"avty_t\":\"%s\",\"pl_avail\":\"1\",\"pl_not_avail\":\"0\",\"icon\":\"mdi:thermometer\",\"dev\":{\"ids\":[\"%s\"],\"name\":\"Tab5 LVGL\",\"mf\":\"M5Stack\",\"mdl\":\"Tab5\"}}",
-    external_state_topic.c_str(), did, stat_topic, did);
-  mqtt.publish(tpc, js, true);
-
+  mqtt.publish(tpc, "", true);
   snprintf(tpc, sizeof(tpc), "homeassistant/sensor/%s_soc_pct/config", did);
-  snprintf(js, sizeof(js),
-    "{\"name\":\"Tab5 Battery SoC\",\"stat_t\":\"%s\",\"unit_of_meas\":\"%%\",\"dev_cla\":\"battery\",\"stat_cla\":\"measurement\",\"uniq_id\":\"%s_soc\",\"avty_t\":\"%s\",\"pl_avail\":\"1\",\"pl_not_avail\":\"0\",\"dev\":{\"ids\":[\"%s\"],\"name\":\"Tab5 LVGL\",\"mf\":\"M5Stack\",\"mdl\":\"Tab5\"}}",
-    mqttTopics.topic(TopicKey::SENSOR_SOC), did, stat_topic, did);
-  mqtt.publish(tpc, js, true);
+  mqtt.publish(tpc, "", true);
 
   snprintf(tpc, sizeof(tpc), "homeassistant/sensor/%s_uptime/config", did);
   snprintf(js, sizeof(js),
