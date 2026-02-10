@@ -9,6 +9,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>
+#include <vector>
 
 namespace {
 
@@ -363,17 +364,45 @@ static void apply_history_payload(SensorPopupContext* ctx, const char* payload) 
   uint16_t points = static_cast<uint16_t>(count);
   clear_chart(ctx, points);
 
+  std::vector<float> plot_values(count, NAN);
+  for (size_t i = 0; i < count; ++i) {
+    JsonVariant v = values[i];
+    float val = 0.0f;
+    if (extract_numeric(v, val)) {
+      plot_values[i] = val;
+    }
+  }
+
+  // Luecken wie in HA schliessen: fehlende Buckets mit letztem gueltigen
+  // Wert auffuellen (inkl. Prefix mit erstem gueltigen Wert).
+  size_t first_numeric = count;
+  for (size_t i = 0; i < count; ++i) {
+    if (isfinite(plot_values[i])) {
+      first_numeric = i;
+      break;
+    }
+  }
+  if (first_numeric < count) {
+    float last = plot_values[first_numeric];
+    for (size_t i = 0; i < first_numeric; ++i) {
+      plot_values[i] = last;
+    }
+    for (size_t i = first_numeric + 1; i < count; ++i) {
+      if (!isfinite(plot_values[i])) {
+        plot_values[i] = last;
+      } else {
+        last = plot_values[i];
+      }
+    }
+  }
+
   bool has_range = false;
   float min_v = 0.0f;
   float max_v = 0.0f;
   size_t numeric_count = 0;
 
-  for (size_t i = 0; i < count; ++i) {
-    JsonVariant v = values[i];
-    float val = 0.0f;
-    if (!extract_numeric(v, val)) {
-      continue;
-    }
+  for (float val : plot_values) {
+    if (!isfinite(val)) continue;
     ++numeric_count;
     if (!has_range) {
       min_v = max_v = val;
@@ -399,9 +428,8 @@ static void apply_history_payload(SensorPopupContext* ctx, const char* payload) 
   }
 
   for (size_t i = 0; i < count; ++i) {
-    JsonVariant v = values[i];
-    float val = 0.0f;
-    if (!extract_numeric(v, val)) {
+    float val = plot_values[i];
+    if (!isfinite(val)) {
       lv_chart_set_value_by_id(ctx->chart, ctx->series, static_cast<uint16_t>(i), LV_CHART_POINT_NONE);
       continue;
     }

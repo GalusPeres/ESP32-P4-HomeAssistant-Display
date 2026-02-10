@@ -1448,6 +1448,29 @@ static void apply_tile_graph_history(const char* target_entity, const char* payl
       continue;
     }
 
+    // Luecken wie in HA schliessen: fehlende Buckets mit letztem gueltigen
+    // Wert auffuellen (inkl. Prefix mit erstem gueltigen Wert).
+    size_t first_valid = values.size();
+    for (size_t j = 0; j < values.size(); ++j) {
+      if (isfinite(values[j])) {
+        first_valid = j;
+        break;
+      }
+    }
+    if (first_valid < values.size()) {
+      float last = values[first_valid];
+      for (size_t j = 0; j < first_valid; ++j) {
+        values[j] = last;
+      }
+      for (size_t j = first_valid + 1; j < values.size(); ++j) {
+        if (!isfinite(values[j])) {
+          values[j] = last;
+        } else {
+          last = values[j];
+        }
+      }
+    }
+
     // Use all points (same as popup - no downsampling)
     // Calculate min/max for range
     float min_v = 0.0f, max_v = 0.0f;
