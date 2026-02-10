@@ -12,7 +12,7 @@
 
 PowerManager powerManager;
 
-static constexpr uint32_t kImuWakePollMsSleep = 30;
+static constexpr uint32_t kImuWakePollMsSleep = 120;
 static constexpr uint32_t kImuWakePollMsAwake = 80;
 static constexpr float kImuGravityAlpha = 0.95f;
 static constexpr float kImuWakeLinMag = 0.024f;
