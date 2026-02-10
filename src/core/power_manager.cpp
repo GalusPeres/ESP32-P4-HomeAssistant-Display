@@ -40,6 +40,7 @@ static constexpr uint32_t kImuWakeCooldownMs = 100;
 static constexpr bool kImuWakeDebug = false;
 static constexpr uint32_t kImuWakeLogMs = 200;
 static constexpr uint32_t kIdleTimeoutBatteryMs = 800;
+static constexpr bool kAllowTouchWakeOnBattery = false;
 static constexpr uint32_t kImuI2cSleepHz = 100000;
 static constexpr uint32_t kImuI2cWakeHz = 400000;
 static constexpr uint8_t kBmi270RegPwrCtrl = 0x7D;
@@ -307,13 +308,21 @@ bool PowerManager::isPoweredByMains() const {
 
 bool PowerManager::isTouchWakeEnabled() const {
   const DeviceConfig& cfg = configManager.getConfig();
-  uint8_t mode = isPoweredByMains() ? cfg.wake_mode_mains : cfg.wake_mode_battery;
+  bool on_mains = isPoweredByMains();
+  if (!on_mains && !kAllowTouchWakeOnBattery) {
+    return false;
+  }
+  uint8_t mode = on_mains ? cfg.wake_mode_mains : cfg.wake_mode_battery;
   return mode == kWakeModeTouch;
 }
 
 bool PowerManager::isImuWakeEnabled() const {
   const DeviceConfig& cfg = configManager.getConfig();
-  uint8_t mode = isPoweredByMains() ? cfg.wake_mode_mains : cfg.wake_mode_battery;
+  bool on_mains = isPoweredByMains();
+  if (!on_mains && !kAllowTouchWakeOnBattery) {
+    return true;
+  }
+  uint8_t mode = on_mains ? cfg.wake_mode_mains : cfg.wake_mode_battery;
   return mode == kWakeModeImu;
 }
 

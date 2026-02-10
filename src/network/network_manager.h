@@ -47,8 +47,6 @@ private:
   uint32_t last_telemetry = 0;
   bool was_connected = false;
   bool mqtt_enabled = false;
-  bool wifi_ps_state_known = false;
-  bool wifi_ps_enabled = false;
   String bridge_apply_topic_;
   String bridge_request_topic_;
   String history_request_topic_;
