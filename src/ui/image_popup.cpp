@@ -59,9 +59,12 @@ static constexpr uint32_t kUrlCacheInitialDelayMs = 30UL * 1000UL;
 static uint32_t g_url_cache_next_ms = 0;
 static constexpr uint32_t kThumbWorkDelayMs = 250UL;
 static constexpr uint32_t kThumbIdleDelayMs = 5000UL;
+static constexpr uint32_t kThumbBusyRetryMs = 120UL;
+static constexpr uint32_t kBackgroundBusyAfterInputMs = 1200UL;
 static uint32_t g_thumb_next_ms = 0;
 static constexpr uint32_t kThumbCleanupIntervalMs = 3600000UL;
 static uint32_t g_thumb_cleanup_next_ms = 0;
+static uint32_t g_background_pause_until_ms = 0;
 static std::vector<String> g_thumb_refresh_list;
 
 struct UrlCacheEntry {
@@ -110,6 +113,20 @@ static void request_url_cache_cancel(const String& url);
 static void clear_url_cache_cancel(const String& url);
 static bool url_cache_should_cancel(uint32_t hash, uint16_t len);
 static void url_cache_consume_cancel(uint32_t hash, uint16_t len);
+
+static bool is_background_busy_from_input(uint32_t now_ms) {
+  uint32_t last_input = displayManager.getLastActivityTime();
+  if (last_input == 0) return false;
+  return (int32_t)(now_ms - last_input) < static_cast<int32_t>(kBackgroundBusyAfterInputMs);
+}
+
+void image_popup_pause_background_work(uint32_t duration_ms) {
+  uint32_t now = millis();
+  uint32_t until = now + duration_ms;
+  if ((int32_t)(until - g_background_pause_until_ms) > 0) {
+    g_background_pause_until_ms = until;
+  }
+}
 
 static void close_image_popup(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
@@ -803,6 +820,21 @@ static bool create_thumb_from_bin(const String& src_path, const String& dst_path
 
   int32_t current_src_y = -1;
   for (uint16_t y = 0; y < dst_h; ++y) {
+    if ((y & 0x0F) == 0) {
+      uint32_t now_ms = millis();
+      if (is_background_busy_from_input(now_ms)) {
+        dst.close();
+        src.close();
+        heap_caps_free(x_map);
+        heap_caps_free(y_map);
+        heap_caps_free(src_row);
+        heap_caps_free(dst_row);
+        SD.remove(tmp_path);
+        error = "";
+        return false;
+      }
+    }
+
     uint16_t src_y = y_map[y];
     if (static_cast<int32_t>(src_y) != current_src_y) {
       uint32_t offset = static_cast<uint32_t>(src_y) * src_stride;
@@ -907,6 +939,11 @@ static bool get_next_thumbnail_job(ThumbJob& job) {
 
 static void service_tile_thumbnails(uint32_t now) {
   if (g_thumb_next_ms != 0 && (int32_t)(now - g_thumb_next_ms) < 0) return;
+  if (is_background_busy_from_input(now)) {
+    g_thumb_next_ms = now + kThumbBusyRetryMs;
+    return;
+  }
+
   ThumbJob job;
   if (!get_next_thumbnail_job(job)) {
     g_thumb_next_ms = now + kThumbIdleDelayMs;
@@ -984,6 +1021,10 @@ static void schedule_thumb_refresh_for_key(const String& raw_key) {
 
 static void cleanup_unused_thumbnails(uint32_t now) {
   if (g_thumb_cleanup_next_ms != 0 && (int32_t)(now - g_thumb_cleanup_next_ms) < 0) return;
+  if (is_background_busy_from_input(now)) {
+    g_thumb_cleanup_next_ms = now + kThumbBusyRetryMs;
+    return;
+  }
   g_thumb_cleanup_next_ms = now + kThumbCleanupIntervalMs;
   if (!ensure_sd_ready()) return;
   if (!SD.exists(kThumbDir)) return;
@@ -1930,10 +1971,16 @@ static void apply_slideshow_display_mode(bool enable) {
 }
 
 void image_popup_service_url_cache() {
+  uint32_t now = millis();
+  if (g_background_pause_until_ms != 0 &&
+      (int32_t)(now - g_background_pause_until_ms) < 0) {
+    return;
+  }
+  g_background_pause_until_ms = 0;
+
   process_url_cache_done();
   if (!ensure_sd_ready()) return;
 
-  uint32_t now = millis();
   service_tile_thumbnails(now);
   cleanup_unused_thumbnails(now);
   if (WiFi.status() != WL_CONNECTED) return;

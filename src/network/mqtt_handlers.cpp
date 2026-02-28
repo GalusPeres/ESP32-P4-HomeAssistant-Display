@@ -36,7 +36,7 @@
 // Cached values for outgoing snapshots
 static float g_outside_c = 21.7f;
 static float g_inside_c = 22.4f;
-static int g_soc_pct = 73;
+static int g_soc_pct = -1;
 static float g_external_temp_c = NAN;
 static bool g_external_temp_valid = false;
 static constexpr uint32_t kExternalTempGridRefreshMs = 5000;
@@ -574,9 +574,12 @@ static int readBatterySocPercent() {
 
   if (batt.level_valid && batt.level_pct >= 0 && batt.level_pct <= 100) {
     g_soc_pct = batt.level_pct;
-  } else if (!batt.battery_missing &&
+  } else if (g_soc_pct < 0 &&
+             !batt.battery_missing &&
              batt.raw_level_pct >= 0 &&
              batt.raw_level_pct <= 100) {
+    // One-time seed on startup only. Do not continuously fall back to raw,
+    // otherwise short raw spikes can create vertical jumps in history graphs.
     g_soc_pct = batt.raw_level_pct;
   }
 

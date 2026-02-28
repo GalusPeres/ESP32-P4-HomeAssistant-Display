@@ -9,6 +9,7 @@
 void show_image_popup(const char* path, uint16_t slideshow_sec = 10);
 void hide_image_popup();
 void preload_image_popup(const char* path);
+void image_popup_pause_background_work(uint32_t duration_ms);
 void image_popup_service_url_cache();
 
 #endif // IMAGE_POPUP_H

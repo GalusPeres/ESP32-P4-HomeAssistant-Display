@@ -165,37 +165,60 @@ static lv_obj_t* create_tiles_grid(lv_obj_t* parent);
 /* === Deferred image preview loading === */
 static lv_timer_t* g_preview_timer = nullptr;
 static GridType g_preview_timer_grid = GridType::TAB0;
-static constexpr uint32_t kPreviewDelayMs = 100;
+static constexpr uint32_t kPreviewDelayMs = 30;
+static constexpr uint32_t kPreviewStepMs = 12;
+static constexpr uint8_t kPreviewLoadsPerStep = 1;
 static uint32_t g_preview_block_until_ms[3] = {0, 0, 0};
+static uint8_t g_preview_next_index = 0;
+static bool g_preview_only_missing = true;
 
 static void tiles_refresh_all_image_previews(GridType grid_type, bool only_missing);
 static void hide_preview_images(GridType grid_type);
 static void tiles_refresh_icons_for_grid(GridType grid_type);
+static bool process_preview_step(GridType grid_type, bool only_missing, uint8_t max_loads);
 
-static void preview_timer_cb(lv_timer_t* timer) {
-  (void)timer;
-  g_preview_timer = nullptr;
-  const uint8_t idx = static_cast<uint8_t>(g_preview_timer_grid);
-  if (idx < 3) {
-    g_preview_block_until_ms[idx] = 0;
-  }
-  tiles_refresh_all_image_previews(g_preview_timer_grid, true);
-}
-
-static void schedule_preview_load(GridType grid_type) {
+static void stop_preview_timer() {
   if (g_preview_timer) {
     lv_timer_del(g_preview_timer);
     g_preview_timer = nullptr;
   }
+}
+
+static void preview_timer_cb(lv_timer_t* timer) {
+  (void)timer;
+  const uint8_t idx = static_cast<uint8_t>(g_preview_timer_grid);
+  if (idx >= 3 || !g_tiles_grids[idx] || !g_tiles_loaded[idx]) {
+    if (idx < 3) g_preview_block_until_ms[idx] = 0;
+    stop_preview_timer();
+    return;
+  }
+
+  const uint32_t now = millis();
+  if (g_preview_block_until_ms[idx] != 0 &&
+      (int32_t)(now - g_preview_block_until_ms[idx]) < 0) {
+    return;
+  }
+  g_preview_block_until_ms[idx] = 0;
+
+  if (process_preview_step(g_preview_timer_grid, g_preview_only_missing, kPreviewLoadsPerStep)) {
+    stop_preview_timer();
+  }
+}
+
+static void schedule_preview_load(GridType grid_type) {
+  stop_preview_timer();
   const uint8_t idx = static_cast<uint8_t>(grid_type);
   if (idx < 3) {
     g_preview_block_until_ms[idx] = millis() + kPreviewDelayMs;
   }
   hide_preview_images(grid_type);
   g_preview_timer_grid = grid_type;
-  g_preview_timer = lv_timer_create(preview_timer_cb, kPreviewDelayMs, nullptr);
-  if (g_preview_timer) {
-    lv_timer_set_repeat_count(g_preview_timer, 1);
+  g_preview_only_missing = true;
+  g_preview_next_index = 0;
+  g_preview_timer = lv_timer_create(preview_timer_cb, kPreviewStepMs, nullptr);
+  if (!g_preview_timer) {
+    if (idx < 3) g_preview_block_until_ms[idx] = 0;
+    tiles_refresh_all_image_previews(grid_type, true);
   }
 }
 
@@ -631,8 +654,11 @@ void tiles_switch_to_folder(uint16_t folder_id) {
   }
   if (!g_tiles_grids[idx]) return;
 
+  // Navigation nicht im Event-Callback blockieren:
+  // Layout-Rebuild wird im Main-Loop ueber tiles_process_reload_requests ausgefuehrt.
+  stop_preview_timer();
   lv_obj_clear_flag(g_tiles_grids[idx], LV_OBJ_FLAG_HIDDEN);
-  tiles_reload_layout(GridType::TAB0);
+  tiles_request_reload(GridType::TAB0);
 }
 
 void tiles_invalidate_folder(uint16_t folder_id) {
@@ -697,30 +723,59 @@ static void tiles_refresh_all_image_previews(GridType grid_type, bool only_missi
     }
   }
 
-  const TileGridConfig& config = getGridConfig(grid_type);
-  for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
-    const Tile& tile = config.tiles[i];
-    if (tile.type != TILE_IMAGE) continue;
-    if (tile.sensor_display_mode == 0) continue;
-    if (!tile.image_path.length()) continue;
-    if (is_slideshow_token_local(tile.image_path)) continue;
-
-    lv_obj_t* btn = g_tiles_objs[idx][i];
-    if (!btn) continue;
-    lv_obj_t* img = find_preview_image_child(btn);
-    if (!img) continue;
-    if (only_missing && lv_obj_has_flag(img, LV_OBJ_FLAG_USER_2)) continue;
-
-    String preview_path;
-    if (!image_tile_get_preview_path(tile, preview_path)) continue;
-
-    String src = "S:" + preview_path;
-    lv_image_cache_drop(src.c_str());
-    lv_img_set_src(img, src.c_str());
-    lv_obj_add_flag(img, LV_OBJ_FLAG_USER_2);
-    lv_obj_clear_flag(img, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_invalidate(img);
+  g_preview_next_index = 0;
+  while (!process_preview_step(grid_type, only_missing, TILES_PER_GRID)) {
+    // continue until all previews in this grid are processed
   }
+}
+
+static bool apply_preview_for_tile(GridType grid_type, uint8_t tile_index, bool only_missing, bool drop_cache) {
+  const uint8_t idx = static_cast<uint8_t>(grid_type);
+  if (idx >= 3 || tile_index >= TILES_PER_GRID) return false;
+  if (!g_tiles_grids[idx] || !g_tiles_loaded[idx]) return false;
+
+  const TileGridConfig& config = getGridConfig(grid_type);
+  const Tile& tile = config.tiles[tile_index];
+  if (tile.type != TILE_IMAGE) return false;
+  if (tile.sensor_display_mode == 0) return false;
+  if (!tile.image_path.length()) return false;
+  if (is_slideshow_token_local(tile.image_path)) return false;
+
+  lv_obj_t* btn = g_tiles_objs[idx][tile_index];
+  if (!btn) return false;
+  lv_obj_t* img = find_preview_image_child(btn);
+  if (!img) return false;
+  if (only_missing && lv_obj_has_flag(img, LV_OBJ_FLAG_USER_2)) return false;
+
+  String preview_path;
+  if (!image_tile_get_preview_path(tile, preview_path)) return false;
+
+  String src = "S:" + preview_path;
+  if (drop_cache) {
+    lv_image_cache_drop(src.c_str());
+  }
+  lv_img_set_src(img, src.c_str());
+  lv_obj_add_flag(img, LV_OBJ_FLAG_USER_2);
+  lv_obj_clear_flag(img, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_invalidate(img);
+  return true;
+}
+
+static bool process_preview_step(GridType grid_type, bool only_missing, uint8_t max_loads) {
+  if (max_loads < 1) max_loads = 1;
+  uint8_t loaded = 0;
+  while (g_preview_next_index < TILES_PER_GRID) {
+    if (apply_preview_for_tile(grid_type, g_preview_next_index, only_missing, false)) {
+      ++loaded;
+      ++g_preview_next_index;
+      if (loaded >= max_loads) {
+        return false;
+      }
+      continue;
+    }
+    ++g_preview_next_index;
+  }
+  return true;
 }
 
 void tiles_refresh_image_previews_for_key(GridType grid_type, const String& raw_key) {

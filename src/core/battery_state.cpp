@@ -11,6 +11,16 @@ static constexpr uint32_t kBatteryFreezeAfterPlugMs = 10000;
 static constexpr uint32_t kBatteryDropStepMs = 120000;          // on battery: max -1% every 2 min
 static constexpr uint32_t kBatteryRiseOnBatteryStepMs = 300000; // on battery: max +1% every 5 min
 static constexpr uint32_t kBatteryRiseOnMainsStepMs = 20000;    // on mains: max +1% every 20 s
+// Hardware reserve calibration:
+// Latest measured behavior: device is effectively empty around ~3%.
+static constexpr int32_t kSocReserveFloorPct = 3;
+// Runtime-linearization calibration from measured discharge behavior:
+// 00:30 100% -> 18:30 50% -> 20:20 7%(empty)
+// This means raw 50% is only about ~9% usable runtime left.
+static constexpr int32_t kSocRuntimeKneeRawPct = 50;
+static constexpr int32_t kSocRuntimeKneeDisplayPct = 9;
+// While charging around empty, avoid staying visually stuck at 0%.
+static constexpr int32_t kSocChargingMinDisplayPct = 1;
 
 int32_t clamp_i32(int32_t v, int32_t lo, int32_t hi) {
   if (v < lo) return lo;
@@ -20,6 +30,32 @@ int32_t clamp_i32(int32_t v, int32_t lo, int32_t hi) {
 
 int32_t abs_i32(int32_t v) {
   return (v < 0) ? -v : v;
+}
+
+int32_t map_soc_to_usable_percent(int32_t raw_pct) {
+  raw_pct = clamp_i32(raw_pct, 0, 100);
+  if (raw_pct <= kSocReserveFloorPct) return 0;
+  if (raw_pct >= 100) return 100;
+
+  // Piecewise linear runtime mapping:
+  // [reserve..knee_raw] -> [0..knee_display]
+  // [knee_raw..100]     -> [knee_display..100]
+  if (raw_pct <= kSocRuntimeKneeRawPct) {
+    const int32_t in_span = kSocRuntimeKneeRawPct - kSocReserveFloorPct;
+    const int32_t out_span = kSocRuntimeKneeDisplayPct;
+    if (in_span <= 0 || out_span <= 0) return 0;
+    const int32_t scaled =
+        ((raw_pct - kSocReserveFloorPct) * out_span + (in_span / 2)) / in_span;
+    return clamp_i32(scaled, 0, 100);
+  }
+
+  const int32_t in_span = 100 - kSocRuntimeKneeRawPct;
+  const int32_t out_span = 100 - kSocRuntimeKneeDisplayPct;
+  if (in_span <= 0 || out_span <= 0) return 100;
+  const int32_t scaled =
+      kSocRuntimeKneeDisplayPct +
+      ((raw_pct - kSocRuntimeKneeRawPct) * out_span + (in_span / 2)) / in_span;
+  return clamp_i32(scaled, 0, 100);
 }
 
 bool is_battery_missing_raw(bool on_mains, int32_t level_pct, int32_t current_ma) {
@@ -150,7 +186,19 @@ void batteryStateUpdate() {
 
   bool have_display_level = s.display_pct_initialized && !s.out.battery_missing;
   s.out.level_valid = have_display_level;
-  s.out.level_pct = have_display_level ? s.display_pct : -1;
+  if (have_display_level) {
+    // Use one consistent scale for battery + mains to prevent visual jumps
+    // when plugging/unplugging power.
+    s.out.level_pct = map_soc_to_usable_percent(s.display_pct);
+    // If charging above reserve floor, show at least 1%.
+    if (s.out.on_mains && s.out.charging && s.display_pct > kSocReserveFloorPct) {
+      if (s.out.level_pct < kSocChargingMinDisplayPct) {
+        s.out.level_pct = kSocChargingMinDisplayPct;
+      }
+    }
+  } else {
+    s.out.level_pct = -1;
+  }
   s.out.raw_level_pct = raw_level_valid ? raw_level : -1;
   s.out.voltage_mv = raw_voltage;
   s.out.current_ma = raw_current;

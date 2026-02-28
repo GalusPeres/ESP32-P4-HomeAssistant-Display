@@ -288,6 +288,8 @@ void UIManager::switchToTab(uint8_t index) {
 }
 
 void UIManager::switchToFolder(uint16_t folder_id) {
+  // Priorisiere Navigation: kurze Pause fuer Thumbnail/URL-Background-Jobs.
+  image_popup_pause_background_work(350);
   tiles_switch_to_folder(folder_id);
   switchToTab(0);
 }
