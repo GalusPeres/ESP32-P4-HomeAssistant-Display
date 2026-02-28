@@ -655,6 +655,9 @@ static LightPopupInit build_popup_init_from_state(const Tile& tile, const Switch
   init.icon_name = icon_name;
   init.is_light = is_light_entity_id(tile.sensor_entity);
   init.keep_icon_white = is_switch_widget_style(tile);
+  init.has_tile_ref = true;
+  init.tile_grid = static_cast<uint8_t>(grid_type);
+  init.tile_index = tile_index;
   init.has_state = state.has_state;
   init.has_color = state.has_color;
   init.has_brightness = state.has_brightness;

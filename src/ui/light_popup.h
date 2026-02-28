@@ -20,6 +20,9 @@ struct LightPopupInit {
   bool is_light = true;
   bool is_on = true;
   bool keep_icon_white = false;
+  bool has_tile_ref = false;
+  uint8_t tile_grid = 0;
+  uint8_t tile_index = 0;
 };
 
 void show_light_popup(const LightPopupInit& init);

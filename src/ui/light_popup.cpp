@@ -5,6 +5,7 @@
 #include "src/fonts/ui_fonts.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/tiles/mdi_icons.h"
+#include "src/tiles/tile_renderer_shared.h"
 
 namespace {
 
@@ -63,6 +64,9 @@ struct LightPopupContext {
   bool is_light = true;
   bool is_on = true;
   bool keep_icon_white = false;
+  bool has_tile_ref = false;
+  uint8_t tile_grid = 0;
+  uint8_t tile_index = 0;
   bool user_dragging = false;
   uint32_t last_user_action_ms = 0;
   uint32_t block_remote_until_ms = 0;
@@ -180,6 +184,37 @@ static void publish_light_popup(LightPopupContext* ctx) {
   mqttPublishLightCommand(ctx->entity_id.c_str(), "on", brightness, has_color, rgb);
 }
 
+static void sync_bound_tile_from_popup(LightPopupContext* ctx) {
+  if (!ctx || !ctx->has_tile_ref || ctx->tile_index >= TILES_PER_GRID) return;
+
+  String payload;
+  if (!ctx->is_light) {
+    payload = ctx->is_on ? "on" : "off";
+  } else {
+    payload.reserve(96);
+    payload = "{\"state\":\"";
+    payload += ctx->is_on ? "on" : "off";
+    payload += "\"";
+
+    if (ctx->supports_brightness) {
+      payload += ",\"brightness_pct\":";
+      payload += String(ctx->is_on ? ctx->val : 0);
+    }
+
+    if (ctx->supports_color) {
+      payload += ",\"hs_color\":[";
+      payload += String(ctx->hue);
+      payload += ",";
+      payload += String(ctx->sat);
+      payload += "]";
+    }
+
+    payload += "}";
+  }
+
+  update_switch_tile_state(static_cast<GridType>(ctx->tile_grid), ctx->tile_index, payload.c_str());
+}
+
 static void update_preview(LightPopupContext* ctx) {
   if (!ctx) return;
 
@@ -220,6 +255,9 @@ static void apply_init_to_context(LightPopupContext* ctx, const LightPopupInit& 
   ctx->supports_brightness = init.supports_brightness || init.supports_color;
   ctx->is_light = init.is_light;
   ctx->keep_icon_white = init.keep_icon_white;
+  ctx->has_tile_ref = init.has_tile_ref;
+  ctx->tile_grid = init.tile_grid;
+  ctx->tile_index = init.tile_index;
   if (init.has_state) {
     ctx->is_on = init.is_on;
   }
@@ -440,6 +478,7 @@ static void on_power_switch_changed(lv_event_t* e) {
 
   ctx->is_on = new_state;
   update_preview(ctx);
+  sync_bound_tile_from_popup(ctx);
   publish_light_popup(ctx);
 }
 
@@ -453,6 +492,7 @@ static void on_hue_changed(lv_event_t* e) {
   ctx->hue = static_cast<uint16_t>(value);
   mark_user_action(ctx);
   update_preview(ctx);
+  sync_bound_tile_from_popup(ctx);
   publish_light_popup(ctx);
 }
 
@@ -466,6 +506,7 @@ static void on_sat_changed(lv_event_t* e) {
   ctx->sat = static_cast<uint8_t>(value);
   mark_user_action(ctx);
   update_preview(ctx);
+  sync_bound_tile_from_popup(ctx);
   publish_light_popup(ctx);
 }
 
@@ -497,6 +538,7 @@ static void on_val_changed(lv_event_t* e) {
   }
 
   update_preview(ctx);
+  sync_bound_tile_from_popup(ctx);
   publish_light_popup(ctx);
 }
 

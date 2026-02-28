@@ -31,25 +31,40 @@ void appendAdminScripts(String& html) {
   let drafts = {};
   let tilesData = {};
   let autoSaveTimers = {};
-  let sensorMetaCache = { values: {}, units: {}, icons: {}, names: {} };
+  let sensorMetaCache = { values: {}, units: {}, icons: {}, names: {}, loaded: false };
 
   function normalizeSensorMetaPayload(payload) {
     if (!payload || typeof payload !== 'object') {
-      return { values: {}, units: {}, icons: {}, names: {} };
+      return { values: {}, units: {}, icons: {}, names: {}, loaded: false };
     }
     const hasMeta = Object.prototype.hasOwnProperty.call(payload, 'values') ||
                     Object.prototype.hasOwnProperty.call(payload, 'units') ||
                     Object.prototype.hasOwnProperty.call(payload, 'icons') ||
                     Object.prototype.hasOwnProperty.call(payload, 'names');
     if (!hasMeta) {
-      return { values: payload || {}, units: {}, icons: {}, names: {} };
+      return { values: payload || {}, units: {}, icons: {}, names: {}, loaded: true };
     }
     return {
       values: payload.values || {},
       units: payload.units || {},
       icons: payload.icons || {},
-      names: payload.names || {}
+      names: payload.names || {},
+      loaded: true
     };
+  }
+
+  function isSensorMetaCacheLoaded() {
+    return !!(sensorMetaCache && sensorMetaCache.loaded);
+  }
+
+  function fetchSensorMetaCache() {
+    return fetch('/api/sensor_values')
+      .then(res => res.json())
+      .then(raw => {
+        sensorMetaCache = normalizeSensorMetaPayload(raw || {});
+        return sensorMetaCache;
+      })
+      .catch(() => sensorMetaCache);
   }
 
   function isExplicitlyDisabledValue(raw) {
@@ -896,7 +911,7 @@ void appendAdminScripts(String& html) {
         if (data.success) {
           if (!silent) showNotification('Kachel gespeichert & Display aktualisiert!');
           clearDraft(tab, currentTileIndex);
-          loadSensorValues();
+          if (!silent) loadSensorValues(true);
           if (typeValue === '4') {
             const navTarget = document.getElementById(prefix + '_navigate_target')?.value || '';
             if (String(navTarget) === '0') {
@@ -1218,28 +1233,31 @@ void appendAdminScripts(String& html) {
     }
   }
 
-  function loadSensorValues() {
+  function loadSensorValues(refreshTiles = false) {
     const tabs = tileTabs.slice();
-    const tileRequests = tabs.map(tab => {
-      const folderId = getFolderIdForTab(tab);
-      if (folderId === undefined) return Promise.resolve([]);
-      return fetch('/api/tiles?folder=' + encodeURIComponent(folderId))
-        .then(res => res.json())
-        .catch(() => []);
-    });
+    const tileRequests = refreshTiles
+      ? tabs.map(tab => {
+          const folderId = getFolderIdForTab(tab);
+          if (folderId === undefined) return Promise.resolve([]);
+          return fetch('/api/tiles?folder=' + encodeURIComponent(folderId))
+            .then(res => res.json())
+            .catch(() => []);
+        })
+      : tabs.map(tab => Promise.resolve(getTilesData(tab)));
 
-    Promise.all([
-      fetch('/api/sensor_values').then(res => res.json()).catch(() => ({})),
-      ...tileRequests
-    ])
+    Promise.all([fetchSensorMetaCache(), ...tileRequests])
     .then(results => {
       const sensorMeta = normalizeSensorMetaPayload(results[0] || {});
       sensorMetaCache = sensorMeta;
       tabs.forEach((tab, idx) => {
         const tiles = Array.isArray(results[idx + 1]) ? results[idx + 1] : [];
-        tilesData[tab] = tiles;
-        tiles.forEach((tile, i) => renderTileFromData(tab, i, tile, sensorMeta));
-        layoutTiles(tab, tiles);
+        if (refreshTiles) {
+          tilesData[tab] = tiles;
+        }
+        const tilesForRender = refreshTiles ? tiles : getTilesData(tab);
+        if (!Array.isArray(tilesForRender)) return;
+        tilesForRender.forEach((tile, i) => renderTileFromData(tab, i, tile, sensorMeta));
+        layoutTiles(tab, tilesForRender);
       });
       if (currentTileIndex !== -1 && currentTileTab) {
         const settingsId = currentTileTab + 'Settings';
@@ -1346,7 +1364,7 @@ void appendAdminScripts(String& html) {
             if (currentTileIndex === fromIdx) applyLayoutInputsFromLayout(tab, targetLayout);
             else if (currentTileIndex === toIdx) applyLayoutInputsFromLayout(tab, sourceLayout);
           }
-          loadSensorValues();
+          loadSensorValues(false);
       } else {
         showNotification('Fehler beim Verschieben', false);
       }
@@ -1360,14 +1378,14 @@ void appendAdminScripts(String& html) {
     initTileTabs();
     loadDraftsFromStorage();
     loadTileClipboard();
-    loadSensorValues();
+    loadSensorValues(true);
     let savedTab = null;
     try { savedTab = localStorage.getItem('activeAdminTab'); } catch (e) {}
     const defaultTab = tileTabs.length ? ('tab-tiles-' + tileTabs[0]) : 'tab-network';
     const targetTab = savedTab && document.getElementById(savedTab) ? savedTab : defaultTab;
     const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.getAttribute('onclick')?.includes(targetTab)) || document.querySelector('.tab-btn');
     if (targetBtn) targetBtn.click();
-    setInterval(loadSensorValues, 5000);
+    setInterval(() => loadSensorValues(false), 5000);
     tileTabs.forEach(tab => enableTileDrag(tab));
   });
   </script>

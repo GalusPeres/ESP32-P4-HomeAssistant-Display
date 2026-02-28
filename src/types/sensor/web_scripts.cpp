@@ -38,21 +38,20 @@ void append_sensor_scripts(String& html) {
       }
       return;
     }
-    fetch('/api/sensor_values')
-      .then(res => res.json())
-      .then(raw => {
-        const meta = normalizeSensorMetaPayload(raw);
-        sensorMetaCache = meta;
-        const values = meta.values || {};
-        const valueElem = document.getElementById(tab + '-tile-' + currentTileIndex + '-value');
-        if (valueElem) {
-          const decimals = decimalsInput ? decimalsInput.value : '';
-          let value = formatSensorValue(values[entity] ?? '--', decimals);
-          const unit = resolveUnitValue(unitInput ? unitInput.value : '', entity, meta.units);
-          valueElem.innerHTML = value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '');
-          applySensorValueFontClass(valueElem, valueFontSelect ? valueFontSelect.value : '0');
-        }
-      })
+    const applyMeta = (meta) => {
+      const values = (meta && meta.values) || {};
+      const valueElem = document.getElementById(tab + '-tile-' + currentTileIndex + '-value');
+      if (valueElem) {
+        const decimals = decimalsInput ? decimalsInput.value : '';
+        const value = formatSensorValue(values[entity] ?? '--', decimals);
+        const unit = resolveUnitValue(unitInput ? unitInput.value : '', entity, (meta && meta.units) || {});
+        valueElem.innerHTML = value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '');
+        applySensorValueFontClass(valueElem, valueFontSelect ? valueFontSelect.value : '0');
+      }
+    };
+    const metaPromise = isSensorMetaCacheLoaded() ? Promise.resolve(sensorMetaCache) : fetchSensorMetaCache();
+    metaPromise
+      .then(meta => applyMeta(meta))
       .catch(err => console.error('Fehler beim Laden des Sensorwerts:', err));
   }
 

@@ -176,15 +176,14 @@ void append_switch_scripts(String& html) {
     const tileElem = document.getElementById(tab + '-tile-' + currentTileIndex);
     if (!entity || !tileElem) return;
     syncSwitchPreviewPalette(tileElem);
-    fetch('/api/sensor_values')
-      .then(res => res.json())
-      .then(raw => {
-        const meta = normalizeSensorMetaPayload(raw);
-        sensorMetaCache = meta;
-        const values = meta.values || {};
-        const state = parseSwitchPayload(values[entity] ?? '');
-        applySwitchPreviewState(tileElem, state);
-      })
+    const applyMeta = (meta) => {
+      const values = (meta && meta.values) || {};
+      const state = parseSwitchPayload(values[entity] ?? '');
+      applySwitchPreviewState(tileElem, state);
+    };
+    const metaPromise = isSensorMetaCacheLoaded() ? Promise.resolve(sensorMetaCache) : fetchSensorMetaCache();
+    metaPromise
+      .then(meta => applyMeta(meta))
       .catch(err => console.error('Fehler beim Laden des Switch-Status:', err));
   }
 
