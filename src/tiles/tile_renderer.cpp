@@ -642,7 +642,11 @@ static bool is_switch_widget_style(const Tile& tile) {
   return tile.sensor_decimals == 1;
 }
 
-static LightPopupInit build_popup_init_from_state(const Tile& tile, const SwitchState& state) {
+static LightPopupInit build_popup_init_from_state(
+    GridType grid_type,
+    uint8_t tile_index,
+    const Tile& tile,
+    const SwitchState& state) {
   LightPopupInit init;
   init.entity_id = tile.sensor_entity;
   init.title = tile.title;
@@ -984,7 +988,7 @@ void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char
   state_target[grid_index] = state;
 
   if (tile.sensor_entity.length()) {
-    LightPopupInit init = build_popup_init_from_state(tile, state);
+    LightPopupInit init = build_popup_init_from_state(grid_type, grid_index, tile, state);
     update_light_popup(init);
   }
 
