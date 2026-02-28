@@ -1295,6 +1295,52 @@ void appendAdminScripts(String& html) {
     return document.querySelector('#tab-tiles-' + tab + ' .tile-grid');
   }
 
+  function parseGridTrackSizes(value) {
+    return String(value || '')
+      .split(' ')
+      .map(part => parseFloat(part))
+      .filter(part => !isNaN(part) && part > 0);
+  }
+
+  function getTileGridMetrics(tab) {
+    const grid = getTileGrid(tab);
+    if (!grid) return null;
+    const style = window.getComputedStyle(grid);
+    const rect = grid.getBoundingClientRect();
+    const gapX = parseFloat(style.columnGap || style.gap || '0') || 0;
+    const gapY = parseFloat(style.rowGap || style.gap || '0') || 0;
+    const padLeft = parseFloat(style.paddingLeft || '0') || 0;
+    const padTop = parseFloat(style.paddingTop || '0') || 0;
+    const padRight = parseFloat(style.paddingRight || '0') || 0;
+    const padBottom = parseFloat(style.paddingBottom || '0') || 0;
+    const cols = parseGridTrackSizes(style.gridTemplateColumns);
+    const rows = parseGridTrackSizes(style.gridTemplateRows);
+    const cellW = cols.length ? cols[0] : ((rect.width - padLeft - padRight - (gapX * (GRID_COLS - 1))) / GRID_COLS);
+    const cellH = rows.length ? rows[0] : ((rect.height - padTop - padBottom - (gapY * (GRID_ROWS - 1))) / GRID_ROWS);
+    return { rect, gapX, gapY, padLeft, padTop, cellW, cellH };
+  }
+
+  function getGridCellFromPointer(tab, clientX, clientY) {
+    const metrics = getTileGridMetrics(tab);
+    if (!metrics) return null;
+    const stepX = metrics.cellW + metrics.gapX;
+    const stepY = metrics.cellH + metrics.gapY;
+    let relX = clientX - metrics.rect.left - metrics.padLeft;
+    let relY = clientY - metrics.rect.top - metrics.padTop;
+    if (!isFinite(relX) || !isFinite(relY)) return null;
+    relX = Math.max(0, relX);
+    relY = Math.max(0, relY);
+    let col = Math.floor((relX + (metrics.gapX / 2)) / stepX);
+    let row = Math.floor((relY + (metrics.gapY / 2)) / stepY);
+    if (!isFinite(col)) col = 0;
+    if (!isFinite(row)) row = 0;
+    if (col < 0) col = 0;
+    if (row < 0) row = 0;
+    if (col >= GRID_COLS) col = GRID_COLS - 1;
+    if (row >= GRID_ROWS) row = GRID_ROWS - 1;
+    return { col, row };
+  }
+
   function getTileLayoutFromData(tab, index) {
     const tiles = getTilesData(tab);
     if (!Array.isArray(tiles) || index < 0 || index >= tiles.length) return null;
@@ -1306,6 +1352,46 @@ void appendAdminScripts(String& html) {
     return dragSource.layout ||
       getTileElementLayout(dragSource.tab, dragSource.index) ||
       getTileLayoutFromData(dragSource.tab, dragSource.index);
+  }
+
+  function layoutsOverlap(a, b) {
+    if (!a || !b) return false;
+    return !(a.col + a.span_w <= b.col ||
+             b.col + b.span_w <= a.col ||
+             a.row + a.span_h <= b.row ||
+             b.row + b.span_h <= a.row);
+  }
+
+  function findTileIndexAtCell(tab, col, row, excludeIndex = -1) {
+    const tiles = getTilesData(tab);
+    if (!Array.isArray(tiles)) return -1;
+    for (let i = 0; i < tiles.length; i++) {
+      if (i === excludeIndex) continue;
+      const tile = tiles[i];
+      if (!tile || Number(tile.type || 0) === 0) continue;
+      const layout = getTileElementLayout(tab, i) || getTileLayoutFromData(tab, i);
+      if (!layout) continue;
+      if (col >= layout.col && col < (layout.col + layout.span_w) &&
+          row >= layout.row && row < (layout.row + layout.span_h)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  function hasPlacementConflict(tab, col, row, spanW, spanH, selfIndex, ignoreIndex = -1) {
+    const tiles = getTilesData(tab);
+    if (!Array.isArray(tiles)) return false;
+    const rect = { col, row, span_w: spanW, span_h: spanH };
+    for (let i = 0; i < tiles.length; i++) {
+      if (i === selfIndex || i === ignoreIndex) continue;
+      const tile = tiles[i];
+      if (!tile || Number(tile.type || 0) === 0) continue;
+      const layout = getTileElementLayout(tab, i) || getTileLayoutFromData(tab, i);
+      if (!layout) continue;
+      if (layoutsOverlap(rect, layout)) return true;
+    }
+    return false;
   }
 
   function clearDragPlaceholder() {
@@ -1339,12 +1425,60 @@ void appendAdminScripts(String& html) {
     const targetRow = clampInt(row, 0, GRID_ROWS - 1, sourceLayout.row);
     const fits = (targetCol + sourceLayout.span_w <= GRID_COLS) &&
                  (targetRow + sourceLayout.span_h <= GRID_ROWS);
+    const conflicts = hasPlacementConflict(
+      tab,
+      targetCol,
+      targetRow,
+      sourceLayout.span_w,
+      sourceLayout.span_h,
+      dragSource.index
+    );
     const spanW = Math.max(1, Math.min(sourceLayout.span_w, GRID_COLS - targetCol));
     const spanH = Math.max(1, Math.min(sourceLayout.span_h, GRID_ROWS - targetRow));
 
-    placeholder.classList.toggle('invalid', !fits);
+    placeholder.classList.toggle('invalid', !fits || conflicts);
     placeholder.classList.add('show');
     setTileGridPosition(placeholder, targetCol, targetRow, spanW, spanH);
+  }
+
+  function handleGridDragMove(tab, e) {
+    if (!dragSource || dragSource.tab !== tab) return;
+    const cell = getGridCellFromPointer(tab, e.clientX, e.clientY);
+    if (!cell) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    updateDragPlaceholder(tab, cell.col, cell.row);
+  }
+
+  function handleGridDrop(tab, e) {
+    if (!dragSource || dragSource.tab !== tab) return;
+    const sourceLayout = getDragSourceLayout();
+    const cell = getGridCellFromPointer(tab, e.clientX, e.clientY);
+    clearDragPlaceholder();
+    if (!sourceLayout || !cell) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    const targetCol = clampInt(cell.col, 0, GRID_COLS - 1, sourceLayout.col);
+    const targetRow = clampInt(cell.row, 0, GRID_ROWS - 1, sourceLayout.row);
+    const fits = (targetCol + sourceLayout.span_w <= GRID_COLS) &&
+                 (targetRow + sourceLayout.span_h <= GRID_ROWS);
+    const conflicts = hasPlacementConflict(
+      tab,
+      targetCol,
+      targetRow,
+      sourceLayout.span_w,
+      sourceLayout.span_h,
+      dragSource.index
+    );
+
+    if (!fits || conflicts) {
+      showNotification('Kachel passt dort nicht hin', false);
+      return;
+    }
+    if (targetCol === sourceLayout.col && targetRow === sourceLayout.row) return;
+
+    reorderTiles(dragSource.tab, dragSource.index, dragSource.index, targetCol, targetRow);
   }
 
   function syncSelectedLayoutInputsFromGrid(tab, indexA, indexB) {
@@ -1405,6 +1539,7 @@ void appendAdminScripts(String& html) {
   }
 
   function enableTileDrag(tab) {
+    const grid = getTileGrid(tab);
     const tiles = document.querySelectorAll('#tab-tiles-' + tab + ' .tile');
     tiles.forEach(tile => {
       tile.addEventListener('dragstart', (e) => {
@@ -1431,24 +1566,20 @@ void appendAdminScripts(String& html) {
         dragSource = null;
       });
       tile.addEventListener('dragenter', (e) => {
-        e.preventDefault();
-        updateDragPlaceholder(tab, tile.dataset.col, tile.dataset.row);
+        handleGridDragMove(tab, e);
       });
       tile.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        updateDragPlaceholder(tab, tile.dataset.col, tile.dataset.row);
+        handleGridDragMove(tab, e);
       });
       tile.addEventListener('dragleave', () => {});
       tile.addEventListener('drop', (e) => {
-        e.preventDefault();
-        if (!dragSource) return;
-        const targetIndex = parseInt(tile.dataset.index, 10);
-        if (isNaN(targetIndex)) return;
-        if (dragSource.index === targetIndex) return;
-        reorderTiles(dragSource.tab, dragSource.index, targetIndex, tile.dataset.col, tile.dataset.row);
+        handleGridDrop(tab, e);
       });
     });
+    if (!grid) return;
+    grid.addEventListener('dragenter', (e) => handleGridDragMove(tab, e));
+    grid.addEventListener('dragover', (e) => handleGridDragMove(tab, e));
+    grid.addEventListener('drop', (e) => handleGridDrop(tab, e));
   }
 
   function reorderTiles(tab, fromIdx, toIdx, targetCol, targetRow) {
