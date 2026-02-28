@@ -638,6 +638,10 @@ static bool is_color_mode(const String& mode) {
          mode == "color_temp";
 }
 
+static bool is_switch_widget_style(const Tile& tile) {
+  return tile.sensor_decimals == 1;
+}
+
 static LightPopupInit build_popup_init_from_state(const Tile& tile, const SwitchState& state) {
   LightPopupInit init;
   init.entity_id = tile.sensor_entity;
@@ -650,6 +654,7 @@ static LightPopupInit build_popup_init_from_state(const Tile& tile, const Switch
   }
   init.icon_name = icon_name;
   init.is_light = is_light_entity_id(tile.sensor_entity);
+  init.keep_icon_white = is_switch_widget_style(tile);
   init.has_state = state.has_state;
   init.has_color = state.has_color;
   init.has_brightness = state.has_brightness;
@@ -965,6 +970,7 @@ void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char
   const Tile& tile = grid.tiles[grid_index];
   const String& entity_id = tile.sensor_entity;
   const bool is_light_entity = is_light_entity_id(entity_id);
+  const bool use_switch_widget = is_switch_widget_style(tile);
   if (is_light_entity) {
     if (state.supported_modes_known && state.supported_onoff_only) {
       state.supports_color = false;
@@ -984,13 +990,17 @@ void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char
 
   static const uint32_t kIconOn = 0xFFD54F;
   static const uint32_t kIconOff = 0xB0B0B0;
+  static const uint32_t kIconNeutral = 0xFFFFFF;
+  static const uint32_t kSwitchOff = 0xFFFFFF;
+  static const uint32_t kSwitchOn = 0x3B82F6;
 
   uint32_t icon_color = kIconOff;
   if (!state.has_state || state.is_on) {
     icon_color = state.has_color ? state.color : kIconOn;
   }
 
-  lv_color_t lv_color = lv_color_hex(icon_color);
+  uint32_t label_color = use_switch_widget ? kIconNeutral : icon_color;
+  lv_color_t lv_color = lv_color_hex(label_color);
   if (widgets.icon_label) {
     lv_obj_set_style_text_color(widgets.icon_label, lv_color, 0);
   } else if (widgets.title_label) {
@@ -1003,8 +1013,16 @@ void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char
     } else {
       lv_obj_remove_state(widgets.switch_obj, LV_STATE_CHECKED);
     }
-    lv_obj_set_style_bg_color(widgets.switch_obj, lv_color_hex(kIconOff), LV_PART_INDICATOR | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(widgets.switch_obj, lv_color_hex(icon_color), LV_PART_INDICATOR | LV_STATE_CHECKED);
+    uint32_t tile_color = (tile.bg_color != 0) ? tile.bg_color : 0x353535;
+    lv_obj_set_style_bg_color(widgets.switch_obj, lv_color_hex(tile_color), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(
+        widgets.switch_obj,
+        lv_color_hex(use_switch_widget ? kSwitchOff : kIconOff),
+        LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(
+        widgets.switch_obj,
+        lv_color_hex(use_switch_widget ? kSwitchOn : icon_color),
+        LV_PART_INDICATOR | LV_STATE_CHECKED);
   }
 }
 

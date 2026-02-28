@@ -655,7 +655,14 @@ void appendAdminScripts(String& html) {
     }
 
     const defaultBg = meta.defaultBg || '#353535';
-    tileElem.style.background = color || defaultBg;
+    const tileBg = color || defaultBg;
+    tileElem.style.background = tileBg;
+    tileElem.style.removeProperty('--switch-knob-color');
+    tileElem.style.removeProperty('--switch-on-color');
+    if (type === '5' && switchStyle === '1') {
+      tileElem.style.setProperty('--switch-knob-color', tileBg);
+      tileElem.style.setProperty('--switch-on-color', '#3B82F6');
+    }
 
     let html = '';
 
@@ -1151,6 +1158,12 @@ void appendAdminScripts(String& html) {
     else {
       const bg = tile.bg_color ? rgbToHex(tile.bg_color) : (meta.defaultBg || '#353535');
       el.style.background = bg;
+      el.style.removeProperty('--switch-knob-color');
+      el.style.removeProperty('--switch-on-color');
+      if (typeValue === '5' && tile.switch_style === 1) {
+        el.style.setProperty('--switch-knob-color', bg);
+        el.style.setProperty('--switch-on-color', '#3B82F6');
+      }
     }
     const sensorValueClass = getSensorValueFontClass(tile.sensor_value_font);
     if (typeValue === '0') { el.innerHTML = ''; }

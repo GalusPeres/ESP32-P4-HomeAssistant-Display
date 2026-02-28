@@ -7,8 +7,21 @@ void append_switch_scripts(String& html) {
     maybeFillTitleFromEntity(tab, '_switch_entity');
   }
 
+  const SWITCH_TOGGLE_ON = '#3B82F6';
   const SWITCH_ICON_ON = '#FFD54F';
   const SWITCH_ICON_OFF = '#B0B0B0';
+  const SWITCH_ICON_NEUTRAL = '#FFFFFF';
+
+  function syncSwitchPreviewPalette(tileElem) {
+    if (!tileElem) return;
+    const switchEl = tileElem.querySelector('.tile-switch');
+    if (!switchEl) return;
+    const bg = tileElem.style.background || window.getComputedStyle(tileElem).backgroundColor || '#353535';
+    switchEl.style.setProperty('--switch-knob-color', bg);
+    if (tileElem.classList.contains('switch-toggle')) {
+      switchEl.style.setProperty('--switch-on-color', SWITCH_TOGGLE_ON);
+    }
+  }
 
   function parseOnOff(text) {
     const lower = String(text || '').trim().toLowerCase();
@@ -129,18 +142,28 @@ void append_switch_scripts(String& html) {
 
   function applySwitchPreviewState(tileElem, state) {
     if (!tileElem) return;
-    if (!state.hasState && !state.hasColor) return;
     const iconEl = tileElem.querySelector('.tile-icon');
     const switchEl = tileElem.querySelector('.tile-switch');
+    const isToggleStyle = tileElem.classList.contains('switch-toggle');
+    syncSwitchPreviewPalette(tileElem);
+    if (!state.hasState && !state.hasColor) {
+      if (iconEl && isToggleStyle) iconEl.style.color = SWITCH_ICON_NEUTRAL;
+      return;
+    }
     let isOn = state.hasState ? state.isOn : state.hasColor;
     let color = SWITCH_ICON_OFF;
     if (isOn) color = state.hasColor ? state.color : SWITCH_ICON_ON;
-    if (iconEl) iconEl.style.color = color;
+    if (iconEl) iconEl.style.color = isToggleStyle ? SWITCH_ICON_NEUTRAL : color;
     if (switchEl) {
       if (isOn) switchEl.classList.add('is-on');
       else switchEl.classList.remove('is-on');
-      if (isOn && state.hasColor) switchEl.style.setProperty('--switch-on-color', state.color);
-      else switchEl.style.removeProperty('--switch-on-color');
+      if (isToggleStyle) {
+        switchEl.style.setProperty('--switch-on-color', SWITCH_TOGGLE_ON);
+      } else if (isOn && state.hasColor) {
+        switchEl.style.setProperty('--switch-on-color', state.color);
+      } else {
+        switchEl.style.removeProperty('--switch-on-color');
+      }
     }
   }
 
@@ -152,6 +175,7 @@ void append_switch_scripts(String& html) {
     const entity = entitySelect.value;
     const tileElem = document.getElementById(tab + '-tile-' + currentTileIndex);
     if (!entity || !tileElem) return;
+    syncSwitchPreviewPalette(tileElem);
     fetch('/api/sensor_values')
       .then(res => res.json())
       .then(raw => {

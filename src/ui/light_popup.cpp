@@ -33,6 +33,7 @@ constexpr int kPreviewWidth = 140;
 constexpr int kPreviewHeight = 64;
 
 constexpr uint32_t kDefaultColor = 0xFFD54F;
+constexpr uint32_t kSwitchOnColor = 0x3B82F6;
 constexpr uint32_t kRemoteBlockMs = 3000;
 
 struct LightPopupContext {
@@ -61,6 +62,7 @@ struct LightPopupContext {
   bool supports_brightness = false;
   bool is_light = true;
   bool is_on = true;
+  bool keep_icon_white = false;
   bool user_dragging = false;
   uint32_t last_user_action_ms = 0;
   uint32_t block_remote_until_ms = 0;
@@ -181,27 +183,28 @@ static void publish_light_popup(LightPopupContext* ctx) {
 static void update_preview(LightPopupContext* ctx) {
   if (!ctx) return;
 
-  // Calculate color for icon and switch
-  uint32_t rgb = 0;
+  uint32_t icon_rgb = 0;
+  uint32_t switch_rgb = 0xFFFFFF;
   if (!ctx->is_on) {
-    rgb = 0xB0B0B0;  // Tile gray when off
+    icon_rgb = 0xB0B0B0;
   } else {
-    // Light is on - mirror tile icon behavior
     if (ctx->supports_color) {
-      rgb = color_from_hsv(ctx->hue, ctx->sat, 100);
+      icon_rgb = color_from_hsv(ctx->hue, ctx->sat, 100);
     } else {
-      rgb = kDefaultColor;
+      icon_rgb = kDefaultColor;
     }
+    switch_rgb = kSwitchOnColor;
   }
 
-  // Update icon color
   if (ctx->icon_label) {
-    lv_obj_set_style_text_color(ctx->icon_label, lv_color_hex(rgb), 0);
+    lv_obj_set_style_text_color(
+        ctx->icon_label,
+        lv_color_hex(ctx->keep_icon_white ? 0xFFFFFF : icon_rgb),
+        0);
   }
 
-  // Update switch indicator color (same as icon)
   if (ctx->power_switch) {
-    lv_obj_set_style_bg_color(ctx->power_switch, lv_color_hex(rgb), LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(ctx->power_switch, lv_color_hex(switch_rgb), LV_PART_INDICATOR | LV_STATE_CHECKED);
   }
 
   update_value_label(ctx->hue_value, ctx->hue, "");
@@ -216,6 +219,7 @@ static void apply_init_to_context(LightPopupContext* ctx, const LightPopupInit& 
   ctx->supports_color = init.supports_color;
   ctx->supports_brightness = init.supports_brightness || init.supports_color;
   ctx->is_light = init.is_light;
+  ctx->keep_icon_white = init.keep_icon_white;
   if (init.has_state) {
     ctx->is_on = init.is_on;
   }
@@ -323,6 +327,8 @@ static lv_obj_t* create_centered_power_status(lv_obj_t* parent,
   lv_obj_set_size(sw, kSwitchWidth, kSwitchHeight);
   // Knob in hellgrau für bessere Sichtbarkeit
   lv_obj_set_style_bg_color(sw, lv_color_hex(0x2A2A2A), LV_PART_KNOB);
+  lv_obj_set_style_bg_color(sw, lv_color_hex(0xFFFFFF), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+  lv_obj_set_style_bg_color(sw, lv_color_hex(kSwitchOnColor), LV_PART_INDICATOR | LV_STATE_CHECKED);
   *switch_out = sw;
 
   // Kein Label mehr
@@ -395,8 +401,9 @@ static lv_obj_t* create_switch_row(lv_obj_t* parent,
 
   lv_obj_t* sw = lv_switch_create(row);
   lv_obj_set_size(sw, kSwitchWidth, kSwitchHeight);
-  lv_obj_set_style_bg_color(sw, lv_color_hex(0xB0B0B0), LV_PART_INDICATOR | LV_STATE_DEFAULT);
-  lv_obj_set_style_bg_color(sw, lv_color_hex(0xFFD54F), LV_PART_INDICATOR | LV_STATE_CHECKED);
+  lv_obj_set_style_bg_color(sw, lv_color_hex(0x2A2A2A), LV_PART_KNOB);
+  lv_obj_set_style_bg_color(sw, lv_color_hex(0xFFFFFF), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+  lv_obj_set_style_bg_color(sw, lv_color_hex(kSwitchOnColor), LV_PART_INDICATOR | LV_STATE_CHECKED);
   lv_obj_set_ext_click_area(sw, 18);
 
   if (switch_out) *switch_out = sw;

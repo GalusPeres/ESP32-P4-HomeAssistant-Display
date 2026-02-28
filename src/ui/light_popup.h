@@ -19,6 +19,7 @@ struct LightPopupInit {
   bool supports_brightness = false;
   bool is_light = true;
   bool is_on = true;
+  bool keep_icon_white = false;
 };
 
 void show_light_popup(const LightPopupInit& init);

@@ -18,6 +18,8 @@ struct SwitchEventData {
 
 struct SwitchWidgetEventData {
   String entity_id;
+  GridType grid_type = GridType::TAB0;
+  uint8_t index = 0;
 };
 
 static SwitchState* get_switch_state_array(GridType grid_type) {
@@ -30,6 +32,8 @@ static SwitchState get_switch_state(GridType grid_type, uint8_t index) {
   return states[index];
 }
 
+static bool is_switch_widget_tile(const Tile& tile);
+
 static LightPopupInit build_light_popup_init(const SwitchEventData* data) {
   LightPopupInit init;
   if (!data) return init;
@@ -41,6 +45,7 @@ static LightPopupInit build_light_popup_init(const SwitchEventData* data) {
   const TileGridConfig& grid = tileConfig.getActiveGrid();
   if (data->index < TILES_PER_GRID) {
     const Tile& tile = grid.tiles[data->index];
+    init.keep_icon_white = is_switch_widget_tile(tile);
     bool icon_disabled = isMdiIconDisabled(tile.icon_name);
     init.icon_name = normalizeMdiIconName(tile.icon_name);
     if (!icon_disabled && !init.icon_name.length() && data->entity_id.length()) {
@@ -177,9 +182,14 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
       lv_obj_align(switch_obj, LV_ALIGN_CENTER, 0, 28);
       lv_obj_set_ext_click_area(switch_obj, 18);
       lv_obj_add_flag(switch_obj, LV_OBJ_FLAG_EVENT_BUBBLE);
-      lv_obj_set_style_bg_color(switch_obj, lv_color_hex(0xB0B0B0), LV_PART_INDICATOR | LV_STATE_DEFAULT);
-      lv_obj_set_style_bg_color(switch_obj, lv_color_hex(0xFFD54F), LV_PART_INDICATOR | LV_STATE_CHECKED);
-      SwitchWidgetEventData* widget_data = new SwitchWidgetEventData{tile.sensor_entity};
+      lv_obj_set_style_bg_color(switch_obj, lv_color_hex(tile_color), LV_PART_KNOB);
+      lv_obj_set_style_bg_color(switch_obj, lv_color_hex(0xFFFFFF), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+      lv_obj_set_style_bg_color(switch_obj, lv_color_hex(0x3B82F6), LV_PART_INDICATOR | LV_STATE_CHECKED);
+      SwitchWidgetEventData* widget_data = new SwitchWidgetEventData{
+        tile.sensor_entity,
+        grid_type,
+        index
+      };
       lv_obj_add_event_cb(
           switch_obj,
           [](lv_event_t* e) {
@@ -188,6 +198,7 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
             if (!data || !data->entity_id.length()) return;
             lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
             bool is_on = target && lv_obj_has_state(target, LV_STATE_CHECKED);
+            update_switch_tile_state(data->grid_type, data->index, is_on ? "on" : "off");
             mqttPublishSwitchCommand(data->entity_id.c_str(), is_on ? "on" : "off");
           },
           LV_EVENT_VALUE_CHANGED,

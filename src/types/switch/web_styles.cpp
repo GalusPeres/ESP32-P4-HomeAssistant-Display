@@ -13,12 +13,12 @@ void append_switch_styles(String& html) {
       width:58px;
       height:28px;
       border-radius:999px;
-      background:#555;
+      background:#fff;
       position:relative;
       align-self:center;
       justify-self:center;
       margin-top:10px;
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
     }
     .tile-switch .tile-switch-knob {
       position:absolute;
@@ -27,10 +27,10 @@ void append_switch_styles(String& html) {
       width:22px;
       height:22px;
       border-radius:50%;
-      background:#f8fafc;
+      background:var(--switch-knob-color, #f8fafc);
       transition:transform 0.15s ease, background 0.15s ease;
     }
-    .tile-switch.is-on { background: var(--switch-on-color, #FFD54F); }
+    .tile-switch.is-on { background: var(--switch-on-color, #3B82F6); }
     .tile-switch.is-on .tile-switch-knob { transform: translateX(30px); }
   </style>
 )html";
