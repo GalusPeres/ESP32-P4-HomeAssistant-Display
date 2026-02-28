@@ -214,6 +214,139 @@ static bool placementOverlaps(const TileGridConfig& grid, size_t self_index, con
   return false;
 }
 
+static bool indexInList(size_t value, const std::vector<size_t>& values) {
+  return std::find(values.begin(), values.end(), value) != values.end();
+}
+
+static bool placementOverlapsAny(
+    const TileGridConfig& grid,
+    size_t self_index,
+    const TileRect& rect,
+    const std::vector<size_t>& ignore_indices) {
+  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+    if (i == self_index || indexInList(i, ignore_indices)) continue;
+    const Tile& other = grid.tiles[i];
+    if (other.type == TILE_EMPTY) continue;
+    TileRect other_rect{};
+    if (!getTileRect(other, other_rect)) continue;
+    if (rectsOverlap(rect, other_rect)) return true;
+  }
+  return false;
+}
+
+struct TilePosSnapshot {
+  size_t index;
+  uint8_t col;
+  uint8_t row;
+};
+
+static uint16_t tileArea(const Tile& tile) {
+  const uint8_t span_w = tile.span_w < 1 ? 1 : tile.span_w;
+  const uint8_t span_h = tile.span_h < 1 ? 1 : tile.span_h;
+  return static_cast<uint16_t>(span_w) * static_cast<uint16_t>(span_h);
+}
+
+static bool findPlacementForTile(
+    TileGridConfig& grid,
+    size_t tile_index,
+    int preferred_col,
+    int preferred_row,
+    const std::vector<size_t>& floating_indices) {
+  if (tile_index >= TILES_PER_GRID) return false;
+  Tile& tile = grid.tiles[tile_index];
+  const uint8_t span_w = tile.span_w < 1 ? 1 : tile.span_w;
+  const uint8_t span_h = tile.span_h < 1 ? 1 : tile.span_h;
+
+  auto can_place = [&](uint8_t col, uint8_t row) -> bool {
+    TileRect rect{};
+    if (!buildTileRect(col, row, span_w, span_h, rect)) return false;
+    return !placementOverlapsAny(grid, tile_index, rect, floating_indices);
+  };
+
+  if (preferred_col >= 0 && preferred_row >= 0) {
+    if (can_place(static_cast<uint8_t>(preferred_col), static_cast<uint8_t>(preferred_row))) {
+      tile.col = static_cast<uint8_t>(preferred_col);
+      tile.row = static_cast<uint8_t>(preferred_row);
+      return true;
+    }
+  }
+
+  for (uint8_t row = 0; row < GRID_ROWS; ++row) {
+    for (uint8_t col = 0; col < GRID_COLS; ++col) {
+      if (!can_place(col, row)) continue;
+      tile.col = col;
+      tile.row = row;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool applySmartReorder(
+    TileGridConfig& grid,
+    size_t from_index,
+    uint8_t target_col,
+    uint8_t target_row) {
+  if (from_index >= TILES_PER_GRID) return false;
+  Tile& moving_tile = grid.tiles[from_index];
+  if (moving_tile.type == TILE_EMPTY) return false;
+
+  const uint8_t from_col = moving_tile.col;
+  const uint8_t from_row = moving_tile.row;
+  const uint8_t span_w = moving_tile.span_w < 1 ? 1 : moving_tile.span_w;
+  const uint8_t span_h = moving_tile.span_h < 1 ? 1 : moving_tile.span_h;
+
+  TileRect target_rect{};
+  if (!buildTileRect(target_col, target_row, span_w, span_h, target_rect)) return false;
+
+  std::vector<size_t> displaced_indices;
+  std::vector<TilePosSnapshot> snapshots;
+  snapshots.push_back(TilePosSnapshot{from_index, from_col, from_row});
+
+  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+    if (i == from_index) continue;
+    const Tile& other = grid.tiles[i];
+    if (other.type == TILE_EMPTY) continue;
+    TileRect other_rect{};
+    if (!getTileRect(other, other_rect)) continue;
+    if (!rectsOverlap(target_rect, other_rect)) continue;
+    displaced_indices.push_back(i);
+    snapshots.push_back(TilePosSnapshot{i, other.col, other.row});
+  }
+
+  moving_tile.col = target_col;
+  moving_tile.row = target_row;
+
+  std::sort(displaced_indices.begin(), displaced_indices.end(), [&](size_t a, size_t b) {
+    const uint16_t area_a = tileArea(grid.tiles[a]);
+    const uint16_t area_b = tileArea(grid.tiles[b]);
+    if (area_a != area_b) return area_a > area_b;
+    return a < b;
+  });
+
+  std::vector<size_t> floating_indices = displaced_indices;
+  for (size_t displaced_index : displaced_indices) {
+    auto it = std::find(floating_indices.begin(), floating_indices.end(), displaced_index);
+    if (it != floating_indices.end()) floating_indices.erase(it);
+
+    const int preferred_col = (displaced_index == displaced_indices.front()) ? from_col : grid.tiles[displaced_index].col;
+    const int preferred_row = (displaced_index == displaced_indices.front()) ? from_row : grid.tiles[displaced_index].row;
+    if (findPlacementForTile(grid, displaced_index, preferred_col, preferred_row, floating_indices)) {
+      continue;
+    }
+
+    for (const TilePosSnapshot& snapshot : snapshots) {
+      if (snapshot.index >= TILES_PER_GRID) continue;
+      grid.tiles[snapshot.index].col = snapshot.col;
+      grid.tiles[snapshot.index].row = snapshot.row;
+    }
+    return false;
+  }
+
+  return true;
+}
+
 
 static bool parseFolderIdArg(WebServer& server, uint16_t& out) {
   String raw;
@@ -794,7 +927,6 @@ void WebAdminServer::handleReorderTiles() {
   TileGridConfig grid{};
   tileConfig.loadFolderGrid(folder_id, grid);
 
-  Tile& tile_from = grid.tiles[from];
   Tile& tile_to = grid.tiles[to];
 
   int target_col_raw = server.hasArg("target_col") ? server.arg("target_col").toInt() : -1;
@@ -807,45 +939,10 @@ void WebAdminServer::handleReorderTiles() {
     return;
   }
 
-  const uint8_t from_col = tile_from.col;
-  const uint8_t from_row = tile_from.row;
-
-  if (tile_from.type != TILE_EMPTY) {
-    TileRect rect{};
-    if (!buildTileRect(target_col, target_row,
-                       tile_from.span_w < 1 ? 1 : tile_from.span_w,
-                       tile_from.span_h < 1 ? 1 : tile_from.span_h,
-                       rect)) {
-      server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid layout\"}");
-      return;
-    }
-    if (placementOverlaps(grid, static_cast<size_t>(from), rect, static_cast<size_t>(to))) {
-      server.send(409, "application/json", "{\"success\":false,\"error\":\"Tile overlaps\"}");
-      return;
-    }
+  if (!applySmartReorder(grid, static_cast<size_t>(from), target_col, target_row)) {
+    server.send(409, "application/json", "{\"success\":false,\"error\":\"Tile overlaps\"}");
+    return;
   }
-
-  if (to != from) {
-    if (tile_to.type != TILE_EMPTY) {
-      TileRect rect{};
-      if (!buildTileRect(from_col, from_row,
-                         tile_to.span_w < 1 ? 1 : tile_to.span_w,
-                         tile_to.span_h < 1 ? 1 : tile_to.span_h,
-                         rect)) {
-        server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid layout\"}");
-        return;
-      }
-      if (placementOverlaps(grid, static_cast<size_t>(to), rect, static_cast<size_t>(from))) {
-        server.send(409, "application/json", "{\"success\":false,\"error\":\"Tile overlaps\"}");
-        return;
-      }
-    }
-    tile_to.col = from_col;
-    tile_to.row = from_row;
-  }
-
-  tile_from.col = target_col;
-  tile_from.row = target_row;
 
   bool success = tileConfig.saveFolderGrid(folder_id, grid);
   if (success) {

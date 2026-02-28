@@ -1354,46 +1354,6 @@ void appendAdminScripts(String& html) {
       getTileLayoutFromData(dragSource.tab, dragSource.index);
   }
 
-  function layoutsOverlap(a, b) {
-    if (!a || !b) return false;
-    return !(a.col + a.span_w <= b.col ||
-             b.col + b.span_w <= a.col ||
-             a.row + a.span_h <= b.row ||
-             b.row + b.span_h <= a.row);
-  }
-
-  function findTileIndexAtCell(tab, col, row, excludeIndex = -1) {
-    const tiles = getTilesData(tab);
-    if (!Array.isArray(tiles)) return -1;
-    for (let i = 0; i < tiles.length; i++) {
-      if (i === excludeIndex) continue;
-      const tile = tiles[i];
-      if (!tile || Number(tile.type || 0) === 0) continue;
-      const layout = getTileElementLayout(tab, i) || getTileLayoutFromData(tab, i);
-      if (!layout) continue;
-      if (col >= layout.col && col < (layout.col + layout.span_w) &&
-          row >= layout.row && row < (layout.row + layout.span_h)) {
-        return i;
-      }
-    }
-    return -1;
-  }
-
-  function hasPlacementConflict(tab, col, row, spanW, spanH, selfIndex, ignoreIndex = -1) {
-    const tiles = getTilesData(tab);
-    if (!Array.isArray(tiles)) return false;
-    const rect = { col, row, span_w: spanW, span_h: spanH };
-    for (let i = 0; i < tiles.length; i++) {
-      if (i === selfIndex || i === ignoreIndex) continue;
-      const tile = tiles[i];
-      if (!tile || Number(tile.type || 0) === 0) continue;
-      const layout = getTileElementLayout(tab, i) || getTileLayoutFromData(tab, i);
-      if (!layout) continue;
-      if (layoutsOverlap(rect, layout)) return true;
-    }
-    return false;
-  }
-
   function clearDragPlaceholder() {
     if (dragPlaceholder && dragPlaceholder.parentNode) {
       dragPlaceholder.parentNode.removeChild(dragPlaceholder);
@@ -1425,18 +1385,10 @@ void appendAdminScripts(String& html) {
     const targetRow = clampInt(row, 0, GRID_ROWS - 1, sourceLayout.row);
     const fits = (targetCol + sourceLayout.span_w <= GRID_COLS) &&
                  (targetRow + sourceLayout.span_h <= GRID_ROWS);
-    const conflicts = hasPlacementConflict(
-      tab,
-      targetCol,
-      targetRow,
-      sourceLayout.span_w,
-      sourceLayout.span_h,
-      dragSource.index
-    );
     const spanW = Math.max(1, Math.min(sourceLayout.span_w, GRID_COLS - targetCol));
     const spanH = Math.max(1, Math.min(sourceLayout.span_h, GRID_ROWS - targetRow));
 
-    placeholder.classList.toggle('invalid', !fits || conflicts);
+    placeholder.classList.toggle('invalid', !fits);
     placeholder.classList.add('show');
     setTileGridPosition(placeholder, targetCol, targetRow, spanW, spanH);
   }
@@ -1463,16 +1415,8 @@ void appendAdminScripts(String& html) {
     const targetRow = clampInt(cell.row, 0, GRID_ROWS - 1, sourceLayout.row);
     const fits = (targetCol + sourceLayout.span_w <= GRID_COLS) &&
                  (targetRow + sourceLayout.span_h <= GRID_ROWS);
-    const conflicts = hasPlacementConflict(
-      tab,
-      targetCol,
-      targetRow,
-      sourceLayout.span_w,
-      sourceLayout.span_h,
-      dragSource.index
-    );
 
-    if (!fits || conflicts) {
+    if (!fits) {
       showNotification('Kachel passt dort nicht hin', false);
       return;
     }
@@ -1605,10 +1549,11 @@ void appendAdminScripts(String& html) {
     })
     .then(res => res.json())
     .then(data => {
-        if (data.success) {
-          showNotification('Kacheln verschoben & gespeichert!');
-        } else {
-          restoreLocalTileReorder(tab, fromIdx, toIdx, localSnapshot);
+      if (data.success) {
+        showNotification('Kacheln verschoben & gespeichert!');
+        loadSensorValues(true);
+      } else {
+        restoreLocalTileReorder(tab, fromIdx, toIdx, localSnapshot);
         showNotification('Fehler beim Verschieben', false);
       }
     })
