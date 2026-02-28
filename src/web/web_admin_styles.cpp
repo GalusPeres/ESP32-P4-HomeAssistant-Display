@@ -123,6 +123,13 @@ void appendAdminStyles(String& html) {
       background-clip:padding-box;
       clip-path: inset(0 round 11px);
     }
+    .tile.resizing {
+      z-index:24;
+      box-shadow:0 0 0 2px rgba(74,158,255,0.25) inset, 0 0 18px rgba(74,158,255,0.18);
+    }
+    .tile.resize-invalid {
+      box-shadow:0 0 0 2px rgba(239,68,68,0.22) inset, 0 0 18px rgba(239,68,68,0.2);
+    }
     .tile.reflow-preview {
       border:3px solid rgba(125,211,252,0.55);
       box-shadow:0 0 0 2px rgba(125,211,252,0.35) inset, 0 0 18px rgba(56,189,248,0.18);
@@ -156,6 +163,67 @@ void appendAdminStyles(String& html) {
       border-color:#ef4444;
       background:rgba(239,68,68,0.16);
       box-shadow:0 0 0 2px rgba(239,68,68,0.18) inset;
+    }
+    .tile-resize-placeholder {
+      display:none;
+      border:3px dashed #ef4444;
+      background:rgba(239,68,68,0.14);
+      box-shadow:0 0 0 2px rgba(239,68,68,0.18) inset;
+      border-radius:11px;
+      box-sizing:border-box;
+      pointer-events:none;
+      z-index:22;
+      clip-path: inset(0 round 11px);
+    }
+    .tile-resize-placeholder.show { display:block; }
+    .tile-resize-placeholder.invalid {
+      border-color:#ef4444;
+      background:rgba(239,68,68,0.16);
+    }
+    .tile-resize-handle {
+      position:absolute;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity 0.15s ease;
+      z-index:30;
+      background:rgba(255,255,255,0.16);
+      border:1px solid rgba(255,255,255,0.24);
+      box-shadow:0 1px 4px rgba(15,23,42,0.18);
+    }
+    .tile.active .tile-resize-handle {
+      opacity:0.22;
+      pointer-events:auto;
+    }
+    .tile.active:hover .tile-resize-handle,
+    .tile.resizing .tile-resize-handle {
+      opacity:0.58;
+      pointer-events:auto;
+    }
+    .tile-resize-handle-e {
+      top:50%;
+      right:-4px;
+      width:8px;
+      height:34px;
+      transform:translateY(-50%);
+      border-radius:999px;
+      cursor:ew-resize;
+    }
+    .tile-resize-handle-s {
+      left:50%;
+      bottom:-4px;
+      width:34px;
+      height:8px;
+      transform:translateX(-50%);
+      border-radius:999px;
+      cursor:ns-resize;
+    }
+    .tile-resize-handle-se {
+      right:-2px;
+      bottom:-2px;
+      width:14px;
+      height:14px;
+      border-radius:6px;
+      cursor:nwse-resize;
     }
     .tile.active:hover { opacity:1; filter:none; }
     .tile.empty { background:transparent !important; border:3px solid transparent; }
@@ -222,6 +290,7 @@ void appendAdminStyles(String& html) {
       z-index:1000;
     }
     .notification.show { opacity:1; transform:translateY(0); }
+    body.tile-resize-active { user-select:none; cursor:default; }
   </style>
 )html";
 

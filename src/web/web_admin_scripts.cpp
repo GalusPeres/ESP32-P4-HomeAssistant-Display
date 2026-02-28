@@ -130,6 +130,14 @@ void appendAdminScripts(String& html) {
     return out;
   }
 
+  function getTileResizeHandlesHtml(typeValue) {
+    if (String(typeValue || '0') === '0') return '';
+    return '' +
+      '<div class="tile-resize-handle tile-resize-handle-e" data-resize-dir="e"></div>' +
+      '<div class="tile-resize-handle tile-resize-handle-s" data-resize-dir="s"></div>' +
+      '<div class="tile-resize-handle tile-resize-handle-se" data-resize-dir="se"></div>';
+  }
+
   function initTileTabs() {
     tileTabs.length = 0;
     Object.keys(folderByTab).forEach(k => delete folderByTab[k]);
@@ -295,18 +303,24 @@ void appendAdminScripts(String& html) {
     layoutTiles(tab, tiles);
   }
 
-  function applyLayoutInputsFromLayout(tab, layout) {
+  function applyLayoutInputsFromLayout(tab, layout, persistDraft = true) {
     if (!layout) return;
     const colEl = document.getElementById(tab + '_tile_col');
     const rowEl = document.getElementById(tab + '_tile_row');
+    const spanWEl = document.getElementById(tab + '_tile_span_w');
+    const spanHEl = document.getElementById(tab + '_tile_span_h');
     const colVal = String(layout.col + 1);
     const rowVal = String(layout.row + 1);
     if (colEl) colEl.value = colVal;
     if (rowEl) rowEl.value = rowVal;
-    const tabDrafts = drafts[tab];
+    if (spanWEl && layout.span_w !== undefined) spanWEl.value = String(layout.span_w);
+    if (spanHEl && layout.span_h !== undefined) spanHEl.value = String(layout.span_h);
+    const tabDrafts = persistDraft ? drafts[tab] : null;
     if (tabDrafts && tabDrafts[currentTileIndex]) {
       tabDrafts[currentTileIndex].col = colVal;
       tabDrafts[currentTileIndex].row = rowVal;
+      if (layout.span_w !== undefined) tabDrafts[currentTileIndex].span_w = String(layout.span_w);
+      if (layout.span_h !== undefined) tabDrafts[currentTileIndex].span_h = String(layout.span_h);
       persistDrafts();
     }
   }
@@ -728,6 +742,7 @@ void appendAdminScripts(String& html) {
       html += '<div class="tile-switch" id="' + tileId + '-switch"><div class="tile-switch-knob"></div></div>';
     }
 
+    html += getTileResizeHandlesHtml(type);
     tileElem.innerHTML = html;
     if (wasActive) tileElem.classList.add('active');
     if (typeWas !== type && wasActive) {
@@ -1224,6 +1239,7 @@ void appendAdminScripts(String& html) {
       if (previewKind === 'switch' && tile.switch_style === 1) {
         html += '<div class="tile-switch" id="' + tab + '-tile-' + index + '-switch"><div class="tile-switch-knob"></div></div>';
       }
+      html += getTileResizeHandlesHtml(typeValue);
       el.innerHTML = html;
     }
     if (currentTileTab === tab && currentTileIndex === index) el.classList.add('active');
@@ -1234,7 +1250,7 @@ void appendAdminScripts(String& html) {
   }
 
   function loadSensorValues(refreshTiles = false) {
-    if (dragSource) {
+    if (dragSource || resizeState) {
       queueDeferredSensorRefresh(refreshTiles);
       return;
     }
@@ -1276,6 +1292,8 @@ void appendAdminScripts(String& html) {
   let dragSource = null;
   let dragPreview = null;
   let dragPlaceholder = null;
+  let resizeState = null;
+  let resizePlaceholder = null;
   let deferredSensorRefresh = false;
   let deferredSensorRefreshTiles = false;
 
@@ -1290,7 +1308,7 @@ void appendAdminScripts(String& html) {
   }
 
   function flushDeferredSensorRefresh() {
-    if (!deferredSensorRefresh || dragSource) return;
+    if (!deferredSensorRefresh || dragSource || resizeState) return;
     const refreshTiles = deferredSensorRefreshTiles;
     clearDeferredSensorRefresh();
     loadSensorValues(refreshTiles);
@@ -1443,6 +1461,14 @@ void appendAdminScripts(String& html) {
     });
   }
 
+  function layoutsEqual(a, b) {
+    if (!a || !b) return false;
+    return a.col === b.col &&
+           a.row === b.row &&
+           a.span_w === b.span_w &&
+           a.span_h === b.span_h;
+  }
+
   function restoreDragPreview(tab) {
     if (!dragSource || dragSource.tab !== tab || !Array.isArray(dragSource.baseLayouts)) {
       clearReflowPreviewClasses(tab);
@@ -1499,6 +1525,27 @@ void appendAdminScripts(String& html) {
              b.col + b.span_w <= a.col ||
              a.row + a.span_h <= b.row ||
              b.row + b.span_h <= a.row);
+  }
+
+  function canPlaceTileLayout(tab, index, candidateLayout) {
+    if (!candidateLayout) return false;
+    if (candidateLayout.col < 0 || candidateLayout.row < 0) return false;
+    if (candidateLayout.span_w < 1 || candidateLayout.span_h < 1) return false;
+    if ((candidateLayout.col + candidateLayout.span_w) > GRID_COLS) return false;
+    if ((candidateLayout.row + candidateLayout.span_h) > GRID_ROWS) return false;
+
+    const tiles = getTilesData(tab);
+    if (!Array.isArray(tiles)) return true;
+
+    for (let i = 0; i < tiles.length; i++) {
+      if (i === index) continue;
+      const tile = tiles[i];
+      if (!tile || Number(tile.type || 0) === 0) continue;
+      const otherLayout = getTileElementLayout(tab, i) || getTileLayoutFromData(tab, i);
+      if (!otherLayout) continue;
+      if (rectsOverlap(candidateLayout, otherLayout)) return false;
+    }
+    return true;
   }
 
   function manhattanDistance(colA, rowA, colB, rowB) {
@@ -1630,6 +1677,154 @@ void appendAdminScripts(String& html) {
     }
     if (dragPlaceholder.parentNode !== grid) grid.appendChild(dragPlaceholder);
     return dragPlaceholder;
+  }
+
+  function clearResizePlaceholder() {
+    if (resizePlaceholder && resizePlaceholder.parentNode) {
+      resizePlaceholder.parentNode.removeChild(resizePlaceholder);
+    }
+    if (resizePlaceholder) {
+      resizePlaceholder.classList.remove('show', 'invalid');
+    }
+    resizePlaceholder = null;
+  }
+
+  function ensureResizePlaceholder(tab) {
+    const grid = getTileGrid(tab);
+    if (!grid) return null;
+    if (!resizePlaceholder) {
+      resizePlaceholder = document.createElement('div');
+      resizePlaceholder.className = 'tile-resize-placeholder';
+    }
+    if (resizePlaceholder.parentNode !== grid) grid.appendChild(resizePlaceholder);
+    return resizePlaceholder;
+  }
+
+  function updateResizePlaceholder(tab, layout, valid) {
+    const placeholder = ensureResizePlaceholder(tab);
+    if (!placeholder || !layout) return;
+    if (valid) {
+      placeholder.classList.remove('show', 'invalid');
+      return;
+    }
+    placeholder.classList.add('show');
+    placeholder.classList.add('invalid');
+    setTileGridPosition(placeholder, layout.col, layout.row, layout.span_w, layout.span_h);
+  }
+
+  function buildResizeCandidate(layout, direction, clientX, clientY, tab) {
+    const rawCell = getRawGridCellFromPointer(tab, clientX, clientY);
+    if (!layout || !rawCell) return null;
+
+    let spanW = layout.span_w;
+    let spanH = layout.span_h;
+    if (String(direction || '').includes('e')) {
+      spanW = clampInt(rawCell.col - layout.col + 1, 1, GRID_COLS - layout.col, layout.span_w);
+    }
+    if (String(direction || '').includes('s')) {
+      spanH = clampInt(rawCell.row - layout.row + 1, 1, GRID_ROWS - layout.row, layout.span_h);
+    }
+
+    return {
+      col: layout.col,
+      row: layout.row,
+      span_w: spanW,
+      span_h: spanH
+    };
+  }
+
+  function stopTileResize(commit = true) {
+    if (!resizeState) return;
+    const state = resizeState;
+    resizeState = null;
+
+    window.removeEventListener('pointermove', handleTileResizeMove);
+    window.removeEventListener('pointerup', handleTileResizeEnd);
+    window.removeEventListener('pointercancel', handleTileResizeCancel);
+    document.body.classList.remove('tile-resize-active');
+
+    const tile = document.getElementById(state.tileId);
+    if (tile) {
+      tile.classList.remove('resizing', 'resize-invalid');
+      tile.draggable = true;
+    }
+    clearResizePlaceholder();
+
+    const finalLayout = commit ? (state.lastValidLayout || state.originalLayout) : state.originalLayout;
+    if (state.tab === currentTileTab && state.index === currentTileIndex && finalLayout) {
+      applyLayoutInputsFromLayout(state.tab, finalLayout, false);
+      updateLayoutFromInputs(state.tab);
+      updateTilePreview(state.tab);
+      if (commit && !layoutsEqual(finalLayout, state.originalLayout)) {
+        updateDraft(state.tab);
+        scheduleAutoSave(state.tab);
+      }
+    }
+    flushDeferredSensorRefresh();
+  }
+
+  function handleTileResizeMove(e) {
+    if (!resizeState) return;
+    e.preventDefault();
+
+    const candidate = buildResizeCandidate(
+      resizeState.originalLayout,
+      resizeState.direction,
+      e.clientX,
+      e.clientY,
+      resizeState.tab
+    );
+    if (!candidate) return;
+
+    const valid = canPlaceTileLayout(resizeState.tab, resizeState.index, candidate);
+    const tile = document.getElementById(resizeState.tileId);
+    if (tile) tile.classList.toggle('resize-invalid', !valid);
+    updateResizePlaceholder(resizeState.tab, candidate, valid);
+    if (!valid) return;
+
+    resizeState.lastValidLayout = cloneLayout(candidate);
+    if (resizeState.tab === currentTileTab && resizeState.index === currentTileIndex) {
+      applyLayoutInputsFromLayout(resizeState.tab, candidate, false);
+      updateLayoutFromInputs(resizeState.tab);
+    }
+  }
+
+  function handleTileResizeEnd() {
+    stopTileResize(true);
+  }
+
+  function handleTileResizeCancel() {
+    stopTileResize(false);
+  }
+
+  function beginTileResize(tab, tile, direction, e) {
+    if (!tile || dragSource || resizeState) return;
+    const tileIndex = parseInt(tile.dataset.index, 10);
+    if (isNaN(tileIndex)) return;
+    if (currentTileTab !== tab || currentTileIndex !== tileIndex) return;
+
+    const layout = getTileElementLayout(tab, tileIndex) || getTileLayoutFromData(tab, tileIndex);
+    if (!layout) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    clearDragPlaceholder();
+
+    resizeState = {
+      tab,
+      index: tileIndex,
+      tileId: tile.id,
+      direction,
+      originalLayout: cloneLayout(layout),
+      lastValidLayout: cloneLayout(layout)
+    };
+
+    tile.classList.add('resizing');
+    tile.draggable = false;
+    document.body.classList.add('tile-resize-active');
+    window.addEventListener('pointermove', handleTileResizeMove);
+    window.addEventListener('pointerup', handleTileResizeEnd);
+    window.addEventListener('pointercancel', handleTileResizeCancel);
   }
 
   function updateDragPlaceholder(tab, col, row) {
@@ -1785,6 +1980,10 @@ void appendAdminScripts(String& html) {
     const tiles = document.querySelectorAll('#tab-tiles-' + tab + ' .tile');
     tiles.forEach(tile => {
       tile.addEventListener('dragstart', (e) => {
+        if (resizeState) {
+          e.preventDefault();
+          return;
+        }
         const tileIndex = parseInt(tile.dataset.index, 10);
         const layout = getTileElementLayout(tab, tileIndex) ||
                        getTileLayoutFromData(tab, tileIndex);
@@ -1839,6 +2038,19 @@ void appendAdminScripts(String& html) {
     grid.addEventListener('dragenter', (e) => handleGridDragMove(tab, e));
     grid.addEventListener('dragover', (e) => handleGridDragMove(tab, e));
     grid.addEventListener('drop', (e) => handleGridDrop(tab, e));
+  }
+
+  function enableTileResize(tab) {
+    const grid = getTileGrid(tab);
+    if (!grid || grid.dataset.resizeBound === '1') return;
+    grid.dataset.resizeBound = '1';
+    grid.addEventListener('pointerdown', (e) => {
+      const handle = e.target.closest('.tile-resize-handle');
+      if (!handle) return;
+      const tile = handle.closest('.tile');
+      if (!tile || tile.classList.contains('empty')) return;
+      beginTileResize(tab, tile, handle.dataset.resizeDir || 'se', e);
+    });
   }
 
   function reorderTiles(tab, fromIdx, toIdx, targetCol, targetRow) {
@@ -1910,7 +2122,10 @@ void appendAdminScripts(String& html) {
     const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.getAttribute('onclick')?.includes(targetTab)) || document.querySelector('.tab-btn');
     if (targetBtn) targetBtn.click();
     setInterval(() => loadSensorValues(false), 5000);
-    tileTabs.forEach(tab => enableTileDrag(tab));
+    tileTabs.forEach(tab => {
+      enableTileDrag(tab);
+      enableTileResize(tab);
+    });
   });
   </script>
 )html";
