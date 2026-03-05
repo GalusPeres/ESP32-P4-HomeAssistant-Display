@@ -407,29 +407,37 @@ void PowerManager::enterDisplaySleep() {
   if (!touch_wake) {
     // 3) Erst Brightness 0, dann ein Frame abwarten, dann Sleep
     M5.Display.setBrightness(0);
-    delay(20);  // Ein Frame-Zyklus (~16ms bei 60Hz) abwarten
+    M5.Display.waitDisplay();
+    delay(30);  // Backlight sicher aus
+    M5.Display.powerSaveOn();
+    M5.Display.waitDisplay();
+    delay(30);  // Panel-Idle stabilisieren
     M5.Display.sleep();
-    delay(50);  // DSI-Controller beendet letzten PSRAM-Read
+    delay(60);  // DSI-Controller beendet letzten PSRAM-Read
+    M5.Display.waitDisplay();
     display_hw_sleeping = true;
     // 4) Erst jetzt CPU runter — DSI ist aus, aber PLL-Wechsel kann
     //    kurzzeitig einen harmlosen Underrun-Log ausloesen -> unterdruecken
     esp_log_level_set("lcd.dsi.dpi", ESP_LOG_NONE);
     applyCpuFrequency(CPU_FREQ_SLEEP);
     esp_log_level_set("lcd.dsi.dpi", ESP_LOG_ERROR);
+    M5.Display.waitDisplay();
+    delay(20);  // Nach PLL/Freq-Wechsel kurz stabilisieren
   } else {
     display_hw_sleeping = false;
     M5.Display.setBrightness(0);
-    applyCpuFrequency(CPU_FREQ_HIGH);
-    // Touch-Wake: LVGL-Timer auf 1 FPS fuer Touch-Erkennung
-#if LV_VERSION_MAJOR >= 9
-    if (disp) {
-      lv_timer_t* rt = lv_display_get_refr_timer(disp);
-      if (rt) {
-        lv_timer_resume(rt);
-        lv_timer_set_period(rt, 1000 / FPS_SLEEP);
-      }
-    }
-#endif
+    M5.Display.waitDisplay();
+    delay(30);  // Erst dunkel schalten, dann Panel-Mode wechseln
+    M5.Display.powerSaveOn();
+    // Touch-Wake: Display bleibt an, CPU trotzdem auf Sleep-Frequenz senken.
+    // Der Refr-Timer bleibt pausiert; Touch-Wake wird im Loop direkt abgefragt.
+    M5.Display.waitDisplay();
+    delay(60);  // Panel-Idle stabilisieren, bevor CPU/PLL gewechselt wird
+    esp_log_level_set("lcd.dsi.dpi", ESP_LOG_NONE);
+    applyCpuFrequency(CPU_FREQ_SLEEP);
+    esp_log_level_set("lcd.dsi.dpi", ESP_LOG_ERROR);
+    M5.Display.waitDisplay();
+    delay(20);  // Nach PLL/Freq-Wechsel kurz stabilisieren
   }
   displayManager.setInputEnabled(touch_wake);
 
@@ -442,22 +450,29 @@ void PowerManager::enterDisplaySleep() {
 void PowerManager::wakeFromDisplaySleep() {
   if (!is_display_sleeping) return;
 
+  // Backlight bis zum stabilen ersten Frame sicher aus lassen.
+  M5.Display.setBrightness(0);
+
   // CPU zuerst hoch -> genug PSRAM-Bandbreite fuer DSI
   // PLL-Wechsel kann kurzzeitig harmlosen Underrun-Log ausloesen -> unterdruecken
   esp_log_level_set("lcd.dsi.dpi", ESP_LOG_NONE);
   applyCpuFrequency(CPU_FREQ_HIGH);
   esp_log_level_set("lcd.dsi.dpi", ESP_LOG_ERROR);
+  M5.Display.waitDisplay();
+  delay(20);  // Nach PLL/Freq-Wechsel kurz stabilisieren
   displayManager.setInputEnabled(true);
   if (display_hw_sleeping) {
     M5.Display.wakeup();
     display_hw_sleeping = false;
   }
+  M5.Display.powerSaveOff();
+  M5.Display.waitDisplay();
+  delay(30);  // Panel stabilisieren, dann Backlight wieder an
   if (imu_ready) {
     M5.Imu.setClock(kImuI2cWakeHz);
     imuSetAccelOnly(false);
   }
-  M5.Display.setBrightness(saved_brightness);
-  
+
 #if LV_VERSION_MAJOR >= 9
     if (disp) {
         lv_timer_t * rt = lv_display_get_refr_timer(disp);
@@ -465,8 +480,14 @@ void PowerManager::wakeFromDisplaySleep() {
             lv_timer_resume(rt);
             lv_timer_set_period(rt, 1000 / FPS_HIGH);
         }
+        // Erst einen Frame rendern, dann Backlight einschalten.
+        lv_obj_invalidate(lv_scr_act());
+        lv_refr_now(disp);
     }
 #endif
+  M5.Display.waitDisplay();
+  delay(10);
+  M5.Display.setBrightness(saved_brightness);
   
   is_display_sleeping = false;
   is_high_performance = true;
