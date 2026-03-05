@@ -8,6 +8,7 @@
 #include <cmath>
 #if defined(ARDUINO_ARCH_ESP32)
 #include "esp32-hal-cpu.h"
+#include "esp_log.h"
 #endif
 
 PowerManager powerManager;
@@ -249,9 +250,12 @@ void PowerManager::applyCpuFrequency(uint16_t mhz) {
     last_cpu_mhz = static_cast<uint16_t>(getCpuFrequencyMhz());
   }
   if (last_cpu_mhz == mhz) return;
-  setCpuFrequencyMhz(static_cast<uint32_t>(mhz));
+  const bool ok = setCpuFrequencyMhz(static_cast<uint32_t>(mhz));
   last_cpu_mhz = static_cast<uint16_t>(getCpuFrequencyMhz());
-  Serial.printf("CPU Freq -> %u MHz\n", static_cast<unsigned>(last_cpu_mhz));
+  Serial.printf("CPU Freq req=%u MHz, set=%s, actual=%u MHz\n",
+                static_cast<unsigned>(mhz),
+                ok ? "ok" : "fail",
+                static_cast<unsigned>(last_cpu_mhz));
 #else
   (void)mhz;
 #endif
@@ -389,27 +393,46 @@ void PowerManager::enterDisplaySleep() {
     M5.Imu.setClock(kImuI2cSleepHz);
     imuSetAccelOnly(true);
   }
+  // 1) LVGL-Rendering sofort stoppen (kein neuer Frame-Flush)
+#if LV_VERSION_MAJOR >= 9
+  if (disp) {
+    lv_timer_t* rt = lv_display_get_refr_timer(disp);
+    if (rt) lv_timer_pause(rt);
+  }
+#endif
+  // 2) Letzten laufenden DMA-Transfer abwarten
+  M5.Display.waitDisplay();
+
   bool touch_wake = isTouchWakeEnabled();
   if (!touch_wake) {
+    // 3) Erst Brightness 0, dann ein Frame abwarten, dann Sleep
+    M5.Display.setBrightness(0);
+    delay(20);  // Ein Frame-Zyklus (~16ms bei 60Hz) abwarten
     M5.Display.sleep();
+    delay(50);  // DSI-Controller beendet letzten PSRAM-Read
     display_hw_sleeping = true;
+    // 4) Erst jetzt CPU runter — DSI ist aus, aber PLL-Wechsel kann
+    //    kurzzeitig einen harmlosen Underrun-Log ausloesen -> unterdruecken
+    esp_log_level_set("lcd.dsi.dpi", ESP_LOG_NONE);
+    applyCpuFrequency(CPU_FREQ_SLEEP);
+    esp_log_level_set("lcd.dsi.dpi", ESP_LOG_ERROR);
   } else {
     display_hw_sleeping = false;
     M5.Display.setBrightness(0);
-  }
-  displayManager.setInputEnabled(touch_wake);
-  applyCpuFrequency(CPU_FREQ_SLEEP);
-
+    applyCpuFrequency(CPU_FREQ_HIGH);
+    // Touch-Wake: LVGL-Timer auf 1 FPS fuer Touch-Erkennung
 #if LV_VERSION_MAJOR >= 9
     if (disp) {
-        lv_timer_t * rt = lv_display_get_refr_timer(disp);
-        if(rt) {
-            lv_timer_resume(rt);
-            lv_timer_set_period(rt, 1000 / FPS_SLEEP);
-        }
+      lv_timer_t* rt = lv_display_get_refr_timer(disp);
+      if (rt) {
+        lv_timer_resume(rt);
+        lv_timer_set_period(rt, 1000 / FPS_SLEEP);
+      }
     }
 #endif
-  
+  }
+  displayManager.setInputEnabled(touch_wake);
+
   networkManager.setWifiPowerSaving(true);
   is_display_sleeping = true;
   is_high_performance = false;
@@ -419,6 +442,11 @@ void PowerManager::enterDisplaySleep() {
 void PowerManager::wakeFromDisplaySleep() {
   if (!is_display_sleeping) return;
 
+  // CPU zuerst hoch -> genug PSRAM-Bandbreite fuer DSI
+  // PLL-Wechsel kann kurzzeitig harmlosen Underrun-Log ausloesen -> unterdruecken
+  esp_log_level_set("lcd.dsi.dpi", ESP_LOG_NONE);
+  applyCpuFrequency(CPU_FREQ_HIGH);
+  esp_log_level_set("lcd.dsi.dpi", ESP_LOG_ERROR);
   displayManager.setInputEnabled(true);
   if (display_hw_sleeping) {
     M5.Display.wakeup();
@@ -429,7 +457,6 @@ void PowerManager::wakeFromDisplaySleep() {
     imuSetAccelOnly(false);
   }
   M5.Display.setBrightness(saved_brightness);
-  applyCpuFrequency(CPU_FREQ_HIGH);
   
 #if LV_VERSION_MAJOR >= 9
     if (disp) {

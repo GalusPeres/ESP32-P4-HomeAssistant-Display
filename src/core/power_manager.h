@@ -6,8 +6,8 @@
 
 // ========== Power Management Einstellungen ==========
 #define CPU_FREQ_HIGH       360   // Ultra-schnell bei Touch
-#define CPU_FREQ_LOW        80    // Stromsparen bei Inaktivität
-#define CPU_FREQ_SLEEP      80    // MUSS mindestens 80 MHz sein wegen MIPI-DSI DMA!
+#define CPU_FREQ_LOW        360   // DSI liest PSRAM kontinuierlich -> 90 MHz unmoeglich bei Display an
+#define CPU_FREQ_SLEEP      90    // Niedrigster stabiler Wert auf Tab5 (40 kann Display underrun/crash auslösen)
 #define FPS_HIGH            60    // 60 FPS für flüssige Bedienung
 #define FPS_LOW             10    // 10 FPS zum Stromsparen
 #define FPS_SLEEP           1     // 1 FPS im Display-Sleep (nur für Touch-Erkennung)

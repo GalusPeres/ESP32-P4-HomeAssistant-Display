@@ -278,12 +278,9 @@ void loop() {
       was_asleep = true;
     }
     if (configManager.isConfigured()) networkManager.update();
-    process_sensor_update_queue();  // Sensor-Warteschlange auch im Sleep leeren
-    process_switch_update_queue();
-    process_weather_update_queue();
-    process_sensor_popup_queue();
-    process_weather_popup_queue();
-    process_tile_graph_queue();
+    // UI-Queues im Sleep NICHT verarbeiten: spart CPU-Zyklen + LVGL-Rendering
+    // MQTT-Daten werden weiter empfangen und gecacht (cache_entity_payload)
+    // Beim Wake werden gecachte Werte ueber apply_cached_states() angewendet
     lgfx::touch_point_t tp;
     if (M5.Display.getTouch(&tp)) {
       powerManager.wakeFromDisplaySleep();
@@ -304,12 +301,20 @@ void loop() {
   mqttServiceLocalSensors();
 
   if (first_run) Serial.println("[Loop] process_sensor_update_queue()...");
-  process_sensor_update_queue();  // WICHTIG: VOR lv_timer_handler()!
-  process_switch_update_queue();
-  process_weather_update_queue();
-  process_sensor_popup_queue();
-  process_weather_popup_queue();
-  process_tile_graph_queue();
+  // Im Idle nur alle 2s Queues verarbeiten (spart CPU bei 10 FPS)
+  {
+    static uint32_t last_queue_ms = 0;
+    bool idle = !powerManager.isHighPerformance();
+    if (!idle || (millis() - last_queue_ms >= 2000)) {
+      process_sensor_update_queue();  // WICHTIG: VOR lv_timer_handler()!
+      process_switch_update_queue();
+      process_weather_update_queue();
+      process_sensor_popup_queue();
+      process_weather_popup_queue();
+      process_tile_graph_queue();
+      last_queue_ms = millis();
+    }
+  }
   tiles_process_reload_requests();
 
   if (first_run) {
