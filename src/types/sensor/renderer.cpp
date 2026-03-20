@@ -62,10 +62,14 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
   // Farbe verwenden (Standard: 0x2A2A2A wenn color = 0)
   uint32_t card_color = (tile.bg_color != 0) ? tile.bg_color : 0x2A2A2A;
   lv_obj_set_style_bg_color(card, lv_color_hex(card_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+lv_obj_set_style_bg_grad_color(card, lv_color_hex(card_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_DEFAULT);
 
   // Pressed-State: 10% heller
-  uint32_t pressed_color = card_color + 0x101010;
+  uint32_t pressed_color = brighten_rgb_color(card_color, 0x10);
   lv_obj_set_style_bg_color(card, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+lv_obj_set_style_bg_grad_color(card, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRESSED);
 
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
   lv_obj_set_style_radius(card, 22, 0);
@@ -74,6 +78,7 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
   lv_obj_set_style_pad_hor(card, 20, 0);
   lv_obj_set_style_pad_ver(card, 24, 0);
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+  disable_pressed_button_animation(card);
 
   set_tile_grid_cell(card, col, row, tile.span_w, tile.span_h);
 

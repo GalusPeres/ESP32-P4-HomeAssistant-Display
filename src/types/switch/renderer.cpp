@@ -104,11 +104,15 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
   // Farbe verwenden (Standard: 0x353535 wenn color = 0)
   uint32_t tile_color = (tile.bg_color != 0) ? tile.bg_color : 0x353535;
   lv_obj_set_style_bg_color(container, lv_color_hex(tile_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+lv_obj_set_style_bg_grad_color(container, lv_color_hex(tile_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+lv_obj_set_style_bg_grad_dir(container, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_DEFAULT);
 
   if (!use_switch_widget) {
     // Pressed-State: 10% heller
-    uint32_t pressed_color = tile_color + 0x101010;
+    uint32_t pressed_color = brighten_rgb_color(tile_color, 0x10);
     lv_obj_set_style_bg_color(container, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+lv_obj_set_style_bg_grad_color(container, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+lv_obj_set_style_bg_grad_dir(container, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRESSED);
   }
 
   lv_obj_set_style_bg_opa(container, LV_OPA_COVER, 0);
@@ -119,6 +123,7 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
     lv_obj_add_flag(container, LV_OBJ_FLAG_CLICKABLE);
   }
   lv_obj_remove_flag(container, LV_OBJ_FLAG_SCROLLABLE);
+  if (!use_switch_widget) disable_pressed_button_animation(container);
 
   set_tile_grid_cell(container, col, row, tile.span_w, tile.span_h);
 

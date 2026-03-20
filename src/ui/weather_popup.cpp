@@ -251,20 +251,20 @@ static String weather_condition_to_german(const String& condition) {
   key.toLowerCase();
   if (!key.length()) return "--";
   if (key == "clear-night") return "Klare Nacht";
-  if (key == "cloudy") return "BewÃ¶lkt";
+  if (key == "cloudy") return "Bew\xC3\xB6lkt";
   if (key == "exceptional") return "Ausnahme";
   if (key == "fog") return "Nebel";
   if (key == "hail") return "Hagel";
   if (key == "lightning") return "Gewitter";
   if (key == "lightning-rainy") return "Gewitterregen";
-  if (key == "partlycloudy") return "Teilw. bewÃ¶lkt";
+  if (key == "partlycloudy") return "Teilw. bew\xC3\xB6lkt";
   if (key == "pouring") return "Starkregen";
   if (key == "rainy") return "Regen";
   if (key == "snowy") return "Schnee";
   if (key == "snowy-rainy") return "Schneeregen";
   if (key == "sunny") return "Sonnig";
   if (key == "windy") return "Windig";
-  if (key == "windy-variant") return "BÃ¶ig";
+  if (key == "windy-variant") return "B\xC3\xB6ig";
   String text = condition;
   text.replace("-", " ");
   text.replace("_", " ");
@@ -754,6 +754,5 @@ void process_weather_popup_queue() {
     g_pending_weather.valid = false;
   }
 }
-
 
 

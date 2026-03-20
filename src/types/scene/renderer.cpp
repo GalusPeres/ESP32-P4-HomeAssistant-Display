@@ -153,8 +153,12 @@ lv_obj_t* render_scene_tile(lv_obj_t* parent, int col, int row, const Tile& tile
 
   uint32_t btn_color = (tile.bg_color != 0) ? tile.bg_color : 0x353535;
   lv_obj_set_style_bg_color(btn, lv_color_hex(btn_color), LV_PART_MAIN | LV_STATE_DEFAULT);
-  uint32_t pressed_color = btn_color + 0x101010;
+lv_obj_set_style_bg_grad_color(btn, lv_color_hex(btn_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_DEFAULT);
+  uint32_t pressed_color = brighten_rgb_color(btn_color, 0x10);
   lv_obj_set_style_bg_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+lv_obj_set_style_bg_grad_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRESSED);
   lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
   lv_obj_set_style_opa(btn, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_PRESSED);
   lv_obj_set_style_shadow_width(btn, 0, 0);

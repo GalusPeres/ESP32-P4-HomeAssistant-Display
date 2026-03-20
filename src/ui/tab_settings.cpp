@@ -5,6 +5,7 @@
 #include "src/core/board_hal.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/tiles/tile_config.h"
+#include "src/tiles/tile_renderer_shared.h"
 #include "src/ui/ui_manager.h"
 #include "src/fonts/ui_fonts.h"
 #include "src/network/mqtt_handlers.h"
@@ -70,6 +71,34 @@ static const uint8_t kSettingsCardColStart = 1;
 // Forward declarations
 void settings_update_ap_mode(bool running);
 
+static void style_settings_button(lv_obj_t *btn, uint32_t base_color) {
+  if (!btn) return;
+  uint32_t pressed_color = brighten_rgb_color(base_color, 0x10);
+  lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
+  lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_FOCUSED);
+  lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN | (LV_STATE_FOCUSED | LV_STATE_PRESSED));
+  lv_obj_set_style_bg_color(btn, lv_color_hex(base_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(base_color), LV_PART_MAIN | LV_STATE_FOCUSED);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | (LV_STATE_FOCUSED | LV_STATE_PRESSED));
+  lv_obj_set_style_bg_grad_color(btn, lv_color_hex(base_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+  lv_obj_set_style_bg_grad_color(btn, lv_color_hex(base_color), LV_PART_MAIN | LV_STATE_FOCUSED);
+  lv_obj_set_style_bg_grad_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_bg_grad_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | (LV_STATE_FOCUSED | LV_STATE_PRESSED));
+  lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_DEFAULT);
+  lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_FOCUSED);
+  lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | (LV_STATE_FOCUSED | LV_STATE_PRESSED));
+  lv_obj_set_style_outline_width(btn, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+  lv_obj_set_style_outline_width(btn, 0, LV_PART_MAIN | LV_STATE_FOCUSED);
+  lv_obj_set_style_outline_width(btn, 0, LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_outline_width(btn, 0, LV_PART_MAIN | (LV_STATE_FOCUSED | LV_STATE_PRESSED));
+  lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
+  lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_FOCUSED);
+  lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | (LV_STATE_FOCUSED | LV_STATE_PRESSED));
+}
 static uint16_t sleep_seconds_from_index(int32_t index) {
   if (index < 0) {
     index = 0;
@@ -283,9 +312,8 @@ static void create_settings_back_button(lv_obj_t *parent) {
       LV_GRID_ALIGN_STRETCH, 0, 1,
       LV_GRID_ALIGN_STRETCH, 0, 1);
 
-  uint32_t btn_color = 0x353535;
-  lv_obj_set_style_bg_color(btn, lv_color_hex(btn_color), LV_PART_MAIN | LV_STATE_DEFAULT);
-  lv_obj_set_style_bg_color(btn, lv_color_hex(btn_color + 0x101010), LV_PART_MAIN | LV_STATE_PRESSED);
+  uint32_t btn_color = 0x2A2A2A;
+  style_settings_button(btn, btn_color);
 
   lv_obj_add_event_cb(btn, on_settings_back_clicked, LV_EVENT_CLICKED, nullptr);
 
@@ -539,7 +567,7 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
   display_rotate_btn = lv_button_create(rotate_row);
   lv_obj_set_height(display_rotate_btn, 40);
   lv_obj_set_flex_grow(display_rotate_btn, 1);
-  lv_obj_set_style_bg_color(display_rotate_btn, lv_color_hex(0x3B82F6), 0);
+  style_settings_button(display_rotate_btn, 0x3B82F6);
   lv_obj_set_style_border_opa(display_rotate_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(display_rotate_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(display_rotate_btn, LV_OPA_TRANSP, 0);
@@ -599,7 +627,7 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
   ap_mode_btn = lv_button_create(wifi_col_right);
   lv_obj_set_width(ap_mode_btn, LV_PCT(kSettingsButtonWidthPct));
   lv_obj_set_height(ap_mode_btn, kSettingsBtnHeight);
-  lv_obj_set_style_bg_color(ap_mode_btn, lv_color_hex(0xFF9800), 0);
+  style_settings_button(ap_mode_btn, 0xFF9800);
   lv_obj_set_style_border_opa(ap_mode_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(ap_mode_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(ap_mode_btn, LV_OPA_TRANSP, 0);
@@ -620,7 +648,7 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
   ap_confirm_yes_btn = lv_button_create(ap_confirm_row);
   lv_obj_set_height(ap_confirm_yes_btn, kSettingsBtnHeight);
   lv_obj_set_flex_grow(ap_confirm_yes_btn, 1);
-  lv_obj_set_style_bg_color(ap_confirm_yes_btn, lv_color_hex(0xC62828), 0);
+  style_settings_button(ap_confirm_yes_btn, 0xC62828);
   lv_obj_set_style_border_opa(ap_confirm_yes_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(ap_confirm_yes_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(ap_confirm_yes_btn, LV_OPA_TRANSP, 0);
@@ -634,7 +662,7 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
   ap_confirm_no_btn = lv_button_create(ap_confirm_row);
   lv_obj_set_height(ap_confirm_no_btn, kSettingsBtnHeight);
   lv_obj_set_flex_grow(ap_confirm_no_btn, 1);
-  lv_obj_set_style_bg_color(ap_confirm_no_btn, lv_color_hex(0x555555), 0);
+  style_settings_button(ap_confirm_no_btn, 0x555555);
   lv_obj_set_style_border_opa(ap_confirm_no_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(ap_confirm_no_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(ap_confirm_no_btn, LV_OPA_TRANSP, 0);
@@ -700,7 +728,7 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
   mains_wake_btn = lv_button_create(wake_col_right);
   lv_obj_set_width(mains_wake_btn, LV_PCT(60));
   lv_obj_set_height(mains_wake_btn, kSettingsBtnHeight);
-  lv_obj_set_style_bg_color(mains_wake_btn, lv_color_hex(0x3B82F6), 0);
+  style_settings_button(mains_wake_btn, 0x3B82F6);
   lv_obj_set_style_border_opa(mains_wake_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(mains_wake_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(mains_wake_btn, LV_OPA_TRANSP, 0);
@@ -796,9 +824,7 @@ void settings_update_ap_mode(bool running) {
     lv_label_set_text(ap_mode_btn_label, running ? "AP beenden" : "AP aktivieren");
   }
   if (ap_mode_btn) {
-    lv_obj_set_style_bg_color(ap_mode_btn,
-                              running ? lv_color_hex(0xC62828) : lv_color_hex(0xFF9800),
-                              0);
+    style_settings_button(ap_mode_btn, running ? 0xC62828 : 0xFF9800);
     if (!ap_mode_confirm_pending) {
       lv_obj_clear_flag(ap_mode_btn, LV_OBJ_FLAG_HIDDEN);
     }

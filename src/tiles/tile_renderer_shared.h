@@ -32,3 +32,20 @@ SwitchState* tile_renderer_get_switch_states(GridType grid_type);
 
 bool is_light_entity_id(const String& entity_id);
 void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char* payload);
+
+static inline uint32_t brighten_rgb_color(uint32_t color, uint8_t delta) {
+  const uint16_t r = ((color >> 16) & 0xFFu) + delta;
+  const uint16_t g = ((color >> 8) & 0xFFu) + delta;
+  const uint16_t b = (color & 0xFFu) + delta;
+  return ((r > 0xFFu ? 0xFFu : r) << 16) |
+         ((g > 0xFFu ? 0xFFu : g) << 8) |
+         (b > 0xFFu ? 0xFFu : b);
+}
+
+static inline void disable_pressed_button_animation(lv_obj_t* obj) {
+  if (!obj) return;
+  lv_obj_set_style_transform_width(obj, 0, LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_transform_height(obj, 0, LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_translate_x(obj, 0, LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_translate_y(obj, 0, LV_PART_MAIN | LV_STATE_PRESSED);
+}

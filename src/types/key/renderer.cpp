@@ -20,13 +20,18 @@ lv_obj_t* render_key_tile(lv_obj_t* parent, int col, int row, const Tile& tile, 
   // Farbe verwenden (Standard: 0x353535 wenn color = 0)
   uint32_t btn_color = (tile.bg_color != 0) ? tile.bg_color : 0x353535;
   lv_obj_set_style_bg_color(btn, lv_color_hex(btn_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+lv_obj_set_style_bg_grad_color(btn, lv_color_hex(btn_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_DEFAULT);
 
   // Pressed-State: 10% heller
-  uint32_t pressed_color = btn_color + 0x101010;
+  uint32_t pressed_color = brighten_rgb_color(btn_color, 0x10);
   lv_obj_set_style_bg_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+lv_obj_set_style_bg_grad_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
+lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRESSED);
   lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
   lv_obj_set_style_shadow_width(btn, 0, 0);
   lv_obj_remove_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+  disable_pressed_button_animation(btn);
 
   set_tile_grid_cell(btn, col, row, tile.span_w, tile.span_h);
 

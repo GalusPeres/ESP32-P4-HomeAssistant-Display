@@ -22,7 +22,7 @@ constexpr int kPowerStatusGap = 20;
 constexpr int kPowerStatusMarginBottom = 35;
 
 constexpr int kLabelWidth = 140;
-constexpr int kValueWidth = 52;
+constexpr int kValueWidth = 80;
 constexpr int kSliderWidth = kCardWidth - (kCardPad * 2) - kLabelWidth - 56 - kValueWidth;
 constexpr int kSliderHeight = 18;
 constexpr int kSliderKnobSize = 40;
