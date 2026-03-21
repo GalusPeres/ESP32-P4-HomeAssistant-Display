@@ -5,6 +5,7 @@
 #include "src/core/board_hal.h"
 #include "src/core/display_manager.h"
 #include "src/tiles/tile_config.h"
+#include "src/tiles/mdi_icons.h"
 #include "src/ui/tab_tiles_unified.h"
 #include "src/core/waveshare_sdmmc.h"
 #include <vector>
@@ -27,6 +28,7 @@
 static lv_obj_t* g_image_popup_overlay = nullptr;
 static lv_obj_t* g_image_popup_img = nullptr;
 static lv_obj_t* g_image_popup_label = nullptr;
+static lv_obj_t* g_image_popup_close_btn = nullptr;
 static bool g_image_shown = false;
 static lv_image_header_t g_current_header;
 static bool g_current_header_valid = false;
@@ -132,7 +134,8 @@ void image_popup_pause_background_work(uint32_t duration_ms) {
 }
 
 static void close_image_popup(lv_event_t* e) {
-  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  lv_event_code_t code = lv_event_get_code(e);
+  if (code != LV_EVENT_CLICKED && code != LV_EVENT_RELEASED) return;
   hide_image_popup();
 }
 
@@ -145,8 +148,30 @@ static void ensure_image_popup_overlay() {
   lv_obj_set_style_bg_opa(g_image_popup_overlay, LV_OPA_COVER, 0);
   lv_obj_set_style_border_width(g_image_popup_overlay, 0, 0);
   lv_obj_set_style_pad_all(g_image_popup_overlay, 0, 0);
-  lv_obj_add_event_cb(g_image_popup_overlay, close_image_popup, LV_EVENT_CLICKED, nullptr);
+  // overlay blocks background touches, but only the close button closes the popup
   lv_obj_add_flag(g_image_popup_overlay, LV_OBJ_FLAG_HIDDEN);
+
+  g_image_popup_close_btn = lv_button_create(g_image_popup_overlay);
+  lv_obj_set_size(g_image_popup_close_btn, 96, 96);
+  lv_obj_set_style_bg_opa(g_image_popup_close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_bg_color(g_image_popup_close_btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(g_image_popup_close_btn, LV_OPA_20, LV_STATE_PRESSED);
+  lv_obj_set_style_border_opa(g_image_popup_close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_outline_opa(g_image_popup_close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_shadow_opa(g_image_popup_close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_radius(g_image_popup_close_btn, 16, 0);
+  lv_obj_set_style_pad_all(g_image_popup_close_btn, 0, 0);
+  lv_obj_align(g_image_popup_close_btn, LV_ALIGN_TOP_RIGHT, 12, -12);
+  lv_obj_set_ext_click_area(g_image_popup_close_btn, 28);
+  lv_obj_add_flag(g_image_popup_close_btn, LV_OBJ_FLAG_PRESS_LOCK);
+  lv_obj_clear_flag(g_image_popup_close_btn, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(g_image_popup_close_btn, close_image_popup, LV_EVENT_CLICKED, nullptr);
+  lv_obj_add_event_cb(g_image_popup_close_btn, close_image_popup, LV_EVENT_RELEASED, nullptr);
+  lv_obj_t* close_label = lv_label_create(g_image_popup_close_btn);
+  lv_obj_set_style_text_font(close_label, FONT_MDI_ICONS, 0);
+  lv_obj_set_style_text_color(close_label, lv_color_white(), 0);
+  lv_label_set_text(close_label, getMdiChar("window-close").c_str());
+  lv_obj_center(close_label);
 
   g_image_popup_img = lv_img_create(g_image_popup_overlay);
   lv_image_set_antialias(g_image_popup_img, false);
@@ -157,6 +182,7 @@ static void ensure_image_popup_overlay() {
   lv_obj_set_width(g_image_popup_label, LV_PCT(90));
   lv_obj_center(g_image_popup_label);
   lv_obj_add_flag(g_image_popup_label, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_move_foreground(g_image_popup_close_btn);
 }
 
 enum class SlideshowMode {
@@ -2027,3 +2053,5 @@ void image_popup_service_url_cache() {
   g_url_cache_next_ms = millis() + kUrlCacheIntervalMs;
 }
  
+
+

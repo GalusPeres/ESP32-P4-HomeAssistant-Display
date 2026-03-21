@@ -1000,9 +1000,6 @@ void WebAdminServer::handleReorderTiles() {
 void WebAdminServer::handleGetSensorValues() {
   const HaBridgeConfigData& ha = haBridgeConfig.get();
 
-  Serial.println("[WebAdmin] /api/sensor_values Request");
-  Serial.print("[WebAdmin] sensor_values_map: ");
-  Serial.println(ha.sensor_values_map);
 
   // Build JSON response with values + meta
   String json = "{";
@@ -1015,8 +1012,7 @@ void WebAdminServer::handleGetSensorValues() {
   json += ",\"names\":";
   appendKeyValueMapJson(json, ha.sensor_names_map);
   json += "}";
-  Serial.print("[WebAdmin] Sending JSON: ");
-  Serial.println(json);
+
   server.send(200, "application/json", json);
 }
 

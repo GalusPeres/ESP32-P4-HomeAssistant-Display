@@ -14,10 +14,10 @@ namespace {
 
 // Match the popup width to the full tile grid so left/right margins align.
 constexpr int kCardWidth = (GRID_CELL_W * GRID_COLS) + (GRID_GAP * (GRID_COLS - 1));
-constexpr int kCardHeight = 420;
+constexpr int kCardHeight = kCardWidth;
 constexpr int kCardPad = 20;
 constexpr int kForecastGap = 16;
-constexpr int kCols = 4;
+constexpr int kCols = 5;
 constexpr int kRows = 2;
 constexpr int kCellW = (kCardWidth - (kCardPad * 2) - (kForecastGap * (kCols - 1))) / kCols;
 constexpr int kCellH = (kCardHeight - (kCardPad * 2) - (kForecastGap * (kRows - 1))) / kRows;
@@ -309,6 +309,7 @@ static void set_label_style(lv_obj_t* lbl, lv_color_t color, const lv_font_t* fo
 
 static void clear_forecast(WeatherPopupContext* ctx) {
   if (!ctx) return;
+
   for (int i = 0; i < kCols; ++i) {
     ForecastWidgets& fw = ctx->forecast[i];
     if (fw.day_label) {
@@ -325,6 +326,8 @@ static void clear_forecast(WeatherPopupContext* ctx) {
     }
   }
 }
+
+static void align_header_row(lv_obj_t* card, lv_obj_t* title_label, lv_obj_t* icon_label);
 
 static void apply_weather_payload(WeatherPopupContext* ctx, const char* payload) {
   if (!ctx || !payload || !*payload) return;
@@ -417,6 +420,7 @@ static void apply_weather_payload(WeatherPopupContext* ctx, const char* payload)
     lv_label_set_text(ctx->location_label, name.c_str());
     lv_obj_clear_flag(ctx->location_label, LV_OBJ_FLAG_HIDDEN);
   }
+  align_header_row(ctx->card, ctx->location_label, ctx->icon_label);
 
   String forecast_raw;
   uint8_t forecast_count = 0;
@@ -523,6 +527,23 @@ static void apply_weather_payload(WeatherPopupContext* ctx, const char* payload)
   }
 }
 
+static void align_header_row(lv_obj_t* card, lv_obj_t* title_label, lv_obj_t* icon_label) {
+  if (!card) return;
+  lv_obj_update_layout(card);
+  lv_coord_t header_center_y = 60 - lv_obj_get_style_pad_top(card, LV_PART_MAIN);
+  if (header_center_y < 0) header_center_y = 0;
+  if (icon_label) {
+    lv_coord_t icon_y = header_center_y - (lv_obj_get_height(icon_label) / 2);
+    if (icon_y < 0) icon_y = 0;
+    lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT, 8, icon_y);
+  }
+  if (title_label) {
+    lv_coord_t title_y = header_center_y - (lv_obj_get_height(title_label) / 2);
+    if (title_y < 0) title_y = 0;
+    lv_obj_align(title_label, LV_ALIGN_TOP_LEFT, 78, title_y);
+  }
+}
+
 static void apply_init_to_context(WeatherPopupContext* ctx, const WeatherPopupInit& init) {
   if (!ctx) return;
   ctx->entity_id = init.entity_id;
@@ -538,10 +559,17 @@ static void apply_init_to_context(WeatherPopupContext* ctx, const WeatherPopupIn
     if (!title.length()) title = "--";
     lv_label_set_text(ctx->location_label, title.c_str());
   }
+  align_header_row(ctx->card, ctx->location_label, ctx->icon_label);
 }
 
 static void on_overlay_click(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  (void)e;
+}
+
+static void on_close_click(lv_event_t* e) {
+  lv_event_code_t code = lv_event_get_code(e);
+  if (code != LV_EVENT_CLICKED && code != LV_EVENT_RELEASED) return;
   WeatherPopupContext* ctx = static_cast<WeatherPopupContext*>(lv_event_get_user_data(e));
   if (!ctx || !ctx->overlay || !ctx->card) return;
   lv_obj_add_flag(ctx->card, LV_OBJ_FLAG_HIDDEN);
@@ -587,13 +615,37 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   ctx->location_label = location;
   set_label_style(location, lv_color_white(), FONT_TITLE);
   lv_label_set_long_mode(location, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(location, LV_PCT(70));
-  lv_obj_align(location, LV_ALIGN_TOP_LEFT, 0, kHeaderPadTop);
+  lv_obj_set_width(location, LV_PCT(62));
+  lv_obj_align(location, LV_ALIGN_TOP_LEFT, 78, 10);
 
   lv_obj_t* icon = lv_label_create(card);
   ctx->icon_label = icon;
   set_label_style(icon, lv_color_white(), FONT_MDI_ICONS);
-  lv_obj_align(icon, LV_ALIGN_TOP_RIGHT, kHeaderIconOffsetX, kHeaderIconOffsetY);
+  lv_label_set_text(icon, "");
+  lv_obj_add_flag(icon, LV_OBJ_FLAG_HIDDEN);
+
+  lv_obj_t* close_btn = lv_button_create(card);
+  lv_obj_set_size(close_btn, 96, 96);
+  lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_bg_color(close_btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(close_btn, LV_OPA_20, LV_STATE_PRESSED);
+  lv_obj_set_style_border_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_outline_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_radius(close_btn, 16, 0);
+  lv_obj_set_style_pad_all(close_btn, 0, 0);
+  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, 12, -12);
+  lv_obj_set_ext_click_area(close_btn, 28);
+  lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
+  lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_CLICKED, ctx);
+  lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_RELEASED, ctx);
+  lv_obj_t* close_label = lv_label_create(close_btn);
+  set_label_style(close_label, lv_color_white(), FONT_MDI_ICONS);
+  lv_label_set_text(close_label, getMdiChar("window-close").c_str());
+  lv_obj_center(close_label);
+
+  lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 8, 0);
 
   lv_obj_t* value_row = lv_obj_create(card);
   ctx->value_row = value_row;
@@ -628,26 +680,31 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   lv_obj_update_layout(value_row);
   lv_coord_t row_h = lv_obj_get_height(value_row);
   lv_coord_t base_center = ((kCellH - 48) / 2) + 28;
-  lv_coord_t value_row_y = base_center - (row_h / 2);
+  lv_coord_t value_row_y = base_center - (row_h / 2) + 18;
   lv_obj_align(value_row, LV_ALIGN_TOP_MID, 0, value_row_y);
 
-  const lv_coord_t forecast_total_w = kCardWidth - (kCardPad * 2);
-  const lv_coord_t forecast_col_w = WEATHER_FORECAST_COL_W;
-  const lv_coord_t forecast_remaining = forecast_total_w - kCols * forecast_col_w;
+  const lv_coord_t forecast_total_w = kCardWidth;
+  const lv_coord_t cols_total = kCols * WEATHER_FORECAST_COL_W;
+  const lv_coord_t forecast_remaining = forecast_total_w - cols_total;
   const lv_coord_t forecast_spacing = forecast_remaining / (kCols + 1);
+  const lv_coord_t forecast_col_w = WEATHER_FORECAST_COL_W;
 
   lv_obj_t* forecast_row = lv_obj_create(card);
   lv_obj_remove_style_all(forecast_row);
-  lv_obj_set_size(forecast_row, forecast_total_w, kCellH);
+  lv_obj_set_size(forecast_row, forecast_total_w, GRID_CELL_H);
   lv_obj_set_style_bg_opa(forecast_row, LV_OPA_TRANSP, 0);
   lv_obj_set_style_pad_all(forecast_row, 0, 0);
   lv_obj_remove_flag(forecast_row, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_pos(forecast_row, 0, kCellH + kForecastGap);
+  lv_obj_set_pos(forecast_row, -kCardPad, kCellH + kForecastGap + 18);
+
+  lv_obj_move_foreground(icon);
+  lv_obj_move_foreground(location);
+  lv_obj_move_foreground(close_btn);
 
   for (int i = 0; i < kCols; ++i) {
     lv_obj_t* col = lv_obj_create(forecast_row);
     lv_obj_remove_style_all(col);
-    lv_obj_set_size(col, forecast_col_w, kCellH);
+    lv_obj_set_size(col, forecast_col_w, GRID_CELL_H);
     lv_obj_set_style_pad_hor(col, kCardPad, 0);
     lv_obj_set_style_pad_ver(col, 24, 0);
     lv_obj_set_style_bg_opa(col, LV_OPA_TRANSP, 0);
@@ -754,5 +811,7 @@ void process_weather_popup_queue() {
     g_pending_weather.valid = false;
   }
 }
+
+
 
 

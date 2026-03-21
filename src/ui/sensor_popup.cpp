@@ -16,14 +16,14 @@ namespace {
 
 // Match the popup width to the full tile grid so left/right margins align.
 constexpr int kCardWidth = (GRID_CELL_W * GRID_COLS) + (GRID_GAP * (GRID_COLS - 1));
-constexpr int kCardHeight = 420;
+constexpr int kCardHeight = kCardWidth;
 constexpr int kCardPad = 20;
 constexpr int kHeaderPadTop = 4;
 constexpr int kHeaderIconOffsetX = 4;
 constexpr int kHeaderIconOffsetY = -8;
-constexpr int kContentPadTop = 65;
+constexpr int kContentPadTop = 76;
 constexpr int kContentRowGap = 15;
-constexpr int kChartHeight = 190;
+constexpr int kChartHeight = 300;
 constexpr int kTimeAxisHeight = 20;  // space for time labels below chart
 constexpr int kTimeAxisMarkerCount = 4;  // 4 time markers (every 6h)
 constexpr int kChartLineWidth = 4;
@@ -152,6 +152,23 @@ static bool extract_numeric(JsonVariant v, float& out) {
   return false;
 }
 
+static void align_header_row(lv_obj_t* card, lv_obj_t* title_label, lv_obj_t* icon_label) {
+  if (!card) return;
+  lv_obj_update_layout(card);
+  lv_coord_t header_center_y = 60 - lv_obj_get_style_pad_top(card, LV_PART_MAIN);
+  if (header_center_y < 0) header_center_y = 0;
+  if (icon_label) {
+    lv_coord_t icon_y = header_center_y - (lv_obj_get_height(icon_label) / 2);
+    if (icon_y < 0) icon_y = 0;
+    lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT, 8, icon_y);
+  }
+  if (title_label) {
+    lv_coord_t title_y = header_center_y - (lv_obj_get_height(title_label) / 2);
+    if (title_y < 0) title_y = 0;
+    lv_obj_align(title_label, LV_ALIGN_TOP_LEFT, 78, title_y);
+  }
+}
+
 static void apply_init_to_context(SensorPopupContext* ctx, const SensorPopupInit& init) {
   if (!ctx) return;
   ctx->entity_id = init.entity_id;
@@ -182,6 +199,7 @@ static void apply_init_to_context(SensorPopupContext* ctx, const SensorPopupInit
       }
     }
   }
+  align_header_row(ctx->card, ctx->title_label, ctx->icon_label);
   update_value_label(ctx, init.value, init.unit);
 }
 
@@ -509,6 +527,12 @@ static void apply_history_payload(SensorPopupContext* ctx, const char* payload) 
 
 static void on_overlay_click(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  (void)e;
+}
+
+static void on_close_click(lv_event_t* e) {
+  lv_event_code_t code = lv_event_get_code(e);
+  if (code != LV_EVENT_CLICKED && code != LV_EVENT_RELEASED) return;
   SensorPopupContext* ctx = static_cast<SensorPopupContext*>(lv_event_get_user_data(e));
   if (!ctx || !ctx->overlay || !ctx->card) return;
   lv_obj_add_flag(ctx->card, LV_OBJ_FLAG_HIDDEN);
@@ -554,13 +578,37 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
   ctx->title_label = title;
   set_label_style(title, lv_color_white(), &ui_font_20);
   lv_label_set_text(title, init.title.c_str());
-  lv_obj_align(title, LV_ALIGN_TOP_LEFT, 0, kHeaderPadTop);
+  lv_obj_set_width(title, LV_PCT(62));
+  lv_obj_align(title, LV_ALIGN_TOP_LEFT, 78, 10);
 
   lv_obj_t* icon = lv_label_create(card);
   ctx->icon_label = icon;
   lv_obj_set_style_text_font(icon, FONT_MDI_ICONS, 0);
   lv_obj_set_style_text_color(icon, lv_color_white(), 0);
-  lv_obj_align(icon, LV_ALIGN_TOP_RIGHT, kHeaderIconOffsetX, kHeaderIconOffsetY);
+
+  lv_obj_t* close_btn = lv_button_create(card);
+  lv_obj_set_size(close_btn, 96, 96);
+  lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_bg_color(close_btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(close_btn, LV_OPA_20, LV_STATE_PRESSED);
+  lv_obj_set_style_border_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_outline_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_radius(close_btn, 16, 0);
+  lv_obj_set_style_pad_all(close_btn, 0, 0);
+  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, 12, -12);
+  lv_obj_set_ext_click_area(close_btn, 28);
+  lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
+  lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_CLICKED, ctx);
+  lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_RELEASED, ctx);
+  lv_obj_t* close_label = lv_label_create(close_btn);
+  lv_obj_set_style_text_font(close_label, FONT_MDI_ICONS, 0);
+  lv_obj_set_style_text_color(close_label, lv_color_white(), 0);
+  lv_label_set_text(close_label, getMdiChar("window-close").c_str());
+  lv_obj_center(close_label);
+
+  lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 8, 0);
 
   lv_obj_t* content = lv_obj_create(card);
   lv_obj_set_size(content, LV_PCT(100), LV_PCT(100));
@@ -571,7 +619,10 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
   lv_obj_set_style_pad_top(content, kContentPadTop, 0);
   lv_obj_set_layout(content, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(content, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_bottom(content, 24, 0);
   lv_obj_set_style_pad_row(content, kContentRowGap, 0);
+  lv_obj_clear_flag(content, LV_OBJ_FLAG_CLICKABLE);
 
   lv_obj_t* value = lv_label_create(content);
   ctx->value_label = value;
@@ -675,6 +726,10 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
 
   ctx->series = lv_chart_add_series(chart, lv_color_white(), LV_CHART_AXIS_PRIMARY_Y);
   clear_chart(ctx, kHistoryPointsDefault);
+
+  lv_obj_move_foreground(icon);
+  lv_obj_move_foreground(title);
+  lv_obj_move_foreground(close_btn);
 
   apply_init_to_context(ctx, init);
 
@@ -807,6 +862,8 @@ void process_sensor_popup_queue() {
     g_pending_history.valid = false;
   }
 }
+
+
 
 
 

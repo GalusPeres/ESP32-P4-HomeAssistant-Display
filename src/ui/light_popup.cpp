@@ -12,12 +12,12 @@ namespace {
 
 // Match the popup width to the full tile grid so left/right margins align.
 constexpr int kCardWidth = (GRID_CELL_W * GRID_COLS) + (GRID_GAP * (GRID_COLS - 1));
-constexpr int kCardHeight = 420;
+constexpr int kCardHeight = kCardWidth;
 constexpr int kCardPad = 20;
 constexpr int kHeaderPadTop = 4;
 constexpr int kHeaderIconOffsetX = 4;
 constexpr int kHeaderIconOffsetY = -8;
-constexpr int kContentPadTop = 85;
+constexpr int kContentPadTop = 96;
 constexpr int kPowerStatusGap = 20;
 constexpr int kPowerStatusMarginBottom = 35;
 
@@ -80,6 +80,12 @@ static LightPopupContext* g_light_popup_ctx = nullptr;
 
 static void on_overlay_click(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  (void)e;
+}
+
+static void on_close_click(lv_event_t* e) {
+  lv_event_code_t code = lv_event_get_code(e);
+  if (code != LV_EVENT_CLICKED && code != LV_EVENT_RELEASED) return;
   LightPopupContext* ctx = static_cast<LightPopupContext*>(lv_event_get_user_data(e));
   if (!ctx || !ctx->overlay || !ctx->card) return;
   lv_obj_add_flag(ctx->card, LV_OBJ_FLAG_HIDDEN);
@@ -250,6 +256,23 @@ static void update_preview(LightPopupContext* ctx) {
   update_value_label(ctx->val_value, ctx->val, "%");
 }
 
+static void align_header_row(lv_obj_t* card, lv_obj_t* title_label, lv_obj_t* icon_label) {
+  if (!card) return;
+  lv_obj_update_layout(card);
+  lv_coord_t header_center_y = 60 - lv_obj_get_style_pad_top(card, LV_PART_MAIN);
+  if (header_center_y < 0) header_center_y = 0;
+  if (icon_label) {
+    lv_coord_t icon_y = header_center_y - (lv_obj_get_height(icon_label) / 2);
+    if (icon_y < 0) icon_y = 0;
+    lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT, 8, icon_y);
+  }
+  if (title_label) {
+    lv_coord_t title_y = header_center_y - (lv_obj_get_height(title_label) / 2);
+    if (title_y < 0) title_y = 0;
+    lv_obj_align(title_label, LV_ALIGN_TOP_LEFT, 78, title_y);
+  }
+}
+
 static void apply_init_to_context(LightPopupContext* ctx, const LightPopupInit& init) {
   if (!ctx) return;
   ctx->suppress_events = true;
@@ -313,6 +336,7 @@ static void apply_init_to_context(LightPopupContext* ctx, const LightPopupInit& 
     }
     lv_label_set_text(ctx->icon_label, icon_char.c_str());
   }
+  align_header_row(ctx->card, ctx->title_label, ctx->icon_label);
   if (ctx->hue_slider && update_color) {
     lv_slider_set_value(ctx->hue_slider, ctx->hue, LV_ANIM_OFF);
   }
@@ -620,13 +644,37 @@ void show_light_popup(const LightPopupInit& init) {
   set_label_style(title, lv_color_white());
   lv_obj_set_style_text_font(title, &ui_font_20, 0);
   lv_label_set_text(title, init.title.c_str());
-  lv_obj_align(title, LV_ALIGN_TOP_LEFT, 0, kHeaderPadTop);
+  lv_obj_set_width(title, LV_PCT(62));
+  lv_obj_align(title, LV_ALIGN_TOP_LEFT, 78, 10);
 
   // Icon (right) - colored based on light state
   lv_obj_t* icon = lv_label_create(card);
   ctx->icon_label = icon;
   lv_obj_set_style_text_font(icon, FONT_MDI_ICONS, 0);
-  lv_obj_align(icon, LV_ALIGN_TOP_RIGHT, kHeaderIconOffsetX, kHeaderIconOffsetY);
+
+  lv_obj_t* close_btn = lv_button_create(card);
+  lv_obj_set_size(close_btn, 96, 96);
+  lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_bg_color(close_btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(close_btn, LV_OPA_20, LV_STATE_PRESSED);
+  lv_obj_set_style_border_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_outline_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_radius(close_btn, 16, 0);
+  lv_obj_set_style_pad_all(close_btn, 0, 0);
+  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, 12, -12);
+  lv_obj_set_ext_click_area(close_btn, 28);
+  lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
+  lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_CLICKED, ctx);
+  lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_RELEASED, ctx);
+  lv_obj_t* close_label = lv_label_create(close_btn);
+  lv_obj_set_style_text_font(close_label, FONT_MDI_ICONS, 0);
+  lv_obj_set_style_text_color(close_label, lv_color_white(), 0);
+  lv_label_set_text(close_label, getMdiChar("window-close").c_str());
+  lv_obj_center(close_label);
+
+  lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 8, 0);
   if (init.icon_name.length() > 0) {
     String icon_char = getMdiChar(init.icon_name);
     lv_label_set_text(icon, icon_char.c_str());
@@ -641,12 +689,18 @@ void show_light_popup(const LightPopupInit& init) {
   lv_obj_set_style_pad_top(content, kContentPadTop, 0);
   lv_obj_set_layout(content, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(content, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_bottom(content, 24, 0);
   lv_obj_set_style_pad_row(content, kRowPadY, 0);
+  lv_obj_clear_flag(content, LV_OBJ_FLAG_CLICKABLE);
 
   ctx->power_row = create_centered_power_status(content, &ctx->power_switch, &ctx->power_status_label);
   ctx->val_row = create_slider_row(content, "Helligkeit", 0, 100, &ctx->val_slider, &ctx->val_value);
   ctx->hue_row = create_slider_row(content, "Farbton", 0, 360, &ctx->hue_slider, &ctx->hue_value);
   ctx->sat_row = create_slider_row(content, "S\xC3\xA4ttigung", 0, 100, &ctx->sat_slider, &ctx->sat_value);
+  lv_obj_move_foreground(icon);
+  lv_obj_move_foreground(title);
+  lv_obj_move_foreground(close_btn);
 
   apply_init_to_context(ctx, init);
 
@@ -709,6 +763,8 @@ void hide_light_popup() {
   lv_obj_add_flag(g_light_popup_ctx->card, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_light_popup_ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
 }
+
+
 
 
 

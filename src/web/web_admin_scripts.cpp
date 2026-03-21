@@ -36,6 +36,8 @@ void appendAdminScripts(String& html) {
   let saveInFlightByTile = {};
   let queuedSaveByTile = {};
   let sensorMetaCache = { values: {}, units: {}, icons: {}, names: {}, loaded: false };
+  let sensorMetaFetchInFlight = null;
+  let lastSensorMetaFetchMs = 0;
 
   function normalizeSensorMetaPayload(payload) {
     if (!payload || typeof payload !== 'object') {
@@ -61,14 +63,22 @@ void appendAdminScripts(String& html) {
     return !!(sensorMetaCache && sensorMetaCache.loaded);
   }
 
-  function fetchSensorMetaCache() {
-    return fetch('/api/sensor_values')
+  function fetchSensorMetaCache(force = false) {
+    const now = Date.now();
+    if (!force && sensorMetaFetchInFlight) return sensorMetaFetchInFlight;
+    if (!force && sensorMetaCache.loaded && (now - lastSensorMetaFetchMs) < 15000) {
+      return Promise.resolve(sensorMetaCache);
+    }
+    sensorMetaFetchInFlight = fetch('/api/sensor_values')
       .then(res => res.json())
       .then(raw => {
         sensorMetaCache = normalizeSensorMetaPayload(raw || {});
+        lastSensorMetaFetchMs = Date.now();
         return sensorMetaCache;
       })
-      .catch(() => sensorMetaCache);
+      .catch(() => sensorMetaCache)
+      .finally(() => { sensorMetaFetchInFlight = null; });
+    return sensorMetaFetchInFlight;
   }
 
   function isExplicitlyDisabledValue(raw) {
@@ -1430,7 +1440,7 @@ void appendAdminScripts(String& html) {
     }
   }
 
-  function loadSensorValues(refreshTiles = false) {
+  function loadSensorValues(refreshTiles = false, forceMetaFetch = false) {
     if (dragSource || resizeState) {
       queueDeferredSensorRefresh(refreshTiles);
       return;
@@ -1446,7 +1456,7 @@ void appendAdminScripts(String& html) {
         })
       : tabs.map(tab => Promise.resolve(getTilesData(tab)));
 
-    Promise.all([fetchSensorMetaCache(), ...tileRequests])
+    Promise.all([fetchSensorMetaCache(forceMetaFetch), ...tileRequests])
     .then(results => {
       const sensorMeta = normalizeSensorMetaPayload(results[0] || {});
       sensorMetaCache = sensorMeta;
@@ -1492,7 +1502,7 @@ void appendAdminScripts(String& html) {
     if (!deferredSensorRefresh || dragSource || resizeState) return;
     const refreshTiles = deferredSensorRefreshTiles;
     clearDeferredSensorRefresh();
-    loadSensorValues(refreshTiles);
+    loadSensorValues(refreshTiles, true);
   }
 
   function createDragPreview(tile) {
@@ -2273,7 +2283,7 @@ void appendAdminScripts(String& html) {
       if (data.success) {
         showNotification('Kacheln verschoben & gespeichert!');
         clearDeferredSensorRefresh();
-        loadSensorValues(true);
+        loadSensorValues(true, true);
       } else {
         if (dragSource && dragSource.tab === tab) dragSource.dropCommitted = false;
         clearDeferredSensorRefresh();
@@ -2295,14 +2305,14 @@ void appendAdminScripts(String& html) {
     initTileTabs();
     loadDraftsFromStorage();
     loadTileClipboard();
-    loadSensorValues(true);
+    loadSensorValues(true, true);
     let savedTab = null;
     try { savedTab = localStorage.getItem('activeAdminTab'); } catch (e) {}
     const defaultTab = tileTabs.length ? ('tab-tiles-' + tileTabs[0]) : 'tab-network';
     const targetTab = savedTab && document.getElementById(savedTab) ? savedTab : defaultTab;
     const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.getAttribute('onclick')?.includes(targetTab)) || document.querySelector('.tab-btn');
     if (targetBtn) targetBtn.click();
-    setInterval(() => loadSensorValues(false), 5000);
+    setInterval(() => { if (!document.hidden) loadSensorValues(false, false); }, 15000);
     tileTabs.forEach(tab => {
       enableTileDrag(tab);
       enableTileResize(tab);
