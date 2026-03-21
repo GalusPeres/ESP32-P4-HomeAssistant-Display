@@ -178,7 +178,7 @@ void appendAdminScripts(String& html) {
     const prev = tiles[index] || {};
     const tile = Object.assign({}, prev);
     const layout = normalizeSnapshotLayout(snapshot, index);
-    const numericFields = ['type', 'sensor_decimals', 'sensor_value_font', 'sensor_display_mode', 'switch_style', 'navigate_target', 'image_preview', 'popup_open_mode'];
+    const numericFields = ['type', 'sensor_decimals', 'sensor_value_font', 'sensor_display_mode', 'switch_style', 'navigate_target', 'image_preview', 'popup_open_mode', 'key_code', 'key_modifier'];
 
     tile.type = clampInt(snapshot?.type, 0, 255, Number(prev.type) || 0);
     tile.title = snapshot?.title || '';
@@ -659,7 +659,7 @@ void appendAdminScripts(String& html) {
         '_scene_alias','_scene_image_path','_scene_icon_image',
         '_key_macro','_text_value','_text_value_font','_navigate_target','_switch_entity','_switch_style',
         '_image_path','_image_select','_image_slideshow_sec','_image_url','_image_preview',
-        '_clock_show_time','_clock_show_date',
+        '_clock_show_time','_clock_show_date','_clock_time_font','_clock_date_font',
         '_counter_value'
       ];
     fields.forEach(id => {
@@ -703,6 +703,8 @@ void appendAdminScripts(String& html) {
     const imagePreviewCheck = document.getElementById(prefix + '_image_preview');
     const clockTimeCheck = document.getElementById(prefix + '_clock_show_time');
     const clockDateCheck = document.getElementById(prefix + '_clock_show_date');
+    const clockTimeFontSelect = document.getElementById(prefix + '_clock_time_font');
+    const clockDateFontSelect = document.getElementById(prefix + '_clock_date_font');
     const counterInput = document.getElementById(prefix + '_counter_value');
 
     if (titleInput) titleInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -762,6 +764,8 @@ void appendAdminScripts(String& html) {
       updateDraft(tab);
       scheduleAutoSave(tab);
     });
+    if (clockTimeFontSelect) clockTimeFontSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    if (clockDateFontSelect) clockDateFontSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
   }
 
   function updateTilePreview(tab) {
@@ -844,8 +848,10 @@ void appendAdminScripts(String& html) {
 
     if (previewKind === 'clock') {
       const flags = getClockFlagsFromInputs(prefix);
-      if (flags & 1) html += '<div class="tile-clock-time">' + getClockPreviewTime() + '</div>';
-      if (flags & 2) html += '<div class="tile-clock-date">' + getClockPreviewDate() + '</div>';
+      const clockTimeFont = document.getElementById(prefix + '_clock_time_font')?.value || '48';
+      const clockDateFont = document.getElementById(prefix + '_clock_date_font')?.value || '24';
+      if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 48, '#fff') + '>' + getClockPreviewTime() + '</div>';
+      if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 24, '#cbd5e1') + '>' + getClockPreviewDate() + '</div>';
     }
 
     if (previewKind === 'text') {
@@ -1318,6 +1324,11 @@ void appendAdminScripts(String& html) {
     } else if (safeType === 10) {
       fd.append('text_value', tile.text_value || tile.scene_alias || tile.key_macro || '');
       fd.append('text_value_font', tile.text_value_font || tile.sensor_value_font || '0');
+    } else if (safeType === 9) {
+      fd.append('clock_show_time', ((Number(tile.sensor_decimals || 1) & 1) !== 0) ? '1' : '0');
+      fd.append('clock_show_date', ((Number(tile.sensor_decimals || 1) & 2) !== 0) ? '1' : '0');
+      fd.append('key_code', tile.key_code || 48);
+      fd.append('key_modifier', tile.key_modifier || 24);
     } else if (safeType === 11) {
       fd.append('counter_value', tile.counter_value || tile.scene_alias || '0');
     } else if (safeType === 12) {
@@ -1390,8 +1401,10 @@ void appendAdminScripts(String& html) {
       }
       if (previewKind === 'clock') {
         const flags = normalizeClockFlags(tile.sensor_decimals);
-        if (flags & 1) html += '<div class="tile-clock-time">' + getClockPreviewTime() + '</div>';
-        if (flags & 2) html += '<div class="tile-clock-date">' + getClockPreviewDate() + '</div>';
+        const clockTimeFont = tile.key_code || 48;
+        const clockDateFont = tile.key_modifier || 24;
+        if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 48, '#fff') + '>' + getClockPreviewTime() + '</div>';
+        if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 24, '#cbd5e1') + '>' + getClockPreviewDate() + '</div>';
       }
       if (previewKind === 'text') {
         const textValue = tile.text_value || tile.scene_alias || tile.key_macro || '';
@@ -2300,6 +2313,10 @@ void appendAdminScripts(String& html) {
 
   append_tile_type_scripts(html);
 }
+
+
+
+
 
 
 

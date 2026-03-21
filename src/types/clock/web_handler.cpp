@@ -14,10 +14,29 @@ void apply_clock_fields_from_request(WebServer& server, Tile& tile) {
   if (show_date) flags |= 2;
   if (flags == 0) flags = 1;
   tile.sensor_decimals = flags;
+
+  auto normalizeClockFont = [](int raw, uint8_t fallback) {
+    switch (raw) {
+      case 20:
+      case 24:
+      case 32:
+      case 40:
+      case 48:
+        return static_cast<uint8_t>(raw);
+      default:
+        return fallback;
+    }
+  };
+
+  tile.key_code = server.hasArg("key_code")
+                      ? normalizeClockFont(server.arg("key_code").toInt(), 48)
+                      : static_cast<uint8_t>(48);
+  tile.key_modifier = server.hasArg("key_modifier")
+                          ? normalizeClockFont(server.arg("key_modifier").toInt(), 24)
+                          : static_cast<uint8_t>(24);
+
   tile.sensor_value_font = 0;
   tile.sensor_display_mode = 0;
   tile.sensor_gauge_min = 0;
   tile.sensor_gauge_max = 100;
-  tile.key_code = 0;
-  tile.key_modifier = 0;
 }

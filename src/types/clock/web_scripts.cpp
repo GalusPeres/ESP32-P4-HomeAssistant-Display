@@ -18,6 +18,36 @@ void append_clock_scripts(String& html) {
     return dd + '.' + mm + '.' + yyyy;
   }
 
+  function normalizeClockPreviewFont(raw, fallback) {
+    const num = Number(raw);
+    switch (num) {
+      case 20:
+      case 24:
+      case 32:
+      case 40:
+      case 48:
+        return num;
+      default:
+        return fallback;
+    }
+  }
+
+  function getClockPreviewCssPx(raw, fallback) {
+    switch (normalizeClockPreviewFont(raw, fallback)) {
+      case 20: return 14;
+      case 24: return 16;
+      case 32: return 20;
+      case 40: return 24;
+      default: return 28;
+    }
+  }
+
+  function getClockPreviewTextStyle(raw, fallback, color) {
+    const size = getClockPreviewCssPx(raw, fallback);
+    const safeColor = color || '#fff';
+    return 'style="font-size:' + size + 'px; line-height:1; color:' + safeColor + ';"';
+  }
+
   function normalizeClockFlags(raw) {
     const num = Number(raw);
     if (!Number.isFinite(num) || num < 0) return 1;
@@ -51,6 +81,10 @@ void append_clock_scripts(String& html) {
   }
 
   function loadClockFields(tab, data) {
+    const timeFontEl = document.getElementById(tab + '_clock_time_font');
+    if (timeFontEl) timeFontEl.value = (data && data.key_code !== undefined) ? String(data.key_code) : '48';
+    const dateFontEl = document.getElementById(tab + '_clock_date_font');
+    if (dateFontEl) dateFontEl.value = (data && data.key_modifier !== undefined) ? String(data.key_modifier) : '24';
     if (data && (data.clock_show_time !== undefined || data.clock_show_date !== undefined)) {
       const showTime = String(data.clock_show_time || '0') === '1';
       const showDate = String(data.clock_show_date || '0') === '1';
@@ -72,10 +106,16 @@ void append_clock_scripts(String& html) {
     const flags = getClockFlagsFromInputs(tab);
     formData.append('clock_show_time', (flags & 1) ? '1' : '0');
     formData.append('clock_show_date', (flags & 2) ? '1' : '0');
+    formData.append('key_code', document.getElementById(tab + '_clock_time_font')?.value || '48');
+    formData.append('key_modifier', document.getElementById(tab + '_clock_date_font')?.value || '24');
   }
 
   function resetClockFields(tab) {
     applyClockFlagsToInputs(tab, 1);
+    const timeFontEl = document.getElementById(tab + '_clock_time_font');
+    if (timeFontEl) timeFontEl.value = '48';
+    const dateFontEl = document.getElementById(tab + '_clock_date_font');
+    if (dateFontEl) dateFontEl.value = '24';
   }
   </script>
 )html";

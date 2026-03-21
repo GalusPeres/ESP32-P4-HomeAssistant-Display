@@ -2,10 +2,56 @@
 #include "src/tiles/tile_renderer_shared.h"
 #include "src/tiles/tile_renderer_fonts.h"
 #include "src/tiles/mdi_icons.h"
+#include "src/fonts/font_roboto_mono_digits_20.h"
 #include "src/fonts/font_roboto_mono_digits_24.h"
+#include "src/fonts/font_roboto_mono_digits_32.h"
+#include "src/fonts/font_roboto_mono_digits_40.h"
 #include "src/fonts/font_roboto_mono_digits_48.h"
 #include <Arduino.h>
 #include <time.h>
+
+static uint8_t normalize_clock_font_size(uint8_t raw, uint8_t fallback) {
+  switch (raw) {
+    case 20:
+    case 24:
+    case 32:
+    case 40:
+    case 48:
+      return raw;
+    default:
+      return fallback;
+  }
+}
+
+static const lv_font_t* get_clock_time_font(const Tile& tile) {
+  switch (normalize_clock_font_size(tile.key_code, 48)) {
+    case 20:
+      return &font_roboto_mono_digits_20;
+    case 24:
+      return &font_roboto_mono_digits_24;
+    case 32:
+      return &font_roboto_mono_digits_32;
+    case 40:
+      return &font_roboto_mono_digits_40;
+    default:
+      return &font_roboto_mono_digits_48;
+  }
+}
+
+static const lv_font_t* get_clock_date_font(const Tile& tile) {
+  switch (normalize_clock_font_size(tile.key_modifier, 24)) {
+    case 20:
+      return &font_roboto_mono_digits_20;
+    case 32:
+      return &font_roboto_mono_digits_32;
+    case 40:
+      return &font_roboto_mono_digits_40;
+    case 48:
+      return &font_roboto_mono_digits_48;
+    default:
+      return &font_roboto_mono_digits_24;
+  }
+}
 
 struct ClockTileData {
   lv_obj_t* time_label = nullptr;
@@ -39,8 +85,8 @@ static void update_clock_labels(ClockTileData* data) {
       lv_label_set_text(data->date_label, buf);
     }
   } else {
-    if (data->time_label) lv_label_set_text(data->time_label, "--:--");
-    if (data->date_label) lv_label_set_text(data->date_label, "--.--.----");
+    if (data->time_label) lv_label_set_text(data->time_label, "");
+    if (data->date_label) lv_label_set_text(data->date_label, "");
   }
 }
 
@@ -118,7 +164,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   if (show_time) {
     time_lbl = lv_label_create(stack);
     if (time_lbl) {
-      set_label_style(time_lbl, lv_color_white(), &font_roboto_mono_digits_48);
+      set_label_style(time_lbl, lv_color_white(), get_clock_time_font(tile));
       lv_obj_set_width(time_lbl, LV_PCT(100));
       lv_obj_set_style_text_align(time_lbl, LV_TEXT_ALIGN_CENTER, 0);
     }
@@ -128,7 +174,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   if (show_date) {
     date_lbl = lv_label_create(stack);
     if (date_lbl) {
-      set_label_style(date_lbl, lv_color_hex(0xD0D0D0), &font_roboto_mono_digits_24);
+      set_label_style(date_lbl, lv_color_hex(0xD0D0D0), get_clock_date_font(tile));
       lv_obj_set_width(date_lbl, LV_PCT(100));
       lv_obj_set_style_text_align(date_lbl, LV_TEXT_ALIGN_CENTER, 0);
     }
@@ -157,3 +203,5 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
 
   return card;
 }
+
+
