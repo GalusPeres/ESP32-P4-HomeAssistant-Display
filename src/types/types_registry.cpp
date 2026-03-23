@@ -10,6 +10,7 @@
 #include "src/types/key/renderer.h"
 #include "src/types/navigate/renderer.h"
 #include "src/types/scene/renderer.h"
+#include "src/types/radar/renderer.h"
 #include "src/types/sensor/renderer.h"
 #include "src/types/switch/renderer.h"
 #include "src/types/text/renderer.h"
@@ -21,6 +22,7 @@
 #include "src/types/key/web_handler.h"
 #include "src/types/navigate/web_handler.h"
 #include "src/types/scene/web_handler.h"
+#include "src/types/radar/web_handler.h"
 #include "src/types/sensor/web_handler.h"
 #include "src/types/switch/web_handler.h"
 #include "src/types/text/web_handler.h"
@@ -32,6 +34,7 @@
 #include "src/types/key/web_html.h"
 #include "src/types/navigate/web_html.h"
 #include "src/types/scene/web_html.h"
+#include "src/types/radar/web_html.h"
 #include "src/types/sensor/web_html.h"
 #include "src/types/switch/web_html.h"
 #include "src/types/text/web_html.h"
@@ -43,6 +46,7 @@
 #include "src/types/key/web_scripts.h"
 #include "src/types/navigate/web_scripts.h"
 #include "src/types/scene/web_scripts.h"
+#include "src/types/radar/web_scripts.h"
 #include "src/types/sensor/web_scripts.h"
 #include "src/types/switch/web_scripts.h"
 #include "src/types/text/web_scripts.h"
@@ -54,6 +58,7 @@
 #include "src/types/key/web_styles.h"
 #include "src/types/navigate/web_styles.h"
 #include "src/types/scene/web_styles.h"
+#include "src/types/radar/web_styles.h"
 #include "src/types/sensor/web_styles.h"
 #include "src/types/switch/web_styles.h"
 #include "src/types/text/web_styles.h"
@@ -140,6 +145,16 @@ lv_obj_t* render_image_wrapper(lv_obj_t* parent,
   return render_image_tile(parent, col, row, tile, index);
 }
 
+lv_obj_t* render_radar_wrapper(lv_obj_t* parent,
+                               int col,
+                               int row,
+                               const Tile& tile,
+                               uint8_t index,
+                               GridType,
+                               scene_publish_cb_t) {
+  return render_radar_tile(parent, col, row, tile, index);
+}
+
 lv_obj_t* render_clock_wrapper(lv_obj_t* parent,
                                int col,
                                int row,
@@ -222,6 +237,15 @@ bool apply_image_wrapper(WebServer& server, Tile& tile, const TileTypeApplyConte
   return true;
 }
 
+bool apply_radar_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext& ctx) {
+  String error;
+  if (!apply_radar_fields_from_request(server, tile, error)) {
+    if (ctx.error_message) *ctx.error_message = error;
+    return false;
+  }
+  return true;
+}
+
 bool apply_clock_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
   apply_clock_fields_from_request(server, tile);
   return true;
@@ -289,6 +313,10 @@ void append_switch_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
 
 void append_image_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
   append_image_fields_html(html, safeString(ctx.tab_id));
+}
+
+void append_radar_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
+  append_radar_fields_html(html, safeString(ctx.tab_id));
 }
 
 void append_clock_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
@@ -451,6 +479,24 @@ const TileTypeDescriptor kTileTypes[] = {
     append_image_fields_wrapper,
     append_image_styles,
     append_image_scripts
+  },
+  {
+    TILE_RADAR,
+    "Radar",
+    "radar",
+    "radar",
+    "none",
+    nullptr,
+    "loadRadarFields",
+    "saveRadarFields",
+    "resetRadarFields",
+    0x2A2A2A,
+    false,
+    render_radar_wrapper,
+    apply_radar_wrapper,
+    append_radar_fields_wrapper,
+    append_radar_styles,
+    append_radar_scripts
   },
   {
     TILE_CLOCK,

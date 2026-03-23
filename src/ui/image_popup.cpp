@@ -2,6 +2,7 @@
 #include "sensor_popup.h"
 #include "light_popup.h"
 #include "weather_popup.h"
+#include "radar_popup.h"
 #include "src/core/board_hal.h"
 #include "src/core/display_manager.h"
 #include "src/tiles/tile_config.h"
@@ -1954,6 +1955,7 @@ void show_image_popup(const char* path, uint16_t slideshow_sec) {
   hide_sensor_popup();
   hide_light_popup();
   hide_weather_popup();
+  hide_radar_popup();
 
   if (!ensure_sd_ready()) {
     g_open_url = "";

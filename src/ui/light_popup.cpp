@@ -2,6 +2,7 @@
 #include "src/ui/sensor_popup.h"
 #include "src/ui/image_popup.h"
 #include "src/ui/weather_popup.h"
+#include "src/ui/radar_popup.h"
 #include "src/fonts/ui_fonts.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/tiles/mdi_icons.h"
@@ -604,6 +605,7 @@ void show_light_popup(const LightPopupInit& init) {
   hide_sensor_popup();
   hide_image_popup();
   hide_weather_popup();
+  hide_radar_popup();
 
   if (g_light_popup_ctx && g_light_popup_ctx->overlay && g_light_popup_ctx->card) {
     apply_init_to_context(g_light_popup_ctx, init);

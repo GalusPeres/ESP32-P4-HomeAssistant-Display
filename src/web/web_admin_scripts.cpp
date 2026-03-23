@@ -665,7 +665,7 @@ void appendAdminScripts(String& html) {
         '_tile_title','_tile_color','_tile_col','_tile_row','_tile_span_w','_tile_span_h','_tile_type','_sensor_entity','_sensor_unit',
         '_sensor_decimals','_sensor_value_font','_sensor_display_mode','_sensor_gauge_min','_sensor_gauge_max',
         '_sensor_gauge_arc','_sensor_gauge_size','_sensor_gauge_y_offset','_sensor_value_y_offset','_sensor_graph_height',
-        '_weather_entity',
+        '_weather_entity','_radar_preset','_radar_bbox','_radar_frame_count','_radar_frame_delay_ms','_radar_refresh_sec','_radar_popup_open_mode',
         '_scene_alias','_scene_image_path','_scene_icon_image',
         '_key_macro','_text_value','_text_value_font','_navigate_target','_switch_entity','_switch_style',
         '_image_path','_image_select','_image_slideshow_sec','_image_url','_image_preview',
@@ -700,6 +700,12 @@ void appendAdminScripts(String& html) {
       const graphHeightInput = document.getElementById(prefix + '_sensor_graph_height');
       const weatherSelect = document.getElementById(prefix + '_weather_entity');
       const weatherPopupModeSelect = document.getElementById(prefix + '_weather_popup_open_mode');
+      const radarPresetSelect = document.getElementById(prefix + '_radar_preset');
+      const radarBboxInput = document.getElementById(prefix + '_radar_bbox');
+      const radarFrameCountInput = document.getElementById(prefix + '_radar_frame_count');
+      const radarFrameDelayInput = document.getElementById(prefix + '_radar_frame_delay_ms');
+      const radarRefreshInput = document.getElementById(prefix + '_radar_refresh_sec');
+      const radarPopupModeSelect = document.getElementById(prefix + '_radar_popup_open_mode');
       const sceneInput = document.getElementById(prefix + '_scene_alias');
     const keyInput = document.getElementById(prefix + '_key_macro');
     const textInput = document.getElementById(prefix + '_text_value');
@@ -728,6 +734,12 @@ void appendAdminScripts(String& html) {
     if (entitySelect) entitySelect.addEventListener('change', () => { maybeFillTitleFromSensor(tab); updateTilePreview(tab); updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (weatherSelect) weatherSelect.addEventListener('change', () => { maybeFillTitleFromWeather(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     if (weatherPopupModeSelect) weatherPopupModeSelect.addEventListener('change', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    if (radarPresetSelect) radarPresetSelect.addEventListener('change', () => { syncRadarUi(tab); maybeFillTitleFromRadar(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    if (radarBboxInput) radarBboxInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    if (radarFrameCountInput) radarFrameCountInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    if (radarFrameDelayInput) radarFrameDelayInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    if (radarRefreshInput) radarRefreshInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    if (radarPopupModeSelect) radarPopupModeSelect.addEventListener('change', () => { updateDraft(tab); scheduleAutoSave(tab); });
       if (unitInput) unitInput.addEventListener('input', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
       if (decimalsInput) decimalsInput.addEventListener('input', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
       if (valueFontSelect) valueFontSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -1343,6 +1355,15 @@ void appendAdminScripts(String& html) {
       fd.append('counter_value', tile.counter_value || tile.scene_alias || '0');
     } else if (safeType === 12) {
       fd.append('weather_entity', tile.sensor_entity || tile.weather_entity || '');
+      if (tile.popup_open_mode !== undefined && tile.popup_open_mode !== null) {
+        fd.append('popup_open_mode', tile.popup_open_mode);
+      }
+    } else if (safeType === 13) {
+      fd.append('radar_preset', tile.radar_preset || tile.sensor_entity || 'bayern');
+      fd.append('radar_bbox', tile.radar_bbox || tile.sensor_unit || '');
+      fd.append('radar_frame_count', tile.radar_frame_count || tile.sensor_gauge_min || '6');
+      fd.append('radar_frame_delay_ms', tile.radar_frame_delay_ms || tile.sensor_gauge_max || '450');
+      fd.append('radar_refresh_sec', tile.radar_refresh_sec || tile.image_slideshow_sec || '300');
       if (tile.popup_open_mode !== undefined && tile.popup_open_mode !== null) {
         fd.append('popup_open_mode', tile.popup_open_mode);
       }

@@ -2,6 +2,7 @@
 #include "src/ui/light_popup.h"
 #include "src/ui/sensor_popup.h"
 #include "src/ui/image_popup.h"
+#include "src/ui/radar_popup.h"
 #include "src/ui/tab_tiles_unified.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/tiles/tile_config.h"
@@ -752,6 +753,7 @@ void show_weather_popup(const WeatherPopupInit& init) {
   hide_light_popup();
   hide_sensor_popup();
   hide_image_popup();
+  hide_radar_popup();
 
   if (g_weather_popup_ctx && g_weather_popup_ctx->overlay && g_weather_popup_ctx->card) {
     apply_init_to_context(g_weather_popup_ctx, init);

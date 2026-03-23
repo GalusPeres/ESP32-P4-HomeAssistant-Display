@@ -16,6 +16,7 @@
 #include "src/ui/sensor_popup.h"
 #include "src/ui/image_popup.h"
 #include "src/ui/weather_popup.h"
+#include "src/ui/radar_popup.h"
 #include "src/network/network_manager.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/network/mqtt_topics.h"
@@ -336,6 +337,7 @@ void loop() {
   }
 
   image_popup_service_url_cache();
+  radar_popup_service();
 
   if (now - last_status_update > 2000UL) {
     last_status_update = now;
