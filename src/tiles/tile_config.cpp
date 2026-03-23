@@ -1755,7 +1755,7 @@ bool TileConfig::load() {
   bool folders_ok = loadFolders();
   bool had_root = folderExists(kRootFolderId);
   ensureRootFolder();
-  if (!folders_ok || !had_root) {
+  if (folders_ok && !had_root) {
     saveFolders();
   }
 
@@ -2026,20 +2026,25 @@ bool TileConfig::loadGrid(uint16_t folder_id, TileGridConfig& grid) {
     }
   }
 
-  if (ok) {
-    applyImagePathsFromSd(folder_id, grid);
-  }
-
   bool changed = false;
   if (folder_id == kRootFolderId) {
     changed = ensureSettingsTile(grid);
   } else {
     changed = ensureBackTile(folder_id, grid);
   }
+
+  if (!ok) {
+    Serial.printf("[TileConfig] WARN: Grid %u konnte nicht geladen werden, SD-Inhalt bleibt unveraendert\n",
+                  static_cast<unsigned>(folder_id));
+    return false;
+  }
+
+  applyImagePathsFromSd(folder_id, grid);
+
   if (needs_migration_save || changed) {
     saveGrid(folder_id, grid);
   }
-  return ok;
+  return true;
 }
 
 bool TileConfig::saveGrid(uint16_t folder_id, const TileGridConfig& grid) {
