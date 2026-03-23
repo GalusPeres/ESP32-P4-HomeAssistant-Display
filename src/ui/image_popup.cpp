@@ -27,6 +27,7 @@
 // Globaler Context fuer das Image Popup
 static lv_obj_t* g_image_popup_overlay = nullptr;
 static lv_obj_t* g_image_popup_img = nullptr;
+static lv_obj_t* g_image_popup_gif = nullptr;
 static lv_obj_t* g_image_popup_label = nullptr;
 static lv_obj_t* g_image_popup_close_btn = nullptr;
 static bool g_image_shown = false;
@@ -74,7 +75,7 @@ static constexpr uintptr_t kCacheLineSize = 64;
 
 struct UrlCacheEntry {
   String url;
-  String bin_path;
+  String cache_path;
   uint32_t interval_ms = 0;
   uint32_t next_due_ms = 0;
 };
@@ -104,6 +105,8 @@ static void schedule_popup_restore();
 static void cancel_popup_restore();
 static void free_image_ram();
 static String make_url_cache_bin_path(const String& url);
+static bool find_url_cache_file(const String& url, String& out_path);
+static void remove_url_cache_variants(const String& url, const String* keep_path = nullptr);
 static void register_url_cache_entry(const String& url);
 static bool update_url_cache(const String& url, String& out_bin_path, String& error);
 static void refresh_url_cache_entries(uint32_t now);
@@ -118,6 +121,7 @@ static void request_url_cache_cancel(const String& url);
 static void clear_url_cache_cancel(const String& url);
 static bool url_cache_should_cancel(uint32_t hash, uint16_t len);
 static void url_cache_consume_cancel(uint32_t hash, uint16_t len);
+static void destroy_image_popup_gif();
 
 static bool is_background_busy_from_input(uint32_t now_ms) {
   uint32_t last_input = displayManager.getLastActivityTime();
@@ -137,6 +141,12 @@ static void close_image_popup(lv_event_t* e) {
   lv_event_code_t code = lv_event_get_code(e);
   if (code != LV_EVENT_CLICKED && code != LV_EVENT_RELEASED) return;
   hide_image_popup();
+}
+
+static void destroy_image_popup_gif() {
+  if (!g_image_popup_gif) return;
+  lv_obj_del(g_image_popup_gif);
+  g_image_popup_gif = nullptr;
 }
 
 static void ensure_image_popup_overlay() {
@@ -228,12 +238,14 @@ static String guess_url_extension(String url, const String& content_type) {
   u.toLowerCase();
   if (u.endsWith(".jpg") || u.endsWith(".jpeg")) return ".jpg";
   if (u.endsWith(".png")) return ".png";
+  if (u.endsWith(".gif")) return ".gif";
   String ct = content_type;
   ct.toLowerCase();
   if (ct.indexOf("image/jpeg") >= 0) return ".jpg";
   if (ct.indexOf("image/jpg") >= 0) return ".jpg";
   if (ct.indexOf("image/pjpeg") >= 0) return ".jpg";
   if (ct.indexOf("image/png") >= 0) return ".png";
+  if (ct.indexOf("image/gif") >= 0) return ".gif";
   return String();
 }
 
@@ -358,6 +370,34 @@ static String make_url_cache_base(const String& url) {
 
 static String make_url_cache_bin_path(const String& url) {
   return make_url_cache_base(url) + ".bin";
+}
+
+static bool find_url_cache_file(const String& url, String& out_path) {
+  if (!ensure_sd_ready()) return false;
+  const String base = make_url_cache_base(url);
+  static const char* kExts[] = {".gif", ".png", ".jpg", ".jpeg"};
+  for (const char* ext : kExts) {
+    String candidate = base + ext;
+    if (SD_MMC.exists(candidate)) {
+      out_path = candidate;
+      return true;
+    }
+  }
+  out_path = "";
+  return false;
+}
+
+static void remove_url_cache_variants(const String& url, const String* keep_path) {
+  if (!ensure_sd_ready()) return;
+  const String base = make_url_cache_base(url);
+  static const char* kExts[] = {".gif", ".png", ".jpg", ".jpeg", ".bin"};
+  for (const char* ext : kExts) {
+    String candidate = base + ext;
+    if (keep_path && candidate == *keep_path) continue;
+    if (SD_MMC.exists(candidate)) {
+      SD_MMC.remove(candidate);
+    }
+  }
 }
 
 static bool ensure_thumb_dir() {
@@ -1501,7 +1541,7 @@ static bool update_url_cache(const String& url, String& out_bin_path, String& er
     error = "Cache Ordner Fehler";
     return false;
   }
-  String base = make_url_cache_base(url);
+  const String base = make_url_cache_base(url);
   String download_path;
   if (!download_url_to_sd(url, base, download_path, error, cancel_hash, cancel_len)) return false;
   if (url_cache_should_cancel(cancel_hash, cancel_len)) {
@@ -1510,34 +1550,9 @@ static bool update_url_cache(const String& url, String& out_bin_path, String& er
     url_cache_consume_cancel(cancel_hash, cancel_len);
     return false;
   }
-  if (!ends_with_ignore_case(download_path, ".jpg") && !ends_with_ignore_case(download_path, ".jpeg")) {
-    SD_MMC.remove(download_path);
-    error = "Nur JPEG unterstuetzt";
-    return false;
-  }
-  String bin_path = base + ".bin";
-  String tmp_path = bin_path + ".tmp";
-  if (!convert_jpeg_to_bin(download_path, tmp_path, error, cancel_hash, cancel_len)) {
-    SD_MMC.remove(download_path);
-    return false;
-  }
-  if (url_cache_should_cancel(cancel_hash, cancel_len)) {
-    error = "Abgebrochen";
-    SD_MMC.remove(tmp_path);
-    SD_MMC.remove(download_path);
-    url_cache_consume_cancel(cancel_hash, cancel_len);
-    return false;
-  }
-  if (SD_MMC.exists(bin_path)) SD_MMC.remove(bin_path);
-  if (!SD_MMC.rename(tmp_path, bin_path)) {
-    SD_MMC.remove(tmp_path);
-    SD_MMC.remove(download_path);
-    error = "BIN Rename Fehler";
-    return false;
-  }
-  SD_MMC.remove(download_path);
-  out_bin_path = bin_path;
-  return SD_MMC.exists(bin_path);
+  remove_url_cache_variants(url, &download_path);
+  out_bin_path = download_path;
+  return SD_MMC.exists(download_path);
 }
 
 static void register_url_cache_entry(const String& url) {
@@ -1549,7 +1564,7 @@ static void register_url_cache_entry(const String& url) {
   }
   UrlCacheEntry entry;
   entry.url = normalized;
-  entry.bin_path = make_url_cache_bin_path(normalized);
+  find_url_cache_file(normalized, entry.cache_path);
   g_url_cache_entries.push_back(entry);
 }
 
@@ -1598,7 +1613,7 @@ static void refresh_url_cache_entries(uint32_t now) {
     }
     UrlCacheEntry entry;
     entry.url = normalized;
-    entry.bin_path = make_url_cache_bin_path(normalized);
+    find_url_cache_file(normalized, entry.cache_path);
     entry.interval_ms = interval_ms;
     entry.next_due_ms = now + kUrlCacheInitialDelayMs;
     updated.push_back(entry);
@@ -1759,6 +1774,7 @@ static bool show_image_popup_internal(const String& fullPath, bool allow_error, 
   }
 
   const bool is_jpeg = ends_with_ignore_case(fullPath, ".jpg") || ends_with_ignore_case(fullPath, ".jpeg");
+  const bool is_gif = ends_with_ignore_case(fullPath, ".gif");
   lv_image_header_t header{};
   if (is_jpeg) {
     if (!force_reload && g_image_ram_active && g_image_ram_source == fullPath && g_current_header_valid) {
@@ -1772,7 +1788,7 @@ static bool show_image_popup_internal(const String& fullPath, bool allow_error, 
       g_current_header = header;
       g_current_header_valid = true;
     }
-  } else {
+  } else if (!is_gif) {
     free_image_ram();
     String new_src = "S:" + fullPath;
     if (force_reload) {
@@ -1795,6 +1811,39 @@ static bool show_image_popup_internal(const String& fullPath, bool allow_error, 
 
   lv_obj_set_style_bg_opa(g_image_popup_overlay, LV_OPA_COVER, 0);
   lv_obj_clear_flag(g_image_popup_overlay, LV_OBJ_FLAG_HIDDEN);
+  if (g_image_popup_label) lv_obj_add_flag(g_image_popup_label, LV_OBJ_FLAG_HIDDEN);
+
+  if (is_gif) {
+#if LV_USE_GIF
+    free_image_ram();
+    destroy_image_popup_gif();
+    if (g_image_popup_img) lv_obj_add_flag(g_image_popup_img, LV_OBJ_FLAG_HIDDEN);
+    String new_src = "S:" + fullPath;
+    g_current_image_path = new_src;
+    g_current_header_valid = false;
+    g_image_popup_gif = lv_gif_create(g_image_popup_overlay);
+    lv_gif_set_color_format(g_image_popup_gif, LV_COLOR_FORMAT_RGB565);
+    lv_obj_set_size(g_image_popup_gif, SCREEN_WIDTH, SCREEN_HEIGHT);
+    lv_obj_center(g_image_popup_gif);
+    lv_image_set_inner_align(g_image_popup_gif, LV_IMAGE_ALIGN_CONTAIN);
+    lv_gif_set_auto_pause_invisible(g_image_popup_gif, true);
+    lv_gif_set_src(g_image_popup_gif, g_current_image_path.c_str());
+    if (!lv_gif_is_loaded(g_image_popup_gif)) {
+      destroy_image_popup_gif();
+      if (allow_error) show_image_popup_error("GIF Fehler", fullPath.c_str());
+      return false;
+    }
+    lv_obj_move_background(g_image_popup_gif);
+    lv_obj_move_foreground(g_image_popup_close_btn);
+    g_image_shown = true;
+    return true;
+#else
+    if (allow_error) show_image_popup_error("GIF deaktiviert", fullPath.c_str());
+    return false;
+#endif
+  }
+
+  destroy_image_popup_gif();
 
   if (is_jpeg) {
     g_current_image_path = fullPath;
@@ -1813,7 +1862,6 @@ static bool show_image_popup_internal(const String& fullPath, bool allow_error, 
   }
   lv_obj_center(g_image_popup_img);
   lv_obj_clear_flag(g_image_popup_img, LV_OBJ_FLAG_HIDDEN);
-  if (g_image_popup_label) lv_obj_add_flag(g_image_popup_label, LV_OBJ_FLAG_HIDDEN);
 
   g_image_shown = true;
   return true;
@@ -1826,17 +1874,16 @@ static void process_url_cache_done() {
   while (xQueueReceive(g_url_cache_done_queue, &job, 0) == pdTRUE) {
     if (!job.url[0]) continue;
     String url = String(job.url);
-    schedule_thumb_refresh_for_key(url);
-    String cached = make_url_cache_bin_path(url);
+    String cached;
+    if (!find_url_cache_file(url, cached)) continue;
     String cached_src = "S:" + cached;
     lv_image_cache_drop(cached_src.c_str());
     lv_image_header_cache_drop(cached_src.c_str());
-    if (g_image_shown && g_current_image_path == cached_src) {
+    if (g_image_shown && (g_open_url == url || g_current_image_path == cached_src)) {
       apply_slideshow_display_mode(true);
       displayManager.setReverseFlushOnce();
       show_image_popup_internal(cached, false, true);
     }
-    cleanup_unused_thumbnails(millis());
   }
 }
 
@@ -1890,6 +1937,7 @@ static void show_image_popup_error(const char* title, const char* path) {
   if (g_image_popup_img) {
     lv_obj_add_flag(g_image_popup_img, LV_OBJ_FLAG_HIDDEN);
   }
+  destroy_image_popup_gif();
   if (g_image_popup_label) {
     lv_label_set_text_fmt(g_image_popup_label, "%s:\n%s", title, path);
     lv_obj_clear_flag(g_image_popup_label, LV_OBJ_FLAG_HIDDEN);
@@ -1924,17 +1972,17 @@ void show_image_popup(const char* path, uint16_t slideshow_sec) {
     stop_slideshow(true);
     apply_slideshow_display_mode(true);
     displayManager.setReverseFlushOnce();
-    String cached = make_url_cache_bin_path(rawPath);
-    if (!SD_MMC.exists(cached)) {
+    String cached;
+    if (!find_url_cache_file(rawPath, cached)) {
       if (WiFi.status() != WL_CONNECTED) {
         show_image_popup_error("URL Cache fehlt", "Kein WLAN");
         apply_slideshow_display_mode(false);
         return;
       }
-      Serial.printf("[ImagePopup] URL Cache fehlte, Queue: %s\n", rawPath.c_str());
+      Serial.printf("[ImagePopup] URL Cache fehlt, Queue: %s\n", rawPath.c_str());
       enqueue_url_job(rawPath);
       mark_url_cache_queued(rawPath, now);
-      show_image_popup_error("URL Cache wird erstellt", rawPath.c_str());
+      show_image_popup_error("URL wird geladen", rawPath.c_str());
       apply_slideshow_display_mode(false);
       return;
     }
@@ -1968,7 +2016,10 @@ void hide_image_popup() {
     lv_obj_add_flag(g_image_popup_overlay, LV_OBJ_FLAG_HIDDEN);
     g_open_url = "";
     g_image_shown = false;
+    destroy_image_popup_gif();
     free_image_ram();
+    g_current_image_path = "";
+    g_current_header_valid = false;
     schedule_popup_restore();
   }
 }
@@ -1981,6 +2032,7 @@ void preload_image_popup(const char* path) {
   if (is_url_path(rawPath)) return;
   String fullPath = normalize_sd_path(rawPath);
   if (get_slideshow_mode(fullPath) != SlideshowMode::None) return;
+  if (ends_with_ignore_case(fullPath, ".gif")) return;
   if (!SD_MMC.exists(fullPath)) return;
 
   String src = "S:" + fullPath;
@@ -2021,8 +2073,6 @@ void image_popup_service_url_cache() {
   process_url_cache_done();
   if (!ensure_sd_ready()) return;
 
-  service_tile_thumbnails(now);
-  cleanup_unused_thumbnails(now);
   if (WiFi.status() != WL_CONNECTED) return;
   if (g_url_cache_next_ms == 0) {
     g_url_cache_next_ms = now + kUrlCacheInitialDelayMs;

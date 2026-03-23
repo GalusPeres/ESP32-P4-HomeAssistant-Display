@@ -96,7 +96,9 @@ static bool resolve_preview_path(const Tile& tile, String& out_path) {
 }  // namespace
 
 bool image_tile_get_preview_path(const Tile& tile, String& out_path) {
-  return resolve_preview_path(tile, out_path);
+  (void)tile;
+  out_path = "";
+  return false;
 }
 
 struct ImageEventData {
@@ -131,8 +133,7 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
 
   set_tile_grid_cell(btn, col, row, tile.span_w, tile.span_h);
 
-  const bool wants_preview =
-      (tile.sensor_display_mode != 0 && tile.image_path.length() > 0 && !is_slideshow_token(tile.image_path));
+  const bool wants_preview = false;
   bool has_preview = wants_preview;
   String iconChar;
   if (tile.icon_name.length() > 0 && FONT_MDI_ICONS != nullptr) {
