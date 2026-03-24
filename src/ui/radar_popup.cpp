@@ -342,9 +342,9 @@ static String build_wms_url(const String& bbox, const String& time_value) {
 }
 
 static String build_basemap_url(const String& bbox) {
-  // bbox is "min_lat,min_lon,max_lat,max_lon" (EPSG:4326 WMS 1.3.0 axis order)
-  String url = "https://ows.terrestris.de/osm-gray/service?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap";
-  url += "&LAYERS=OSM-WMS&FORMAT=image/png&CRS=EPSG:4326";
+  String url = "https://maps.dwd.de/geoserver/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap";
+  url += "&LAYERS=dwd:bluemarble&STYLES=&FORMAT=image/png&TRANSPARENT=FALSE";
+  url += "&CRS=EPSG:4326";
   url += "&BBOX=" + bbox;
   url += "&WIDTH=" + String(kRadarImageW);
   url += "&HEIGHT=" + String(kRadarImageH);
