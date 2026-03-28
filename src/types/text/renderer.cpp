@@ -61,10 +61,14 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
 
   auto get_text_font = [&](const Tile& t) -> const lv_font_t* {
     switch (t.sensor_value_font) {
-      case 2:
-        return &ui_font_24;
       case 1:
         return &ui_font_20;
+      case 2:
+        return &ui_font_24;
+      case 3:
+        return &ui_font_28;
+      case 4:
+        return &ui_font_32;
       default:
         return FONT_VALUE;
     }

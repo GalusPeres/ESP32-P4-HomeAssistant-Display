@@ -17,6 +17,8 @@ void append_text_fields_html(String& html, const String& tab_id) {
                 <option value="0">40 (Default)</option>
                 <option value="1">20</option>
                 <option value="2">24</option>
+                <option value="3">28</option>
+                <option value="4">32</option>
               </select>
               <div style="font-size:11px;color:#64748b;margin-top:4px;">Max 31 Zeichen gespeichert.</div>
             </div>

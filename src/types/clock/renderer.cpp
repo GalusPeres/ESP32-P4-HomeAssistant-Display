@@ -84,9 +84,6 @@ static void update_clock_labels(ClockTileData* data) {
                timeinfo.tm_year + 1900);
       lv_label_set_text(data->date_label, buf);
     }
-  } else {
-    if (data->time_label) lv_label_set_text(data->time_label, "");
-    if (data->date_label) lv_label_set_text(data->date_label, "");
   }
 }
 
@@ -167,6 +164,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
       set_label_style(time_lbl, lv_color_white(), get_clock_time_font(tile));
       lv_obj_set_width(time_lbl, LV_PCT(100));
       lv_obj_set_style_text_align(time_lbl, LV_TEXT_ALIGN_CENTER, 0);
+      lv_label_set_text(time_lbl, "");
     }
   }
 
@@ -177,6 +175,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
       set_label_style(date_lbl, lv_color_hex(0xD0D0D0), get_clock_date_font(tile));
       lv_obj_set_width(date_lbl, LV_PCT(100));
       lv_obj_set_style_text_align(date_lbl, LV_TEXT_ALIGN_CENTER, 0);
+      lv_label_set_text(date_lbl, "");
     }
   }
 

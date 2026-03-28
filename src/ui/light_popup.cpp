@@ -148,13 +148,7 @@ static void set_label_style(lv_obj_t* lbl, lv_color_t color) {
 }
 
 static const lv_font_t* get_value_font() {
-#if defined(LV_FONT_MONTSERRAT_40) && LV_FONT_MONTSERRAT_40
-  return &lv_font_montserrat_40;
-#elif defined(LV_FONT_MONTSERRAT_48) && LV_FONT_MONTSERRAT_48
-  return &lv_font_montserrat_48;
-#else
-  return LV_FONT_DEFAULT;
-#endif
+  return &ui_font_40;
 }
 
 static void update_value_label(lv_obj_t* label, int value, const char* suffix) {

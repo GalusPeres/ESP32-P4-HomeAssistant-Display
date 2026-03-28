@@ -39,6 +39,8 @@ void append_sensor_fields_html(String& html, const String& tab_id, const std::ve
                   <option value="0">40 (Default)</option>
                   <option value="1">20</option>
                   <option value="2">24</option>
+                  <option value="3">28</option>
+                  <option value="4">32</option>
                 </select>
                 <label>Anzeige-Modus</label>
                 <select id=")html";

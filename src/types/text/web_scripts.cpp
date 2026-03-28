@@ -5,7 +5,7 @@ void append_text_scripts(String& html) {
   <script>
   function normalizeTextValueFont(value) {
     const v = String(value || '0');
-    return (v === '1' || v === '2') ? v : '0';
+    return (['1','2','3','4'].includes(v)) ? v : '0';
   }
 
   function loadTextFields(tab, data) {

@@ -29,6 +29,8 @@ void append_sensor_styles(String& html) {
       margin-top:9px;
     }
     .tile-value.sensor-value-size-default { font-size:28px; }
+    .tile-value.sensor-value-size-32 { font-size:32px; }
+    .tile-value.sensor-value-size-28 { font-size:28px; }
     .tile-value.sensor-value-size-24 { font-size:24px; }
     .tile-value.sensor-value-size-20 { font-size:20px; }
     .tile-unit { color:#e6e6e6; font-size:14px; opacity:0.95; margin-left:7px; }

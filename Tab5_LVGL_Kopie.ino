@@ -1,5 +1,6 @@
 #include <WiFi.h>
 #include <Wire.h>
+#include <HTTPClient.h>
 #include "src/core/waveshare_sdmmc.h"
 #include <OneWire.h>           // Erzwingt Arduino-Library-Discovery fuer DS18x20 Support
 #include <DallasTemperature.h> // Erzwingt Arduino-Library-Discovery fuer DS18x20 Support

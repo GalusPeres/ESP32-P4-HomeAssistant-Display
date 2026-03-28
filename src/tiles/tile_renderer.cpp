@@ -197,12 +197,11 @@ static uint32_t fnv1a_hash(const char* data) {
 
 static const lv_font_t* get_sensor_value_font(const Tile& tile) {
   switch (tile.sensor_value_font) {
-    case 1:
-      return &ui_font_20;
-    case 2:
-      return &ui_font_24;
-    default:
-      return FONT_VALUE;
+    case 1: return &ui_font_20;
+    case 2: return &ui_font_24;
+    case 3: return &ui_font_28;
+    case 4: return &ui_font_32;
+    default: return FONT_VALUE;
   }
 }
 

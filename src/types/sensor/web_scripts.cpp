@@ -57,19 +57,21 @@ void append_sensor_scripts(String& html) {
 
   function normalizeSensorValueFont(value) {
     const v = String(value || '0');
-    return (v === '1' || v === '2') ? v : '0';
+    return (['1','2','3','4'].includes(v)) ? v : '0';
   }
 
   function getSensorValueFontClass(value) {
     const v = normalizeSensorValueFont(value);
     if (v === '1') return 'sensor-value-size-20';
     if (v === '2') return 'sensor-value-size-24';
+    if (v === '3') return 'sensor-value-size-28';
+    if (v === '4') return 'sensor-value-size-32';
     return 'sensor-value-size-default';
   }
 
   function applySensorValueFontClass(el, value) {
     if (!el) return;
-    el.classList.remove('sensor-value-size-20', 'sensor-value-size-24', 'sensor-value-size-default');
+    el.classList.remove('sensor-value-size-20', 'sensor-value-size-24', 'sensor-value-size-28', 'sensor-value-size-32', 'sensor-value-size-default');
     el.classList.add(getSensorValueFontClass(value));
   }
 

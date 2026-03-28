@@ -17,8 +17,10 @@ void append_text_styles(String& html) {
       overflow:hidden;
     }
     .tile.text .tile-text.sensor-value-size-default { font-size:28px; }
-    .tile.text .tile-text.sensor-value-size-20 { font-size:20px; }
+    .tile.text .tile-text.sensor-value-size-32 { font-size:32px; }
+    .tile.text .tile-text.sensor-value-size-28 { font-size:28px; }
     .tile.text .tile-text.sensor-value-size-24 { font-size:24px; }
+    .tile.text .tile-text.sensor-value-size-20 { font-size:20px; }
     .tile.text .tile-icon { position:absolute; top:10px; right:8px; }
     .tile-settings textarea {
       width:100%;

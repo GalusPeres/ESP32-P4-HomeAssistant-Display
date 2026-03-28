@@ -4,7 +4,7 @@ void apply_text_fields_from_request(WebServer& server, Tile& tile) {
   tile.scene_alias = server.hasArg("text_value") ? server.arg("text_value") : "";
   int font_raw = server.hasArg("text_value_font") ? server.arg("text_value_font").toInt() : 0;
   if (font_raw < 0) font_raw = 0;
-  if (font_raw > 2) font_raw = 2;
+  if (font_raw > 4) font_raw = 4;
   tile.sensor_value_font = static_cast<uint8_t>(font_raw);
   tile.sensor_decimals = 0xFF;
   tile.sensor_display_mode = 0;
