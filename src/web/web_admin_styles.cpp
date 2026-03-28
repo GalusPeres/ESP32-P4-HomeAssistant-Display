@@ -47,6 +47,8 @@ void appendAdminStyles(String& html) {
     .btn { padding:12px 18px; border:none; border-radius:10px; background:#4f46e5; color:#fff; font-size:16px; cursor:pointer; transition:background 0.2s; }
     .btn:hover { background:#4338ca; }
     .btn-secondary { background:#94a3b8; margin-top:12px; width:100%; }
+    .btn-danger { background:#ef4444; }
+    .btn-danger:hover { background:#dc2626; }
     .section-title { margin:32px 0 12px; text-transform:uppercase; font-size:12px; letter-spacing:.1em; color:#a1a1aa; }
     .hint { color:#64748b; font-size:14px; margin:8px 0 16px; }
     .list-block { background:#f8fafc; border-radius:12px; padding:16px; border:1px solid #e2e8f0; }

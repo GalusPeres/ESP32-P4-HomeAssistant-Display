@@ -1122,3 +1122,47 @@ void WebAdminServer::handleGetFolders() {
   json += "]";
   server.send(200, "application/json", json);
 }
+
+void WebAdminServer::handleDeleteFolder() {
+  if (!server.hasArg("folder_id")) {
+    server.send(400, "application/json", "{\"success\":false,\"error\":\"Missing folder_id\"}");
+    return;
+  }
+
+  uint16_t folder_id = static_cast<uint16_t>(server.arg("folder_id").toInt());
+  if (folder_id == 0) {
+    server.send(400, "application/json", "{\"success\":false,\"error\":\"Root folder cannot be deleted\"}");
+    return;
+  }
+  if (!tileConfig.folderExists(folder_id)) {
+    server.send(404, "application/json", "{\"success\":false,\"error\":\"Folder not found\"}");
+    return;
+  }
+
+  // Find parent folder and clear the tile that references this folder
+  uint16_t parent_id = tileConfig.getFolderParent(folder_id);
+  TileGridConfig parent_grid{};
+  if (tileConfig.loadFolderGrid(parent_id, parent_grid)) {
+    for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+      Tile& t = parent_grid.tiles[i];
+      if (t.type == TILE_FOLDER) {
+        uint16_t target = getNavigateTargetId(t);
+        if (target == folder_id) {
+          t = Tile{};
+          break;
+        }
+      }
+    }
+    tileConfig.saveFolderGrid(parent_id, parent_grid);
+    tiles_invalidate_folder(parent_id);
+  }
+
+  if (!tileConfig.deleteFolder(folder_id)) {
+    server.send(500, "application/json", "{\"success\":false,\"error\":\"Delete failed\"}");
+    return;
+  }
+
+  mqttReloadDynamicSlots();
+  Serial.printf("[WebAdmin] Folder %u deleted\n", static_cast<unsigned>(folder_id));
+  server.send(200, "application/json", "{\"success\":true}");
+}

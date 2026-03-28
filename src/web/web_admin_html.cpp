@@ -46,7 +46,16 @@ static void appendTileTabHTML(
   appendHtmlEscaped(html, folder.icon_name);
   html += R"html(">
         <p class="hint">Klicke auf eine Kachel, um sie zu bearbeiten. Waehle den Typ (Sensor/Wetter/Szene/Key/Ordner/Settings/Switch/Bild/Uhr/Text) und passe die Einstellungen an.</p>
-
+)html";
+  if (folder_id != 0) {
+    html += R"html(        <div style="margin-bottom:12px;">
+          <button type="button" class="btn btn-danger" style="padding:8px 16px;font-size:13px;" onclick="deleteFolder(')html";
+    html += tab_id;
+    html += R"html(')">Ordner / Tab loeschen</button>
+        </div>
+)html";
+  }
+  html += R"html(
         <div class="tile-editor">
           <!-- Grid Preview -->
           <div class="tile-grid">

@@ -1057,6 +1057,32 @@ void appendAdminScripts(String& html) {
     scheduleAutoSave(tab);
   }
 
+  function deleteFolder(tab) {
+    const folderId = getFolderIdForTab(tab);
+    if (folderId === undefined || folderId === 0) {
+      showNotification('Dieser Ordner kann nicht geloescht werden', false);
+      return;
+    }
+    const tabEl = document.getElementById('tab-tiles-' + tab);
+    const folderName = tabEl ? (tabEl.dataset.folderName || 'Ordner') : 'Ordner';
+    if (!confirm('Ordner "' + folderName + '" wirklich loeschen?\\n\\nAlle Kacheln in diesem Ordner werden geloescht und die Ordner-Kachel im uebergeordneten Ordner wird entfernt.')) {
+      return;
+    }
+    const formData = new FormData();
+    formData.append('folder_id', folderId);
+    fetch('/api/folders/delete', { method: 'POST', body: formData })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          showNotification('Ordner geloescht');
+          setTimeout(() => location.reload(), 500);
+        } else {
+          showNotification(data.error || 'Fehler beim Loeschen', false);
+        }
+      })
+      .catch(() => showNotification('Netzwerkfehler', false));
+  }
+
   function saveTile(tab, silent = false, tileIndexOverride = null) {
     const tileIndex = tileIndexOverride !== null ? tileIndexOverride : currentTileIndex;
     if (tileIndex === -1) return;

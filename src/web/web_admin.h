@@ -43,6 +43,7 @@ public:
   void handleSaveTiles();
   void handleReorderTiles();
   void handleGetFolders();
+  void handleDeleteFolder();
   void handleGetSensorValues();
   void handleGetSdImages();
   void handleGetSdIcons();
