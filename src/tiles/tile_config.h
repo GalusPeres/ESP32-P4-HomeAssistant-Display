@@ -102,7 +102,7 @@ struct Tile {
 };
 
 static inline uint8_t getTilePopupOpenMode(const Tile& tile) {
-  if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER && tile.type != TILE_RADAR) {
+  if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER) {
     return TILE_POPUP_OPEN_LONG_PRESS;
   }
   return (tile.popup_open_mode == TILE_POPUP_OPEN_SHORT_PRESS)
@@ -111,7 +111,7 @@ static inline uint8_t getTilePopupOpenMode(const Tile& tile) {
 }
 
 static inline void setTilePopupOpenMode(Tile& tile, uint8_t mode) {
-  if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER && tile.type != TILE_RADAR) return;
+  if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER) return;
   tile.popup_open_mode = (mode == TILE_POPUP_OPEN_SHORT_PRESS)
                              ? TILE_POPUP_OPEN_SHORT_PRESS
                              : TILE_POPUP_OPEN_LONG_PRESS;

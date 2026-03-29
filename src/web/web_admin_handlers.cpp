@@ -726,10 +726,6 @@ void WebAdminServer::handleGetTiles() {
     out += String(getTilePopupOpenMode(tile));
     out += ",\"switch_style\":";
     out += String((tile.type == TILE_SWITCH && tile.sensor_decimals == 1) ? 1 : 0);
-    out += ",\"image_path\":\"";
-    appendJsonEscaped(out, tile.image_path);
-    out += "\",\"image_slideshow_sec\":";
-    out += String(tile.image_slideshow_sec);
     out += ",\"navigate_target\":";
     out += String((tile.type == TILE_FOLDER) ? getNavigateTargetId(tile) : 0);
     out += "}";
@@ -827,13 +823,6 @@ void WebAdminServer::handleSaveTiles() {
   tile.type = static_cast<TileType>(type);
   tile.title = server.hasArg("title") ? server.arg("title") : "";
   tile.icon_name = server.hasArg("icon_name") ? server.arg("icon_name") : "";
-  if (server.hasArg("image_slideshow_sec")) {
-    int raw = server.arg("image_slideshow_sec").toInt();
-    if (raw <= 0) raw = 10;
-    if (raw > 3600) raw = 3600;
-    tile.image_slideshow_sec = static_cast<uint16_t>(raw);
-  }
-
   // Parse color
   if (server.hasArg("bg_color")) {
     tile.bg_color = server.arg("bg_color").toInt();

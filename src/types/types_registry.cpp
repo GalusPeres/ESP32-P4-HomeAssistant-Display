@@ -6,11 +6,9 @@
 
 #include "src/types/clock/renderer.h"
 #include "src/types/empty/renderer.h"
-#include "src/types/image/renderer.h"
 #include "src/types/key/renderer.h"
 #include "src/types/navigate/renderer.h"
 #include "src/types/scene/renderer.h"
-#include "src/types/radar/renderer.h"
 #include "src/types/sensor/renderer.h"
 #include "src/types/switch/renderer.h"
 #include "src/types/text/renderer.h"
@@ -18,11 +16,9 @@
 #include "src/types/weather/renderer.h"
 
 #include "src/types/clock/web_handler.h"
-#include "src/types/image/web_handler.h"
 #include "src/types/key/web_handler.h"
 #include "src/types/navigate/web_handler.h"
 #include "src/types/scene/web_handler.h"
-#include "src/types/radar/web_handler.h"
 #include "src/types/sensor/web_handler.h"
 #include "src/types/switch/web_handler.h"
 #include "src/types/text/web_handler.h"
@@ -30,11 +26,9 @@
 #include "src/types/weather/web_handler.h"
 
 #include "src/types/clock/web_html.h"
-#include "src/types/image/web_html.h"
 #include "src/types/key/web_html.h"
 #include "src/types/navigate/web_html.h"
 #include "src/types/scene/web_html.h"
-#include "src/types/radar/web_html.h"
 #include "src/types/sensor/web_html.h"
 #include "src/types/switch/web_html.h"
 #include "src/types/text/web_html.h"
@@ -42,11 +36,9 @@
 #include "src/types/weather/web_html.h"
 
 #include "src/types/clock/web_scripts.h"
-#include "src/types/image/web_scripts.h"
 #include "src/types/key/web_scripts.h"
 #include "src/types/navigate/web_scripts.h"
 #include "src/types/scene/web_scripts.h"
-#include "src/types/radar/web_scripts.h"
 #include "src/types/sensor/web_scripts.h"
 #include "src/types/switch/web_scripts.h"
 #include "src/types/text/web_scripts.h"
@@ -54,11 +46,9 @@
 #include "src/types/weather/web_scripts.h"
 
 #include "src/types/clock/web_styles.h"
-#include "src/types/image/web_styles.h"
 #include "src/types/key/web_styles.h"
 #include "src/types/navigate/web_styles.h"
 #include "src/types/scene/web_styles.h"
-#include "src/types/radar/web_styles.h"
 #include "src/types/sensor/web_styles.h"
 #include "src/types/switch/web_styles.h"
 #include "src/types/text/web_styles.h"
@@ -133,26 +123,6 @@ lv_obj_t* render_switch_wrapper(lv_obj_t* parent,
                                 GridType grid_type,
                                 scene_publish_cb_t) {
   return render_switch_tile(parent, col, row, tile, index, grid_type);
-}
-
-lv_obj_t* render_image_wrapper(lv_obj_t* parent,
-                               int col,
-                               int row,
-                               const Tile& tile,
-                               uint8_t index,
-                               GridType,
-                               scene_publish_cb_t) {
-  return render_image_tile(parent, col, row, tile, index);
-}
-
-lv_obj_t* render_radar_wrapper(lv_obj_t* parent,
-                               int col,
-                               int row,
-                               const Tile& tile,
-                               uint8_t index,
-                               GridType,
-                               scene_publish_cb_t) {
-  return render_radar_tile(parent, col, row, tile, index);
 }
 
 lv_obj_t* render_clock_wrapper(lv_obj_t* parent,
@@ -232,20 +202,6 @@ bool apply_switch_wrapper(WebServer& server, Tile& tile, const TileTypeApplyCont
   return true;
 }
 
-bool apply_image_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
-  apply_image_fields_from_request(server, tile);
-  return true;
-}
-
-bool apply_radar_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext& ctx) {
-  String error;
-  if (!apply_radar_fields_from_request(server, tile, error)) {
-    if (ctx.error_message) *ctx.error_message = error;
-    return false;
-  }
-  return true;
-}
-
 bool apply_clock_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
   apply_clock_fields_from_request(server, tile);
   return true;
@@ -309,14 +265,6 @@ void append_navigate_fields_wrapper(String& html, const TileTypeWebContext& ctx)
 
 void append_switch_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
   append_switch_fields_html(html, safeString(ctx.tab_id), safeStrings(ctx.switch_options));
-}
-
-void append_image_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
-  append_image_fields_html(html, safeString(ctx.tab_id));
-}
-
-void append_radar_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
-  append_radar_fields_html(html, safeString(ctx.tab_id));
 }
 
 void append_clock_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
@@ -461,42 +409,6 @@ const TileTypeDescriptor kTileTypes[] = {
     append_switch_fields_wrapper,
     append_switch_styles,
     append_switch_scripts
-  },
-  {
-    TILE_IMAGE,
-    "Bild",
-    "image",
-    "image",
-    "none",
-    "onImageTypeSelected",
-    "loadImageFields",
-    "saveImageFields",
-    "resetImageFields",
-    0x353535,
-    false,
-    render_image_wrapper,
-    apply_image_wrapper,
-    append_image_fields_wrapper,
-    append_image_styles,
-    append_image_scripts
-  },
-  {
-    TILE_RADAR,
-    "Radar",
-    "radar",
-    "radar",
-    "none",
-    nullptr,
-    "loadRadarFields",
-    "saveRadarFields",
-    "resetRadarFields",
-    0x2A2A2A,
-    false,
-    render_radar_wrapper,
-    apply_radar_wrapper,
-    append_radar_fields_wrapper,
-    append_radar_styles,
-    append_radar_scripts
   },
   {
     TILE_CLOCK,

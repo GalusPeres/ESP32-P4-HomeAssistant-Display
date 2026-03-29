@@ -7,7 +7,6 @@
 #include "src/ui/ui_manager.h"
 #include "src/ui/light_popup.h"
 #include "src/ui/sensor_popup.h"
-#include "src/ui/image_popup.h"
 #include "src/types/types_registry.h"
 #include "src/tiles/tile_renderer_fonts.h"
 #include "src/tiles/tile_renderer_shared.h"

@@ -1,6 +1,0 @@
-#pragma once
-
-#include <WebServer.h>
-#include "src/tiles/tile_config.h"
-
-void apply_image_fields_from_request(WebServer& server, Tile& tile);

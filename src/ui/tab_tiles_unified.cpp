@@ -6,7 +6,6 @@
 #include "src/ui/sensor_popup.h"
 #include "src/ui/weather_popup.h"
 #include "src/network/ha_bridge_config.h"
-#include "src/types/image/renderer.h"
 #include "src/tiles/mdi_icons.h"
 #include <misc/cache/instance/lv_image_cache.h>
 #include <Arduino.h>
@@ -745,36 +744,8 @@ static void tiles_refresh_all_image_previews(GridType grid_type, bool only_missi
   }
 }
 
-static bool apply_preview_for_tile(GridType grid_type, uint8_t tile_index, bool only_missing, bool drop_cache) {
-  const uint8_t idx = static_cast<uint8_t>(grid_type);
-  if (idx >= 3 || tile_index >= TILES_PER_GRID) return false;
-  if (!g_tiles_grids[idx] || !g_tiles_loaded[idx]) return false;
-
-  const TileGridConfig& config = getGridConfig(grid_type);
-  const Tile& tile = config.tiles[tile_index];
-  if (tile.type != TILE_IMAGE) return false;
-  if (tile.sensor_display_mode == 0) return false;
-  if (!tile.image_path.length()) return false;
-  if (is_slideshow_token_local(tile.image_path)) return false;
-
-  lv_obj_t* btn = g_tiles_objs[idx][tile_index];
-  if (!btn) return false;
-  lv_obj_t* img = find_preview_image_child(btn);
-  if (!img) return false;
-  if (only_missing && lv_obj_has_flag(img, LV_OBJ_FLAG_USER_2)) return false;
-
-  String preview_path;
-  if (!image_tile_get_preview_path(tile, preview_path)) return false;
-
-  String src = "S:" + preview_path;
-  if (drop_cache) {
-    lv_image_cache_drop(src.c_str());
-  }
-  lv_img_set_src(img, src.c_str());
-  lv_obj_add_flag(img, LV_OBJ_FLAG_USER_2);
-  lv_obj_clear_flag(img, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_invalidate(img);
-  return true;
+static bool apply_preview_for_tile(GridType, uint8_t, bool, bool) {
+  return false;
 }
 
 static bool process_preview_step(GridType grid_type, bool only_missing, uint8_t max_loads) {
@@ -794,47 +765,7 @@ static bool process_preview_step(GridType grid_type, bool only_missing, uint8_t 
   return true;
 }
 
-void tiles_refresh_image_previews_for_key(GridType grid_type, const String& raw_key) {
-  uint8_t idx = static_cast<uint8_t>(grid_type);
-  if (!g_tiles_grids[idx]) return;
-  if (!g_tiles_loaded[idx]) return;
-  if (idx < 3) {
-    uint32_t now = millis();
-    if (g_preview_block_until_ms[idx] != 0 &&
-        (int32_t)(now - g_preview_block_until_ms[idx]) < 0) {
-      return;
-    }
-  }
-
-  String key = normalize_preview_key_local(raw_key);
-  if (!key.length()) return;
-
-  const TileGridConfig& config = getGridConfig(grid_type);
-  for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
-    const Tile& tile = config.tiles[i];
-    if (tile.type != TILE_IMAGE) continue;
-    if (tile.sensor_display_mode == 0) continue;
-    if (!tile.image_path.length()) continue;
-    if (is_slideshow_token_local(tile.image_path)) continue;
-
-    String tile_key = normalize_preview_key_local(tile.image_path);
-    if (tile_key != key) continue;
-
-    String preview_path;
-    if (!image_tile_get_preview_path(tile, preview_path)) continue;
-
-    lv_obj_t* btn = g_tiles_objs[idx][i];
-    if (!btn) continue;
-    lv_obj_t* img = find_preview_image_child(btn);
-    if (!img) continue;
-
-    String src = "S:" + preview_path;
-    lv_image_cache_drop(src.c_str());
-    lv_img_set_src(img, src.c_str());
-    lv_obj_add_flag(img, LV_OBJ_FLAG_USER_2);
-    lv_obj_clear_flag(img, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_invalidate(img);
-  }
+void tiles_refresh_image_previews_for_key(GridType, const String&) {
 }
 
 static void hide_preview_images(GridType grid_type) {

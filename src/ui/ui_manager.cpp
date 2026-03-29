@@ -4,7 +4,6 @@
 #include "src/ui/tab_settings.h"
 #include "src/ui/light_popup.h"
 #include "src/ui/sensor_popup.h"
-#include "src/ui/image_popup.h"
 #include "src/ui/weather_popup.h"
 #include "src/core/display_manager.h"
 #include "src/core/config_manager.h"
@@ -31,15 +30,6 @@ static const lv_font_t* get_status_date_font() {
 }
 
 
-
-static void preload_image_tiles_from_grid(const TileGridConfig& grid) {
-  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
-    const Tile& tile = grid.tiles[i];
-    if (tile.type != TILE_IMAGE) continue;
-    if (tile.image_path.length() == 0) continue;
-    preload_image_popup(tile.image_path.c_str());
-  }
-}
 
 // Globale Instanz
 
@@ -99,8 +89,6 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   preload_light_popup();
   preload_sensor_popup();
   preload_weather_popup();
-  preload_image_tiles_from_grid(tileConfig.getActiveGrid());
-
   // Warm settings buffer once to reduce the first-open hitch.
   switchToTab(3);
   switchToTab(0);
@@ -300,7 +288,6 @@ void UIManager::switchToTab(uint8_t index) {
 
 void UIManager::switchToFolder(uint16_t folder_id) {
   // Priorisiere Navigation: kurze Pause fuer Thumbnail/URL-Background-Jobs.
-  image_popup_pause_background_work(350);
   tiles_switch_to_folder(folder_id);
   switchToTab(0);
 }
