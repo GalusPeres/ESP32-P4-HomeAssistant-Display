@@ -10,6 +10,10 @@ bool init() {
   return DeviceImpl::init();
 }
 
+void update() {
+  DeviceImpl::update();
+}
+
 void displayPushPixels(int32_t x, int32_t y, int32_t w, int32_t h,
                        const uint16_t* data) {
   DeviceImpl::displayPushPixels(x, y, w, h, data);

@@ -1,6 +1,7 @@
 #include "src/core/display_manager.h"
 #include "src/core/power_manager.h"
 #include "src/core/board_hal.h"
+#include "src/devices/device_select.h"
 #include "esp_heap_caps.h"
 #include "esp_cache.h"
 #include <Arduino.h>
@@ -362,7 +363,11 @@ bool DisplayManager::init() {
   lv_display_set_flush_cb(disp, flush_cb);
 
   // Farbformat + Anti-Aliasing aus (Performance)
+#if defined(DEVICE_M5STACK_TAB5)
+  lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
+#else
   lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
+#endif
   lv_display_set_antialiasing(disp, false);
   g_bytes_per_pixel = lv_color_format_get_size(lv_display_get_color_format(disp));
   if (g_bytes_per_pixel == 0) {

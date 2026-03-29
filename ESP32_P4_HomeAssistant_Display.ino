@@ -242,6 +242,9 @@ void loop() {
   lv_tick_inc(now - last);
   last = now;
 
+  if (first_run) Serial.println("[Loop] BoardHAL::update()...");
+  BoardHAL::update();
+
   if (first_run) Serial.println("[Loop] powerManager.update()...");
   powerManager.update(displayManager.getLastActivityTime());
 

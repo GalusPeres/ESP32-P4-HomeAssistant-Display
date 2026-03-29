@@ -6,6 +6,10 @@ bool BoardHAL::init() {
   return Device::init();
 }
 
+void BoardHAL::update() {
+  Device::update();
+}
+
 void BoardHAL::displayPushPixels(int32_t x, int32_t y, int32_t w, int32_t h,
                                  const uint16_t* data) {
   Device::displayPushPixels(x, y, w, h, data);

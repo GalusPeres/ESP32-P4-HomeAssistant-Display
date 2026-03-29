@@ -163,6 +163,9 @@ bool DeviceWaveshare4B::init() {
   return true;
 }
 
+void DeviceWaveshare4B::update() {
+}
+
 void DeviceWaveshare4B::displayPushPixels(int32_t x, int32_t y, int32_t w, int32_t h,
                                           const uint16_t* data) {
   if (!g_gfx || !data) {

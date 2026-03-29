@@ -24,6 +24,7 @@ inline constexpr Capabilities kCapabilities = kProfile.capabilities;
 const Profile& profile();
 
 bool init();
+void update();
 
 void displayPushPixels(int32_t x, int32_t y, int32_t w, int32_t h,
                        const uint16_t* data);
