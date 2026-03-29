@@ -48,6 +48,14 @@ void append_clock_scripts(String& html) {
     return 'style="font-size:' + size + 'px; line-height:1; color:' + safeColor + ';"';
   }
 
+  function applyClockPreviewTextStyle(el, raw, fallback, color, lineHeight) {
+    if (!el) return;
+    const size = getClockPreviewCssPx(raw, fallback);
+    el.style.fontSize = size + 'px';
+    el.style.color = color || '#fff';
+    el.style.lineHeight = lineHeight || '1';
+  }
+
   function normalizeClockFlags(raw) {
     const num = Number(raw);
     if (!Number.isFinite(num) || num < 0) return 1;
@@ -99,6 +107,36 @@ void append_clock_scripts(String& html) {
       ? data.clock_flags
       : (data ? data.sensor_decimals : 1);
     applyClockFlagsToInputs(tab, flags);
+  }
+
+  function updateClockValuePreview(tab) {
+    if (currentTileIndex === -1) return;
+    const prefix = tab;
+    const tileId = tab + '-tile-' + currentTileIndex;
+    const tileElem = document.getElementById(tileId);
+    if (!tileElem) return;
+
+    const flags = getClockFlagsFromInputs(prefix);
+    const timeFont = document.getElementById(prefix + '_clock_time_font')?.value || '48';
+    const dateFont = document.getElementById(prefix + '_clock_date_font')?.value || '24';
+    const timeEl = tileElem.querySelector('.tile-clock-time');
+    const dateEl = tileElem.querySelector('.tile-clock-date');
+
+    const needsTime = (flags & 1) !== 0;
+    const needsDate = (flags & 2) !== 0;
+    if ((needsTime && !timeEl) || (needsDate && !dateEl) || (!needsTime && timeEl) || (!needsDate && dateEl)) {
+      updateTilePreview(tab);
+      return;
+    }
+
+    if (timeEl) {
+      timeEl.textContent = getClockPreviewTime();
+      applyClockPreviewTextStyle(timeEl, timeFont, 48, '#fff', '1');
+    }
+    if (dateEl) {
+      dateEl.textContent = getClockPreviewDate();
+      applyClockPreviewTextStyle(dateEl, dateFont, 24, '#cbd5e1', '1.1');
+    }
   }
 
   function saveClockFields(tab, formData) {

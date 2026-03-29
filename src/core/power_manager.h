@@ -9,7 +9,7 @@
 #define CPU_FREQ_LOW        360   // DSI liest PSRAM kontinuierlich -> 90 MHz unmoeglich bei Display an
 #define CPU_FREQ_SLEEP      360    // Niedrigster stabiler Wert mit aktivem DSI-Panel
 #define FPS_HIGH            60    // 60 FPS für flüssige Bedienung
-#define FPS_LOW             60    // 10 FPS zum Stromsparen
+#define FPS_LOW             10    // 10 FPS zum Stromsparen
 #define FPS_SLEEP           1     // 1 FPS im Display-Sleep (nur für Touch-Erkennung)
 #define IDLE_TIMEOUT_MS     3000  // 3 Sekunden High-Performance nach letztem Touch
 

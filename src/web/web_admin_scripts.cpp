@@ -628,7 +628,6 @@ void appendAdminScripts(String& html) {
       if (tileSpecific) tileSpecific.classList.remove('hidden');
     }
     loadTileData(index, tab);
-    setupLivePreview(tab);
   }
 
   function titleFromOption(option) {
@@ -664,20 +663,13 @@ void appendAdminScripts(String& html) {
 
   function setupLivePreview(tab) {
     const prefix = tab;
-      const fields = [
-        '_tile_title','_tile_color','_tile_col','_tile_row','_tile_span_w','_tile_span_h','_tile_type','_sensor_entity','_sensor_unit',
-        '_sensor_decimals','_sensor_value_font','_sensor_display_mode','_sensor_gauge_min','_sensor_gauge_max',
-        '_sensor_gauge_arc','_sensor_gauge_size','_sensor_gauge_y_offset','_sensor_value_y_offset','_sensor_graph_height',
-        '_weather_entity',
-        '_scene_alias',
-        '_key_macro','_text_value','_text_value_font','_navigate_target','_switch_entity','_switch_style',
-        '_clock_show_time','_clock_show_date','_clock_time_font','_clock_date_font',
-        '_counter_value'
-      ];
-    fields.forEach(id => {
-      const el = document.getElementById(prefix + id);
-      if (el) el.replaceWith(el.cloneNode(true));
-    });
+    const bindLive = (el, eventName, key, handler) => {
+      if (!el) return;
+      const flag = 'liveBound' + key + eventName;
+      if (el.dataset[flag] === '1') return;
+      el.addEventListener(eventName, handler);
+      el.dataset[flag] = '1';
+    };
 
     const titleInput = document.getElementById(prefix + '_tile_title');
     const iconInput = document.getElementById(prefix + '_tile_icon');
@@ -714,66 +706,89 @@ void appendAdminScripts(String& html) {
     const clockTimeFontSelect = document.getElementById(prefix + '_clock_time_font');
     const clockDateFontSelect = document.getElementById(prefix + '_clock_date_font');
     const counterInput = document.getElementById(prefix + '_counter_value');
+    const settingsPanel = document.getElementById(prefix + 'Settings');
 
-    if (titleInput) titleInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (iconInput) iconInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (colorInput) colorInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (colInput) colInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (rowInput) rowInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (spanWInput) spanWInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (spanHInput) spanHInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (typeSelect) typeSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (entitySelect) entitySelect.addEventListener('change', () => { maybeFillTitleFromSensor(tab); updateTilePreview(tab); updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (weatherSelect) weatherSelect.addEventListener('change', () => { maybeFillTitleFromWeather(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (weatherPopupModeSelect) weatherPopupModeSelect.addEventListener('change', () => { updateDraft(tab); scheduleAutoSave(tab); });
-      if (unitInput) unitInput.addEventListener('input', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-      if (decimalsInput) decimalsInput.addEventListener('input', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-      if (valueFontSelect) valueFontSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-      if (sensorPopupModeSelect) sensorPopupModeSelect.addEventListener('change', () => { updateDraft(tab); scheduleAutoSave(tab); });
-      if (displayModeSelect) displayModeSelect.addEventListener('change', () => { syncGaugeUi(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-      if (gaugeMinInput) gaugeMinInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
-      if (gaugeMaxInput) gaugeMaxInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
-      if (gaugeArcInput) gaugeArcInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
-      if (gaugeSizeInput) gaugeSizeInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
-      if (gaugeYOffsetInput) gaugeYOffsetInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
-      if (valueYOffsetInput) valueYOffsetInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
-      if (graphHeightInput) graphHeightInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
-    if (sceneInput) sceneInput.addEventListener('input', () => { maybeFillTitleFromScene(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (keyInput) keyInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (textInput) textInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (textFontInput) textFontInput.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (counterInput) counterInput.addEventListener('input', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (navigateSelect) navigateSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (switchSelect) switchSelect.addEventListener('change', () => { maybeFillTitleFromSwitch(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (switchStyleSelect) switchStyleSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (imageSelect) imageSelect.addEventListener('focus', () => { refreshImageSelect(tab, true); });
-    if (imageSelect) imageSelect.addEventListener('change', () => {
-      const selected = imageSelect.value || '';
-      if (selected === imageUrlToken) {
-        setImageUrl(tab, imageUrlInput ? imageUrlInput.value : '');
-      } else {
-        setImagePath(tab, selected);
-      }
-    });
-    if (imageUrlInput) imageUrlInput.addEventListener('input', () => {
-      setImageUrl(tab, imageUrlInput.value || '');
-    });
-    if (imageIntervalInput) imageIntervalInput.addEventListener('input', () => { updateDraft(tab); scheduleAutoSave(tab); });
-    if (imagePreviewCheck) imagePreviewCheck.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (clockTimeCheck) clockTimeCheck.addEventListener('change', () => {
+    bindLive(titleInput, 'input', 'tileTitle', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(iconInput, 'input', 'tileIcon', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(colorInput, 'input', 'tileColor', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(colInput, 'input', 'tileCol', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(rowInput, 'input', 'tileRow', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(spanWInput, 'input', 'tileSpanW', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(spanHInput, 'input', 'tileSpanH', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(typeSelect, 'change', 'tileType', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(entitySelect, 'change', 'sensorEntity', () => { maybeFillTitleFromSensor(tab); updateTilePreview(tab); updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(weatherSelect, 'change', 'weatherEntity', () => { maybeFillTitleFromWeather(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(weatherPopupModeSelect, 'change', 'weatherPopupMode', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(unitInput, 'input', 'sensorUnit', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(decimalsInput, 'input', 'sensorDecimals', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(valueFontSelect, 'change', 'sensorValueFont', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(sensorPopupModeSelect, 'change', 'sensorPopupMode', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(displayModeSelect, 'change', 'sensorDisplayMode', () => { syncGaugeUi(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(gaugeMinInput, 'input', 'sensorGaugeMin', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(gaugeMaxInput, 'input', 'sensorGaugeMax', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(gaugeArcInput, 'input', 'sensorGaugeArc', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(gaugeSizeInput, 'input', 'sensorGaugeSize', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(gaugeYOffsetInput, 'input', 'sensorGaugeYOffset', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(valueYOffsetInput, 'input', 'sensorValueYOffset', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(graphHeightInput, 'input', 'sensorGraphHeight', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(sceneInput, 'input', 'sceneAlias', () => { maybeFillTitleFromScene(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(keyInput, 'input', 'keyMacro', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(textInput, 'input', 'textValue', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(textFontInput, 'change', 'textFont', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(counterInput, 'input', 'counterValue', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(navigateSelect, 'change', 'navigateTarget', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(switchSelect, 'change', 'switchEntity', () => { maybeFillTitleFromSwitch(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(switchStyleSelect, 'change', 'switchStyle', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(clockTimeCheck, 'change', 'clockShowTime', () => {
       ensureClockSelection(prefix);
       updateTilePreview(tab);
       updateDraft(tab);
       scheduleAutoSave(tab);
     });
-    if (clockDateCheck) clockDateCheck.addEventListener('change', () => {
+    bindLive(clockDateCheck, 'change', 'clockShowDate', () => {
       ensureClockSelection(prefix);
       updateTilePreview(tab);
       updateDraft(tab);
       scheduleAutoSave(tab);
     });
-    if (clockTimeFontSelect) clockTimeFontSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    if (clockDateFontSelect) clockDateFontSelect.addEventListener('change', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    if (clockTimeFontSelect) {
+      const onClockTimeFontChanged = () => { updateClockValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); };
+      bindLive(clockTimeFontSelect, 'change', 'clockTimeFont', onClockTimeFontChanged);
+      bindLive(clockTimeFontSelect, 'input', 'clockTimeFont', onClockTimeFontChanged);
+    }
+    if (clockDateFontSelect) {
+      const onClockDateFontChanged = () => { updateClockValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); };
+      bindLive(clockDateFontSelect, 'change', 'clockDateFont', onClockDateFontChanged);
+      bindLive(clockDateFontSelect, 'input', 'clockDateFont', onClockDateFontChanged);
+    }
+
+    if (settingsPanel && settingsPanel.dataset.clockLiveBound !== '1') {
+      const delegatedClockRefresh = (e) => {
+        const target = e && e.target;
+        if (!target || !target.id) return;
+        if (
+          target.id === (prefix + '_clock_show_time') ||
+          target.id === (prefix + '_clock_show_date')
+        ) {
+          ensureClockSelection(prefix);
+          updateTilePreview(tab);
+          updateDraft(tab);
+          scheduleAutoSave(tab);
+          return;
+        }
+        if (
+          target.id === (prefix + '_clock_time_font') ||
+          target.id === (prefix + '_clock_date_font')
+        ) {
+          updateClockValuePreview(tab);
+          updateDraft(tab);
+          scheduleAutoSave(tab);
+        }
+      };
+      settingsPanel.addEventListener('change', delegatedClockRefresh);
+      settingsPanel.addEventListener('input', delegatedClockRefresh);
+      settingsPanel.dataset.clockLiveBound = '1';
+    }
   }
 
   function updateTilePreview(tab) {
@@ -948,6 +963,7 @@ void appendAdminScripts(String& html) {
           if (draft && data.type === 0 && draft.type !== data.type) clearDraft(tab, index);
           updateTilePreview(tab);
         }
+        setupLivePreview(tab);
     });
   }
 

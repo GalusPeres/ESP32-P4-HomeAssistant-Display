@@ -309,6 +309,7 @@ void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *
   if (BoardHAL::getTouch(&tp)) {
     int16_t mapped_x = tp.x;
     int16_t mapped_y = tp.y;
+#if !defined(DEVICE_M5STACK_TAB5)
     switch (rotation & 0x03) {
       case 1:
         mapped_x = tp.y;
@@ -325,6 +326,7 @@ void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *
       default:
         break;
     }
+#endif
 
     data->state = LV_INDEV_STATE_PRESSED;
     data->point.x = mapped_x;
