@@ -38,6 +38,8 @@ static uint32_t last_status_update = 0;
 static uint32_t ap_mode_started_at = 0;
 static const uint32_t AP_MODE_TIMEOUT_MS = 10UL * 60UL * 1000UL;
 static uint32_t ap_mode_disable_block_until = 0;
+static bool hotspot_mode_change_pending = false;
+static bool hotspot_mode_requested = false;
 static TaskHandle_t ui_build_waiter = nullptr;
 static scene_publish_cb_t ui_scene_cb = nullptr;
 static hotspot_start_cb_t ui_hotspot_cb = nullptr;
@@ -51,7 +53,7 @@ static void build_ui_task(void* param) {
   vTaskDelete(nullptr);
 }
 
-static void set_hotspot_mode(bool enable) {
+static void apply_hotspot_mode(bool enable) {
   if (enable) {
     if (webConfigServer.isRunning()) {
       settings_update_ap_mode(true);
@@ -92,6 +94,11 @@ static void set_hotspot_mode(bool enable) {
       networkManager.connectWifi();
     }
   }
+}
+
+static void set_hotspot_mode(bool enable) {
+  hotspot_mode_requested = enable;
+  hotspot_mode_change_pending = true;
 }
 
 static bool init_nvs() {
@@ -242,8 +249,50 @@ void loop() {
   lv_tick_inc(now - last);
   last = now;
 
+  if (hotspot_mode_change_pending) {
+    hotspot_mode_change_pending = false;
+    apply_hotspot_mode(hotspot_mode_requested);
+  }
+
   if (first_run) Serial.println("[Loop] BoardHAL::update()...");
   BoardHAL::update();
+
+  if (webConfigServer.isRunning()) {
+    if (first_run) Serial.println("[Loop] AP mode active...");
+    if (webAdminServer.isRunning()) webAdminServer.stop();
+
+    if (first_run) {
+      Serial.println("[Loop] lv_timer_handler()...");
+      Serial.flush();
+    }
+    yield();
+    lv_timer_handler();
+    yield();
+    if (first_run) {
+      Serial.println("[Loop] lv_timer_handler() KOMPLETT!");
+      Serial.flush();
+    }
+
+    webConfigServer.handle();
+    settings_update_ap_mode(true);
+    settings_update_wifi_status_ap("WS_P4_Config", "12345678");
+    settings_update_power_status();
+
+    if (webConfigServer.hasNewConfig()) { delay(1000); ESP.restart(); }
+
+    if (ap_mode_started_at != 0 && (uint32_t)(now - ap_mode_started_at) > AP_MODE_TIMEOUT_MS) {
+      set_hotspot_mode(false);
+    }
+
+    delay(1);
+
+    if (first_run) {
+      Serial.println("[Loop] === ERSTE ITERATION KOMPLETT ===");
+      Serial.flush();
+      first_run = false;
+    }
+    return;
+  }
 
   if (first_run) Serial.println("[Loop] powerManager.update()...");
   powerManager.update(displayManager.getLastActivityTime());
@@ -305,25 +354,6 @@ void loop() {
 
   // Nur 1ms Pause für maximale FPS
   delay(1);
-
-  if (first_run) Serial.println("[Loop] webConfigServer check...");
-  if (webConfigServer.isRunning()) {
-    if (webAdminServer.isRunning()) webAdminServer.stop();
-    webConfigServer.handle();
-    settings_update_ap_mode(true);
-    settings_update_wifi_status_ap("WS_P4_Config", "12345678");
-    settings_update_power_status();
-
-    if (webConfigServer.hasNewConfig()) { delay(1000); ESP.restart(); }
-
-    if (ap_mode_started_at != 0 && (uint32_t)(now - ap_mode_started_at) > AP_MODE_TIMEOUT_MS) {
-      set_hotspot_mode(false);
-    }
-
-    if (webConfigServer.isRunning()) {
-      return;
-    }
-  }
 
   if (first_run) Serial.println("[Loop] webAdminServer.handle()...");
   if (webAdminServer.isRunning()) webAdminServer.handle();

@@ -238,28 +238,40 @@ static void appendTileTabHTML(
 
             <div class="tile-layout">
               <div class="layout-field">
-                <label>Spalte (1-4)</label>
+                <label>Spalte (1-)html";
+  html += String(GRID_COLS);
+  html += R"html(</label>
                 <input type="number" id=")html";
   html += tab_id;
-  html += R"html(_tile_col" min="1" max="4" step="1" value="1">
+  html += R"html(_tile_col" min="1" max=")html";
+  html += String(GRID_COLS);
+  html += R"html(" step="1" value="1">
               </div>
               <div class="layout-field">
-                <label>Zeile (1-4)</label>
+                <label>Zeile (1-)html";
+  html += String(GRID_ROWS);
+  html += R"html(</label>
                 <input type="number" id=")html";
   html += tab_id;
-  html += R"html(_tile_row" min="1" max="4" step="1" value="1">
+  html += R"html(_tile_row" min="1" max=")html";
+  html += String(GRID_ROWS);
+  html += R"html(" step="1" value="1">
               </div>
               <div class="layout-field">
                 <label>Breite (Zellen)</label>
                 <input type="number" id=")html";
   html += tab_id;
-  html += R"html(_tile_span_w" min="1" max="4" step="1" value="1">
+  html += R"html(_tile_span_w" min="1" max=")html";
+  html += String(GRID_COLS);
+  html += R"html(" step="1" value="1">
               </div>
               <div class="layout-field">
                 <label>Hoehe (Zellen)</label>
                 <input type="number" id=")html";
   html += tab_id;
-  html += R"html(_tile_span_h" min="1" max="4" step="1" value="1">
+  html += R"html(_tile_span_h" min="1" max=")html";
+  html += String(GRID_ROWS);
+  html += R"html(" step="1" value="1">
               </div>
             </div>
 

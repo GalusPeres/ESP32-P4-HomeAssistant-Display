@@ -4,29 +4,29 @@
 
 namespace {
 
-constexpr int kPreviewTargetWidth = 440;
+constexpr int kPreviewTargetHeight = 430;
+constexpr int kPreviewPad = 12;
+constexpr int kPreviewGap = 10;
 
 int preview_pad_px() {
-  int pad = GRID_PAD * 3;
-  return (pad < 8) ? 8 : pad;
+  return kPreviewPad;
 }
 
 int preview_gap_px() {
-  int gap = (GRID_GAP * 5 + 4) / 8;
-  return (gap < 6) ? 6 : gap;
-}
-
-int preview_cell_w_px() {
-  const int pad = preview_pad_px();
-  const int gap = preview_gap_px();
-  int cell = (kPreviewTargetWidth - (2 * pad) - (gap * (GRID_COLS - 1))) / GRID_COLS;
-  return (cell < 40) ? 40 : cell;
+  return kPreviewGap;
 }
 
 int preview_cell_h_px() {
-  const int cell_w = preview_cell_w_px();
-  int cell_h = (GRID_CELL_H * cell_w + (GRID_CELL_W / 2)) / GRID_CELL_W;
-  return (cell_h < 40) ? 40 : cell_h;
+  const int pad = preview_pad_px();
+  const int gap = preview_gap_px();
+  int cell = (kPreviewTargetHeight - (2 * pad) - (gap * (GRID_ROWS - 1))) / GRID_ROWS;
+  return (cell < 40) ? 40 : cell;
+}
+
+int preview_cell_w_px() {
+  const int cell_h = preview_cell_h_px();
+  int cell_w = (GRID_CELL_W * cell_h + (GRID_CELL_H / 2)) / GRID_CELL_H;
+  return (cell_w < 40) ? 40 : cell_w;
 }
 
 }  // namespace

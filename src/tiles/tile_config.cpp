@@ -4,6 +4,8 @@
 #include <string.h>
 #include <vector>
 #include <algorithm>
+#include <memory>
+#include <new>
 
 static const char* PREF_NAMESPACE = "tab5_tiles";
 static constexpr uint8_t PACKED_GRID_VERSION = 7;
@@ -1783,10 +1785,14 @@ bool TileConfig::saveFolderGrid(uint16_t folder_id, const TileGridConfig& grid) 
 
 bool TileConfig::setActiveFolder(uint16_t folder_id) {
   if (!folderExists(folder_id)) return false;
-  TileGridConfig loaded{};
-  loadGrid(folder_id, loaded);
+  const uint16_t previous_folder_id = active_folder_id;
+  if (!loadGrid(folder_id, active_grid)) {
+    if (previous_folder_id != folder_id && folderExists(previous_folder_id)) {
+      loadGrid(previous_folder_id, active_grid);
+    }
+    return false;
+  }
   active_folder_id = folder_id;
-  active_grid = loaded;
   return true;
 }
 
@@ -1916,10 +1922,12 @@ bool TileConfig::createFolder(uint16_t parent_id, const String& name, const Stri
   folders.push_back(entry);
   if (!saveFolders()) return false;
 
-  TileGridConfig grid{};
-  initGridDefaults(grid);
-  ensureBackTile(next_id, grid);
-  if (!saveGrid(next_id, grid)) {
+  std::unique_ptr<TileGridConfig> grid(new (std::nothrow) TileGridConfig{});
+  if (!grid) return false;
+
+  initGridDefaults(*grid);
+  ensureBackTile(next_id, *grid);
+  if (!saveGrid(next_id, *grid)) {
     return false;
   }
 

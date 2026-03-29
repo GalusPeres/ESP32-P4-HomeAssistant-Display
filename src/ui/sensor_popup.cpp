@@ -1,6 +1,7 @@
 #include "src/ui/sensor_popup.h"
 #include "src/ui/light_popup.h"
 #include "src/ui/weather_popup.h"
+#include "src/core/display_manager.h"
 #include "src/fonts/ui_fonts.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/tiles/mdi_icons.h"
@@ -13,9 +14,9 @@
 
 namespace {
 
-// Match the popup width to the full tile grid so left/right margins align.
-constexpr int kCardWidth = (GRID_CELL_W * GRID_COLS) + (GRID_GAP * (GRID_COLS - 1));
-constexpr int kCardHeight = kCardWidth;
+constexpr int kCardMargin = 4;
+constexpr int kCardWidth = SCREEN_WIDTH - (kCardMargin * 2);
+constexpr int kCardHeight = SCREEN_HEIGHT - (kCardMargin * 2);
 constexpr int kCardPad = 20;
 constexpr int kHeaderPadTop = 4;
 constexpr int kHeaderIconOffsetX = 4;

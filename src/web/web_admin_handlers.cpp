@@ -13,7 +13,9 @@
 #include "src/devices/device.h"
 #include <algorithm>
 #include <vector>
+#include <memory>
 #include <libs/tjpgd/tjpgd.h>
+#include <new>
 #include <stdlib.h>
 #include <string.h>
 
@@ -787,10 +789,14 @@ void WebAdminServer::handleSaveTiles() {
     return;
   }
 
-  TileGridConfig grid{};
-  tileConfig.loadFolderGrid(folder_id, grid);
+  std::unique_ptr<TileGridConfig> grid(new (std::nothrow) TileGridConfig{});
+  if (!grid) {
+    server.send(500, "application/json", "{\"success\":false,\"error\":\"Out of memory\"}");
+    return;
+  }
+  tileConfig.loadFolderGrid(folder_id, *grid);
 
-  Tile& tile = grid.tiles[index];
+  Tile& tile = grid->tiles[index];
   Tile previous_tile = tile;
   const bool is_root = (folder_id == 0);
   const bool was_settings_tile = is_root && previous_tile.type == TILE_SETTINGS;
@@ -812,19 +818,19 @@ void WebAdminServer::handleSaveTiles() {
   if (type == TILE_SETTINGS && !force_settings_tile) {
     for (size_t i = 0; i < TILES_PER_GRID; ++i) {
       if (i == static_cast<size_t>(index)) continue;
-      if (grid.tiles[i].type == TILE_SETTINGS) {
-        server.send(409, "application/json", "{\"success\":false,\"error\":\"Settings tile already exists\"}");
-        return;
-      }
+        if (grid->tiles[i].type == TILE_SETTINGS) {
+          server.send(409, "application/json", "{\"success\":false,\"error\":\"Settings tile already exists\"}");
+          return;
+        }
     }
   }
   if (type == TILE_BACK && !force_back_tile) {
     for (size_t i = 0; i < TILES_PER_GRID; ++i) {
       if (i == static_cast<size_t>(index)) continue;
-      if (grid.tiles[i].type == TILE_BACK) {
-        server.send(409, "application/json", "{\"success\":false,\"error\":\"Back tile already exists\"}");
-        return;
-      }
+        if (grid->tiles[i].type == TILE_BACK) {
+          server.send(409, "application/json", "{\"success\":false,\"error\":\"Back tile already exists\"}");
+          return;
+        }
     }
   }
 
@@ -916,14 +922,14 @@ void WebAdminServer::handleSaveTiles() {
       server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid layout\"}");
       return;
     }
-    if (placementOverlaps(grid, index, rect)) {
+    if (placementOverlaps(*grid, index, rect)) {
       tile = previous_tile;
       server.send(409, "application/json", "{\"success\":false,\"error\":\"Tile overlaps\"}");
       return;
     }
   }
 
-  bool success = tileConfig.saveFolderGrid(folder_id, grid);
+  bool success = tileConfig.saveFolderGrid(folder_id, *grid);
   if (success) {
     Serial.printf("[WebAdmin] Tile folder %u[%d] gespeichert - Type: %d\n", static_cast<unsigned>(folder_id), index, type);
 

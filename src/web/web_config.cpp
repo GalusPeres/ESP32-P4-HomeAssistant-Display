@@ -1,4 +1,5 @@
 #include "src/web/web_config.h"
+#include "src/devices/device_select.h"
 #include <WiFi.h>
 
 // Globale Instanz
@@ -10,6 +11,14 @@ static const char* AP_PASS = "12345678";  // Mindestens 8 Zeichen für WPA2
 static const IPAddress AP_IP(192, 168, 4, 1);
 static const IPAddress AP_GATEWAY(192, 168, 4, 1);
 static const IPAddress AP_SUBNET(255, 255, 255, 0);
+
+static void restoreStaModeAfterAp() {
+#if defined(DEVICE_M5STACK_TAB5)
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(false);
+#endif
+}
 
 WebConfigServer::WebConfigServer() : server(80), running(false), config_saved(false) {
 }
@@ -23,16 +32,20 @@ bool WebConfigServer::start() {
   Serial.println("\n🌐 Starte WiFi-Konfigurationsmodus...");
 
   // Stoppe bisherige WiFi-Verbindung (hilft beim Captive Portal)
+  // Stoppe bisherige WiFi-Verbindung (hilft beim Captive Portal)
   WiFi.disconnect();
   delay(100);
 
-  // Starte Access Point + STA (vermeidet Mode-Reinit Probleme bei esp_hosted)
+  // AP + STA wie im alten Tab5_LVGL-Pfad.
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
 
   // Starte AP mit expliziten Einstellungen
   // Channel 1, SSID nicht versteckt, max 4 Verbindungen
   bool ap_ok = WiFi.softAP(AP_SSID, AP_PASS, 1, 0, 4);
+  if (!ap_ok) {
+    restoreStaModeAfterAp();
+  }
   if (!ap_ok) {
     Serial.println("❌ Access Point konnte nicht gestartet werden!");
     return false;
@@ -89,6 +102,7 @@ void WebConfigServer::stop() {
   Serial.println("  ✓ Webserver gestoppt");
 
   WiFi.softAPdisconnect(true);
+  restoreStaModeAfterAp();
   Serial.println("  ✓ AP getrennt");
 
   Serial.println("  ✓ WiFi-Modus: AP/STA");
