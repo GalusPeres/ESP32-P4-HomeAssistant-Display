@@ -55,6 +55,8 @@
 #include "src/types/counter/web_styles.h"
 #include "src/types/weather/web_styles.h"
 
+#include "src/core/config_manager.h"
+#include "src/core/i18n.h"
 #include "src/web/web_admin_utils.h"
 
 namespace {
@@ -555,24 +557,58 @@ void append_tile_type_scripts(String& html) {
 }
 
 void append_tile_type_select_options(String& html) {
+  const auto& tr = i18n::strings(configManager.getConfig().language);
   for (const auto& entry : kTileTypes) {
+    const char* label = entry.label;
+    switch (entry.type) {
+      case TILE_EMPTY: label = tr.tile_type_empty; break;
+      case TILE_SENSOR: label = tr.tile_type_sensor; break;
+      case TILE_WEATHER: label = tr.tile_type_weather; break;
+      case TILE_SCENE: label = tr.tile_type_scene; break;
+      case TILE_KEY: label = tr.tile_type_key; break;
+      case TILE_FOLDER: label = tr.tile_type_folder; break;
+      case TILE_SWITCH: label = tr.tile_type_switch; break;
+      case TILE_CLOCK: label = tr.tile_type_clock; break;
+      case TILE_TEXT: label = tr.tile_type_text; break;
+      case TILE_COUNTER: label = tr.tile_type_counter; break;
+      case TILE_SETTINGS: label = tr.tile_type_settings; break;
+      case TILE_BACK: label = tr.tile_type_back; break;
+      default: break;
+    }
     html += "<option value=\"";
     html += String(static_cast<unsigned>(entry.type));
     html += "\">";
-    html += entry.label;
+    html += label;
     html += "</option>";
   }
 }
 
 void append_tile_type_registry_js(String& html) {
+  const auto& tr = i18n::strings(configManager.getConfig().language);
   html += "  const TILE_TYPE_REGISTRY = {";
   for (const auto& entry : kTileTypes) {
+    const char* label = entry.label;
+    switch (entry.type) {
+      case TILE_EMPTY: label = tr.tile_type_empty; break;
+      case TILE_SENSOR: label = tr.tile_type_sensor; break;
+      case TILE_WEATHER: label = tr.tile_type_weather; break;
+      case TILE_SCENE: label = tr.tile_type_scene; break;
+      case TILE_KEY: label = tr.tile_type_key; break;
+      case TILE_FOLDER: label = tr.tile_type_folder; break;
+      case TILE_SWITCH: label = tr.tile_type_switch; break;
+      case TILE_CLOCK: label = tr.tile_type_clock; break;
+      case TILE_TEXT: label = tr.tile_type_text; break;
+      case TILE_COUNTER: label = tr.tile_type_counter; break;
+      case TILE_SETTINGS: label = tr.tile_type_settings; break;
+      case TILE_BACK: label = tr.tile_type_back; break;
+      default: break;
+    }
     html += "\"";
     html += String(static_cast<unsigned>(entry.type));
     html += "\":{";
-    if (entry.label && entry.label[0]) {
+    if (label && label[0]) {
       html += "label:\"";
-      html += entry.label;
+      html += label;
       html += "\",";
     }
     if (entry.css_class && entry.css_class[0]) {

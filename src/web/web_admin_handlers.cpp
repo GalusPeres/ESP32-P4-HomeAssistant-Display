@@ -1,4 +1,5 @@
 #include "src/web/web_admin.h"
+#include "src/core/i18n.h"
 #include "src/web/web_admin_utils.h"
 #include "src/network/network_manager.h"
 #include "src/network/mqtt_handlers.h"
@@ -418,6 +419,24 @@ void WebAdminServer::handleSaveMQTT() {
   if (server.hasArg("mqtt_host")) {
     copyToBuffer(cfg.mqtt_host, sizeof(cfg.mqtt_host), server.arg("mqtt_host"));
   }
+  if (server.hasArg("wifi_ssid")) {
+    copyToBuffer(cfg.wifi_ssid, sizeof(cfg.wifi_ssid), server.arg("wifi_ssid"));
+  }
+  if (server.hasArg("wifi_pass")) {
+    copyToBuffer(cfg.wifi_pass, sizeof(cfg.wifi_pass), server.arg("wifi_pass"));
+  }
+  if (server.hasArg("wifi_static_ip")) {
+    copyToBuffer(cfg.wifi_static_ip, sizeof(cfg.wifi_static_ip), server.arg("wifi_static_ip"));
+  }
+  if (server.hasArg("wifi_gateway")) {
+    copyToBuffer(cfg.wifi_gateway, sizeof(cfg.wifi_gateway), server.arg("wifi_gateway"));
+  }
+  if (server.hasArg("wifi_subnet")) {
+    copyToBuffer(cfg.wifi_subnet, sizeof(cfg.wifi_subnet), server.arg("wifi_subnet"));
+  }
+  if (server.hasArg("wifi_dns")) {
+    copyToBuffer(cfg.wifi_dns, sizeof(cfg.wifi_dns), server.arg("wifi_dns"));
+  }
   if (server.hasArg("mqtt_port")) {
     cfg.mqtt_port = server.arg("mqtt_port").toInt();
   }
@@ -446,28 +465,23 @@ void WebAdminServer::handleSaveMQTT() {
     if (prefix.isEmpty()) prefix = "ha/statestream";
     copyToBuffer(cfg.ha_prefix, sizeof(cfg.ha_prefix), prefix);
   }
-  if (server.hasArg("status_time_font")) {
-    int v = server.arg("status_time_font").toInt();
-    cfg.status_time_font_size = (v == 24) ? 24 : 48;
-  }
-  if (server.hasArg("status_date_font")) {
-    int v = server.arg("status_date_font").toInt();
-    cfg.status_date_font_size = (v == 20) ? 20 : 24;
-  }
-
-  if (!cfg.mqtt_host[0]) {
-    server.send(400, "text/html", "<h1>Fehler: MQTT-Host ist erforderlich</h1>");
-    return;
+  if (server.hasArg("language")) {
+    String language = server.arg("language");
+    language.trim();
+    strncpy(cfg.language, i18n::normalize_language_code(language.c_str()), sizeof(cfg.language) - 1);
+    cfg.language[sizeof(cfg.language) - 1] = '\0';
   }
 
   if (configManager.save(cfg)) {
-    settings_show_mqtt_warning(false);
+    settings_refresh_language();
+    settings_show_mqtt_warning(!configManager.hasMqttConfig());
     // Reload grids im Loop (nicht im Web-Handler)
     tiles_request_reload_all();
     server.sendHeader("Location", "/");
     server.send(303, "text/plain", "");
   } else {
-    server.send(500, "text/html", "<h1>Speichern fehlgeschlagen</h1>");
+    const auto& tr = i18n::strings(cfg.language);
+    server.send(500, "text/html", String("<h1>") + tr.save_failed + "</h1>");
   }
 }
 
@@ -572,7 +586,8 @@ void WebAdminServer::handleSaveBridge() {
     server.sendHeader("Location", "/");
     server.send(303, "text/plain", "");
   } else {
-    server.send(500, "text/html", "<h1>Speichern fehlgeschlagen</h1>");
+    const auto& tr = i18n::strings(configManager.getConfig().language);
+    server.send(500, "text/html", String("<h1>") + tr.save_failed + "</h1>");
   }
 }
 
@@ -644,7 +659,8 @@ void WebAdminServer::handleSaveGameControls() {
     server.sendHeader("Location", "/");
     server.send(303, "text/plain", "");
   } else {
-    server.send(500, "text/html", "<h1>Speichern fehlgeschlagen</h1>");
+    const auto& tr = i18n::strings(configManager.getConfig().language);
+    server.send(500, "text/html", String("<h1>") + tr.save_failed + "</h1>");
   }
 }
 

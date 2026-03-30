@@ -16,6 +16,49 @@ static void buildDeviceId(char* buffer, size_t len) {
   snprintf(buffer, len, "tab5_lvgl_%04X", (uint16_t)(mac & 0xFFFF));
 }
 
+static bool parseConfiguredIp(const char* value, IPAddress& out) {
+  if (!value || !value[0]) return false;
+  String text = value;
+  text.trim();
+  if (!text.length()) return false;
+  return out.fromString(text);
+}
+
+static void applyWifiAddressing(const DeviceConfig& cfg) {
+  IPAddress ip;
+  IPAddress gateway;
+  IPAddress subnet;
+  IPAddress dns;
+
+  const bool has_ip = parseConfiguredIp(cfg.wifi_static_ip, ip);
+  const bool has_gateway = parseConfiguredIp(cfg.wifi_gateway, gateway);
+  const bool has_subnet = parseConfiguredIp(cfg.wifi_subnet, subnet);
+  const bool has_dns = parseConfiguredIp(cfg.wifi_dns, dns);
+
+  if (has_ip || has_gateway || has_subnet || has_dns) {
+    if (has_ip && has_gateway && has_subnet) {
+      if (!has_dns) {
+        dns = gateway;
+      }
+      if (WiFi.config(ip, gateway, subnet, dns)) {
+        Serial.printf("WiFi: Static IP %s / GW %s / MASK %s / DNS %s\n",
+                      ip.toString().c_str(),
+                      gateway.toString().c_str(),
+                      subnet.toString().c_str(),
+                      dns.toString().c_str());
+      } else {
+        Serial.println("WiFi: Static IP configuration failed, fallback to DHCP");
+        WiFi.config(IPAddress(), IPAddress(), IPAddress());
+      }
+    } else {
+      Serial.println("WiFi: Incomplete static IP configuration, fallback to DHCP");
+      WiFi.config(IPAddress(), IPAddress(), IPAddress());
+    }
+  } else {
+    WiFi.config(IPAddress(), IPAddress(), IPAddress());
+  }
+}
+
 // ========== Initialisierung ==========
 void Tab5NetworkManager::init() {
   Serial.println("🌐 Initialisiere Network Manager...");
@@ -59,6 +102,7 @@ void Tab5NetworkManager::connectWifi() {
   const DeviceConfig& cfg = configManager.getConfig();
   if (cfg.wifi_ssid && cfg.wifi_ssid[0]) {
     Serial.printf("WiFi: Verbinde mit %s\n", cfg.wifi_ssid);
+    applyWifiAddressing(cfg);
     WiFi.begin(cfg.wifi_ssid, cfg.wifi_pass);
   }
 }
@@ -307,4 +351,3 @@ void Tab5NetworkManager::setSleepWifiProfile(bool enable) {
   // Profilwechsel soll beim naechsten setWifiPowerSaving() sicher angewendet werden.
   wifi_ps_state_known = false;
 }
-

@@ -1,16 +1,25 @@
 #include "src/types/text/web_html.h"
+#include "src/core/config_manager.h"
+#include "src/core/i18n.h"
 
 void append_text_fields_html(String& html, const String& tab_id) {
+  const auto& tr = i18n::strings(configManager.getConfig().language);
   html += R"html(
             <!-- Text Fields -->
             <div id=")html";
   html += tab_id;
   html += R"html(_text_fields" class="type-fields">
-              <label>Text</label>
+              <label>)html";
+  html += tr.text_label;
+  html += R"html(</label>
               <textarea id=")html";
   html += tab_id;
-  html += R"html(_text_value" rows="3" placeholder="Text fuer die Kachel"></textarea>
-              <label>Text-Groesse</label>
+  html += R"html(_text_value" rows="3" placeholder=")html";
+  html += tr.text_placeholder;
+  html += R"html("></textarea>
+              <label>)html";
+  html += tr.text_size;
+  html += R"html(</label>
               <select id=")html";
   html += tab_id;
   html += R"html(_text_value_font">
@@ -20,7 +29,9 @@ void append_text_fields_html(String& html, const String& tab_id) {
                 <option value="3">32</option>
                 <option value="4">40</option>
               </select>
-              <div style="font-size:11px;color:#64748b;margin-top:4px;">Max 31 Zeichen gespeichert.</div>
+              <div style="font-size:11px;color:#64748b;margin-top:4px;">)html";
+  html += tr.text_max_chars;
+  html += R"html(</div>
             </div>
 )html";
 }

@@ -206,14 +206,14 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
         lv_label_set_long_mode(day, LV_LABEL_LONG_DOT);
         lv_obj_set_width(day, LV_PCT(70));
         lv_label_set_text(day, "--");
-        lv_obj_align(day, LV_ALIGN_TOP_LEFT, 4, 4);
+        lv_obj_align(day, LV_ALIGN_TOP_LEFT, 2, 4);
         enable_bubble(day);
 
         lv_obj_t* icon = lv_label_create(col);
         set_label_style(icon, lv_color_white(), FONT_MDI_ICONS);
         lv_label_set_text(icon, "");
         lv_obj_add_flag(icon, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_align(icon, LV_ALIGN_TOP_RIGHT, -4, -8);
+        lv_obj_align(icon, LV_ALIGN_TOP_RIGHT, -2, -8);
         enable_bubble(icon);
 
         lv_obj_t* temp = lv_label_create(col);

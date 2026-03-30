@@ -11,7 +11,7 @@ void append_navigate_scripts(String& html) {
   }
   function formatFolderLabel(name, folderId) {
     let label = String(name || '').trim();
-    if (!label.length) label = 'Ordner ' + folderId;
+    if (!label.length) label = t('folderPrefix') + folderId;
     return label;
   }
   function updateFolderTabUi(folderId, name, icon) {

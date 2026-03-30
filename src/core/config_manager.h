@@ -10,12 +10,14 @@
 
 #define CONFIG_WIFI_SSID_MAX     32
 #define CONFIG_WIFI_PASS_MAX     64
+#define CONFIG_IP_ADDR_MAX       16
 #define CONFIG_MQTT_HOST_MAX     64
 #define CONFIG_MQTT_USER_MAX     32
 #define CONFIG_MQTT_PASS_MAX     64
 #define CONFIG_MQTT_CLIENT_ID_MAX 64
 #define CONFIG_MQTT_BASE_MAX     32
 #define CONFIG_HA_PREFIX_MAX     48
+#define CONFIG_LANG_MAX          8
 
 static constexpr uint16_t kSleepOptionsSec[] = {5, 15, 30, 60, 300, 900, 1800, 3600};
 static constexpr size_t kSleepOptionsSecCount = sizeof(kSleepOptionsSec) / sizeof(kSleepOptionsSec[0]);
@@ -29,6 +31,10 @@ static constexpr uint8_t kWakeModeImu = 1;
 struct DeviceConfig {
   char wifi_ssid[CONFIG_WIFI_SSID_MAX];
   char wifi_pass[CONFIG_WIFI_PASS_MAX];
+  char wifi_static_ip[CONFIG_IP_ADDR_MAX];
+  char wifi_gateway[CONFIG_IP_ADDR_MAX];
+  char wifi_subnet[CONFIG_IP_ADDR_MAX];
+  char wifi_dns[CONFIG_IP_ADDR_MAX];
   char mqtt_host[CONFIG_MQTT_HOST_MAX];
   uint16_t mqtt_port;
   char mqtt_user[CONFIG_MQTT_USER_MAX];
@@ -36,6 +42,7 @@ struct DeviceConfig {
   char mqtt_client_id[CONFIG_MQTT_CLIENT_ID_MAX];
   char mqtt_base_topic[CONFIG_MQTT_BASE_MAX];
   char ha_prefix[CONFIG_HA_PREFIX_MAX];
+  char language[CONFIG_LANG_MAX];
   bool configured;  // Flag ob Konfiguration vorhanden ist
 
   // Display & Power Settings

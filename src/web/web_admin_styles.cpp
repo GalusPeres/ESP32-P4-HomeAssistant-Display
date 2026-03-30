@@ -78,12 +78,17 @@ void appendAdminStyles(String& html) {
     label { font-size:13px; font-weight:600; color:#475569; display:block; margin-bottom:6px; }
     input { width:100%; padding:12px; border:1px solid #cbd5f5; border-radius:10px; font-size:15px; box-sizing:border-box; }
     select { max-width:100%; }
+    .settings-section { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; }
+    .settings-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; }
+    .settings-full { grid-column:1 / -1; }
+    .settings-note { font-size:12px; color:#64748b; margin-top:4px; }
     .btn { padding:12px 18px; border:none; border-radius:10px; background:#4f46e5; color:#fff; font-size:16px; cursor:pointer; transition:background 0.2s; }
     .btn:hover { background:#4338ca; }
     .btn-secondary { background:#94a3b8; margin-top:12px; width:100%; }
     .btn-danger { background:#ef4444; }
     .btn-danger:hover { background:#dc2626; }
     .section-title { margin:32px 0 12px; text-transform:uppercase; font-size:12px; letter-spacing:.1em; color:#a1a1aa; }
+    .settings-section .section-title { margin:0 0 12px; }
     .hint { color:#64748b; font-size:14px; margin:8px 0 16px; }
     .list-block { background:#f8fafc; border-radius:12px; padding:16px; border:1px solid #e2e8f0; }
     .list-block strong { display:block; margin:12px 0 6px; color:#1e293b; }
@@ -306,6 +311,11 @@ void appendAdminStyles(String& html) {
     .layout-field input { padding:10px; }
     .inline-checkbox { display:flex; align-items:center; gap:8px; font-weight:600; margin-top:8px; }
     .inline-checkbox input { margin:0; }
+
+    @media (max-width: 780px) {
+      .settings-grid { grid-template-columns:1fr; }
+      .settings-full { grid-column:auto; }
+    }
     .gauge-fields { padding-left:4px; }
     .gauge-fields.hidden { display:none; }
 

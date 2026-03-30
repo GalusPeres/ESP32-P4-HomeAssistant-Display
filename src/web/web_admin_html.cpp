@@ -13,6 +13,7 @@
 #include "src/tiles/tile_config.h"
 #include "src/types/types_registry.h"
 #include "src/core/device_entities.h"
+#include "src/core/i18n.h"
 #include <cstring>
 
 // Helper function to generate tile tab HTML (unified for all folders)
@@ -28,6 +29,7 @@ static void appendTileTabHTML(
     const std::function<String(const String&, uint8_t)>& formatSensorValue,
     const String& navigateOptionsHtml
 ) {
+  const auto& tr = i18n::strings(configManager.getConfig().language);
   String tab_id = "folder" + String(folder_id);
 
   html += R"html(
@@ -45,13 +47,17 @@ static void appendTileTabHTML(
   html += R"html(" data-folder-icon=")html";
   appendHtmlEscaped(html, folder.icon_name);
   html += R"html(">
-        <p class="hint">Klicke auf eine Kachel, um sie zu bearbeiten. Waehle den Typ (Sensor/Wetter/Szene/Key/Ordner/Settings/Switch/Bild/Uhr/Text) und passe die Einstellungen an.</p>
+        <p class="hint">)html";
+  html += tr.admin_tile_hint;
+  html += R"html(</p>
 )html";
   if (folder_id != 0) {
     html += R"html(        <div style="margin-bottom:12px;">
           <button type="button" class="btn btn-danger" style="padding:8px 16px;font-size:13px;" onclick="deleteFolder(')html";
     html += tab_id;
-    html += R"html(')">Ordner / Tab loeschen</button>
+    html += R"html(')">)html";
+    html += tr.admin_delete_folder_tab;
+    html += R"html(</button>
         </div>
 )html";
   }
@@ -205,9 +211,13 @@ static void appendTileTabHTML(
   html += R"html(Settings">
             <!-- Tile Settings (Visible only when tile selected) -->
             <div class="tile-specific-settings hidden">
-              <h3 style="margin-top:0;">Kachel Einstellungen</h3>
+              <h3 style="margin-top:0;">)html";
+  html += tr.admin_tile_settings;
+  html += R"html(</h3>
 
-            <label>Typ</label>
+            <label>)html";
+  html += tr.admin_type;
+  html += R"html(</label>
             <select id=")html";
   html += tab_id;
   html += R"html(_tile_type" onchange="updateTileType(')html";
@@ -218,27 +228,41 @@ static void appendTileTabHTML(
   html += R"html(
             </select>
 
-            <label>Titel</label>
+            <label>)html";
+  html += tr.admin_title;
+  html += R"html(</label>
             <input type="text" id=")html";
   html += tab_id;
-  html += R"html(_tile_title" placeholder="Kachel-Titel">
+  html += R"html(_tile_title" placeholder=")html";
+  html += tr.admin_tile_title_placeholder;
+  html += R"html(">
 
-            <label>Icon (MDI)</label>
+            <label>)html";
+  html += tr.admin_icon_label;
+  html += R"html(</label>
             <input type="text" id=")html";
   html += tab_id;
-  html += R"html(_tile_icon" placeholder="z.B. home, thermometer, lightbulb">
+  html += R"html(_tile_icon" placeholder=")html";
+  html += tr.admin_icon_placeholder;
+  html += R"html(">
             <div style="font-size:11px;color:#64748b;margin-top:4px;">
-              Material Design Icons: <a href="https://pictogrammers.com/library/mdi/" target="_blank" style="color:#3b82f6;">Icon-Liste anzeigen</a>
+              Material Design Icons: <a href="https://pictogrammers.com/library/mdi/" target="_blank" style="color:#3b82f6;">)html";
+  html += tr.admin_icon_list;
+  html += R"html(</a>
             </div>
 
-            <label>Farbe</label>
+            <label>)html";
+  html += tr.admin_color;
+  html += R"html(</label>
             <input type="color" id=")html";
   html += tab_id;
   html += R"html(_tile_color" value="#2A2A2A" style="height:40px;">
 
             <div class="tile-layout">
               <div class="layout-field">
-                <label>Spalte (1-)html";
+                <label>)html";
+  html += tr.admin_column;
+  html += R"html( (1-)html";
   html += String(GRID_COLS);
   html += R"html(</label>
                 <input type="number" id=")html";
@@ -248,7 +272,9 @@ static void appendTileTabHTML(
   html += R"html(" step="1" value="1">
               </div>
               <div class="layout-field">
-                <label>Zeile (1-)html";
+                <label>)html";
+  html += tr.admin_row;
+  html += R"html( (1-)html";
   html += String(GRID_ROWS);
   html += R"html(</label>
                 <input type="number" id=")html";
@@ -258,7 +284,9 @@ static void appendTileTabHTML(
   html += R"html(" step="1" value="1">
               </div>
               <div class="layout-field">
-                <label>Breite (Zellen)</label>
+                <label>)html";
+  html += tr.admin_width_cells;
+  html += R"html(</label>
                 <input type="number" id=")html";
   html += tab_id;
   html += R"html(_tile_span_w" min="1" max=")html";
@@ -266,7 +294,9 @@ static void appendTileTabHTML(
   html += R"html(" step="1" value="1">
               </div>
               <div class="layout-field">
-                <label>Hoehe (Zellen)</label>
+                <label>)html";
+  html += tr.admin_height_cells;
+  html += R"html(</label>
                 <input type="number" id=")html";
   html += tab_id;
   html += R"html(_tile_span_h" min="1" max=")html";
@@ -288,23 +318,35 @@ static void appendTileTabHTML(
 
   html += R"html(
 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#64748b;gap:10px;">
-              <span>Aenderungen werden automatisch gespeichert.</span>
+              <span>)html";
+  html += tr.admin_autosave;
+  html += R"html(</span>
               <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
                 <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="copyTile(')html";
   html += tab_id;
-  html += R"html(')">Kopieren</button>
+  html += R"html(')">)html";
+  html += tr.admin_copy;
+  html += R"html(</button>
                 <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="pasteTile(')html";
   html += tab_id;
-  html += R"html(')">Einfuegen</button>
+  html += R"html(')">)html";
+  html += tr.admin_paste;
+  html += R"html(</button>
                 <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="resetTile(')html";
   html += tab_id;
-  html += R"html(')">Loeschen</button>
+  html += R"html(')">)html";
+  html += tr.admin_delete;
+  html += R"html(</button>
               </div>
             </div>
             <div style="margin-top:12px;border-top:1px solid #e2e8f0;padding-top:10px;">
-              <div style="font-size:12px;color:#64748b;margin-bottom:6px;">Import / Export (alle Ordner & Kacheln)</div>
+              <div style="font-size:12px;color:#64748b;margin-bottom:6px;">)html";
+  html += tr.admin_import_export;
+  html += R"html(</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:110px;" onclick="exportTilesConfig()">Export</button>
+                <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:110px;" onclick="exportTilesConfig()">)html";
+  html += tr.admin_export;
+  html += R"html(</button>
                 <input type="file" id=")html";
   html += tab_id;
   html += R"html(_tile_import" accept="application/json" style="display:none" onchange="importTilesConfig(')html";
@@ -312,9 +354,13 @@ static void appendTileTabHTML(
   html += R"html(', this.files)">
                 <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:110px;" onclick="triggerTilesImport(')html";
   html += tab_id;
-  html += R"html(')">Import</button>
+  html += R"html(')">)html";
+  html += tr.admin_import;
+  html += R"html(</button>
               </div>
-              <div style="font-size:11px;color:#94a3b8;margin-top:6px;">Import ueberschreibt alle Kacheln der vorhandenen Ordner.</div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:6px;">)html";
+  html += tr.admin_import_overwrite;
+  html += R"html(</div>
             </div>
             </div><!-- /tile-specific-settings -->
           </div>
@@ -325,6 +371,7 @@ static void appendTileTabHTML(
 
 String WebAdminServer::getAdminPage() {
   const DeviceConfig& cfg = configManager.getConfig();
+  const auto& tr = i18n::strings(cfg.language);
   const HaBridgeConfigData& ha = haBridgeConfig.get();
   const auto sensorOptions = parseSensorList(ha.sensors_text);
   const auto weatherOptions = parseSensorList(ha.weathers_text);
@@ -376,7 +423,7 @@ String WebAdminServer::getAdminPage() {
     String label = String(entry.name);
     label.trim();
     if (!label.length()) {
-      label = "Ordner ";
+      label = tr.folder_prefix;
       label += String(entry.id);
     }
     navigateOptionsHtml += "<option value=\"";
@@ -388,13 +435,15 @@ String WebAdminServer::getAdminPage() {
 
   String html;
   html.reserve(12000);
-  html += R"html(
-<!DOCTYPE html>
-<html lang="de">
+  html += "<!DOCTYPE html>\n<html lang=\"";
+  html += tr.html_lang;
+  html += R"html(">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Waveshare Admin</title>
+  <title>)html";
+  html += tr.admin_window_title;
+  html += R"html(</title>
 )html";
 
   appendAdminStyles(html);
@@ -405,8 +454,12 @@ String WebAdminServer::getAdminPage() {
 <body>
   <div class="wrapper">
     <div class="card">
-      <h1>Waveshare Admin-Panel</h1>
-      <p class="subtitle">Konfiguration &amp; Uebersicht</p>
+      <h1>)html";
+  html += tr.admin_panel_title;
+  html += R"html(</h1>
+      <p class="subtitle">)html";
+  html += tr.admin_subtitle;
+  html += R"html(</p>
 
       <!-- Tab Navigation -->
       <div class="tab-nav">
@@ -422,7 +475,7 @@ String WebAdminServer::getAdminPage() {
     else if (icon.startsWith("mdi-")) icon = icon.substring(4);
     name.trim();
     if (!name.length()) {
-      name = (entry.id == 0) ? "Home" : String("Ordner ") + String(entry.id);
+      name = (entry.id == 0) ? String(tr.home) : String(tr.folder_prefix) + String(entry.id);
     }
 
     html += R"html(
@@ -446,7 +499,9 @@ String WebAdminServer::getAdminPage() {
   html += R"html(
         <button class="tab-btn" onclick="switchTab('tab-network')">
           <i class="mdi mdi-cog" style="font-size:24px;"></i>
-          <span style="font-size:14px;font-weight:600;">Settings</span>
+          <span style="font-size:14px;font-weight:600;">)html";
+  html += tr.tile_type_settings;
+  html += R"html(</span>
         </button>
       </div>
 )html";
@@ -463,19 +518,25 @@ String WebAdminServer::getAdminPage() {
       <div id="tab-network" class="tab-content">
         <div class="status">
           <div>
-            <div class="status-label">WiFi Status</div>
+            <div class="status-label">)html";
+  html += tr.wifi_status;
+  html += R"html(</div>
             <div class="status-value">)html";
-  html += (WiFi.status() == WL_CONNECTED) ? "Verbunden" : "Getrennt";
+  html += (WiFi.status() == WL_CONNECTED) ? tr.wifi_connected : tr.wifi_disconnected;
   html += R"html(</div>
           </div>
           <div>
-            <div class="status-label">SSID</div>
+            <div class="status-label">)html";
+  html += tr.ssid_label;
+  html += R"html(</div>
             <div class="status-value">)html";
   html += WiFi.SSID();
   html += R"html(</div>
           </div>
           <div>
-            <div class="status-label">IP-Adresse</div>
+            <div class="status-label">)html";
+  html += tr.ip_label;
+  html += R"html(</div>
             <div class="status-value">)html";
   html += WiFi.localIP().toString();
   html += R"html(</div>
@@ -483,71 +544,150 @@ String WebAdminServer::getAdminPage() {
         </div>
 
         <form action="/mqtt" method="POST">
-          <div>
-            <label for="mqtt_host">MQTT Host / IP</label>
-            <input type="text" id="mqtt_host" name="mqtt_host" required value=")html";
+          <div class="settings-section">
+            <div class="section-title">)html";
+  html += tr.admin_settings_wifi;
+  html += R"html(</div>
+            <div class="settings-grid">
+              <div>
+                <label for="wifi_ssid">)html";
+  html += tr.ssid_label;
+  html += R"html(</label>
+                <input type="text" id="wifi_ssid" name="wifi_ssid" value=")html";
+  html += cfg.wifi_ssid;
+  html += R"html(">
+              </div>
+              <div>
+                <label for="wifi_pass">)html";
+  html += tr.wifi_password_label;
+  html += R"html(</label>
+                <input type="password" id="wifi_pass" name="wifi_pass" value=")html";
+  html += cfg.wifi_pass;
+  html += R"html(">
+              </div>
+              <div>
+                <label for="wifi_static_ip">)html";
+  html += tr.wifi_static_ip_label;
+  html += R"html(</label>
+                <input type="text" id="wifi_static_ip" name="wifi_static_ip" value=")html";
+  html += cfg.wifi_static_ip;
+  html += R"html(" placeholder="192.168.1.50">
+              </div>
+              <div>
+                <label for="wifi_gateway">)html";
+  html += tr.wifi_gateway_label;
+  html += R"html(</label>
+                <input type="text" id="wifi_gateway" name="wifi_gateway" value=")html";
+  html += cfg.wifi_gateway;
+  html += R"html(" placeholder="192.168.1.1">
+              </div>
+              <div>
+                <label for="wifi_subnet">)html";
+  html += tr.wifi_subnet_label;
+  html += R"html(</label>
+                <input type="text" id="wifi_subnet" name="wifi_subnet" value=")html";
+  html += cfg.wifi_subnet;
+  html += R"html(" placeholder="255.255.255.0">
+              </div>
+              <div>
+                <label for="wifi_dns">)html";
+  html += tr.wifi_dns_label;
+  html += R"html(</label>
+                <input type="text" id="wifi_dns" name="wifi_dns" value=")html";
+  html += cfg.wifi_dns;
+  html += R"html(" placeholder="192.168.1.1">
+              </div>
+              <div class="settings-note settings-full">)html";
+  html += tr.wifi_dhcp_hint;
+  html += R"html(</div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <div class="section-title">)html";
+  html += tr.admin_settings_mqtt;
+  html += R"html(</div>
+            <div class="settings-grid">
+              <div>
+                <label for="mqtt_host">)html";
+  html += tr.mqtt_host;
+  html += R"html(</label>
+                <input type="text" id="mqtt_host" name="mqtt_host" value=")html";
   html += cfg.mqtt_host;
   html += R"html(">
-          </div>
-          <div>
-            <label for="mqtt_port">Port</label>
-            <input type="number" id="mqtt_port" name="mqtt_port" value=")html";
+              </div>
+              <div>
+                <label for="mqtt_port">)html";
+  html += tr.mqtt_port;
+  html += R"html(</label>
+                <input type="number" id="mqtt_port" name="mqtt_port" value=")html";
   html += String(cfg.mqtt_port ? cfg.mqtt_port : 1883);
   html += R"html(">
-          </div>
-          <div>
-            <label for="mqtt_user">Benutzername</label>
-            <input type="text" id="mqtt_user" name="mqtt_user" value=")html";
+              </div>
+              <div>
+                <label for="mqtt_user">)html";
+  html += tr.mqtt_username;
+  html += R"html(</label>
+                <input type="text" id="mqtt_user" name="mqtt_user" value=")html";
   html += cfg.mqtt_user;
   html += R"html(">
-          </div>
-          <div>
-            <label for="mqtt_pass">Passwort</label>
-            <input type="password" id="mqtt_pass" name="mqtt_pass" value=")html";
+              </div>
+              <div>
+                <label for="mqtt_pass">)html";
+  html += tr.mqtt_password;
+  html += R"html(</label>
+                <input type="password" id="mqtt_pass" name="mqtt_pass" value=")html";
   html += cfg.mqtt_pass;
   html += R"html(">
-          </div>
-          <div>
-            <label for="mqtt_client_id">MQTT Client ID</label>
-            <input type="text" id="mqtt_client_id" name="mqtt_client_id" placeholder="leer = automatisch" value=")html";
+              </div>
+              <div class="settings-full">
+                <label for="mqtt_client_id">)html";
+  html += tr.mqtt_client_id;
+  html += R"html(</label>
+                <input type="text" id="mqtt_client_id" name="mqtt_client_id" placeholder=")html";
+  html += tr.mqtt_client_id_placeholder;
+  html += R"html(" value=")html";
   html += cfg.mqtt_client_id;
   html += R"html(">
-            <div style="font-size:11px;color:#64748b;margin-top:4px;">Leer lassen = automatisch aus der MAC-Adresse erzeugen.</div>
-          </div>
-          <div>
-            <label for="mqtt_base">Ger&auml;te-Topic Basis</label>
-            <input type="text" id="mqtt_base" name="mqtt_base" value=")html";
+                <div class="settings-note">)html";
+  html += tr.mqtt_client_id_hint;
+  html += R"html(</div>
+              </div>
+              <div>
+                <label for="mqtt_base">)html";
+  html += tr.mqtt_base_topic;
+  html += R"html(</label>
+                <input type="text" id="mqtt_base" name="mqtt_base" value=")html";
   html += cfg.mqtt_base_topic;
   html += R"html(">
-          </div>
-          <div>
-            <label for="ha_prefix">Home Assistant Prefix</label>
-            <input type="text" id="ha_prefix" name="ha_prefix" value=")html";
+              </div>
+              <div>
+                <label for="ha_prefix">)html";
+  html += tr.ha_prefix;
+  html += R"html(</label>
+                <input type="text" id="ha_prefix" name="ha_prefix" value=")html";
   html += cfg.ha_prefix;
   html += R"html(">
+              </div>
+            </div>
           </div>
-          <div>
-            <label for="status_time_font">Uhrzeit Schriftgröße</label>
-            <select id="status_time_font" name="status_time_font">
-              <option value="24")html";
-  if (cfg.status_time_font_size == 24) html += " selected";
-  html += R"html(>24</option>
-              <option value="48")html";
-  if (cfg.status_time_font_size != 24) html += " selected";
-  html += R"html(>48</option>
-            </select>
+
+          <div class="settings-section">
+            <div class="section-title">)html";
+  html += tr.admin_settings_language;
+  html += R"html(</div>
+            <div class="settings-grid">
+              <div>
+                <label for="language">)html";
+  html += tr.language_label;
+  html += R"html(</label>
+                <select id="language" name="language">)html";
+  html += i18n::build_language_options_html(cfg.language);
+  html += R"html(</select>
+              </div>
+            </div>
           </div>
-          <div>
-            <label for="status_date_font">Datum Schriftgröße</label>
-            <select id="status_date_font" name="status_date_font">
-              <option value="20")html";
-  if (cfg.status_date_font_size == 20) html += " selected";
-  html += R"html(>20</option>
-              <option value="24")html";
-  if (cfg.status_date_font_size != 20) html += " selected";
-  html += R"html(>24</option>
-            </select>
-          </div>
+
           <button class="btn" type="submit">Speichern</button>
         </form>
       </div>
@@ -565,16 +705,23 @@ String WebAdminServer::getAdminPage() {
 </html>
 )html";
 
+  html.replace(">Speichern</button>", String(">") + tr.save + "</button>");
+  html.replace("return confirm('Geraet wirklich neu starten?');", String("return confirm('") + tr.restart_confirm + "');");
+  html.replace(">Geraet neu starten</button>", String(">") + tr.restart_button + "</button>");
+
   return html;
 }
 
 String WebAdminServer::getSuccessPage() {
-  return R"html(
-<!DOCTYPE html>
-<html lang="de">
+  const auto& tr = i18n::strings(configManager.getConfig().language);
+  String html = "<!DOCTYPE html>\n<html lang=\"";
+  html += tr.html_lang;
+  html += R"html(">
 <head>
   <meta charset="utf-8">
-  <title>Gespeichert</title>
+  <title>)html";
+  html += tr.save;
+  html += R"html(</title>
   <style>
     body { font-family: Arial, sans-serif; background:#eef2ff; height:100vh; margin:0; display:flex; align-items:center; justify-content:center; }
     .box { background:#fff; padding:30px; border-radius:12px; box-shadow:0 15px 35px rgba(0,0,0,.2); text-align:center; }
@@ -585,20 +732,28 @@ String WebAdminServer::getSuccessPage() {
 </head>
 <body>
   <div class="box">
-    <h1>MQTT-Konfiguration gespeichert</h1>
-    <p>Das Geraet verbindet sich neu ...</p>
+    <h1>)html";
+  html += tr.mqtt_saved_title;
+  html += R"html(</h1>
+    <p>)html";
+  html += tr.mqtt_saved_message;
+  html += R"html(</p>
   </div>
 </body>
 </html>)html";
+  return html;
 }
 
 String WebAdminServer::getBridgeSuccessPage() {
-  return R"html(
-<!DOCTYPE html>
-<html lang="de">
+  const auto& tr = i18n::strings(configManager.getConfig().language);
+  String html = "<!DOCTYPE html>\n<html lang=\"";
+  html += tr.html_lang;
+  html += R"html(">
 <head>
   <meta charset="utf-8">
-  <title>Bridge gespeichert</title>
+  <title>)html";
+  html += tr.bridge_saved_title;
+  html += R"html(</title>
   <style>
     body { font-family: Arial, sans-serif; background:#eef2ff; height:100vh; margin:0; display:flex; align-items:center; justify-content:center; }
     .box { background:#fff; padding:30px; border-radius:12px; box-shadow:0 15px 35px rgba(0,0,0,.2); text-align:center; }
@@ -609,11 +764,16 @@ String WebAdminServer::getBridgeSuccessPage() {
 </head>
 <body>
   <div class="box">
-    <h1>Bridge-Konfiguration gespeichert</h1>
-    <p>Die Daten wurden per MQTT uebertragen.</p>
+    <h1>)html";
+  html += tr.bridge_saved_title;
+  html += R"html(</h1>
+    <p>)html";
+  html += tr.bridge_saved_message;
+  html += R"html(</p>
   </div>
 </body>
 </html>)html";
+  return html;
 }
 
 String WebAdminServer::getStatusJSON() {

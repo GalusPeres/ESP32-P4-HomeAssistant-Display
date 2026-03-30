@@ -1,4 +1,5 @@
 #include "src/core/config_manager.h"
+#include "src/core/i18n.h"
 #include <Preferences.h>
 
 // Globale Instanz
@@ -58,12 +59,20 @@ static void apply_device_capability_limits(DeviceConfig& cfg) {
   }
 }
 
+static void set_language_code(char* dst, size_t dst_size, const char* language_code) {
+  if (!dst || dst_size == 0) return;
+  const char* normalized = i18n::normalize_language_code(language_code);
+  strncpy(dst, normalized, dst_size - 1);
+  dst[dst_size - 1] = '\0';
+}
+
 ConfigManager::ConfigManager() {
   memset(&config, 0, sizeof(config));
   config.configured = false;
   config.mqtt_port = 1883;  // Default MQTT Port
   strncpy(config.mqtt_base_topic, "tab5", CONFIG_MQTT_BASE_MAX - 1);
   strncpy(config.ha_prefix, "ha/statestream", CONFIG_HA_PREFIX_MAX - 1);
+  set_language_code(config.language, sizeof(config.language), "en");
 
   // Display & Power Defaults
   config.display_brightness = 200;
@@ -100,6 +109,10 @@ bool ConfigManager::load() {
   // Lade Konfigurationsdaten
   prefs.getString("wifi_ssid", config.wifi_ssid, CONFIG_WIFI_SSID_MAX);
   prefs.getString("wifi_pass", config.wifi_pass, CONFIG_WIFI_PASS_MAX);
+  prefs.getString("wifi_ip", config.wifi_static_ip, CONFIG_IP_ADDR_MAX);
+  prefs.getString("wifi_gw", config.wifi_gateway, CONFIG_IP_ADDR_MAX);
+  prefs.getString("wifi_subnet", config.wifi_subnet, CONFIG_IP_ADDR_MAX);
+  prefs.getString("wifi_dns", config.wifi_dns, CONFIG_IP_ADDR_MAX);
   prefs.getString("mqtt_host", config.mqtt_host, CONFIG_MQTT_HOST_MAX);
   config.mqtt_port = prefs.getUShort("mqtt_port", 1883);
   prefs.getString("mqtt_user", config.mqtt_user, CONFIG_MQTT_USER_MAX);
@@ -107,6 +120,9 @@ bool ConfigManager::load() {
   prefs.getString("mqtt_client_id", config.mqtt_client_id, CONFIG_MQTT_CLIENT_ID_MAX);
   prefs.getString("mqtt_base", config.mqtt_base_topic, CONFIG_MQTT_BASE_MAX);
   prefs.getString("ha_prefix", config.ha_prefix, CONFIG_HA_PREFIX_MAX);
+  char stored_language[CONFIG_LANG_MAX] = {0};
+  prefs.getString("lang", stored_language, CONFIG_LANG_MAX);
+  set_language_code(config.language, sizeof(config.language), stored_language);
 
   // Display & Power Settings laden
   config.display_brightness = prefs.getUChar("disp_bright", 200);
@@ -207,6 +223,10 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   // Speichere alle Felder
   prefs.putString("wifi_ssid", normalized.wifi_ssid);
   prefs.putString("wifi_pass", normalized.wifi_pass);
+  prefs.putString("wifi_ip", normalized.wifi_static_ip);
+  prefs.putString("wifi_gw", normalized.wifi_gateway);
+  prefs.putString("wifi_subnet", normalized.wifi_subnet);
+  prefs.putString("wifi_dns", normalized.wifi_dns);
   prefs.putString("mqtt_host", normalized.mqtt_host);
   prefs.putUShort("mqtt_port", normalized.mqtt_port);
   prefs.putString("mqtt_user", normalized.mqtt_user);
@@ -214,6 +234,8 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   prefs.putString("mqtt_client_id", normalized.mqtt_client_id);
   prefs.putString("mqtt_base", normalized.mqtt_base_topic);
   prefs.putString("ha_prefix", normalized.ha_prefix);
+  set_language_code(normalized.language, sizeof(normalized.language), normalized.language);
+  prefs.putString("lang", normalized.language);
 
   // Display & Power Settings speichern
   prefs.putUChar("disp_bright", normalized.display_brightness);
@@ -355,6 +377,7 @@ void ConfigManager::clear() {
   config.mqtt_port = 1883;
   strncpy(config.mqtt_base_topic, "tab5", CONFIG_MQTT_BASE_MAX - 1);
   strncpy(config.ha_prefix, "ha/statestream", CONFIG_HA_PREFIX_MAX - 1);
+  set_language_code(config.language, sizeof(config.language), "en");
   config.display_rotated_180 = false;
   config.display_rotation_quarters = Device::kRotationDefault;
   config.display_rotation_mode = kDisplayRotationNormal;

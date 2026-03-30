@@ -10,6 +10,8 @@
 #include "src/types/types_registry.h"
 #include "src/tiles/tile_renderer_fonts.h"
 #include "src/tiles/tile_renderer_shared.h"
+#include "src/core/config_manager.h"
+#include "src/core/i18n.h"
 #include <Arduino.h>
 #include <cstring>
 #include <math.h>
@@ -545,6 +547,7 @@ static String weather_icon_from_condition(const String& condition) {
 }
 
 static String weather_condition_to_german(const String& condition) {
+  return i18n::weather_condition_label(configManager.getConfig().language, condition);
   String key = condition;
   key.trim();
   key.toLowerCase();
@@ -593,6 +596,7 @@ static bool parse_iso_date(const String& iso, int& y, int& m, int& d) {
 }
 
 static String weekday_from_iso(const String& iso) {
+  return i18n::weather_weekday_short(configManager.getConfig().language, iso);
   int y = 0, m = 0, d = 0;
   if (!parse_iso_date(iso, y, m, d)) return "";
   int mm = m;
@@ -1251,7 +1255,7 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
             f_day = weekday_from_iso(datetime);
           }
           if (!f_day.length() && forecast_count == 0) {
-            f_day = "Morgen";
+            f_day = i18n::weather_tomorrow_label(configManager.getConfig().language);
           }
           if (!f_icon.length() && f_condition.length()) {
             f_icon = weather_icon_from_condition(f_condition);

@@ -1,5 +1,6 @@
 #include "src/web/web_config.h"
 #include "src/devices/device_select.h"
+#include "src/core/i18n.h"
 #include <WiFi.h>
 
 // Globale Instanz
@@ -172,7 +173,8 @@ void WebConfigServer::handleSave() {
 
   // Validierung
   if (strlen(cfg.wifi_ssid) == 0) {
-    server.send(400, "text/html", "<h1>Fehler: WiFi SSID ist erforderlich!</h1>");
+    const auto& tr = i18n::strings(cfg.language);
+    server.send(400, "text/html", String("<h1>") + tr.ap_wifi_required + "</h1>");
     return;
   }
 
@@ -183,7 +185,8 @@ void WebConfigServer::handleSave() {
     server.send(200, "text/html", getSuccessPage());
   } else {
     Serial.println("❌ Fehler beim Speichern der Konfiguration");
-    server.send(500, "text/html", "<h1>Fehler beim Speichern!</h1>");
+    const auto& tr = i18n::strings(cfg.language);
+    server.send(500, "text/html", String("<h1>") + tr.save_failed + "</h1>");
   }
 }
 
@@ -202,14 +205,17 @@ void WebConfigServer::handleNotFound() {
 String WebConfigServer::getConfigPage() {
   // Lade bestehende Konfiguration wenn vorhanden
   const DeviceConfig& cfg = configManager.getConfig();
+  const auto& tr = i18n::strings(cfg.language);
 
-  String html = R"html(
-<!DOCTYPE html>
-<html lang="de">
+  String html = "<!DOCTYPE html>\n<html lang=\"";
+  html += tr.html_lang;
+  html += R"html(">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Waveshare WiFi-Konfiguration</title>
+  <title>)html";
+  html += tr.ap_window_title;
+  html += R"html(</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -316,8 +322,12 @@ String WebConfigServer::getConfigPage() {
 <body>
   <div class="container">
     <div class="icon">📶</div>
-    <h1>WiFi-Konfiguration</h1>
-    <p class="subtitle">Schritt 1: Mit WLAN verbinden</p>
+    <h1>)html";
+  html += tr.ap_heading;
+  html += R"html(</h1>
+    <p class="subtitle">)html";
+  html += tr.ap_subtitle;
+  html += R"html(</p>
 
     <form action="/save" method="POST">
       <div class="section">
@@ -344,10 +354,21 @@ String WebConfigServer::getConfigPage() {
 </html>
 )html";
 
+  html.replace("WiFi-Verbindung", tr.ap_wifi_section);
+  html.replace("SSID (Netzwerkname)", tr.ap_wifi_ssid_label);
+  html.replace("placeholder=\"Mein WiFi\"", String("placeholder=\"") + tr.ap_wifi_ssid_placeholder + "\"");
+  html.replace(">Passwort</label>", String(">") + tr.ap_wifi_password_label + "</label>");
+  html.replace("placeholder=\"Passwort\"", String("placeholder=\"") + tr.ap_wifi_password_placeholder + "\"");
+  html.replace("Leer lassen fÃ¼r offenes Netzwerk", tr.ap_wifi_open_hint);
+  html.replace("Hinweis:", tr.ap_info_notice);
+  html.replace("Nach erfolgreicher WLAN-Verbindung kannst du Ã¼ber das Webinterface im normalen Netzwerk die MQTT-Einstellungen konfigurieren.", tr.ap_info_message);
+  html.replace("Speichern & Verbinden", tr.ap_save_connect);
+
   return html;
 }
 
 String WebConfigServer::getSuccessPage() {
+  const auto& tr = i18n::strings(configManager.getConfig().language);
   String html = R"html(
 <!DOCTYPE html>
 <html lang="de">
@@ -424,6 +445,13 @@ String WebConfigServer::getSuccessPage() {
 </body>
 </html>
 )html";
+
+  html.replace("<html lang=\"de\">", String("<html lang=\"") + tr.html_lang + "\">");
+  html.replace("<title>Konfiguration gespeichert</title>", String("<title>") + tr.ap_success_title + "</title>");
+  html.replace("Erfolgreich gespeichert!", tr.ap_success_title);
+  html.replace("Die Konfiguration wurde erfolgreich gespeichert.<br>Das GerÃ¤t wird jetzt neu gestartet und versucht sich mit dem WiFi zu verbinden.", tr.ap_success_message);
+  html.replace("â„¹ï¸ Du wirst in 10 Sekunden automatisch weitergeleitet.<br>\r\n      Falls die Verbindung nicht klappt, aktiviere den Hotspot-Modus erneut Ã¼ber die Einstellungen.", String("â„¹ï¸ ") + tr.ap_success_notice);
+  html.replace("â„¹ï¸ Du wirst in 10 Sekunden automatisch weitergeleitet.<br>\n      Falls die Verbindung nicht klappt, aktiviere den Hotspot-Modus erneut Ã¼ber die Einstellungen.", String("â„¹ï¸ ") + tr.ap_success_notice);
 
   return html;
 }

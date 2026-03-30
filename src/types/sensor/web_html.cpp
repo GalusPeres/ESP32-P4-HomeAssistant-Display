@@ -1,16 +1,25 @@
 #include "src/types/sensor/web_html.h"
+#include "src/web/web_admin_utils.h"
+#include "src/core/config_manager.h"
+#include "src/core/i18n.h"
 
 void append_sensor_fields_html(String& html, const String& tab_id, const std::vector<String>& sensorOptions) {
+  const auto& tr = i18n::strings(configManager.getConfig().language);
+
   html += R"html(
             <!-- Sensor Fields -->
             <div id=")html";
   html += tab_id;
   html += R"html(_sensor_fields" class="type-fields">
-              <label>Sensor Entity</label>
+              <label>)html";
+  html += tr.sensor_entity;
+  html += R"html(</label>
               <select id=")html";
   html += tab_id;
   html += R"html(_sensor_entity">
-                <option value="">Keine Auswahl</option>
+                <option value="">)html";
+  html += tr.no_selection;
+  html += R"html(</option>
 )html";
 
   for (const auto& opt : sensorOptions) {
@@ -24,15 +33,21 @@ void append_sensor_fields_html(String& html, const String& tab_id, const std::ve
 
   html += R"html(
               </select>
-              <label>Einheit</label>
+              <label>)html";
+  html += tr.sensor_unit;
+  html += R"html(</label>
               <input type="text" id=")html";
   html += tab_id;
   html += R"html(_sensor_unit" placeholder="z.B. °C">
-                <label>Nachkommastellen (leer = Originalwert)</label>
+                <label>)html";
+  html += tr.sensor_decimals;
+  html += R"html(</label>
                 <input type="number" id=")html";
   html += tab_id;
   html += R"html(_sensor_decimals" min="0" max="6" step="1" placeholder="z.B. 1">
-                <label>Wert-Groesse</label>
+                <label>)html";
+  html += tr.sensor_value_size;
+  html += R"html(</label>
                 <select id=")html";
   html += tab_id;
   html += R"html(_sensor_value_font">
@@ -42,34 +57,52 @@ void append_sensor_fields_html(String& html, const String& tab_id, const std::ve
                   <option value="3">32</option>
                   <option value="4">40</option>
                 </select>
-                <label>Anzeige-Modus</label>
+                <label>)html";
+  html += tr.sensor_display_mode;
+  html += R"html(</label>
                 <select id=")html";
   html += tab_id;
   html += R"html(_sensor_display_mode">
-                  <option value="0">Keine</option>
-                  <option value="1">Gauge</option>
-                  <option value="2">Graph</option>
+                  <option value="0">)html";
+  html += tr.sensor_display_none;
+  html += R"html(</option>
+                  <option value="1">)html";
+  html += tr.sensor_display_gauge;
+  html += R"html(</option>
+                  <option value="2">)html";
+  html += tr.sensor_display_graph;
+  html += R"html(</option>
                 </select>
                 <div id=")html";
   html += tab_id;
   html += R"html(_sensor_gauge_fields" class="gauge-fields hidden">
-                  <label>Gauge Min</label>
+                  <label>)html";
+  html += tr.sensor_gauge_min;
+  html += R"html(</label>
                   <input type="number" id=")html";
   html += tab_id;
   html += R"html(_sensor_gauge_min" step="1" placeholder="z.B. 0">
-                  <label>Gauge Max</label>
+                  <label>)html";
+  html += tr.sensor_gauge_max;
+  html += R"html(</label>
                   <input type="number" id=")html";
   html += tab_id;
   html += R"html(_sensor_gauge_max" step="1" placeholder="z.B. 100">
-                  <label>Bogengrad (90-359)</label>
+                  <label>)html";
+  html += tr.sensor_arc_degree;
+  html += R"html(</label>
                   <input type="number" id=")html";
   html += tab_id;
   html += R"html(_sensor_gauge_arc" min="90" max="359" step="1" placeholder="100">
-                  <label>Gauge Groesse (100-800 px)</label>
+                  <label>)html";
+  html += tr.sensor_gauge_size;
+  html += R"html(</label>
                   <input type="number" id=")html";
   html += tab_id;
   html += R"html(_sensor_gauge_size" min="100" max="800" step="1" placeholder="350">
-                  <label>Y-Offset (-100 bis 200)</label>
+                  <label>)html";
+  html += tr.sensor_y_offset;
+  html += R"html(</label>
                   <input type="number" id=")html";
   html += tab_id;
   html += R"html(_sensor_gauge_y_offset" min="-100" max="200" step="1" placeholder="12">
@@ -77,19 +110,29 @@ void append_sensor_fields_html(String& html, const String& tab_id, const std::ve
                 <div id=")html";
   html += tab_id;
   html += R"html(_sensor_graph_fields" class="graph-fields hidden">
-                  <label>Graph Hoehe (20-200 px)</label>
+                  <label>)html";
+  html += tr.sensor_graph_height;
+  html += R"html(</label>
                   <input type="number" id=")html";
   html += tab_id;
   html += R"html(_sensor_graph_height" min="20" max="200" step="1" placeholder="60">
                 </div>
-                <label>Popup oeffnen</label>
+                <label>)html";
+  html += tr.popup_open;
+  html += R"html(</label>
                 <select id=")html";
   html += tab_id;
   html += R"html(_sensor_popup_open_mode">
-                  <option value="0">Long Press</option>
-                  <option value="1">Short Press</option>
+                  <option value="0">)html";
+  html += tr.long_press;
+  html += R"html(</option>
+                  <option value="1">)html";
+  html += tr.short_press;
+  html += R"html(</option>
                 </select>
-                <label>Wert Y-Offset (-100 bis 200)</label>
+                <label>)html";
+  html += tr.sensor_value_y_offset;
+  html += R"html(</label>
                 <input type="number" id=")html";
   html += tab_id;
   html += R"html(_sensor_value_y_offset" min="-100" max="200" step="1" placeholder="0">

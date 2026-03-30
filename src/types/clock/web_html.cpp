@@ -1,6 +1,9 @@
 #include "src/types/clock/web_html.h"
+#include "src/core/config_manager.h"
+#include "src/core/i18n.h"
 
 void append_clock_fields_html(String& html, const String& tab_id) {
+  const auto& tr = i18n::strings(configManager.getConfig().language);
   html += R"html(
             <!-- Clock Fields -->
             <div id=")html";
@@ -10,15 +13,21 @@ void append_clock_fields_html(String& html, const String& tab_id) {
                 <input type="checkbox" id=")html";
   html += tab_id;
   html += R"html(_clock_show_time" checked>
-                Uhrzeit anzeigen
+                )html";
+  html += tr.show_time;
+  html += R"html(
               </label>
               <label class="inline-checkbox">
                 <input type="checkbox" id=")html";
   html += tab_id;
   html += R"html(_clock_show_date">
-                Datum anzeigen
+                )html";
+  html += tr.show_date;
+  html += R"html(
               </label>
-              <label>Uhrzeit Schriftgroesse</label>
+              <label>)html";
+  html += tr.time_font_size;
+  html += R"html(</label>
               <select id=")html";
   html += tab_id;
   html += R"html(_clock_time_font">
@@ -28,7 +37,9 @@ void append_clock_fields_html(String& html, const String& tab_id) {
                 <option value="24">24</option>
                 <option value="20">20</option>
               </select>
-              <label>Datum Schriftgroesse</label>
+              <label>)html";
+  html += tr.date_font_size;
+  html += R"html(</label>
               <select id=")html";
   html += tab_id;
   html += R"html(_clock_date_font">

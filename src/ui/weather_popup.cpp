@@ -7,6 +7,8 @@
 #include "src/tiles/tile_config.h"
 #include "src/tiles/tile_renderer_fonts.h"
 #include "src/tiles/tile_renderer.h"
+#include "src/core/config_manager.h"
+#include "src/core/i18n.h"
 #include <math.h>
 #include <stdlib.h>
 
@@ -246,6 +248,7 @@ static String weather_icon_from_condition(const String& condition) {
 }
 
 static String weather_condition_to_german(const String& condition) {
+  return i18n::weather_condition_label(configManager.getConfig().language, condition);
   String key = condition;
   key.trim();
   key.toLowerCase();
@@ -282,6 +285,7 @@ static bool parse_iso_date(const String& iso, int& y, int& m, int& d) {
 }
 
 static String weekday_from_iso(const String& iso) {
+  return i18n::weather_weekday_short(configManager.getConfig().language, iso);
   int y = 0, m = 0, d = 0;
   if (!parse_iso_date(iso, y, m, d)) return "";
   int mm = m;
@@ -465,7 +469,7 @@ static void apply_weather_payload(WeatherPopupContext* ctx, const char* payload)
             f_day = weekday_from_iso(datetime);
           }
           if (!f_day.length() && forecast_count == 0) {
-            f_day = "Morgen";
+            f_day = i18n::weather_tomorrow_label(configManager.getConfig().language);
           }
           if (!f_icon.length() && f_condition.length()) {
             f_icon = weather_icon_from_condition(f_condition);
@@ -716,13 +720,13 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_label_set_long_mode(day, LV_LABEL_LONG_DOT);
     lv_obj_set_width(day, LV_PCT(70));
     lv_label_set_text(day, "--");
-    lv_obj_align(day, LV_ALIGN_TOP_LEFT, 4, 4);
+    lv_obj_align(day, LV_ALIGN_TOP_LEFT, 2, 4);
 
     lv_obj_t* icon_day = lv_label_create(col);
     set_label_style(icon_day, lv_color_white(), FONT_MDI_ICONS);
     lv_label_set_text(icon_day, "");
     lv_obj_add_flag(icon_day, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_align(icon_day, LV_ALIGN_TOP_RIGHT, -4, -8);
+    lv_obj_align(icon_day, LV_ALIGN_TOP_RIGHT, -2, -8);
 
     lv_obj_t* temp = lv_label_create(col);
     set_label_style(temp, lv_color_white(), &ui_font_24);

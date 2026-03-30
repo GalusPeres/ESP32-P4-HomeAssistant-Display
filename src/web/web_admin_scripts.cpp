@@ -1,12 +1,80 @@
 #include "src/web/web_admin_scripts.h"
 #include "src/types/types_registry.h"
 #include "src/tiles/tile_config.h"
+#include "src/core/config_manager.h"
+#include "src/core/i18n.h"
+
+static void appendJsStringLiteral(String& html, const char* value) {
+  html += "'";
+  if (value) {
+    for (const char* p = value; *p; ++p) {
+      switch (*p) {
+        case '\\': html += "\\\\"; break;
+        case '\'': html += "\\'"; break;
+        case '\r': break;
+        case '\n': html += "\\n"; break;
+        default: html += *p; break;
+      }
+    }
+  }
+  html += "'";
+}
 
 void appendAdminScripts(String& html) {
+  const auto& tr = i18n::strings(configManager.getConfig().language);
   html += R"html(
   <script>
 )html";
   append_tile_type_registry_js(html);
+  html += "\n  const APP_I18N = {\n";
+  auto appendJsEntry = [&](const char* key, const char* value) {
+    html += "    ";
+    html += key;
+    html += ": ";
+    appendJsStringLiteral(html, value);
+    html += ",\n";
+  };
+  appendJsEntry("folderPrefix", tr.folder_prefix);
+  appendJsEntry("selectTileFirst", tr.js_select_tile_first);
+  appendJsEntry("tileCopied", tr.js_tile_copied);
+  appendJsEntry("noCopiedTile", tr.js_no_copied_tile);
+  appendJsEntry("tilePasted", tr.js_tile_pasted);
+  appendJsEntry("settingsTileFixed", tr.js_settings_tile_fixed);
+  appendJsEntry("backTileFixed", tr.js_back_tile_fixed);
+  appendJsEntry("tileCannotDelete", tr.js_tile_cannot_delete);
+  appendJsEntry("folderCannotDelete", tr.js_folder_cannot_delete);
+  appendJsEntry("deleteFolderConfirm", tr.js_delete_folder_confirm);
+  appendJsEntry("folderDeleted", tr.js_folder_deleted);
+  appendJsEntry("deleteFailed", tr.js_delete_failed);
+  appendJsEntry("folderNotFound", tr.js_folder_not_found);
+  appendJsEntry("tileSaved", tr.js_tile_saved);
+  appendJsEntry("unknownError", tr.js_unknown_error);
+  appendJsEntry("networkError", tr.js_network_error);
+  appendJsEntry("networkErrorSave", tr.js_network_error_save);
+  appendJsEntry("exportCreated", tr.js_export_created);
+  appendJsEntry("exportFailed", tr.js_export_failed);
+  appendJsEntry("importInvalidJson", tr.js_import_invalid_json);
+  appendJsEntry("importFailed", tr.js_import_failed);
+  appendJsEntry("importRunning", tr.js_import_running);
+  appendJsEntry("importComplete", tr.js_import_complete);
+  appendJsEntry("tileDoesNotFit", tr.js_tile_does_not_fit);
+  appendJsEntry("noLayoutFound", tr.js_no_layout_found);
+  appendJsEntry("tilesMovedSaved", tr.js_tiles_moved_saved);
+  appendJsEntry("moveFailed", tr.js_move_failed);
+  appendJsEntry("networkErrorMove", tr.js_network_error_move);
+  html += R"html(  };
+  function t(key) {
+    return Object.prototype.hasOwnProperty.call(APP_I18N, key) ? APP_I18N[key] : key;
+  }
+  function tf(key, replacements) {
+    let out = t(key);
+    if (!replacements) return out;
+    Object.keys(replacements).forEach(name => {
+      out = out.replaceAll('{' + name + '}', String(replacements[name]));
+    });
+    return out;
+  }
+)html";
   html += R"html(
   function switchTab(tabName) {
     const tabs = document.querySelectorAll('.tab-content');
@@ -591,28 +659,28 @@ void appendAdminScripts(String& html) {
 
   function copyTile(tab) {
     if (currentTileIndex === -1 || currentTileTab !== tab) {
-      showNotification('Bitte zuerst eine Kachel waehlen', false);
+      showNotification(t('selectTileFirst'), false);
       return;
     }
     tileClipboard = collectTileFormData(tab);
     persistTileClipboard();
-    showNotification('Kachel kopiert');
+    showNotification(t('tileCopied'));
   }
 
   function pasteTile(tab) {
     if (currentTileIndex === -1 || currentTileTab !== tab) {
-      showNotification('Bitte zuerst eine Kachel waehlen', false);
+      showNotification(t('selectTileFirst'), false);
       return;
     }
     if (!tileClipboard) {
-      showNotification('Keine kopierte Kachel vorhanden', false);
+      showNotification(t('noCopiedTile'), false);
       return;
     }
     applyTileFormData(tab, tileClipboard);
     updateTilePreview(tab);
     updateDraft(tab);
     scheduleAutoSave(tab);
-    showNotification('Kachel eingefuegt');
+    showNotification(t('tilePasted'));
   }
 
   function selectTile(index, tab) {
@@ -992,8 +1060,8 @@ void appendAdminScripts(String& html) {
     if (typeEl) typeEl.disabled = locked;
     if (navSelect) navSelect.disabled = (!meta.fields || meta.fields !== 'navigate' || locked);
     if (noteEl) {
-      if (typeValue === '7') noteEl.textContent = 'Settings-Kachel (fest)';
-      else if (typeValue === '8') noteEl.textContent = 'Zurueck-Kachel (fest)';
+      if (typeValue === '7') noteEl.textContent = t('settingsTileFixed');
+      else if (typeValue === '8') noteEl.textContent = t('backTileFixed');
       else noteEl.textContent = '';
     }
   }
@@ -1043,7 +1111,7 @@ void appendAdminScripts(String& html) {
     if (currentTileIndex === -1) return;
     const tileType = getCurrentTileType(tab);
     if (isLockedTileType(tileType)) {
-      showNotification('Diese Kachel kann nicht geloescht werden', false);
+      showNotification(t('tileCannotDelete'), false);
       return;
     }
     const prefix = tab;
@@ -1062,12 +1130,12 @@ void appendAdminScripts(String& html) {
   function deleteFolder(tab) {
     const folderId = getFolderIdForTab(tab);
     if (folderId === undefined || folderId === 0) {
-      showNotification('Dieser Ordner kann nicht geloescht werden', false);
+      showNotification(t('folderCannotDelete'), false);
       return;
     }
     const tabEl = document.getElementById('tab-tiles-' + tab);
-    const folderName = tabEl ? (tabEl.dataset.folderName || 'Ordner') : 'Ordner';
-    if (!confirm('Ordner "' + folderName + '" wirklich loeschen?\\n\\nAlle Kacheln in diesem Ordner werden geloescht und die Ordner-Kachel im uebergeordneten Ordner wird entfernt.')) {
+    const folderName = tabEl ? (tabEl.dataset.folderName || t('folderPrefix').trim()) : t('folderPrefix').trim();
+    if (!confirm(tf('deleteFolderConfirm', { name: folderName }))) {
       return;
     }
     const formData = new FormData();
@@ -1076,13 +1144,13 @@ void appendAdminScripts(String& html) {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          showNotification('Ordner geloescht');
+          showNotification(t('folderDeleted'));
           setTimeout(() => location.reload(), 500);
         } else {
-          showNotification(data.error || 'Fehler beim Loeschen', false);
+          showNotification(data.error || t('deleteFailed'), false);
         }
       })
-      .catch(() => showNotification('Netzwerkfehler', false));
+      .catch(() => showNotification(t('networkError'), false));
   }
 
   function saveTile(tab, silent = false, tileIndexOverride = null) {
@@ -1102,7 +1170,7 @@ void appendAdminScripts(String& html) {
     const layout = normalizeSnapshotLayout(snapshot, tileIndex);
     const folderId = getFolderIdForTab(tab);
     if (folderId === undefined) {
-      showNotification('Ordner nicht gefunden', false);
+      showNotification(t('folderNotFound'), false);
       return;
     }
     formData.append('folder', folderId);
@@ -1130,7 +1198,7 @@ void appendAdminScripts(String& html) {
       .then(data => {
         if (!isLatestSaveRequest(tab, tileIndex, requestId)) return;
         if (data.success) {
-          if (!silent) showNotification('Kachel gespeichert & Display aktualisiert!');
+          if (!silent) showNotification(t('tileSaved'));
           const currentDraft = drafts[tab] && drafts[tab][tileIndex];
           if (currentDraft && currentDraft._dirty && Number(currentDraft._rev || 0) !== draftRev) {
             queueSaveAfterFlight(tab, tileIndex, true);
@@ -1152,12 +1220,12 @@ void appendAdminScripts(String& html) {
             setTimeout(() => location.reload(), 400);
           }
         } else {
-          showNotification('Fehler: ' + (data.error || 'Unbekannt'), false);
+          showNotification(data.error || t('unknownError'), false);
         }
       })
       .catch(() => {
         if (!isLatestSaveRequest(tab, tileIndex, requestId)) return;
-        showNotification('Netzwerkfehler beim Speichern', false);
+        showNotification(t('networkErrorSave'), false);
       })
       .finally(() => {
         delete saveInFlightByTile[saveKey];
@@ -1227,9 +1295,9 @@ void appendAdminScripts(String& html) {
       };
       const ts = new Date().toISOString().replace(/[:.]/g, '-');
       downloadJsonFile('waveshare_tiles_' + ts + '.json', JSON.stringify(payload, null, 2));
-      showNotification('Export erstellt!');
+      showNotification(t('exportCreated'));
     } catch (e) {
-      showNotification('Export fehlgeschlagen', false);
+      showNotification(t('exportFailed'), false);
     }
   }
 
@@ -1249,17 +1317,17 @@ void appendAdminScripts(String& html) {
         const payload = JSON.parse(reader.result);
         await importTilesPayload(payload);
       } catch (e) {
-        showNotification('Import-JSON ungueltig', false);
+        showNotification(t('importInvalidJson'), false);
       }
     };
-    reader.onerror = () => showNotification('Import fehlgeschlagen', false);
+    reader.onerror = () => showNotification(t('importFailed'), false);
     reader.readAsText(file);
   }
 
   async function importTilesPayload(payload) {
     try {
       if (!payload || typeof payload !== 'object') {
-        showNotification('Import-JSON ungueltig', false);
+        showNotification(t('importInvalidJson'), false);
         return;
       }
       const grids = (payload.grids && typeof payload.grids === 'object') ? payload.grids : {};
@@ -1269,7 +1337,7 @@ void appendAdminScripts(String& html) {
         if (Array.isArray(payload.tab2)) grids['2'] = payload.tab2;
       }
 
-      showNotification('Import laeuft...');
+      showNotification(t('importRunning'));
 
       const entries = Object.entries(grids);
       for (const [folderIdRaw, tiles] of entries) {
@@ -1283,11 +1351,11 @@ void appendAdminScripts(String& html) {
       }
 
       try { localStorage.removeItem('tileDrafts'); } catch (e) {}
-      showNotification('Import abgeschlossen!');
+      showNotification(t('importComplete'));
       setTimeout(() => location.reload(), 600);
     } catch (e) {
       console.error('Import fehlgeschlagen:', e);
-      showNotification('Import fehlgeschlagen', false);
+      showNotification(t('importFailed'), false);
     }
   }
 
@@ -2118,7 +2186,7 @@ void appendAdminScripts(String& html) {
                  (targetRow + sourceLayout.span_h <= GRID_ROWS);
 
     if (!fits) {
-      showNotification('Kachel passt dort nicht hin', false);
+      showNotification(t('tileDoesNotFit'), false);
       return;
     }
     if (targetCol === sourceLayout.col && targetRow === sourceLayout.row) return;
@@ -2128,7 +2196,7 @@ void appendAdminScripts(String& html) {
       previewResult = simulateSmartReorderLayouts(tab, dragSource.index, targetCol, targetRow);
     }
     if (!previewResult) {
-      showNotification('Keine sinnvolle Anordnung gefunden', false);
+      showNotification(t('noLayoutFound'), false);
       return;
     }
 
@@ -2285,7 +2353,7 @@ void appendAdminScripts(String& html) {
     if (folderId === undefined) {
       if (dragSource && dragSource.tab === tab) dragSource.dropCommitted = false;
       restoreDragPreview(tab);
-      showNotification('Ordner nicht gefunden', false);
+      showNotification(t('folderNotFound'), false);
       return;
     }
     let previewResult = dragSource && dragSource.tab === tab ? dragSource.previewResult : null;
@@ -2295,7 +2363,7 @@ void appendAdminScripts(String& html) {
     if (!previewResult) {
       if (dragSource && dragSource.tab === tab) dragSource.dropCommitted = false;
       restoreDragPreview(tab);
-      showNotification('Keine sinnvolle Anordnung gefunden', false);
+      showNotification(t('noLayoutFound'), false);
       return;
     }
     const localSnapshot = captureTilePositionSnapshot(tab);
@@ -2313,21 +2381,21 @@ void appendAdminScripts(String& html) {
     .then(res => res.json())
     .then(data => {
       if (data.success) {
-        showNotification('Kacheln verschoben & gespeichert!');
+        showNotification(t('tilesMovedSaved'));
         clearDeferredSensorRefresh();
         loadSensorValues(true, true);
       } else {
         if (dragSource && dragSource.tab === tab) dragSource.dropCommitted = false;
         clearDeferredSensorRefresh();
         restoreDragPreviewFromSnapshot(tab, localSnapshot);
-        showNotification('Fehler beim Verschieben', false);
+        showNotification(t('moveFailed'), false);
       }
     })
     .catch(() => {
       if (dragSource && dragSource.tab === tab) dragSource.dropCommitted = false;
       clearDeferredSensorRefresh();
       restoreDragPreviewFromSnapshot(tab, localSnapshot);
-      showNotification('Netzwerkfehler beim Verschieben', false);
+      showNotification(t('networkErrorMove'), false);
     });
   }
 
