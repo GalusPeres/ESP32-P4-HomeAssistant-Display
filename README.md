@@ -1,6 +1,6 @@
-# ESP32-P4 Home Assistant Display
+<img src="docs/images/b4-home.png" alt="Waveshare B4 home dashboard" width="46%" align="right">
 
-<img src="docs/images/b4-home.png" alt="Waveshare B4 home dashboard" width="50%" align="right">
+# ESP32-P4 Home Assistant Display
 
 Tile-based ESP32-P4 firmware for Home Assistant dashboards with a fully configurable web interface.
 
@@ -9,6 +9,8 @@ The project currently supports multiple ESP32-P4 display devices and combines:
 - MQTT-based Home Assistant integration
 - on-device web configuration
 - microSD-backed runtime storage
+
+<p align="right"><sub>Home</sub></p>
 
 <br clear="right">
 
@@ -33,63 +35,55 @@ Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD
 
 The screenshots below were captured on the Waveshare B4. They are meant as example views of the UI; the same firmware and web admin panel also run on the M5Stacks Tab5.
 
-### Sensor Popup Examples
+### Main Views
 
-These three screenshots show example sensor popups with larger values, chart history, and the time labels below the graph.
+<p align="center">
+  <img src="docs/images/b4-home.png" alt="Waveshare B4 home dashboard" width="31%">
+  <img src="docs/images/b4-folder-lights.png" alt="Waveshare B4 folder view" width="31%">
+  <img src="docs/images/b4-settings.png" alt="Waveshare B4 settings screen" width="31%">
+</p>
 
-<table>
-  <tr>
-    <td align="center"><img src="docs/images/b4-sensor-popup-kitchen.png" alt="Kitchen sensor popup" width="240"></td>
-    <td align="center"><img src="docs/images/b4-sensor-popup-water.png" alt="Water sensor popup" width="240"></td>
-    <td align="center"><img src="docs/images/b4-sensor-popup-battery.png" alt="Battery sensor popup" width="240"></td>
-  </tr>
-  <tr>
-    <td align="center">Kitchen sensor popup</td>
-    <td align="center">Water temperature popup</td>
-    <td align="center">Battery / energy popup</td>
-  </tr>
-</table>
+<p align="center">
+  <sub>Home dashboard</sub> &nbsp; | &nbsp;
+  <sub>Folder view</sub> &nbsp; | &nbsp;
+  <sub>Settings view</sub>
+</p>
 
-### Other UI Examples
+### Popups
 
-These examples show the normal dashboard, a folder view, the on-device settings screen, and other popup types used in daily operation.
+<p align="center">
+  <img src="docs/images/b4-sensor-popup-kitchen.png" alt="Kitchen sensor popup" width="31%">
+  <img src="docs/images/b4-sensor-popup-water.png" alt="Water sensor popup" width="31%">
+  <img src="docs/images/b4-sensor-popup-battery.png" alt="Battery sensor popup" width="31%">
+</p>
 
-<table>
-  <tr>
-    <td align="center"><img src="docs/images/b4-home.png" alt="Waveshare B4 home dashboard" width="240"></td>
-    <td align="center"><img src="docs/images/b4-folder-lights.png" alt="Waveshare B4 folder view" width="240"></td>
-    <td align="center"><img src="docs/images/b4-settings.png" alt="Waveshare B4 settings screen" width="240"></td>
-  </tr>
-  <tr>
-    <td align="center">Home dashboard</td>
-    <td align="center">Folder view</td>
-    <td align="center">On-device settings</td>
-  </tr>
-</table>
+<p align="center">
+  <sub>Kitchen sensor popup</sub> &nbsp; | &nbsp;
+  <sub>Water temperature popup</sub> &nbsp; | &nbsp;
+  <sub>Battery / energy popup</sub>
+</p>
 
-<table>
-  <tr>
-    <td align="center"><img src="docs/images/b4-weather-popup.png" alt="Weather popup" width="240"></td>
-    <td align="center"><img src="docs/images/b4-light-popup-desk.png" alt="Light popup" width="240"></td>
-  </tr>
-  <tr>
-    <td align="center">Weather popup</td>
-    <td align="center">Light control popup</td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/images/b4-weather-popup.png" alt="Weather popup" width="46%">
+  <img src="docs/images/b4-light-popup-desk.png" alt="Light popup" width="46%">
+</p>
+
+<p align="center">
+  <sub>Weather popup</sub> &nbsp; | &nbsp;
+  <sub>Light control popup</sub>
+</p>
 
 ### Web Admin
 
 The web admin panel is used to configure tiles, folders, WiFi, MQTT, localization, screenshots, and the overall layout directly from the browser.
 
-<table>
-  <tr>
-    <td align="center"><img src="docs/images/web-admin.png" alt="Web admin interface" width="900"></td>
-  </tr>
-  <tr>
-    <td align="center">Built-in web admin interface</td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/images/web-admin.png" alt="Web admin interface" width="90%">
+</p>
+
+<p align="center">
+  <sub>Built-in web admin interface</sub>
+</p>
 
 ## Requirements
 
