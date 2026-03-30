@@ -1,8 +1,6 @@
 ## ESP32-P4 Home Assistant Display
 
-<p align="center">
-  <img src="docs/images/b4-home.png" alt="Waveshare B4 home dashboard" width="38%">
-</p>
+<img align="right" width="38%" src="docs/images/b4-home.png" alt="Waveshare B4 home dashboard">
 
 Tile-based ESP32-P4 firmware for Home Assistant dashboards with a fully configurable web interface.
 
@@ -12,6 +10,8 @@ The project currently supports multiple ESP32-P4 display devices and combines:
 - MQTT-based Home Assistant integration
 - on-device web configuration
 - microSD-backed runtime storage
+
+<br clear="both">
 
 ## Overview
 
