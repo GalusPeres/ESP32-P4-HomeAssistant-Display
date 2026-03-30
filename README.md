@@ -1,18 +1,22 @@
 # ESP32-P4 Home Assistant Display
 
-ESP32-P4 touchscreen firmware for Home Assistant dashboards with a fully tile-configurable web interface.
+Tile-based ESP32-P4 firmware for Home Assistant dashboards with a fully configurable web interface.
 
-The project currently supports multiple ESP32-P4 display devices and is built around MQTT, LVGL, on-device web configuration, and a microSD-based runtime setup.
+The project currently supports multiple ESP32-P4 display devices and combines:
+- touch-first dashboard UI
+- MQTT-based Home Assistant integration
+- on-device web configuration
+- microSD-backed runtime storage
 
 ## Overview
 
-This firmware is designed to turn supported ESP32-P4 touch displays into configurable Home Assistant panels.
+This firmware turns supported ESP32-P4 touch displays into configurable Home Assistant control panels.
 
-Everything visible on the dashboard is tile-based and can be configured through the built-in web interface:
+Everything visible on the dashboard is tile-based and managed from the built-in web interface:
 - add, remove, move, and resize tiles
 - configure tile content and behavior
 - create folders and navigation structures
-- manage WiFi, MQTT, and language settings without changing code
+- manage WiFi, MQTT, language, and time zone settings without changing code
 
 ## Supported Devices
 
@@ -20,6 +24,36 @@ Everything visible on the dashboard is tile-based and can be configured through 
 - [Waveshare B4](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm)
 
 Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
+
+## Screenshots
+
+The screenshots below were captured on the Waveshare B4. The same firmware and web admin panel also run on the M5Stacks Tab5.
+
+### Dashboard
+
+![Home dashboard](docs/images/b4-home.bmp)
+
+### Folder View
+
+![Folder view](docs/images/b4-folder-lights.bmp)
+
+### Popups
+
+![Weather popup](docs/images/b4-weather-popup.bmp)
+
+![Light popup](docs/images/b4-light-popup-desk.bmp)
+
+![Sensor popup - kitchen](docs/images/b4-sensor-popup-kitchen.bmp)
+
+![Sensor popup - water](docs/images/b4-sensor-popup-water.bmp)
+
+![Sensor popup - battery](docs/images/b4-sensor-popup-battery.bmp)
+
+### Settings And Web Admin
+
+![On-device settings](docs/images/b4-settings.bmp)
+
+![Web admin interface](docs/images/web-admin.png)
 
 ## Requirements
 
@@ -34,7 +68,8 @@ Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD
 - MQTT-based Home Assistant communication
 - Access Point based first-time setup
 - Device-local WiFi and MQTT configuration
-- Multi-language UI/admin support
+- English and German UI/admin support
+- Local screenshot export to microSD from the web interface
 - Tile types currently include:
   - clock
   - counter
@@ -51,11 +86,21 @@ Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD
 
 ### Option 1: Prebuilt Binaries
 
-If release binaries are available, download the `.bin` file matching your device:
-- `...m5stacks-tab5.bin`
-- `...waveshare-b4.bin`
+If release binaries are available, download the files matching your device:
 
-Flash the correct binary for your hardware using your usual ESP32-P4 flashing workflow.
+- `...m5stacks-tab5-factory.bin`
+- `...m5stacks-tab5-update.bin`
+- `...waveshare-b4-factory.bin`
+- `...waveshare-b4-update.bin`
+
+Use:
+- `factory.bin` for a clean first flash
+- `update.bin` for updating an existing device
+
+When using the ESP Flash Download Tool:
+- flash `factory.bin` at `0x00000`
+- flash `update.bin` at `0x10000`
+- a manual reset after flashing may be required
 
 ### Option 2: Build From Source
 
@@ -69,7 +114,7 @@ Flash the correct binary for your hardware using your usual ESP32-P4 flashing wo
 1. Insert a microSD card formatted as FAT32.
 2. Flash the firmware.
 3. Boot the device.
-4. Open the device's temporary WiFi Access Point if needed.
+4. Open the temporary device WiFi Access Point if needed.
 5. Configure WiFi and MQTT in the built-in web interface.
 6. Open the web admin panel through the device IP address.
 7. Configure your tiles, folders, and layout.
@@ -80,11 +125,12 @@ This firmware expects the Home Assistant side to be provided by the MQTT bridge/
 
 - [ha-tab5-mqtt-bridge](https://github.com/GalusPeres/ha-tab5-mqtt-bridge)
 
-That integration is responsible for the Home Assistant-side MQTT communication and entity bridge.
+That integration handles the Home Assistant-side MQTT communication and entity bridge.
 
 ## Repository Structure
 
 - `src/` firmware source code
+- `docs/images/` screenshots and documentation images
 - `electron-app/` optional desktop companion tooling
 - `mdi-extractor/` icon tooling
 - `simconnect-bridge/` additional companion tooling

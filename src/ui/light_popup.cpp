@@ -1,7 +1,9 @@
 #include "src/ui/light_popup.h"
 #include "src/ui/sensor_popup.h"
 #include "src/ui/weather_popup.h"
+#include "src/core/config_manager.h"
 #include "src/core/display_manager.h"
+#include "src/core/i18n.h"
 #include "src/fonts/ui_fonts.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/tiles/mdi_icons.h"
@@ -46,6 +48,9 @@ struct LightPopupContext {
   lv_obj_t* card = nullptr;
   lv_obj_t* icon_label = nullptr;
   lv_obj_t* title_label = nullptr;
+  lv_obj_t* hue_title_label = nullptr;
+  lv_obj_t* sat_title_label = nullptr;
+  lv_obj_t* val_title_label = nullptr;
   lv_obj_t* hue_slider = nullptr;
   lv_obj_t* sat_slider = nullptr;
   lv_obj_t* val_slider = nullptr;
@@ -144,6 +149,14 @@ static void set_label_style(lv_obj_t* lbl, lv_color_t color) {
   if (!lbl) return;
   lv_obj_set_style_text_color(lbl, color, 0);
   lv_obj_set_style_text_font(lbl, &ui_font_24, 0);
+}
+
+static void update_popup_language(LightPopupContext* ctx) {
+  if (!ctx) return;
+  const auto& tr = i18n::strings(configManager.getConfig().language);
+  if (ctx->val_title_label) lv_label_set_text(ctx->val_title_label, tr.brightness_label);
+  if (ctx->hue_title_label) lv_label_set_text(ctx->hue_title_label, tr.hue_label);
+  if (ctx->sat_title_label) lv_label_set_text(ctx->sat_title_label, tr.saturation_label);
 }
 
 static const lv_font_t* get_value_font() {
@@ -270,6 +283,7 @@ static void align_header_row(lv_obj_t* card, lv_obj_t* title_label, lv_obj_t* ic
 static void apply_init_to_context(LightPopupContext* ctx, const LightPopupInit& init) {
   if (!ctx) return;
   ctx->suppress_events = true;
+  update_popup_language(ctx);
   ctx->entity_id = init.entity_id;
   ctx->supports_color = init.supports_color;
   ctx->supports_brightness = init.supports_brightness || init.supports_color;
@@ -400,6 +414,7 @@ static lv_obj_t* create_slider_row(lv_obj_t* parent,
                                    const char* label_text,
                                    int min_value,
                                    int max_value,
+                                   lv_obj_t** title_out,
                                    lv_obj_t** slider_out,
                                    lv_obj_t** value_out) {
   lv_obj_t* row = lv_obj_create(parent);
@@ -436,6 +451,7 @@ static lv_obj_t* create_slider_row(lv_obj_t* parent,
   lv_obj_set_width(value, kValueWidth);
   lv_obj_set_style_text_align(value, LV_TEXT_ALIGN_RIGHT, 0);
 
+  if (title_out) *title_out = label;
   if (slider_out) *slider_out = slider;
   if (value_out) *value_out = value;
   return row;
@@ -593,7 +609,6 @@ static void on_overlay_delete(lv_event_t* e) {
 
 void show_light_popup(const LightPopupInit& init) {
   if (!init.entity_id.length()) return;
-
   // Hide other popups if visible
   hide_sensor_popup();
   hide_weather_popup();
@@ -688,9 +703,9 @@ void show_light_popup(const LightPopupInit& init) {
   lv_obj_clear_flag(content, LV_OBJ_FLAG_CLICKABLE);
 
   ctx->power_row = create_centered_power_status(content, &ctx->power_switch, &ctx->power_status_label);
-  ctx->val_row = create_slider_row(content, "Helligkeit", 0, 100, &ctx->val_slider, &ctx->val_value);
-  ctx->hue_row = create_slider_row(content, "Farbton", 0, 360, &ctx->hue_slider, &ctx->hue_value);
-  ctx->sat_row = create_slider_row(content, "S\xC3\xA4ttigung", 0, 100, &ctx->sat_slider, &ctx->sat_value);
+  ctx->val_row = create_slider_row(content, "", 0, 100, &ctx->val_title_label, &ctx->val_slider, &ctx->val_value);
+  ctx->hue_row = create_slider_row(content, "", 0, 360, &ctx->hue_title_label, &ctx->hue_slider, &ctx->hue_value);
+  ctx->sat_row = create_slider_row(content, "", 0, 100, &ctx->sat_title_label, &ctx->sat_slider, &ctx->sat_value);
   lv_obj_move_foreground(icon);
   lv_obj_move_foreground(title);
   lv_obj_move_foreground(close_btn);

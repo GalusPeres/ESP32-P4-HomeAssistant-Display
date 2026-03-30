@@ -104,6 +104,8 @@ static const Strings kStringsDe = {
 
     "Display",
     "Helligkeit",
+    "Farbton",
+    "Sättigung",
     "Sleep",
     "nach",
     "Nie",
@@ -296,6 +298,8 @@ static const Strings kStringsEn = {
 
     "Display",
     "Brightness",
+    "Hue",
+    "Saturation",
     "Sleep",
     "after",
     "Never",
