@@ -1,18 +1,22 @@
-<img src="docs/images/b4-home.png" alt="Waveshare B4 home dashboard" width="46%" align="right">
-
-### ESP32-P4 Home Assistant Display
-
-Tile-based ESP32-P4 firmware for Home Assistant dashboards with a fully configurable web interface.
-
-The project currently supports multiple ESP32-P4 display devices and combines:
-- touch-first dashboard UI
-- MQTT-based Home Assistant integration
-- on-device web configuration
-- microSD-backed runtime storage
-
-<p align="right"><sub>Home</sub></p>
-
-<br clear="right">
+<table border="0" cellpadding="0" cellspacing="0" style="width:100%; border:none; border-collapse:collapse;">
+  <tr>
+    <td valign="top" width="52%" style="border:none; padding:0 24px 0 0;">
+      <h2>ESP32-P4 Home Assistant Display</h2>
+      <p>Tile-based ESP32-P4 firmware for Home Assistant dashboards with a fully configurable web interface.</p>
+      <p>The project currently supports multiple ESP32-P4 display devices and combines:</p>
+      <ul>
+        <li>touch-first dashboard UI</li>
+        <li>MQTT-based Home Assistant integration</li>
+        <li>on-device web configuration</li>
+        <li>microSD-backed runtime storage</li>
+      </ul>
+    </td>
+    <td align="center" valign="top" width="48%" style="border:none;">
+      <img src="docs/images/b4-home.png" alt="Waveshare B4 home dashboard" width="100%"><br>
+      <sub>Home</sub>
+    </td>
+  </tr>
+</table>
 
 ## Overview
 
@@ -39,16 +43,16 @@ The screenshots below were captured on the Waveshare B4. They are meant as examp
 
 These examples show the main dashboard, a folder page, and the on-device settings screen used during normal operation.
 
-<table>
+<table border="0" cellpadding="0" cellspacing="0" style="width:100%; border:none; border-collapse:collapse;">
   <tr>
-    <td align="center"><img src="docs/images/b4-home.png" alt="Waveshare B4 home dashboard" width="240"></td>
-    <td align="center"><img src="docs/images/b4-folder-lights.png" alt="Waveshare B4 folder view" width="240"></td>
-    <td align="center"><img src="docs/images/b4-settings.png" alt="Waveshare B4 settings screen" width="240"></td>
+    <td align="center" style="border:none;"><img src="docs/images/b4-home.png" alt="Waveshare B4 home dashboard" width="240"></td>
+    <td align="center" style="border:none;"><img src="docs/images/b4-folder-lights.png" alt="Waveshare B4 folder view" width="240"></td>
+    <td align="center" style="border:none;"><img src="docs/images/b4-settings.png" alt="Waveshare B4 settings screen" width="240"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Home dashboard</sub></td>
-    <td align="center"><sub>Folder view</sub></td>
-    <td align="center"><sub>Settings view</sub></td>
+    <td align="center" style="border:none;"><sub>Home dashboard</sub></td>
+    <td align="center" style="border:none;"><sub>Folder view</sub></td>
+    <td align="center" style="border:none;"><sub>Settings view</sub></td>
   </tr>
 </table>
 
@@ -56,27 +60,27 @@ These examples show the main dashboard, a folder page, and the on-device setting
 
 The popup system is used for detailed sensor history, weather information, and direct light control without leaving the current page.
 
-<table>
+<table border="0" cellpadding="0" cellspacing="0" style="width:100%; border:none; border-collapse:collapse;">
   <tr>
-    <td align="center"><img src="docs/images/b4-sensor-popup-kitchen.png" alt="Kitchen sensor popup" width="240"></td>
-    <td align="center"><img src="docs/images/b4-sensor-popup-water.png" alt="Water sensor popup" width="240"></td>
-    <td align="center"><img src="docs/images/b4-sensor-popup-battery.png" alt="Battery sensor popup" width="240"></td>
+    <td align="center" style="border:none;"><img src="docs/images/b4-sensor-popup-kitchen.png" alt="Kitchen sensor popup" width="240"></td>
+    <td align="center" style="border:none;"><img src="docs/images/b4-sensor-popup-water.png" alt="Water sensor popup" width="240"></td>
+    <td align="center" style="border:none;"><img src="docs/images/b4-sensor-popup-battery.png" alt="Battery sensor popup" width="240"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Kitchen sensor popup</sub></td>
-    <td align="center"><sub>Water temperature popup</sub></td>
-    <td align="center"><sub>Battery / energy popup</sub></td>
+    <td align="center" style="border:none;"><sub>Kitchen sensor popup</sub></td>
+    <td align="center" style="border:none;"><sub>Water temperature popup</sub></td>
+    <td align="center" style="border:none;"><sub>Battery / energy popup</sub></td>
   </tr>
 </table>
 
-<table>
+<table border="0" cellpadding="0" cellspacing="0" style="width:100%; border:none; border-collapse:collapse;">
   <tr>
-    <td align="center"><img src="docs/images/b4-weather-popup.png" alt="Weather popup" width="360"></td>
-    <td align="center"><img src="docs/images/b4-light-popup-desk.png" alt="Light popup" width="360"></td>
+    <td align="center" style="border:none;"><img src="docs/images/b4-weather-popup.png" alt="Weather popup" width="360"></td>
+    <td align="center" style="border:none;"><img src="docs/images/b4-light-popup-desk.png" alt="Light popup" width="360"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Weather popup</sub></td>
-    <td align="center"><sub>Light control popup</sub></td>
+    <td align="center" style="border:none;"><sub>Weather popup</sub></td>
+    <td align="center" style="border:none;"><sub>Light control popup</sub></td>
   </tr>
 </table>
 
