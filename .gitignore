@@ -7,6 +7,7 @@
 # IDE-Dateien
 .vscode/
 .idea/
+.claude/
 
 # Backup-Dateien
 *.bak
@@ -29,6 +30,10 @@ yarn-error.log*
 # OS-spezifisch
 .DS_Store
 Thumbs.db
+
+# Lokale Hilfsordner
+.tmp_fonts/
+libraries/
 
 # SimConnect bridge
 simconnect-bridge/bin/

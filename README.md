@@ -1,63 +1,101 @@
-# Tab5 - M5Stack Smart Home Dashboard & Macro Keypad
+# ESP32-P4 Home Assistant Display
 
-Tab5 is a versatile, dual-purpose firmware for M5Stack (ESP32) devices, combining a robust **Smart Home Dashboard** for Home Assistant with a **PC Macro Keypad** (Stream Deck alternative). Built with high-performance graphics using **LVGL**.
+ESP32-P4 touchscreen firmware for Home Assistant dashboards with a fully tile-configurable web interface.
 
-## 🚀 Features
+The project currently supports multiple ESP32-P4 display devices and is built around MQTT, LVGL, on-device web configuration, and a microSD-based runtime setup.
 
-### 🏠 Smart Home Dashboard
-- **Home Assistant Integration:** Seamless 2-way communication via MQTT.
-- **Unified Tile Interface:** Visualizes entities as interactive tiles.
-  - **Sensors:** Display temperature, humidity, power usage, etc.
-  - **Switches:** Toggle lights, plugs, and relays.
-  - **Scenes:** Trigger complex home automation scenes.
-- **Web-Based Configuration:** No code changes needed to rearrange layout!
-  - Built-in Web Admin Panel served directly from the device.
-  - Configure MQTT, WiFi, and Tile layouts visually.
+## Overview
 
-### 🎮 Game Mode (Macro Keypad)
-- Turns your M5Stack into a programmable macro keyboard.
-- **WebSocket Connectivity:** Low-latency communication with the host PC.
-- **Desktop Companion App:** Includes an Electron-based host application (`tab5-game-controls`) that receives commands and simulates key presses on your computer.
+This firmware is designed to turn supported ESP32-P4 touch displays into configurable Home Assistant panels.
 
-## 🛠️ Architecture
+Everything visible on the dashboard is tile-based and can be configured through the built-in web interface:
+- add, remove, move, and resize tiles
+- configure tile content and behavior
+- create folders and navigation structures
+- manage WiFi, MQTT, and language settings without changing code
 
-The project is structured into modular components:
+## Supported Devices
 
-- **Firmware (`src/`)**: C++ code for the ESP32.
-  - **Core**: Power, Display, and Config management.
-  - **Network**: WiFi, MQTT, and WebSocket servers.
-  - **UI/Tiles**: LVGL rendering logic and touch handling.
-  - **Web**: Embedded web server for the admin interface.
-- **Electron App (`electron-app/`)**: Node.js/Electron client for handling macro commands on Windows/Linux/macOS.
-- **Tools (`mdi-extractor/`)**: Utilities for processing Material Design Icons for the embedded display.
+- M5Stacks Tab5
+- Waveshare B4
 
-## 📦 Getting Started
+Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
 
-### 1. Firmware Setup
-1. Open `Tab5_LVGL.ino` in your Arduino IDE or PlatformIO.
-2. Ensure you have the required libraries installed (LVGL, ArduinoJson, PubSubClient, etc.).
-3. Flash the firmware to your M5Stack device.
-4. **Initial Setup:**
-   - On first boot, the device creates a WiFi Access Point.
-   - Connect to it and navigate to the displayed IP to configure your local WiFi and MQTT Broker credentials.
+## Requirements
 
-### 2. Desktop App (For Game Mode)
-1. Navigate to the `electron-app` directory.
-2. Install dependencies:
-   ```bash
-   cd electron-app
-   npm install
-   ```
-3. Run the application:
-   ```bash
-   npm start
-   ```
+- Home Assistant
+- MQTT broker
+- Home Assistant bridge/integration: [ha-tab5-mqtt-bridge](https://github.com/GalusPeres/ha-tab5-mqtt-bridge)
+- microSD card required, formatted as FAT32
 
-## ⚙️ Configuration
-Access the **Web Admin Panel** by navigating to the device's IP address in your browser.
-- **Layout Editor:** Add, remove, and arrange tiles for Home, Weather, and Game tabs.
-- **HA Bridge:** Map Home Assistant Entity IDs to specific tiles.
-- **System:** Manage WiFi and MQTT settings.
+## Features
 
-## 📄 License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- Fully tile-configurable dashboard via the built-in web admin panel
+- MQTT-based Home Assistant communication
+- Access Point based first-time setup
+- Device-local WiFi and MQTT configuration
+- Multi-language UI/admin support
+- Tile types currently include:
+  - clock
+  - counter
+  - empty
+  - key
+  - navigate
+  - scene
+  - sensor
+  - switch
+  - text
+  - weather
+
+## Installation
+
+### Option 1: Prebuilt Binaries
+
+If release binaries are available, download the `.bin` file matching your device:
+- `...m5stacks-tab5.bin`
+- `...waveshare-b4.bin`
+
+Flash the correct binary for your hardware using your usual ESP32-P4 flashing workflow.
+
+### Option 2: Build From Source
+
+1. Open [ESP32_P4_HomeAssistant_Display.ino](ESP32_P4_HomeAssistant_Display.ino) in the Arduino IDE.
+2. Select the target device in [src/devices/device_select.h](src/devices/device_select.h).
+3. Apply the correct board settings from [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
+4. Build and flash the firmware.
+
+## First Setup
+
+1. Insert a microSD card formatted as FAT32.
+2. Flash the firmware.
+3. Boot the device.
+4. Open the device's temporary WiFi Access Point if needed.
+5. Configure WiFi and MQTT in the built-in web interface.
+6. Open the web admin panel through the device IP address.
+7. Configure your tiles, folders, and layout.
+
+## Home Assistant Integration
+
+This firmware expects the Home Assistant side to be provided by the MQTT bridge/integration:
+
+- [ha-tab5-mqtt-bridge](https://github.com/GalusPeres/ha-tab5-mqtt-bridge)
+
+That integration is responsible for the Home Assistant-side MQTT communication and entity bridge.
+
+## Repository Structure
+
+- `src/` firmware source code
+- `electron-app/` optional desktop companion tooling
+- `mdi-extractor/` icon tooling
+- `simconnect-bridge/` additional companion tooling
+- `BOARD_SETTINGS.md` documented Arduino IDE board settings
+
+## Notes
+
+- OTA is not implemented yet.
+- The microSD card is part of the expected runtime setup and should not be treated as optional.
+- Board selection and board settings must match the target device.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).

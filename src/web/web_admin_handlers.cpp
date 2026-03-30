@@ -416,26 +416,34 @@ void WebAdminServer::handleSaveMQTT() {
     strncpy(cfg.ha_prefix, "ha/statestream", CONFIG_HA_PREFIX_MAX - 1);
   }
 
+  auto copyIfNonEmpty = [this](char* dest, size_t max_len, const char* field) {
+    if (!server.hasArg(field)) return;
+    String value = server.arg(field);
+    value.trim();
+    if (!value.length()) return;
+    copyToBuffer(dest, max_len, value);
+  };
+
+  auto copyMaybeEmpty = [this](char* dest, size_t max_len, const char* field) {
+    if (!server.hasArg(field)) return;
+    copyToBuffer(dest, max_len, server.arg(field));
+  };
+
   if (server.hasArg("mqtt_host")) {
     copyToBuffer(cfg.mqtt_host, sizeof(cfg.mqtt_host), server.arg("mqtt_host"));
   }
-  if (server.hasArg("wifi_ssid")) {
-    copyToBuffer(cfg.wifi_ssid, sizeof(cfg.wifi_ssid), server.arg("wifi_ssid"));
-  }
-  if (server.hasArg("wifi_pass")) {
-    copyToBuffer(cfg.wifi_pass, sizeof(cfg.wifi_pass), server.arg("wifi_pass"));
-  }
-  if (server.hasArg("wifi_static_ip")) {
-    copyToBuffer(cfg.wifi_static_ip, sizeof(cfg.wifi_static_ip), server.arg("wifi_static_ip"));
-  }
-  if (server.hasArg("wifi_gateway")) {
-    copyToBuffer(cfg.wifi_gateway, sizeof(cfg.wifi_gateway), server.arg("wifi_gateway"));
-  }
-  if (server.hasArg("wifi_subnet")) {
-    copyToBuffer(cfg.wifi_subnet, sizeof(cfg.wifi_subnet), server.arg("wifi_subnet"));
-  }
-  if (server.hasArg("wifi_dns")) {
-    copyToBuffer(cfg.wifi_dns, sizeof(cfg.wifi_dns), server.arg("wifi_dns"));
+  copyIfNonEmpty(cfg.wifi_ssid, sizeof(cfg.wifi_ssid), "wifi_ssid");
+  copyIfNonEmpty(cfg.wifi_pass, sizeof(cfg.wifi_pass), "wifi_pass");
+  if (server.hasArg("wifi_use_static")) {
+    copyIfNonEmpty(cfg.wifi_static_ip, sizeof(cfg.wifi_static_ip), "wifi_static_ip");
+    copyIfNonEmpty(cfg.wifi_gateway, sizeof(cfg.wifi_gateway), "wifi_gateway");
+    copyIfNonEmpty(cfg.wifi_subnet, sizeof(cfg.wifi_subnet), "wifi_subnet");
+    copyIfNonEmpty(cfg.wifi_dns, sizeof(cfg.wifi_dns), "wifi_dns");
+  } else {
+    cfg.wifi_static_ip[0] = '\0';
+    cfg.wifi_gateway[0] = '\0';
+    cfg.wifi_subnet[0] = '\0';
+    cfg.wifi_dns[0] = '\0';
   }
   if (server.hasArg("mqtt_port")) {
     cfg.mqtt_port = server.arg("mqtt_port").toInt();
@@ -443,9 +451,7 @@ void WebAdminServer::handleSaveMQTT() {
   if (server.hasArg("mqtt_user")) {
     copyToBuffer(cfg.mqtt_user, sizeof(cfg.mqtt_user), server.arg("mqtt_user"));
   }
-  if (server.hasArg("mqtt_pass")) {
-    copyToBuffer(cfg.mqtt_pass, sizeof(cfg.mqtt_pass), server.arg("mqtt_pass"));
-  }
+  copyIfNonEmpty(cfg.mqtt_pass, sizeof(cfg.mqtt_pass), "mqtt_pass");
   if (server.hasArg("mqtt_client_id")) {
     String client_id = server.arg("mqtt_client_id");
     client_id.trim();

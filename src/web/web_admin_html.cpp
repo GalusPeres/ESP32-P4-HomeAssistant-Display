@@ -369,6 +369,8 @@ String WebAdminServer::getAdminPage() {
   const DeviceConfig& cfg = configManager.getConfig();
   const auto& tr = i18n::strings(cfg.language);
   const bool is_german = strcmp(tr.html_lang, "de") == 0;
+  const bool use_static_wifi =
+      cfg.wifi_static_ip[0] || cfg.wifi_gateway[0] || cfg.wifi_subnet[0] || cfg.wifi_dns[0];
   const String admin_panel_title =
       String(Device::displayName()) + (is_german ? " Admin-Panel" : " Admin Panel");
   const HaBridgeConfigData& ha = haBridgeConfig.get();
@@ -557,41 +559,68 @@ String WebAdminServer::getAdminPage() {
                 <label for="wifi_pass">)html";
   html += tr.wifi_password_label;
   html += R"html(</label>
-                <input type="password" id="wifi_pass" name="wifi_pass" value=")html";
+                <div class="password-field">
+                  <input type="password" id="wifi_pass" name="wifi_pass" value=")html";
   html += cfg.wifi_pass;
   html += R"html(">
+                  <button type="button" class="password-toggle" data-label-show=")html";
+  html += is_german ? "Anzeigen" : "Show";
+  html += R"html(" data-label-hide=")html";
+  html += is_german ? "Verbergen" : "Hide";
+  html += R"html(" onclick="togglePasswordVisibility('wifi_pass', this)">)html";
+  html += is_german ? "Anzeigen" : "Show";
+  html += R"html(</button>
+                </div>
               </div>
-              <div>
+              <div class="settings-full">
+                <label class="settings-checkbox" for="wifi_use_static">
+                  <input type="checkbox" id="wifi_use_static" name="wifi_use_static" onchange="toggleStaticWifiFields()" )html";
+  if (use_static_wifi) {
+    html += "checked";
+  }
+  html += R"html(>
+                  <span>)html";
+  html += is_german ? "Statische IP-Adresse verwenden" : "Use static IP address";
+  html += R"html(</span>
+                </label>
+              </div>
+              <div id="wifi_static_fields" class="settings-subgrid settings-full )html";
+  if (!use_static_wifi) {
+    html += "is-hidden";
+  }
+  html += R"html(">
+                <div>
                 <label for="wifi_static_ip">)html";
   html += tr.wifi_static_ip_label;
   html += R"html(</label>
                 <input type="text" id="wifi_static_ip" name="wifi_static_ip" value=")html";
   html += cfg.wifi_static_ip;
-  html += R"html(" placeholder="192.168.1.50">
-              </div>
-              <div>
+  html += R"html(">
+                </div>
+                <div>
                 <label for="wifi_gateway">)html";
   html += tr.wifi_gateway_label;
   html += R"html(</label>
                 <input type="text" id="wifi_gateway" name="wifi_gateway" value=")html";
   html += cfg.wifi_gateway;
-  html += R"html(" placeholder="192.168.1.1">
-              </div>
-              <div>
+  html += R"html(">
+                </div>
+                <div>
                 <label for="wifi_subnet">)html";
   html += tr.wifi_subnet_label;
   html += R"html(</label>
                 <input type="text" id="wifi_subnet" name="wifi_subnet" value=")html";
   html += cfg.wifi_subnet;
-  html += R"html(" placeholder="255.255.255.0">
-              </div>
-              <div>
+  html += R"html(">
+                </div>
+                <div>
                 <label for="wifi_dns">)html";
   html += tr.wifi_dns_label;
   html += R"html(</label>
                 <input type="text" id="wifi_dns" name="wifi_dns" value=")html";
   html += cfg.wifi_dns;
-  html += R"html(" placeholder="192.168.1.1">
+  html += R"html(">
+                </div>
               </div>
               <div class="settings-note settings-full">)html";
   html += tr.wifi_dhcp_hint;
@@ -632,9 +661,18 @@ String WebAdminServer::getAdminPage() {
                 <label for="mqtt_pass">)html";
   html += tr.mqtt_password;
   html += R"html(</label>
-                <input type="password" id="mqtt_pass" name="mqtt_pass" value=")html";
+                <div class="password-field">
+                  <input type="password" id="mqtt_pass" name="mqtt_pass" value=")html";
   html += cfg.mqtt_pass;
   html += R"html(">
+                  <button type="button" class="password-toggle" data-label-show=")html";
+  html += is_german ? "Anzeigen" : "Show";
+  html += R"html(" data-label-hide=")html";
+  html += is_german ? "Verbergen" : "Hide";
+  html += R"html(" onclick="togglePasswordVisibility('mqtt_pass', this)">)html";
+  html += is_german ? "Anzeigen" : "Show";
+  html += R"html(</button>
+                </div>
               </div>
               <div class="settings-full">
                 <label for="mqtt_client_id">)html";

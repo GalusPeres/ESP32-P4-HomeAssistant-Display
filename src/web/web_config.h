@@ -7,7 +7,10 @@
 #include "src/core/config_manager.h"
 
 // Webinterface für WiFi/MQTT-Konfiguration im Hotspot-Modus
-// Erstellt einen Access Point "WS_P4_Config" und bietet ein Webinterface zur Konfiguration
+// Erstellt einen gerätespezifischen Access Point und bietet ein Webinterface zur Konfiguration
+
+const char* webConfigApSsid();
+const char* webConfigApPassword();
 
 class WebConfigServer {
 public:

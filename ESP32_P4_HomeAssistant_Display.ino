@@ -275,7 +275,7 @@ void loop() {
 
     webConfigServer.handle();
     settings_update_ap_mode(true);
-    settings_update_wifi_status_ap("WS_P4_Config", "12345678");
+    settings_update_wifi_status_ap(webConfigApSsid(), webConfigApPassword());
     settings_update_power_status();
 
     if (webConfigServer.hasNewConfig()) { delay(1000); ESP.restart(); }

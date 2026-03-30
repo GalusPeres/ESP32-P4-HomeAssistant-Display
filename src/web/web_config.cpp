@@ -1,18 +1,38 @@
 #include "src/web/web_config.h"
 #include "src/devices/device_select.h"
 #include "src/devices/device.h"
-#include "src/core/i18n.h"
 #include <WiFi.h>
 
 // Globale Instanz
 WebConfigServer webConfigServer;
 
 // Hotspot Einstellungen
-static const char* AP_SSID = "WS_P4_Config";
 static const char* AP_PASS = "12345678";  // Mindestens 8 Zeichen für WPA2
 static const IPAddress AP_IP(192, 168, 4, 1);
 static const IPAddress AP_GATEWAY(192, 168, 4, 1);
 static const IPAddress AP_SUBNET(255, 255, 255, 0);
+
+namespace {
+
+const char* apSsidForDevice() {
+#if defined(DEVICE_M5STACKS_TAB5)
+  return "M5Stacks_Tab5_Config";
+#elif defined(DEVICE_WAVESHARE_4B)
+  return "Waveshare_B4_Config";
+#else
+  return "ESP32_P4_Config";
+#endif
+}
+
+}  // namespace
+
+const char* webConfigApSsid() {
+  return apSsidForDevice();
+}
+
+const char* webConfigApPassword() {
+  return AP_PASS;
+}
 
 static void restoreStaModeAfterAp() {
 #if defined(DEVICE_M5STACKS_TAB5)
@@ -44,7 +64,8 @@ bool WebConfigServer::start() {
 
   // Starte AP mit expliziten Einstellungen
   // Channel 1, SSID nicht versteckt, max 4 Verbindungen
-  bool ap_ok = WiFi.softAP(AP_SSID, AP_PASS, 1, 0, 4);
+  const char* ap_ssid = webConfigApSsid();
+  bool ap_ok = WiFi.softAP(ap_ssid, AP_PASS, 1, 0, 4);
   if (!ap_ok) {
     restoreStaModeAfterAp();
   }
@@ -56,7 +77,7 @@ bool WebConfigServer::start() {
   delay(500);
 
   IPAddress ip = WiFi.softAPIP();
-  Serial.printf("✓ Access Point gestartet: %s\n", AP_SSID);
+  Serial.printf("✓ Access Point gestartet: %s\n", ap_ssid);
   Serial.printf("  Passwort: %s\n", AP_PASS);
   Serial.printf("  IP-Adresse: %s\n", ip.toString().c_str());
 
@@ -85,7 +106,7 @@ bool WebConfigServer::start() {
 
   server.begin();
   Serial.println("✓ Webserver gestartet auf http://192.168.4.1");
-  Serial.println("  Verbinde dich mit WiFi 'WS_P4_Config' und öffne Browser");
+  Serial.printf("  Verbinde dich mit WiFi '%s' und öffne Browser\n", ap_ssid);
 
   running = true;
   config_saved = false;
@@ -172,10 +193,17 @@ void WebConfigServer::handleSave() {
     strncpy(cfg.wifi_pass, pass.c_str(), CONFIG_WIFI_PASS_MAX - 1);
   }
 
+  // Captive portal always resets WiFi addressing back to DHCP.
+  // This prevents stale static IP settings from locking the device out
+  // when the user only wants to reconnect it to a network.
+  cfg.wifi_static_ip[0] = '\0';
+  cfg.wifi_gateway[0] = '\0';
+  cfg.wifi_subnet[0] = '\0';
+  cfg.wifi_dns[0] = '\0';
+
   // Validierung
   if (strlen(cfg.wifi_ssid) == 0) {
-    const auto& tr = i18n::strings(cfg.language);
-    server.send(400, "text/html", String("<h1>") + tr.ap_wifi_required + "</h1>");
+    server.send(400, "text/html", "<h1>WiFi SSID is required</h1>");
     return;
   }
 
@@ -186,8 +214,7 @@ void WebConfigServer::handleSave() {
     server.send(200, "text/html", getSuccessPage());
   } else {
     Serial.println("❌ Fehler beim Speichern der Konfiguration");
-    const auto& tr = i18n::strings(cfg.language);
-    server.send(500, "text/html", String("<h1>") + tr.save_failed + "</h1>");
+    server.send(500, "text/html", "<h1>Saving the configuration failed</h1>");
   }
 }
 
@@ -206,15 +233,10 @@ void WebConfigServer::handleNotFound() {
 String WebConfigServer::getConfigPage() {
   // Lade bestehende Konfiguration wenn vorhanden
   const DeviceConfig& cfg = configManager.getConfig();
-  const auto& tr = i18n::strings(cfg.language);
-  const bool is_german = strcmp(tr.html_lang, "de") == 0;
-  const String ap_page_title =
-      String(Device::displayName()) + (is_german ? " WiFi-Konfiguration" : " WiFi Configuration");
+  const String ap_page_title = String(Device::displayName()) + " WiFi Configuration";
 
-  String html = "<!DOCTYPE html>\n<html lang=\"";
-  html += tr.html_lang;
-  html += R"html(">
-<head>
+  String html = "<!DOCTYPE html>\n<html lang=\"en\">\n";
+  html += R"html(<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>)html";
@@ -291,6 +313,28 @@ String WebConfigServer::getConfigPage() {
     input::placeholder {
       color: #a0aec0;
     }
+    .password-field {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .password-field input {
+      flex: 1 1 auto;
+    }
+    .password-toggle {
+      flex: 0 0 auto;
+      padding: 12px 14px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      background: white;
+      color: #4a5568;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .password-toggle:hover {
+      background: #f7fafc;
+    }
     .hint {
       color: #a0aec0;
       font-size: 12px;
@@ -329,57 +373,60 @@ String WebConfigServer::getConfigPage() {
     <h1>)html";
   html += ap_page_title;
   html += R"html(</h1>
-    <p class="subtitle">)html";
-  html += tr.ap_subtitle;
-  html += R"html(</p>
+    <p class="subtitle">Configure WiFi so the device can join your network. MQTT can be configured later from the normal web interface.</p>
 
     <form action="/save" method="POST">
       <div class="section">
-        <div class="section-title">📶 WiFi-Verbindung</div>
+        <div class="section-title">WiFi Connection</div>
         <div class="form-group">
-          <label for="wifi_ssid">SSID (Netzwerkname)</label>
-          <input type="text" id="wifi_ssid" name="wifi_ssid" placeholder="Mein WiFi" value=")html" + String(cfg.wifi_ssid) + R"html(" required>
+          <label for="wifi_ssid">SSID</label>
+          <input type="text" id="wifi_ssid" name="wifi_ssid" placeholder="My WiFi" value=")html";
+  html += String(cfg.wifi_ssid);
+  html += R"html(" required>
         </div>
         <div class="form-group">
-          <label for="wifi_pass">Passwort</label>
-          <input type="password" id="wifi_pass" name="wifi_pass" placeholder="Passwort" value=")html" + String(cfg.wifi_pass) + R"html(">
-          <div class="hint">Leer lassen für offenes Netzwerk</div>
+          <label for="wifi_pass">Password</label>
+          <div class="password-field">
+            <input type="password" id="wifi_pass" name="wifi_pass" placeholder="Password" value=")html";
+  html += String(cfg.wifi_pass);
+  html += R"html(">
+            <button type="button" class="password-toggle" onclick="togglePasswordVisibility('wifi_pass', this)">Show</button>
+          </div>
+          <div class="hint">Leave empty for an open network</div>
         </div>
       </div>
 
       <div class="info" style="background: #fff3cd; border-left: 4px solid #ffc107; color: #856404; margin-bottom: 20px;">
-        ℹ️ <strong>Hinweis:</strong> Nach erfolgreicher WLAN-Verbindung kannst du über das Webinterface im normalen Netzwerk die MQTT-Einstellungen konfigurieren.
+        ℹ️ <strong>Note:</strong> After WiFi works, you can configure MQTT later through the normal web interface on your local network.
       </div>
 
-      <button type="submit" class="btn">💾 Speichern & Verbinden</button>
+      <button type="submit" class="btn">💾 Save & Connect</button>
     </form>
   </div>
+  <script>
+    function togglePasswordVisibility(inputId, buttonEl) {
+      const input = document.getElementById(inputId);
+      if (!input || !buttonEl) return;
+      const isHidden = input.type === 'password';
+      input.type = isHidden ? 'text' : 'password';
+      buttonEl.textContent = isHidden ? 'Hide' : 'Show';
+    }
+  </script>
 </body>
 </html>
 )html";
-
-  html.replace("WiFi-Verbindung", tr.ap_wifi_section);
-  html.replace("SSID (Netzwerkname)", tr.ap_wifi_ssid_label);
-  html.replace("placeholder=\"Mein WiFi\"", String("placeholder=\"") + tr.ap_wifi_ssid_placeholder + "\"");
-  html.replace(">Passwort</label>", String(">") + tr.ap_wifi_password_label + "</label>");
-  html.replace("placeholder=\"Passwort\"", String("placeholder=\"") + tr.ap_wifi_password_placeholder + "\"");
-  html.replace("Leer lassen fÃ¼r offenes Netzwerk", tr.ap_wifi_open_hint);
-  html.replace("Hinweis:", tr.ap_info_notice);
-  html.replace("Nach erfolgreicher WLAN-Verbindung kannst du Ã¼ber das Webinterface im normalen Netzwerk die MQTT-Einstellungen konfigurieren.", tr.ap_info_message);
-  html.replace("Speichern & Verbinden", tr.ap_save_connect);
 
   return html;
 }
 
 String WebConfigServer::getSuccessPage() {
-  const auto& tr = i18n::strings(configManager.getConfig().language);
-  String html = R"html(
+  return R"html(
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Konfiguration gespeichert</title>
+  <title>Configuration saved</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -439,23 +486,14 @@ String WebConfigServer::getSuccessPage() {
 <body>
   <div class="container">
     <div class="icon">✅</div>
-    <h1>Erfolgreich gespeichert!</h1>
-    <p>Die Konfiguration wurde erfolgreich gespeichert.<br>Das Gerät wird jetzt neu gestartet und versucht sich mit dem WiFi zu verbinden.</p>
+    <h1>Configuration saved</h1>
+    <p>The configuration was saved successfully.<br>The device will now restart and try to connect to WiFi.</p>
     <div class="info">
-      ℹ️ Du wirst in 10 Sekunden automatisch weitergeleitet.<br>
-      Falls die Verbindung nicht klappt, aktiviere den Hotspot-Modus erneut über die Einstellungen.
+      ℹ️ You will be redirected automatically in 10 seconds.<br>
+      If the connection fails, enable hotspot mode again from the device settings.
     </div>
   </div>
 </body>
 </html>
 )html";
-
-  html.replace("<html lang=\"de\">", String("<html lang=\"") + tr.html_lang + "\">");
-  html.replace("<title>Konfiguration gespeichert</title>", String("<title>") + tr.ap_success_title + "</title>");
-  html.replace("Erfolgreich gespeichert!", tr.ap_success_title);
-  html.replace("Die Konfiguration wurde erfolgreich gespeichert.<br>Das GerÃ¤t wird jetzt neu gestartet und versucht sich mit dem WiFi zu verbinden.", tr.ap_success_message);
-  html.replace("â„¹ï¸ Du wirst in 10 Sekunden automatisch weitergeleitet.<br>\r\n      Falls die Verbindung nicht klappt, aktiviere den Hotspot-Modus erneut Ã¼ber die Einstellungen.", String("â„¹ï¸ ") + tr.ap_success_notice);
-  html.replace("â„¹ï¸ Du wirst in 10 Sekunden automatisch weitergeleitet.<br>\n      Falls die Verbindung nicht klappt, aktiviere den Hotspot-Modus erneut Ã¼ber die Einstellungen.", String("â„¹ï¸ ") + tr.ap_success_notice);
-
-  return html;
 }

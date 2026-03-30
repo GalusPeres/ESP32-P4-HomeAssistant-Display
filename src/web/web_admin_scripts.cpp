@@ -89,6 +89,23 @@ void appendAdminScripts(String& html) {
     try { localStorage.setItem('activeAdminTab', tabName); } catch (e) {}
   }
 
+  function toggleStaticWifiFields() {
+    const toggle = document.getElementById('wifi_use_static');
+    const fields = document.getElementById('wifi_static_fields');
+    if (!toggle || !fields) return;
+    fields.classList.toggle('is-hidden', !toggle.checked);
+  }
+
+  function togglePasswordVisibility(inputId, buttonEl) {
+    const input = document.getElementById(inputId);
+    if (!input || !buttonEl) return;
+    const showLabel = buttonEl.dataset.labelShow || 'Show';
+    const hideLabel = buttonEl.dataset.labelHide || 'Hide';
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    buttonEl.textContent = isHidden ? hideLabel : showLabel;
+  }
+
   // Tile Editor State
 )html";
   html += "  const GRID_COLS = " + String(GRID_COLS) + ";\n";
@@ -1343,6 +1360,91 @@ void appendAdminScripts(String& html) {
     reader.readAsText(file);
   }
 
+  function normalizeImportFolderName(value) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function normalizeImportFolderIcon(value) {
+    return normalizeIconName(value || '');
+  }
+
+  async function fetchFoldersForImport() {
+    const res = await fetch('/api/folders');
+    if (!res.ok) throw new Error('Folder fetch failed');
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }
+
+  async function fetchTilesForImport(folderId) {
+    const res = await fetch('/api/tiles?folder=' + encodeURIComponent(folderId));
+    if (!res.ok) throw new Error('Tile fetch failed');
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }
+
+  function buildEmptyImportTile(index) {
+    return {
+      type: 0,
+      title: '',
+      icon_name: '',
+      bg_color: 0,
+      col: index % GRID_COLS,
+      row: Math.floor(index / GRID_COLS),
+      span_w: 1,
+      span_h: 1
+    };
+  }
+
+  function updateFolderImportMap(sourceFolders, targetFolders, sourceToTarget) {
+    let changed = false;
+    sourceFolders.forEach(sourceFolder => {
+      const sourceId = parseInt(sourceFolder && sourceFolder.id, 10);
+      const sourceParentId = parseInt(sourceFolder && sourceFolder.parent_id, 10);
+      if (isNaN(sourceId) || sourceId === 0 || isNaN(sourceParentId)) return;
+      const targetParentId = sourceToTarget[sourceParentId];
+      if (targetParentId === undefined) return;
+      const sourceName = normalizeImportFolderName(sourceFolder.name);
+      const sourceIcon = normalizeImportFolderIcon(sourceFolder.icon_name);
+      const match = targetFolders.find(targetFolder =>
+        Number(targetFolder.parent_id) === Number(targetParentId) &&
+        normalizeImportFolderName(targetFolder.name) === sourceName &&
+        normalizeImportFolderIcon(targetFolder.icon_name) === sourceIcon
+      );
+      if (match && sourceToTarget[sourceId] !== Number(match.id)) {
+        sourceToTarget[sourceId] = Number(match.id);
+        changed = true;
+      }
+    });
+    return changed;
+  }
+
+  async function replaceFolderGridForImport(folderId, sourceTiles, systemType, sourceToTarget = null) {
+    const currentTiles = await fetchTilesForImport(folderId);
+    const sourceList = Array.isArray(sourceTiles) ? sourceTiles.slice(0, GRID_COLS * GRID_ROWS) : [];
+    const currentSystemIndex = currentTiles.findIndex(tile => Number(tile && tile.type) === systemType);
+    const sourceSystemTile = sourceList.find(tile => Number(tile && tile.type) === systemType) || null;
+
+    for (let i = 0; i < (GRID_COLS * GRID_ROWS); i++) {
+      if (i === currentSystemIndex) continue;
+      await postTile(folderId, i, buildEmptyImportTile(i), sourceToTarget);
+    }
+
+    if (currentSystemIndex >= 0 && sourceSystemTile) {
+      await postTile(folderId, currentSystemIndex, sourceSystemTile, sourceToTarget);
+    }
+
+    const availableIndices = [];
+    for (let i = 0; i < (GRID_COLS * GRID_ROWS); i++) {
+      if (i === currentSystemIndex) continue;
+      availableIndices.push(i);
+    }
+
+    const nonSystemTiles = sourceList.filter(tile => Number(tile && tile.type) !== systemType);
+    for (let i = 0; i < nonSystemTiles.length && i < availableIndices.length; i++) {
+      await postTile(folderId, availableIndices[i], nonSystemTiles[i] || {}, sourceToTarget);
+    }
+  }
+
   async function importTilesPayload(payload) {
     try {
       if (!payload || typeof payload !== 'object') {
@@ -1355,18 +1457,47 @@ void appendAdminScripts(String& html) {
         if (Array.isArray(payload.tab1)) grids['1'] = payload.tab1;
         if (Array.isArray(payload.tab2)) grids['2'] = payload.tab2;
       }
+      if (!Object.keys(grids).length) {
+        showNotification(t('importInvalidJson'), false);
+        return;
+      }
 
       showNotification(t('importRunning'));
 
-      const entries = Object.entries(grids);
-      for (const [folderIdRaw, tiles] of entries) {
-        const folderId = parseInt(folderIdRaw, 10);
-        if (isNaN(folderId)) continue;
-        if (!Array.isArray(tiles)) continue;
-        if (!tabByFolder[folderId]) continue;
-        for (let i = 0; i < tiles.length && i < (GRID_COLS * GRID_ROWS); i++) {
-          await postTile(folderId, i, tiles[i] || {});
+      const sourceFolders = Array.isArray(payload.folders) ? payload.folders : [{ id: 0, parent_id: 0, name: 'Home', icon_name: '' }];
+      const sourceToTarget = { 0: 0 };
+
+      if (Array.isArray(grids['0'])) {
+        await replaceFolderGridForImport(0, grids['0'], 7, sourceToTarget);
+      }
+
+      let targetFolders = await fetchFoldersForImport();
+      updateFolderImportMap(sourceFolders, targetFolders, sourceToTarget);
+
+      const pendingFolderIds = sourceFolders
+        .map(folder => parseInt(folder && folder.id, 10))
+        .filter(folderId => !isNaN(folderId) && folderId !== 0 && Array.isArray(grids[String(folderId)]));
+
+      let progressed = true;
+      while (pendingFolderIds.length && progressed) {
+        progressed = false;
+        for (let i = 0; i < pendingFolderIds.length; ) {
+          const sourceFolderId = pendingFolderIds[i];
+          const targetFolderId = sourceToTarget[sourceFolderId];
+          if (targetFolderId === undefined) {
+            i++;
+            continue;
+          }
+          await replaceFolderGridForImport(targetFolderId, grids[String(sourceFolderId)], 8, sourceToTarget);
+          pendingFolderIds.splice(i, 1);
+          progressed = true;
+          targetFolders = await fetchFoldersForImport();
+          updateFolderImportMap(sourceFolders, targetFolders, sourceToTarget);
         }
+      }
+
+      if (pendingFolderIds.length) {
+        throw new Error('Folder mapping failed');
       }
 
       try { localStorage.removeItem('tileDrafts'); } catch (e) {}
@@ -1378,7 +1509,7 @@ void appendAdminScripts(String& html) {
     }
   }
 
-  async function postTile(folderId, index, tile) {
+  async function postTile(folderId, index, tile, sourceToTarget = null) {
     const fd = new FormData();
     const type = Number(tile.type);
     let safeType = isNaN(type) ? 0 : type;
@@ -1440,9 +1571,13 @@ void appendAdminScripts(String& html) {
     } else if (safeType === 3) {
       fd.append('key_macro', tile.key_macro || '');
     } else if (safeType === 4) {
-      const target = (tile.navigate_target !== undefined && tile.navigate_target !== null)
-        ? tile.navigate_target
-        : 0;
+      const rawTarget = Number(tile.navigate_target);
+      let target = 0;
+      if (!isNaN(rawTarget) && rawTarget > 0) {
+        if (sourceToTarget && sourceToTarget[rawTarget] !== undefined) {
+          target = sourceToTarget[rawTarget];
+        }
+      }
       fd.append('navigate_target', target);
     } else if (safeType === 5) {
       fd.append('switch_entity', tile.sensor_entity || '');
@@ -2421,6 +2556,7 @@ void appendAdminScripts(String& html) {
   function loadTileDataAndSelect(tab, index) { selectTile(index, tab); }
 
   document.addEventListener('DOMContentLoaded', () => {
+    toggleStaticWifiFields();
     initTileTabs();
     loadDraftsFromStorage();
     loadTileClipboard();
