@@ -1,7 +1,7 @@
 ## ESP32-P4 Home Assistant Display
 
 <p align="center">
-  <img src="docs/images/b4-home.png" alt="Waveshare B4 home dashboard" width="60%">
+  <img src="docs/images/b4-home.png" alt="Waveshare B4 home dashboard" width="38%">
 </p>
 
 Tile-based ESP32-P4 firmware for Home Assistant dashboards with a fully configurable web interface.
@@ -38,26 +38,15 @@ The screenshots below were captured on the Waveshare B4. They are meant as examp
 
 Home dashboard, folder view, and settings screen:
 
-<p align="center">
-  <img src="docs/images/b4-home.png" alt="Home dashboard" width="32%">
-  <img src="docs/images/b4-folder-lights.png" alt="Folder view" width="32%">
-  <img src="docs/images/b4-settings.png" alt="Settings view" width="32%">
-</p>
+<p align="center"><img src="docs/images/b4-home.png" alt="Home dashboard" width="33.3%"><img src="docs/images/b4-folder-lights.png" alt="Folder view" width="33.3%"><img src="docs/images/b4-settings.png" alt="Settings view" width="33.3%"></p>
 
 ### Popups
 
 Sensor history, weather details, and light control popups:
 
-<p align="center">
-  <img src="docs/images/b4-sensor-popup-kitchen.png" alt="Kitchen sensor popup" width="32%">
-  <img src="docs/images/b4-sensor-popup-water.png" alt="Water sensor popup" width="32%">
-  <img src="docs/images/b4-sensor-popup-battery.png" alt="Battery sensor popup" width="32%">
-</p>
+<p align="center"><img src="docs/images/b4-sensor-popup-kitchen.png" alt="Kitchen sensor popup" width="33.3%"><img src="docs/images/b4-sensor-popup-water.png" alt="Water sensor popup" width="33.3%"><img src="docs/images/b4-sensor-popup-battery.png" alt="Battery sensor popup" width="33.3%"></p>
 
-<p align="center">
-  <img src="docs/images/b4-weather-popup.png" alt="Weather popup" width="32%">
-  <img src="docs/images/b4-light-popup-desk.png" alt="Light control popup" width="32%">
-</p>
+<p align="center"><img src="docs/images/b4-weather-popup.png" alt="Weather popup" width="33.3%"><img src="docs/images/b4-light-popup-desk.png" alt="Light control popup" width="33.3%"></p>
 
 ### Web Admin
 
