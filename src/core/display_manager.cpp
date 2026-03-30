@@ -309,7 +309,7 @@ void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *
   if (BoardHAL::getTouch(&tp)) {
     int16_t mapped_x = tp.x;
     int16_t mapped_y = tp.y;
-#if !defined(DEVICE_M5STACK_TAB5)
+#if !defined(DEVICE_M5STACKS_TAB5)
     switch (rotation & 0x03) {
       case 1:
         mapped_x = tp.y;
@@ -365,7 +365,7 @@ bool DisplayManager::init() {
   lv_display_set_flush_cb(disp, flush_cb);
 
   // Farbformat + Anti-Aliasing aus (Performance)
-#if defined(DEVICE_M5STACK_TAB5)
+#if defined(DEVICE_M5STACKS_TAB5)
   lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
 #else
   lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);

@@ -14,9 +14,9 @@ static const Strings kStringsDe = {
 
     "Waveshare Admin",
     "Waveshare Admin-Panel",
-    "Konfiguration & Uebersicht",
-    "Klicke auf eine Kachel, um sie zu bearbeiten. Waehle den Typ (Sensor/Wetter/Szene/Key/Ordner/Settings/Switch/Bild/Uhr/Text) und passe die Einstellungen an.",
-    "Ordner / Tab loeschen",
+    "Konfiguration & Übersicht",
+    "Klicke auf eine Kachel, um sie zu bearbeiten. Wähle den Typ (Sensor/Wetter/Szene/Key/Ordner/Settings/Switch/Bild/Uhr/Text) und passe die Einstellungen an.",
+    "Ordner / Tab löschen",
     "Kachel Einstellungen",
     "Typ",
     "Titel",
@@ -28,15 +28,15 @@ static const Strings kStringsDe = {
     "Spalte",
     "Zeile",
     "Breite (Zellen)",
-    "Hoehe (Zellen)",
-    "Aenderungen werden automatisch gespeichert.",
+    "Höhe (Zellen)",
+    "Änderungen werden automatisch gespeichert.",
     "Kopieren",
-    "Einfuegen",
-    "Loeschen",
+    "Einfügen",
+    "Löschen",
     "Import / Export (alle Ordner & Kacheln)",
     "Export",
     "Import",
-    "Import ueberschreibt alle Kacheln der vorhandenen Ordner.",
+    "Import überschreibt alle Kacheln der vorhandenen Ordner.",
     "WiFi",
     "MQTT",
     "Sprache",
@@ -54,7 +54,7 @@ static const Strings kStringsDe = {
     "Gateway",
     "Subnetzmaske",
     "DNS-Server",
-    "Leer lassen fuer DHCP",
+    "Leer lassen für DHCP",
     "MQTT nicht konfiguriert",
     "AP aktivieren",
     "AP beenden",
@@ -68,17 +68,17 @@ static const Strings kStringsDe = {
     "MQTT Client ID",
     "leer = automatisch",
     "Leer lassen = automatisch aus der MAC-Adresse erzeugen.",
-    "Geraete-Topic Basis",
+    "Geräte-Topic Basis",
     "Home Assistant Prefix",
-    "Uhrzeit Schriftgroesse",
-    "Datum Schriftgroesse",
+    "Uhrzeit Schriftgröße",
+    "Datum Schriftgröße",
     "Speichern",
-    "Geraet wirklich neu starten?",
-    "Geraet neu starten",
+    "Gerät wirklich neu starten?",
+    "Gerät neu starten",
     "MQTT-Konfiguration gespeichert",
-    "Das Geraet verbindet sich neu ...",
+    "Das Gerät verbindet sich neu ...",
     "Bridge-Konfiguration gespeichert",
-    "Die Daten wurden per MQTT uebertragen.",
+    "Die Daten wurden per MQTT übertragen.",
     "Speichern fehlgeschlagen",
 
     "Waveshare WiFi-Konfiguration",
@@ -89,13 +89,13 @@ static const Strings kStringsDe = {
     "Mein WiFi",
     "Passwort",
     "Passwort",
-    "Leer lassen fuer offenes Netzwerk",
+    "Leer lassen für offenes Netzwerk",
     "Hinweis:",
-    "Nach erfolgreicher WLAN-Verbindung kannst du ueber das Webinterface im normalen Netzwerk die MQTT-Einstellungen konfigurieren.",
+    "Nach erfolgreicher WLAN-Verbindung kannst du über das Webinterface im normalen Netzwerk die MQTT-Einstellungen konfigurieren.",
     "Speichern & Verbinden",
     "Erfolgreich gespeichert!",
-    "Die Konfiguration wurde erfolgreich gespeichert.<br>Das Geraet wird jetzt neu gestartet und versucht sich mit dem WiFi zu verbinden.",
-    "Du wirst in 10 Sekunden automatisch weitergeleitet.<br>Falls die Verbindung nicht klappt, aktiviere den Hotspot-Modus erneut ueber die Einstellungen.",
+    "Die Konfiguration wurde erfolgreich gespeichert.<br>Das Gerät wird jetzt neu gestartet und versucht sich mit dem WiFi zu verbinden.",
+    "Du wirst in 10 Sekunden automatisch weitergeleitet.<br>Falls die Verbindung nicht klappt, aktiviere den Hotspot-Modus erneut über die Einstellungen.",
     "Fehler: WiFi SSID ist erforderlich!",
 
     "Display",
@@ -117,13 +117,13 @@ static const Strings kStringsDe = {
     "Text",
     "Counter",
     "Settings",
-    "Zurueck",
+    "Zurück",
 
     "Keine Auswahl",
     "Sensor Entity",
     "Einheit",
     "Nachkommastellen (leer = Originalwert)",
-    "Wert-Groesse",
+    "Wert-Größe",
     "Anzeige-Modus",
     "Keine",
     "Gauge",
@@ -131,10 +131,10 @@ static const Strings kStringsDe = {
     "Gauge Min",
     "Gauge Max",
     "Bogengrad (90-359)",
-    "Gauge Groesse (100-800 px)",
+    "Gauge Größe (100-800 px)",
     "Y-Offset (-100 bis 200)",
-    "Graph Hoehe (20-200 px)",
-    "Popup oeffnen",
+    "Graph Höhe (20-200 px)",
+    "Popup öffnen",
     "Short Press",
     "Long Press",
     "Wert Y-Offset (-100 bis 200)",
@@ -145,11 +145,11 @@ static const Strings kStringsDe = {
     "LVGL Switch",
     "Uhrzeit anzeigen",
     "Datum anzeigen",
-    "Uhrzeit Schriftgroesse",
-    "Datum Schriftgroesse",
+    "Uhrzeit Schriftgröße",
+    "Datum Schriftgröße",
     "Text",
-    "Text fuer die Kachel",
-    "Text-Groesse",
+    "Text für die Kachel",
+    "Text-Größe",
     "Max 31 Zeichen gespeichert.",
     "Ziel-Ordner",
     "Neuer Ordner",
@@ -159,17 +159,17 @@ static const Strings kStringsDe = {
     "Startwert",
     "Tap: +1, Long-Press: Reset auf 0",
 
-    "Bitte zuerst eine Kachel waehlen",
+    "Bitte zuerst eine Kachel wählen",
     "Kachel kopiert",
     "Keine kopierte Kachel vorhanden",
-    "Kachel eingefuegt",
+    "Kachel eingefügt",
     "Settings-Kachel (fest)",
-    "Zurueck-Kachel (fest)",
-    "Diese Kachel kann nicht geloescht werden",
-    "Dieser Ordner kann nicht geloescht werden",
-    "Ordner \"{name}\" wirklich loeschen?\n\nAlle Kacheln in diesem Ordner werden geloescht und die Ordner-Kachel im uebergeordneten Ordner wird entfernt.",
-    "Ordner geloescht",
-    "Fehler beim Loeschen",
+    "Zurück-Kachel (fest)",
+    "Diese Kachel kann nicht gelöscht werden",
+    "Dieser Ordner kann nicht gelöscht werden",
+    "Ordner \"{name}\" wirklich löschen?\n\nAlle Kacheln in diesem Ordner werden gelöscht und die Ordner-Kachel im übergeordneten Ordner wird entfernt.",
+    "Ordner gelöscht",
+    "Fehler beim Löschen",
     "Ordner nicht gefunden",
     "Kachel gespeichert & Display aktualisiert!",
     "Unbekannt",
@@ -177,9 +177,9 @@ static const Strings kStringsDe = {
     "Netzwerkfehler beim Speichern",
     "Export erstellt!",
     "Export fehlgeschlagen",
-    "Import-JSON ungueltig",
+    "Import-JSON ungültig",
     "Import fehlgeschlagen",
-    "Import laeuft...",
+    "Import läuft...",
     "Import abgeschlossen!",
     "Kachel passt dort nicht hin",
     "Keine sinnvolle Anordnung gefunden",
@@ -421,20 +421,20 @@ String weather_condition_label(const char* language_code, const String& conditio
   const bool is_de = normalize_language_code(language_code)[0] == 'd';
 
   if (key == "clear-night") return is_de ? "Klare Nacht" : "Clear night";
-  if (key == "cloudy") return is_de ? "Bewoelkt" : "Cloudy";
+  if (key == "cloudy") return is_de ? "Bewölkt" : "Cloudy";
   if (key == "exceptional") return is_de ? "Ausnahme" : "Exceptional";
   if (key == "fog") return is_de ? "Nebel" : "Fog";
   if (key == "hail") return is_de ? "Hagel" : "Hail";
   if (key == "lightning") return is_de ? "Gewitter" : "Lightning";
   if (key == "lightning-rainy") return is_de ? "Gewitterregen" : "Lightning rain";
-  if (key == "partlycloudy") return is_de ? "Teilw. bewoelkt" : "Partly cloudy";
+  if (key == "partlycloudy") return is_de ? "Teilw. bewölkt" : "Partly cloudy";
   if (key == "pouring") return is_de ? "Starkregen" : "Pouring";
   if (key == "rainy") return is_de ? "Regen" : "Rain";
   if (key == "snowy") return is_de ? "Schnee" : "Snow";
   if (key == "snowy-rainy") return is_de ? "Schneeregen" : "Sleet";
   if (key == "sunny") return is_de ? "Sonnig" : "Sunny";
   if (key == "windy") return is_de ? "Windig" : "Windy";
-  if (key == "windy-variant") return is_de ? "Boeig" : "Windy";
+  if (key == "windy-variant") return is_de ? "Böig" : "Windy";
 
   String text = condition;
   text.replace("-", " ");

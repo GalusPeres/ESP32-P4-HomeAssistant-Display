@@ -22,6 +22,7 @@ inline constexpr uint8_t kRotationFlipped = kProfile.rotation_flipped;
 inline constexpr Capabilities kCapabilities = kProfile.capabilities;
 
 const Profile& profile();
+const char* displayName();
 
 bool init();
 void update();

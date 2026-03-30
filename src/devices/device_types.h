@@ -18,6 +18,7 @@ struct Capabilities {
 
 struct Profile {
   const char* key;
+  const char* display_name;
   uint16_t screen_width;
   uint16_t screen_height;
   uint8_t grid_cols;

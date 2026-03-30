@@ -6,6 +6,10 @@ const Profile& profile() {
   return kProfile;
 }
 
+const char* displayName() {
+  return kProfile.display_name;
+}
+
 bool init() {
   return DeviceImpl::init();
 }

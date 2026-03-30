@@ -14,6 +14,7 @@
 #include "src/types/types_registry.h"
 #include "src/core/device_entities.h"
 #include "src/core/i18n.h"
+#include "src/devices/device.h"
 #include <cstring>
 
 // Helper function to generate tile tab HTML (unified for all folders)
@@ -317,27 +318,22 @@ static void appendTileTabHTML(
             append_tile_type_fields_html(html, type_ctx);
 
   html += R"html(
-<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#64748b;gap:10px;">
-              <span>)html";
-  html += tr.admin_autosave;
-  html += R"html(</span>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
-                <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="copyTile(')html";
+<div class="tile-actions">
+                <button type="button" class="btn" onclick="copyTile(')html";
   html += tab_id;
   html += R"html(')">)html";
   html += tr.admin_copy;
   html += R"html(</button>
-                <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="pasteTile(')html";
+                <button type="button" class="btn" onclick="pasteTile(')html";
   html += tab_id;
   html += R"html(')">)html";
   html += tr.admin_paste;
   html += R"html(</button>
-                <button type="button" class="btn" style="padding:8px 12px;font-size:12px;min-width:90px;" onclick="resetTile(')html";
+                <button type="button" class="btn" onclick="resetTile(')html";
   html += tab_id;
   html += R"html(')">)html";
   html += tr.admin_delete;
   html += R"html(</button>
-              </div>
             </div>
             <div style="margin-top:12px;border-top:1px solid #e2e8f0;padding-top:10px;">
               <div style="font-size:12px;color:#64748b;margin-bottom:6px;">)html";
@@ -372,6 +368,9 @@ static void appendTileTabHTML(
 String WebAdminServer::getAdminPage() {
   const DeviceConfig& cfg = configManager.getConfig();
   const auto& tr = i18n::strings(cfg.language);
+  const bool is_german = strcmp(tr.html_lang, "de") == 0;
+  const String admin_panel_title =
+      String(Device::displayName()) + (is_german ? " Admin-Panel" : " Admin Panel");
   const HaBridgeConfigData& ha = haBridgeConfig.get();
   const auto sensorOptions = parseSensorList(ha.sensors_text);
   const auto weatherOptions = parseSensorList(ha.weathers_text);
@@ -442,7 +441,7 @@ String WebAdminServer::getAdminPage() {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>)html";
-  html += tr.admin_window_title;
+  html += admin_panel_title;
   html += R"html(</title>
 )html";
 
@@ -455,12 +454,9 @@ String WebAdminServer::getAdminPage() {
   <div class="wrapper">
     <div class="card">
       <h1>)html";
-  html += tr.admin_panel_title;
+  html += admin_panel_title;
   html += R"html(</h1>
-      <p class="subtitle">)html";
-  html += tr.admin_subtitle;
-  html += R"html(</p>
-
+      
       <!-- Tab Navigation -->
       <div class="tab-nav">
 )html";

@@ -114,6 +114,14 @@ void appendAdminStyles(String& html) {
     }
 
     .tile-editor { display:grid; grid-template-columns:auto 350px; gap:24px; align-items:start; }
+    .tile-actions { display:flex; gap:8px; margin-top:8px; }
+    .tile-actions .btn {
+      flex:1 1 0;
+      min-width:0;
+      padding:8px 10px;
+      font-size:12px;
+      white-space:nowrap;
+    }
     .tile-grid {
       display:grid;
 )html";

@@ -1,5 +1,6 @@
 #include "src/web/web_config.h"
 #include "src/devices/device_select.h"
+#include "src/devices/device.h"
 #include "src/core/i18n.h"
 #include <WiFi.h>
 
@@ -14,7 +15,7 @@ static const IPAddress AP_GATEWAY(192, 168, 4, 1);
 static const IPAddress AP_SUBNET(255, 255, 255, 0);
 
 static void restoreStaModeAfterAp() {
-#if defined(DEVICE_M5STACK_TAB5)
+#if defined(DEVICE_M5STACKS_TAB5)
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   WiFi.persistent(false);
@@ -206,6 +207,9 @@ String WebConfigServer::getConfigPage() {
   // Lade bestehende Konfiguration wenn vorhanden
   const DeviceConfig& cfg = configManager.getConfig();
   const auto& tr = i18n::strings(cfg.language);
+  const bool is_german = strcmp(tr.html_lang, "de") == 0;
+  const String ap_page_title =
+      String(Device::displayName()) + (is_german ? " WiFi-Konfiguration" : " WiFi Configuration");
 
   String html = "<!DOCTYPE html>\n<html lang=\"";
   html += tr.html_lang;
@@ -214,7 +218,7 @@ String WebConfigServer::getConfigPage() {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>)html";
-  html += tr.ap_window_title;
+  html += ap_page_title;
   html += R"html(</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -323,7 +327,7 @@ String WebConfigServer::getConfigPage() {
   <div class="container">
     <div class="icon">📶</div>
     <h1>)html";
-  html += tr.ap_heading;
+  html += ap_page_title;
   html += R"html(</h1>
     <p class="subtitle">)html";
   html += tr.ap_subtitle;

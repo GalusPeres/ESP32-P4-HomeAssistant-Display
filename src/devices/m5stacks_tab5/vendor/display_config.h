@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef M5STACK_TAB5_DISPLAY_CONFIG_H
-#define M5STACK_TAB5_DISPLAY_CONFIG_H
+#ifndef M5STACKS_TAB5_DISPLAY_CONFIG_H
+#define M5STACKS_TAB5_DISPLAY_CONFIG_H
 
 #include <Arduino_GFX_Library.h>
 

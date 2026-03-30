@@ -193,6 +193,25 @@ void appendAdminScripts(String& html) {
     return TILE_TYPE_REGISTRY[key] || TILE_TYPE_REGISTRY['0'] || {};
   }
 
+  function syncTileTypeSelectValue(selectEl, typeValue) {
+    if (!selectEl) return;
+    const key = String(typeValue ?? '0');
+    Array.from(selectEl.querySelectorAll('option[data-locked-only="1"]')).forEach(opt => {
+      if (opt.value !== key) opt.remove();
+    });
+    let option = Array.from(selectEl.options).find(opt => String(opt.value) === key);
+    if (!option) {
+      const meta = getTileTypeMeta(key);
+      option = document.createElement('option');
+      option.value = key;
+      option.textContent = meta.label || key;
+      option.disabled = !!meta.locked;
+      option.dataset.lockedOnly = '1';
+      selectEl.appendChild(option);
+    }
+    selectEl.value = key;
+  }
+
   function callTypeHandler(meta, handlerKey, ...args) {
     if (!meta || !handlerKey) return;
     const fnName = meta[handlerKey];
@@ -587,7 +606,7 @@ void appendAdminScripts(String& html) {
     const d = drafts[tab] && drafts[tab][index];
     if (!d || !d._dirty) return false;
     const prefix = tab;
-    document.getElementById(prefix + '_tile_type').value = d.type || '0';
+    syncTileTypeSelectValue(document.getElementById(prefix + '_tile_type'), d.type || '0');
     resetAllTypeFields(tab);
     updateTileType(tab);
     document.getElementById(prefix + '_tile_title').value = d.title || '';
@@ -638,7 +657,7 @@ void appendAdminScripts(String& html) {
     const prefix = tab;
     const typeValue = data.type || '0';
     const typeEl = document.getElementById(prefix + '_tile_type');
-    if (typeEl) typeEl.value = typeValue;
+    syncTileTypeSelectValue(typeEl, typeValue);
     resetAllTypeFields(tab);
     updateTileType(tab);
 
@@ -989,7 +1008,7 @@ void appendAdminScripts(String& html) {
         }
         if (currentTileTab !== tab || currentTileIndex !== index) return;
         const prefix = tab;
-        document.getElementById(prefix + '_tile_type').value = data.type || 0;
+        syncTileTypeSelectValue(document.getElementById(prefix + '_tile_type'), data.type || 0);
         resetAllTypeFields(tab);
         updateTileType(tab);
         document.getElementById(prefix + '_tile_title').value = data.title || '';

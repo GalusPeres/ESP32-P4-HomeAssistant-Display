@@ -8,6 +8,7 @@ namespace DeviceWaveshare4B {
 
 inline constexpr Device::Profile kProfile{
     "waveshare_4b",
+    "Waveshare B4",
     720,
     720,
     4,

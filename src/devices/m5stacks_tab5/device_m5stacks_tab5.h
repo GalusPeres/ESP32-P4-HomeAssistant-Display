@@ -4,10 +4,11 @@
 
 #include "src/devices/device_types.h"
 
-namespace DeviceM5StackTab5 {
+namespace DeviceM5StacksTab5 {
 
 inline constexpr Device::Profile kProfile{
-    "m5stack_tab5",
+    "m5stacks_tab5",
+    "M5Stacks Tab5",
     1280,
     720,
     7,
@@ -48,4 +49,4 @@ bool initSDCard();
 bool storageReady();
 fs::FS& storageFS();
 
-}  // namespace DeviceM5StackTab5
+}  // namespace DeviceM5StacksTab5

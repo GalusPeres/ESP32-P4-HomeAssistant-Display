@@ -7,17 +7,19 @@ bool apply_navigate_fields_from_request(
     uint16_t folder_id,
     TileConfig& tileConfig,
     String& error_message) {
-  uint16_t target_id = 0;
+  uint16_t target_id = getNavigateTargetId(tile);
   int raw = server.hasArg("navigate_target") ? server.arg("navigate_target").toInt() : -1;
-  if (raw <= 0 || !tileConfig.folderExists(static_cast<uint16_t>(raw))) {
+  if (raw > 0 && tileConfig.folderExists(static_cast<uint16_t>(raw))) {
+    target_id = static_cast<uint16_t>(raw);
+  }
+
+  if (target_id == 0 || !tileConfig.folderExists(target_id)) {
     uint16_t new_id = 0;
     if (!tileConfig.createFolder(folder_id, tile.title, tile.icon_name, new_id)) {
       error_message = "Folder create failed";
       return false;
     }
     target_id = new_id;
-  } else {
-    target_id = static_cast<uint16_t>(raw);
   }
   tileConfig.updateFolder(target_id, tile.title, tile.icon_name);
 

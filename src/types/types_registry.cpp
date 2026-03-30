@@ -559,6 +559,7 @@ void append_tile_type_scripts(String& html) {
 void append_tile_type_select_options(String& html) {
   const auto& tr = i18n::strings(configManager.getConfig().language);
   for (const auto& entry : kTileTypes) {
+    if (entry.locked) continue;
     const char* label = entry.label;
     switch (entry.type) {
       case TILE_EMPTY: label = tr.tile_type_empty; break;
