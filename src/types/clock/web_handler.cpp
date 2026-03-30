@@ -1,4 +1,5 @@
 #include "src/types/clock/web_handler.h"
+#include "src/types/clock/clock_format.h"
 
 void apply_clock_fields_from_request(WebServer& server, Tile& tile) {
   bool show_time = true;
@@ -19,6 +20,7 @@ void apply_clock_fields_from_request(WebServer& server, Tile& tile) {
     switch (raw) {
       case 20:
       case 24:
+      case 28:
       case 32:
       case 40:
       case 48:
@@ -29,14 +31,18 @@ void apply_clock_fields_from_request(WebServer& server, Tile& tile) {
   };
 
   tile.key_code = server.hasArg("key_code")
-                      ? normalizeClockFont(server.arg("key_code").toInt(), 48)
-                      : static_cast<uint8_t>(48);
+                      ? normalizeClockFont(server.arg("key_code").toInt(), 40)
+                      : static_cast<uint8_t>(40);
   tile.key_modifier = server.hasArg("key_modifier")
-                          ? normalizeClockFont(server.arg("key_modifier").toInt(), 24)
-                          : static_cast<uint8_t>(24);
+                          ? normalizeClockFont(server.arg("key_modifier").toInt(), 20)
+                          : static_cast<uint8_t>(20);
 
   tile.sensor_value_font = 0;
   tile.sensor_display_mode = 0;
-  tile.sensor_gauge_min = 0;
-  tile.sensor_gauge_max = 100;
+  tile.sensor_gauge_min = server.hasArg("clock_time_format")
+                              ? clock_tile::normalize_time_format(server.arg("clock_time_format").toInt())
+                              : clock_tile::TIME_FORMAT_AUTO;
+  tile.sensor_gauge_max = server.hasArg("clock_date_format")
+                              ? clock_tile::normalize_date_format(server.arg("clock_date_format").toInt())
+                              : clock_tile::DATE_FORMAT_AUTO;
 }

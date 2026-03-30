@@ -3,18 +3,54 @@
 void append_clock_scripts(String& html) {
   html += R"html(
   <script>
-  function getClockPreviewTime() {
+  function getClockPreviewLanguage() {
+    return document.getElementById('language')?.value || document.documentElement.lang || 'en';
+  }
+
+  function normalizeClockTimeFormat(raw) {
+    const num = Number(raw);
+    return (num === 1 || num === 2) ? num : 0;
+  }
+
+  function normalizeClockDateFormat(raw) {
+    const num = Number(raw);
+    return (num === 1 || num === 2 || num === 3) ? num : 0;
+  }
+
+  function resolveClockTimeFormat(raw) {
+    const safe = normalizeClockTimeFormat(raw);
+    if (safe !== 0) return safe;
+    return getClockPreviewLanguage().toLowerCase().startsWith('de') ? 1 : 2;
+  }
+
+  function resolveClockDateFormat(raw) {
+    const safe = normalizeClockDateFormat(raw);
+    if (safe !== 0) return safe;
+    return getClockPreviewLanguage().toLowerCase().startsWith('de') ? 1 : 2;
+  }
+
+  function getClockPreviewTime(rawFormat) {
     const now = new Date();
+    const format = resolveClockTimeFormat(rawFormat);
+    if (format === 2) {
+      let hh = now.getHours() % 12;
+      if (hh === 0) hh = 12;
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      return String(hh) + ':' + mm + (now.getHours() < 12 ? ' AM' : ' PM');
+    }
     const hh = String(now.getHours()).padStart(2, '0');
     const mm = String(now.getMinutes()).padStart(2, '0');
     return hh + ':' + mm;
   }
 
-  function getClockPreviewDate() {
+  function getClockPreviewDate(rawFormat) {
     const now = new Date();
+    const format = resolveClockDateFormat(rawFormat);
     const dd = String(now.getDate()).padStart(2, '0');
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const yyyy = String(now.getFullYear());
+    if (format === 2) return mm + '/' + dd + '/' + yyyy;
+    if (format === 3) return yyyy + '/' + mm + '/' + dd;
     return dd + '.' + mm + '.' + yyyy;
   }
 
@@ -23,6 +59,7 @@ void append_clock_scripts(String& html) {
     switch (num) {
       case 20:
       case 24:
+      case 28:
       case 32:
       case 40:
       case 48:
@@ -36,9 +73,11 @@ void append_clock_scripts(String& html) {
     switch (normalizeClockPreviewFont(raw, fallback)) {
       case 20: return 14;
       case 24: return 16;
+      case 28: return 18;
       case 32: return 20;
       case 40: return 24;
-      default: return 28;
+      case 48: return 28;
+      default: return 14;
     }
   }
 
@@ -90,9 +129,25 @@ void append_clock_scripts(String& html) {
 
   function loadClockFields(tab, data) {
     const timeFontEl = document.getElementById(tab + '_clock_time_font');
-    if (timeFontEl) timeFontEl.value = (data && data.key_code !== undefined) ? String(data.key_code) : '48';
+    if (timeFontEl) {
+      const timeFont = (data && data.key_code !== undefined) ? Number(data.key_code) : 40;
+      timeFontEl.value = String(timeFont);
+    }
     const dateFontEl = document.getElementById(tab + '_clock_date_font');
-    if (dateFontEl) dateFontEl.value = (data && data.key_modifier !== undefined) ? String(data.key_modifier) : '24';
+    if (dateFontEl) {
+      const dateFont = (data && data.key_modifier !== undefined) ? Number(data.key_modifier) : 20;
+      dateFontEl.value = String(dateFont);
+    }
+    const timeFormatEl = document.getElementById(tab + '_clock_time_format');
+    if (timeFormatEl) {
+      const timeFormat = (data && data.sensor_gauge_min !== undefined) ? data.sensor_gauge_min : (data ? data.clock_time_format : 0);
+      timeFormatEl.value = String(timeFormat !== undefined ? timeFormat : 0);
+    }
+    const dateFormatEl = document.getElementById(tab + '_clock_date_format');
+    if (dateFormatEl) {
+      const dateFormat = (data && data.sensor_gauge_max !== undefined) ? data.sensor_gauge_max : (data ? data.clock_date_format : 0);
+      dateFormatEl.value = String(dateFormat !== undefined ? dateFormat : 0);
+    }
     if (data && (data.clock_show_time !== undefined || data.clock_show_date !== undefined)) {
       const showTime = String(data.clock_show_time || '0') === '1';
       const showDate = String(data.clock_show_date || '0') === '1';
@@ -117,8 +172,10 @@ void append_clock_scripts(String& html) {
     if (!tileElem) return;
 
     const flags = getClockFlagsFromInputs(prefix);
-    const timeFont = document.getElementById(prefix + '_clock_time_font')?.value || '48';
-    const dateFont = document.getElementById(prefix + '_clock_date_font')?.value || '24';
+    const timeFont = document.getElementById(prefix + '_clock_time_font')?.value || '40';
+    const dateFont = document.getElementById(prefix + '_clock_date_font')?.value || '20';
+    const timeFormat = document.getElementById(prefix + '_clock_time_format')?.value || '0';
+    const dateFormat = document.getElementById(prefix + '_clock_date_format')?.value || '0';
     const timeEl = tileElem.querySelector('.tile-clock-time');
     const dateEl = tileElem.querySelector('.tile-clock-date');
 
@@ -130,11 +187,11 @@ void append_clock_scripts(String& html) {
     }
 
     if (timeEl) {
-      timeEl.textContent = getClockPreviewTime();
-      applyClockPreviewTextStyle(timeEl, timeFont, 48, '#fff', '1');
+      timeEl.textContent = getClockPreviewTime(timeFormat);
+      applyClockPreviewTextStyle(timeEl, timeFont, 40, '#fff', '1');
     }
     if (dateEl) {
-      dateEl.textContent = getClockPreviewDate();
+      dateEl.textContent = getClockPreviewDate(dateFormat);
       applyClockPreviewTextStyle(dateEl, dateFont, 24, '#cbd5e1', '1.1');
     }
   }
@@ -144,16 +201,22 @@ void append_clock_scripts(String& html) {
     const flags = getClockFlagsFromInputs(tab);
     formData.append('clock_show_time', (flags & 1) ? '1' : '0');
     formData.append('clock_show_date', (flags & 2) ? '1' : '0');
-    formData.append('key_code', document.getElementById(tab + '_clock_time_font')?.value || '48');
-    formData.append('key_modifier', document.getElementById(tab + '_clock_date_font')?.value || '24');
+    formData.append('key_code', document.getElementById(tab + '_clock_time_font')?.value || '40');
+    formData.append('key_modifier', document.getElementById(tab + '_clock_date_font')?.value || '20');
+    formData.append('clock_time_format', document.getElementById(tab + '_clock_time_format')?.value || '0');
+    formData.append('clock_date_format', document.getElementById(tab + '_clock_date_format')?.value || '0');
   }
 
   function resetClockFields(tab) {
     applyClockFlagsToInputs(tab, 1);
     const timeFontEl = document.getElementById(tab + '_clock_time_font');
-    if (timeFontEl) timeFontEl.value = '48';
+    if (timeFontEl) timeFontEl.value = '40';
     const dateFontEl = document.getElementById(tab + '_clock_date_font');
     if (dateFontEl) dateFontEl.value = '24';
+    const timeFormatEl = document.getElementById(tab + '_clock_time_format');
+    if (timeFormatEl) timeFormatEl.value = '0';
+    const dateFormatEl = document.getElementById(tab + '_clock_date_format');
+    if (dateFormatEl) dateFormatEl.value = '0';
   }
   </script>
 )html";

@@ -16,6 +16,7 @@
 #include <WiFi.h>
 
 #include <time.h>
+#include <string.h>
 
 #include "src/core/board_hal.h"
 
@@ -40,6 +41,39 @@ UIManager uiManager;
 // Timezone
 
 const char* UIManager::TZ_EUROPE_BERLIN = "CET-1CEST,M3.5.0/02,M10.5.0/03";
+
+static const char* timezone_spec_for_code(const char* code) {
+  static const char* kBerlinSpec = "CET-1CEST,M3.5.0/02,M10.5.0/03";
+  if (!code || !code[0]) return kBerlinSpec;
+  if (strcasecmp(code, "berlin") == 0) return kBerlinSpec;
+  if (strcasecmp(code, "london") == 0) return "GMT0BST,M3.5.0/01,M10.5.0/02";
+  if (strcasecmp(code, "utc") == 0) return "UTC0";
+  if (strcasecmp(code, "athens") == 0) return "EET-2EEST,M3.5.0/03,M10.5.0/04";
+  if (strcasecmp(code, "istanbul") == 0) return "TRT-3";
+  if (strcasecmp(code, "moscow") == 0) return "MSK-3";
+  if (strcasecmp(code, "johannesburg") == 0) return "SAST-2";
+  if (strcasecmp(code, "nairobi") == 0) return "EAT-3";
+  if (strcasecmp(code, "dubai") == 0) return "GST-4";
+  if (strcasecmp(code, "karachi") == 0) return "PKT-5";
+  if (strcasecmp(code, "kolkata") == 0) return "IST-5:30";
+  if (strcasecmp(code, "dhaka") == 0) return "BDT-6";
+  if (strcasecmp(code, "bangkok") == 0) return "ICT-7";
+  if (strcasecmp(code, "singapore") == 0) return "SGT-8";
+  if (strcasecmp(code, "perth") == 0) return "AWST-8";
+  if (strcasecmp(code, "new_york") == 0) return "EST5EDT,M3.2.0/02,M11.1.0/02";
+  if (strcasecmp(code, "chicago") == 0) return "CST6CDT,M3.2.0/02,M11.1.0/02";
+  if (strcasecmp(code, "denver") == 0) return "MST7MDT,M3.2.0/02,M11.1.0/02";
+  if (strcasecmp(code, "phoenix") == 0) return "MST7";
+  if (strcasecmp(code, "los_angeles") == 0) return "PST8PDT,M3.2.0/02,M11.1.0/02";
+  if (strcasecmp(code, "honolulu") == 0) return "HST10";
+  if (strcasecmp(code, "buenos_aires") == 0) return "ART3";
+  if (strcasecmp(code, "sao_paulo") == 0) return "BRT3";
+  if (strcasecmp(code, "tokyo") == 0) return "JST-9";
+  if (strcasecmp(code, "darwin") == 0) return "ACST-9:30";
+  if (strcasecmp(code, "sydney") == 0) return "AEST-10AEDT,M10.1.0/02,M4.1.0/03";
+  if (strcasecmp(code, "auckland") == 0) return "NZST-12NZDT,M9.5.0/02,M4.1.0/03";
+  return kBerlinSpec;
+}
 
 
 
@@ -414,7 +448,8 @@ void UIManager::serviceNtpSync() {
 
 
 
-  configTzTime(TZ_EUROPE_BERLIN, "pool.ntp.org", "time.nist.gov", "time.cloudflare.com");
+  const DeviceConfig& cfg = configManager.getConfig();
+  configTzTime(timezone_spec_for_code(cfg.timezone), "pool.ntp.org", "time.nist.gov", "time.cloudflare.com");
 
   tz_configured = true;
 

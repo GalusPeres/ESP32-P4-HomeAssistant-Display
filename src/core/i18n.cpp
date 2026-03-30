@@ -6,6 +6,7 @@ static const Strings kStringsDe = {
     "de",
     "de",
     "Sprache",
+    "Zeitzone",
     "English",
     "Deutsch",
 
@@ -39,7 +40,7 @@ static const Strings kStringsDe = {
     "Import überschreibt alle Kacheln der vorhandenen Ordner.",
     "WiFi",
     "MQTT",
-    "Sprache",
+    "Lokalisierung",
     "Screenshot",
     "Screenshot erstellen & herunterladen",
     "Speichert /ui_screenshot.bmp auf der microSD-Karte. Die vorhandene Datei wird überschrieben.",
@@ -197,6 +198,7 @@ static const Strings kStringsEn = {
     "en",
     "en",
     "Language",
+    "Time zone",
     "English",
     "Deutsch",
 
@@ -230,7 +232,7 @@ static const Strings kStringsEn = {
     "Import overwrites all tiles in existing folders.",
     "WiFi",
     "MQTT",
-    "Language",
+    "Localization",
     "Screenshot",
     "Create & Download Screenshot",
     "Saves /ui_screenshot.bmp to the microSD card. The existing file is overwritten.",
@@ -401,16 +403,16 @@ const Strings& strings(const char* language_code) {
 String build_language_options_html(const char* selected_code) {
   const char* normalized = normalize_language_code(selected_code);
   String html;
-  html.reserve(96);
+  html.reserve(128);
   html += "<option value=\"en\"";
   if (strcmp(normalized, "en") == 0) html += " selected";
   html += ">";
-  html += kStringsEn.language_option_english;
+  html += "English";
   html += "</option>";
   html += "<option value=\"de\"";
   if (strcmp(normalized, "de") == 0) html += " selected";
   html += ">";
-  html += kStringsEn.language_option_german;
+  html += "Deutsch";
   html += "</option>";
   return html;
 }

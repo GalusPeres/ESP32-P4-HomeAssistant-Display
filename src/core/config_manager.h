@@ -18,6 +18,7 @@
 #define CONFIG_MQTT_BASE_MAX     32
 #define CONFIG_HA_PREFIX_MAX     48
 #define CONFIG_LANG_MAX          8
+#define CONFIG_TIMEZONE_MAX      24
 
 static constexpr uint16_t kSleepOptionsSec[] = {5, 15, 30, 60, 300, 900, 1800, 3600};
 static constexpr size_t kSleepOptionsSecCount = sizeof(kSleepOptionsSec) / sizeof(kSleepOptionsSec[0]);
@@ -43,6 +44,7 @@ struct DeviceConfig {
   char mqtt_base_topic[CONFIG_MQTT_BASE_MAX];
   char ha_prefix[CONFIG_HA_PREFIX_MAX];
   char language[CONFIG_LANG_MAX];
+  char timezone[CONFIG_TIMEZONE_MAX];
   bool configured;  // Flag ob Konfiguration vorhanden ist
 
   // Display & Power Settings

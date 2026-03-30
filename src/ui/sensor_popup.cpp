@@ -1,6 +1,7 @@
 #include "src/ui/sensor_popup.h"
 #include "src/ui/light_popup.h"
 #include "src/ui/weather_popup.h"
+#include "src/core/config_manager.h"
 #include "src/core/display_manager.h"
 #include "src/fonts/ui_fonts.h"
 #include "src/network/mqtt_handlers.h"
@@ -222,6 +223,19 @@ static int get_local_hour() {
   return -1;
 }
 
+static String format_time_axis_label(int hour24) {
+  int normalized = hour24 % 24;
+  if (normalized < 0) normalized += 24;
+  const bool is_de = configManager.getConfig().language[0] == 'd';
+  if (is_de) {
+    return String(normalized) + " Uhr";
+  }
+
+  int hour12 = normalized % 12;
+  if (hour12 == 0) hour12 = 12;
+  return String(hour12) + (normalized < 12 ? " AM" : " PM");
+}
+
 // Calculate time axis marker positions and labels.
 // History covers the last 24h ending at "now".  We place markers at full
 // 6-hour boundaries (0:00, 6:00, 12:00, 18:00) that fall within that window.
@@ -243,7 +257,7 @@ static int calc_time_axis(String out_labels[], float out_frac[], int max_markers
     if (hours_ago == 0) hours_ago = 24;  // "now" maps to 24h ago at same hour
     float frac = 1.0f - (static_cast<float>(hours_ago) / 24.0f);
     if (frac < 0.02f || frac > 0.98f) continue;  // skip if too close to edges
-    out_labels[count] = String(h) + " Uhr";
+    out_labels[count] = format_time_axis_label(h);
     out_frac[count] = frac;
     ++count;
   }
@@ -257,6 +271,7 @@ static void update_y_axis_layout(SensorPopupContext* ctx) {
   constexpr int kLineOverlap = 6;
   constexpr int kLabelGap = 16;   // gap between label right edge and guide line start
   constexpr int kMinAxisW = 10;   // minimum width even if labels empty
+  constexpr int kTimeAxisEdgeGap = 6;
   const int kAvailW = kCardWidth - (kCardPad * 2);
 
   // Measure actual rendered text widths
@@ -279,9 +294,29 @@ static void update_y_axis_layout(SensorPopupContext* ctx) {
   // Chart drawing starts directly after label area
   int chart_left = axis_w;
 
+  // Prepare time axis labels first so we can reserve enough room on the right.
+  constexpr int kLabelOverhang = 12;
+
+  String labels[kTimeAxisMarkerCount];
+  float fracs[kTimeAxisMarkerCount];
+  int n = calc_time_axis(labels, fracs, kTimeAxisMarkerCount);
+  lv_coord_t max_time_label_w = 0;
+
+  for (int i = 0; i < kTimeAxisMarkerCount; ++i) {
+    if (i < n && ctx->time_labels[i]) {
+      lv_label_set_text(ctx->time_labels[i], labels[i].c_str());
+      lv_obj_update_layout(ctx->time_labels[i]);
+      lv_coord_t lbl_w = lv_obj_get_width(ctx->time_labels[i]);
+      if (lbl_w > max_time_label_w) max_time_label_w = lbl_w;
+    }
+  }
+
+  int chart_right_reserve = (max_time_label_w > 0) ? (max_time_label_w / 2 + kTimeAxisEdgeGap) : 0;
+
   // Reposition guide lines (keep Y unchanged, only adjust X and width)
   int line_start = axis_w - kLineOverlap;
-  int line_w = kAvailW - line_start;
+  int line_w = kAvailW - line_start - chart_right_reserve;
+  if (line_w < 10) line_w = 10;
   if (ctx->y_max_line) {
     lv_obj_set_width(ctx->y_max_line, line_w);
     lv_obj_set_x(ctx->y_max_line, line_start);
@@ -291,17 +326,13 @@ static void update_y_axis_layout(SensorPopupContext* ctx) {
     lv_obj_set_x(ctx->y_min_line, line_start);
   }
 
-  // Adjust chart left padding so graph starts after labels
+  // Adjust chart padding so the graph itself ends slightly earlier on the right.
   lv_obj_set_style_pad_left(ctx->chart, chart_left, 0);
+  lv_obj_set_style_pad_right(ctx->chart, chart_right_reserve, 0);
 
-  // Reposition time axis markers based on new chart area
-  int chart_draw_w = kAvailW - chart_left;
+  // Reposition time axis markers based on the reduced chart area.
+  int chart_draw_w = kAvailW - chart_left - chart_right_reserve;
   if (chart_draw_w < 10) return;
-  constexpr int kLabelOverhang = 12;
-
-  String labels[kTimeAxisMarkerCount];
-  float fracs[kTimeAxisMarkerCount];
-  int n = calc_time_axis(labels, fracs, kTimeAxisMarkerCount);
 
   for (int i = 0; i < kTimeAxisMarkerCount; ++i) {
     if (i < n) {
@@ -311,10 +342,15 @@ static void update_y_axis_layout(SensorPopupContext* ctx) {
         lv_obj_clear_flag(ctx->time_lines[i], LV_OBJ_FLAG_HIDDEN);
       }
       if (ctx->time_labels[i]) {
-        lv_label_set_text(ctx->time_labels[i], labels[i].c_str());
-        lv_obj_update_layout(ctx->time_labels[i]);
         lv_coord_t lbl_w = lv_obj_get_width(ctx->time_labels[i]);
-        lv_obj_set_pos(ctx->time_labels[i], x - lbl_w / 2, kLabelOverhang + kChartHeight + 8);
+        int label_x = x - lbl_w / 2;
+        int min_x = chart_left - (lbl_w / 2);
+        if (min_x < 0) min_x = 0;
+        int max_x = kAvailW - lbl_w;
+        if (max_x < min_x) max_x = min_x;
+        if (label_x < min_x) label_x = min_x;
+        if (label_x > max_x) label_x = max_x;
+        lv_obj_set_pos(ctx->time_labels[i], label_x, kLabelOverhang + kChartHeight + 8);
         lv_obj_clear_flag(ctx->time_labels[i], LV_OBJ_FLAG_HIDDEN);
       }
     } else {
@@ -623,6 +659,7 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
   set_label_style(value, lv_color_white(), get_value_font());
   lv_obj_set_style_text_align(value, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_width(value, LV_PCT(100));
+  lv_obj_set_style_translate_y(value, -6, 0);
 
   // Chart wrapper: Y-axis labels on the left, chart on the right, time labels below.
   // Extra vertical space (kLabelOverhang) at top/bottom so labels don't get clipped.

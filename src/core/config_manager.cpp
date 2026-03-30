@@ -1,6 +1,7 @@
 #include "src/core/config_manager.h"
 #include "src/core/i18n.h"
 #include <Preferences.h>
+#include <string.h>
 
 // Globale Instanz
 ConfigManager configManager;
@@ -66,6 +67,55 @@ static void set_language_code(char* dst, size_t dst_size, const char* language_c
   dst[dst_size - 1] = '\0';
 }
 
+static const char* normalize_timezone_code(const char* timezone_code) {
+  if (!timezone_code || !timezone_code[0]) return "berlin";
+  struct KnownTimezone {
+    const char* code;
+  };
+  static const KnownTimezone kKnownTimezones[] = {
+      {"berlin"},
+      {"london"},
+      {"utc"},
+      {"athens"},
+      {"istanbul"},
+      {"moscow"},
+      {"johannesburg"},
+      {"nairobi"},
+      {"dubai"},
+      {"karachi"},
+      {"kolkata"},
+      {"dhaka"},
+      {"bangkok"},
+      {"singapore"},
+      {"perth"},
+      {"new_york"},
+      {"chicago"},
+      {"denver"},
+      {"phoenix"},
+      {"los_angeles"},
+      {"honolulu"},
+      {"buenos_aires"},
+      {"sao_paulo"},
+      {"tokyo"},
+      {"darwin"},
+      {"sydney"},
+      {"auckland"},
+  };
+  for (const auto& tz : kKnownTimezones) {
+    if (strcasecmp(timezone_code, tz.code) == 0) {
+      return tz.code;
+    }
+  }
+  return "berlin";
+}
+
+static void set_timezone_code(char* dst, size_t dst_size, const char* timezone_code) {
+  if (!dst || dst_size == 0) return;
+  const char* normalized = normalize_timezone_code(timezone_code);
+  strncpy(dst, normalized, dst_size - 1);
+  dst[dst_size - 1] = '\0';
+}
+
 ConfigManager::ConfigManager() {
   memset(&config, 0, sizeof(config));
   config.configured = false;
@@ -73,6 +123,7 @@ ConfigManager::ConfigManager() {
   strncpy(config.mqtt_base_topic, "tab5", CONFIG_MQTT_BASE_MAX - 1);
   strncpy(config.ha_prefix, "ha/statestream", CONFIG_HA_PREFIX_MAX - 1);
   set_language_code(config.language, sizeof(config.language), "en");
+  set_timezone_code(config.timezone, sizeof(config.timezone), "berlin");
 
   // Display & Power Defaults
   config.display_brightness = 200;
@@ -123,6 +174,9 @@ bool ConfigManager::load() {
   char stored_language[CONFIG_LANG_MAX] = {0};
   prefs.getString("lang", stored_language, CONFIG_LANG_MAX);
   set_language_code(config.language, sizeof(config.language), stored_language);
+  char stored_timezone[CONFIG_TIMEZONE_MAX] = {0};
+  prefs.getString("tz", stored_timezone, CONFIG_TIMEZONE_MAX);
+  set_timezone_code(config.timezone, sizeof(config.timezone), stored_timezone);
 
   // Display & Power Settings laden
   config.display_brightness = prefs.getUChar("disp_bright", 200);
@@ -236,6 +290,8 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   prefs.putString("ha_prefix", normalized.ha_prefix);
   set_language_code(normalized.language, sizeof(normalized.language), normalized.language);
   prefs.putString("lang", normalized.language);
+  set_timezone_code(normalized.timezone, sizeof(normalized.timezone), normalized.timezone);
+  prefs.putString("tz", normalized.timezone);
 
   // Display & Power Settings speichern
   prefs.putUChar("disp_bright", normalized.display_brightness);
@@ -378,6 +434,7 @@ void ConfigManager::clear() {
   strncpy(config.mqtt_base_topic, "tab5", CONFIG_MQTT_BASE_MAX - 1);
   strncpy(config.ha_prefix, "ha/statestream", CONFIG_HA_PREFIX_MAX - 1);
   set_language_code(config.language, sizeof(config.language), "en");
+  set_timezone_code(config.timezone, sizeof(config.timezone), "berlin");
   config.display_rotated_180 = false;
   config.display_rotation_quarters = Device::kRotationDefault;
   config.display_rotation_mode = kDisplayRotationNormal;

@@ -17,6 +17,87 @@
 #include "src/devices/device.h"
 #include <cstring>
 
+namespace {
+
+struct TimezoneOption {
+  uint8_t group;
+  const char* code;
+  const char* label_en;
+  const char* label_de;
+};
+
+static String buildTimezoneOptionsHtml(const char* selected_code, bool is_german) {
+  static const TimezoneOption kOptions[] = {
+      {0, "utc", "UTC+0 - UTC", "UTC+0 - UTC"},
+      {1, "london", "UTC+0 / UTC+1 - London", "UTC+0 / UTC+1 - London"},
+      {1, "berlin", "UTC+1 / UTC+2 - Berlin", "UTC+1 / UTC+2 - Berlin"},
+      {1, "athens", "UTC+2 / UTC+3 - Athens", "UTC+2 / UTC+3 - Athen"},
+      {1, "istanbul", "UTC+3 - Istanbul", "UTC+3 - Istanbul"},
+      {1, "moscow", "UTC+3 - Moscow", "UTC+3 - Moskau"},
+      {2, "honolulu", "UTC-10 - Honolulu", "UTC-10 - Honolulu"},
+      {2, "los_angeles", "UTC-8 / UTC-7 - Los Angeles", "UTC-8 / UTC-7 - Los Angeles"},
+      {2, "phoenix", "UTC-7 - Phoenix", "UTC-7 - Phoenix"},
+      {2, "denver", "UTC-7 / UTC-6 - Denver", "UTC-7 / UTC-6 - Denver"},
+      {2, "chicago", "UTC-6 / UTC-5 - Chicago", "UTC-6 / UTC-5 - Chicago"},
+      {2, "new_york", "UTC-5 / UTC-4 - New York", "UTC-5 / UTC-4 - New York"},
+      {2, "buenos_aires", "UTC-3 - Buenos Aires", "UTC-3 - Buenos Aires"},
+      {2, "sao_paulo", "UTC-3 - Sao Paulo", "UTC-3 - Sao Paulo"},
+      {3, "johannesburg", "UTC+2 - Johannesburg", "UTC+2 - Johannesburg"},
+      {3, "nairobi", "UTC+3 - Nairobi", "UTC+3 - Nairobi"},
+      {3, "dubai", "UTC+4 - Dubai", "UTC+4 - Dubai"},
+      {4, "karachi", "UTC+5 - Karachi", "UTC+5 - Karatschi"},
+      {4, "kolkata", "UTC+5:30 - Kolkata", "UTC+5:30 - Kolkata"},
+      {4, "dhaka", "UTC+6 - Dhaka", "UTC+6 - Dhaka"},
+      {4, "bangkok", "UTC+7 - Bangkok", "UTC+7 - Bangkok"},
+      {4, "singapore", "UTC+8 - Singapore", "UTC+8 - Singapur"},
+      {4, "perth", "UTC+8 - Perth", "UTC+8 - Perth"},
+      {4, "tokyo", "UTC+9 - Tokyo", "UTC+9 - Tokio"},
+      {5, "darwin", "UTC+9:30 - Darwin", "UTC+9:30 - Darwin"},
+      {5, "sydney", "UTC+10 / UTC+11 - Sydney", "UTC+10 / UTC+11 - Sydney"},
+      {5, "auckland", "UTC+12 / UTC+13 - Auckland", "UTC+12 / UTC+13 - Auckland"},
+  };
+  static const char* kGroupLabelsEn[] = {
+      "Global",
+      "Europe",
+      "Americas",
+      "Africa & Middle East",
+      "Asia",
+      "Oceania",
+  };
+  static const char* kGroupLabelsDe[] = {
+      "Global",
+      "Europa",
+      "Amerika",
+      "Afrika & Naher Osten",
+      "Asien",
+      "Ozeanien",
+  };
+  const char* selected = (selected_code && selected_code[0]) ? selected_code : "berlin";
+  String html;
+  html.reserve(2048);
+  uint8_t current_group = 255;
+  for (const auto& option : kOptions) {
+    if (option.group != current_group) {
+      if (current_group != 255) html += "</optgroup>";
+      current_group = option.group;
+      html += "<optgroup label=\"";
+      html += is_german ? kGroupLabelsDe[current_group] : kGroupLabelsEn[current_group];
+      html += "\">";
+    }
+    html += "<option value=\"";
+    html += option.code;
+    html += "\"";
+    if (strcmp(selected, option.code) == 0) html += " selected";
+    html += ">";
+    html += is_german ? option.label_de : option.label_en;
+    html += "</option>";
+  }
+  if (current_group != 255) html += "</optgroup>";
+  return html;
+}
+
+}  // namespace
+
 // Helper function to generate tile tab HTML (unified for all folders)
 static void appendTileTabHTML(
     String& html,
@@ -717,6 +798,14 @@ String WebAdminServer::getAdminPage() {
   html += R"html(</label>
                 <select id="language" name="language">)html";
   html += i18n::build_language_options_html(cfg.language);
+  html += R"html(</select>
+              </div>
+              <div>
+                <label for="timezone">)html";
+  html += tr.timezone_label;
+  html += R"html(</label>
+                <select id="timezone" name="timezone">)html";
+  html += buildTimezoneOptionsHtml(cfg.timezone, is_german);
   html += R"html(</select>
               </div>
             </div>

@@ -328,7 +328,9 @@ void appendAdminStyles(String& html) {
     .layout-field label { margin-bottom:4px; font-size:12px; }
     .layout-field input { padding:10px; }
     .inline-checkbox { display:flex; align-items:center; gap:8px; font-weight:600; margin-top:8px; }
-    .inline-checkbox input { margin:0; }
+    .inline-checkbox input { width:auto; padding:0; margin:0; flex:0 0 auto; }
+    .clock-toggle-row { display:grid; grid-template-columns:repeat(2, minmax(120px, max-content)); gap:8px 18px; align-items:center; justify-content:start; margin-bottom:8px; }
+    .clock-toggle-row .inline-checkbox { display:inline-flex; width:auto; margin-top:0; white-space:nowrap; }
 
     @media (max-width: 780px) {
       .settings-grid { grid-template-columns:1fr; }

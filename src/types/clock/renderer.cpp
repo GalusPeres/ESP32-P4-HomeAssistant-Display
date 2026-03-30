@@ -1,12 +1,11 @@
 #include "src/types/clock/renderer.h"
+#include "src/types/clock/clock_format.h"
+#include "src/core/config_manager.h"
+#include "src/core/i18n.h"
 #include "src/tiles/tile_renderer_shared.h"
 #include "src/tiles/tile_renderer_fonts.h"
 #include "src/tiles/mdi_icons.h"
-#include "src/fonts/font_roboto_mono_digits_20.h"
-#include "src/fonts/font_roboto_mono_digits_24.h"
-#include "src/fonts/font_roboto_mono_digits_32.h"
-#include "src/fonts/font_roboto_mono_digits_40.h"
-#include "src/fonts/font_roboto_mono_digits_48.h"
+#include "src/fonts/ui_fonts.h"
 #include <Arduino.h>
 #include <time.h>
 
@@ -14,6 +13,7 @@ static uint8_t normalize_clock_font_size(uint8_t raw, uint8_t fallback) {
   switch (raw) {
     case 20:
     case 24:
+    case 28:
     case 32:
     case 40:
     case 48:
@@ -23,37 +23,63 @@ static uint8_t normalize_clock_font_size(uint8_t raw, uint8_t fallback) {
   }
 }
 
+static bool clock_language_is_german() {
+  return i18n::normalize_language_code(configManager.getConfig().language)[0] == 'd';
+}
+
+static uint8_t resolve_clock_time_format(const Tile& tile) {
+  const uint8_t raw = clock_tile::normalize_time_format(tile.sensor_gauge_min);
+  if (raw != clock_tile::TIME_FORMAT_AUTO) return raw;
+  return clock_language_is_german() ? clock_tile::TIME_FORMAT_24H : clock_tile::TIME_FORMAT_12H;
+}
+
+static uint8_t resolve_clock_date_format(const Tile& tile) {
+  const uint8_t raw = clock_tile::normalize_date_format(tile.sensor_gauge_max);
+  if (raw != clock_tile::DATE_FORMAT_AUTO) return raw;
+  return clock_language_is_german() ? clock_tile::DATE_FORMAT_DMY : clock_tile::DATE_FORMAT_MDY;
+}
+
 static const lv_font_t* get_clock_time_font(const Tile& tile) {
-  switch (normalize_clock_font_size(tile.key_code, 48)) {
+  switch (normalize_clock_font_size(tile.key_code, 40)) {
     case 20:
-      return &font_roboto_mono_digits_20;
+      return &ui_font_20;
     case 24:
-      return &font_roboto_mono_digits_24;
+      return &ui_font_24;
+    case 28:
+      return &ui_font_28;
     case 32:
-      return &font_roboto_mono_digits_32;
+      return &ui_font_32;
     case 40:
-      return &font_roboto_mono_digits_40;
+      return &ui_font_40;
+    case 48:
+      return &ui_font_48;
     default:
-      return &font_roboto_mono_digits_48;
+      return &ui_font_40;
   }
 }
 
 static const lv_font_t* get_clock_date_font(const Tile& tile) {
-  switch (normalize_clock_font_size(tile.key_modifier, 24)) {
+  switch (normalize_clock_font_size(tile.key_modifier, 20)) {
     case 20:
-      return &font_roboto_mono_digits_20;
+      return &ui_font_20;
+    case 24:
+      return &ui_font_24;
+    case 28:
+      return &ui_font_28;
     case 32:
-      return &font_roboto_mono_digits_32;
+      return &ui_font_32;
     case 40:
-      return &font_roboto_mono_digits_40;
+      return &ui_font_40;
     case 48:
-      return &font_roboto_mono_digits_48;
+      return &ui_font_48;
     default:
-      return &font_roboto_mono_digits_24;
+      return &ui_font_20;
   }
 }
 
 struct ClockTileData {
+  uint8_t time_format = clock_tile::TIME_FORMAT_24H;
+  uint8_t date_format = clock_tile::DATE_FORMAT_DMY;
   lv_obj_t* time_label = nullptr;
   lv_obj_t* date_label = nullptr;
   lv_timer_t* timer = nullptr;
@@ -72,16 +98,38 @@ static void update_clock_labels(ClockTileData* data) {
   struct tm timeinfo;
   if (getLocalTime(&timeinfo, 0)) {
     if (data->time_label) {
-      char buf[6];
-      snprintf(buf, sizeof(buf), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+      char buf[16];
+      if (data->time_format == clock_tile::TIME_FORMAT_12H) {
+        int hour12 = timeinfo.tm_hour % 12;
+        if (hour12 == 0) hour12 = 12;
+        snprintf(buf, sizeof(buf), "%d:%02d %s", hour12, timeinfo.tm_min, timeinfo.tm_hour < 12 ? "AM" : "PM");
+      } else {
+        snprintf(buf, sizeof(buf), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+      }
       lv_label_set_text(data->time_label, buf);
     }
     if (data->date_label) {
-      char buf[12];
-      snprintf(buf, sizeof(buf), "%02d.%02d.%04d",
-               timeinfo.tm_mday,
-               timeinfo.tm_mon + 1,
-               timeinfo.tm_year + 1900);
+      char buf[16];
+      switch (data->date_format) {
+        case clock_tile::DATE_FORMAT_MDY:
+          snprintf(buf, sizeof(buf), "%02d/%02d/%04d",
+                   timeinfo.tm_mon + 1,
+                   timeinfo.tm_mday,
+                   timeinfo.tm_year + 1900);
+          break;
+        case clock_tile::DATE_FORMAT_YMD:
+          snprintf(buf, sizeof(buf), "%04d/%02d/%02d",
+                   timeinfo.tm_year + 1900,
+                   timeinfo.tm_mon + 1,
+                   timeinfo.tm_mday);
+          break;
+        default:
+          snprintf(buf, sizeof(buf), "%02d.%02d.%04d",
+                   timeinfo.tm_mday,
+                   timeinfo.tm_mon + 1,
+                   timeinfo.tm_year + 1900);
+          break;
+      }
       lv_label_set_text(data->date_label, buf);
     }
   }
@@ -180,6 +228,8 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   }
 
   ClockTileData* data = new ClockTileData{};
+  data->time_format = resolve_clock_time_format(tile);
+  data->date_format = resolve_clock_date_format(tile);
   data->time_label = time_lbl;
   data->date_label = date_lbl;
   update_clock_labels(data);

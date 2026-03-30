@@ -318,7 +318,7 @@ void appendAdminScripts(String& html) {
     const prev = tiles[index] || {};
     const tile = Object.assign({}, prev);
     const layout = normalizeSnapshotLayout(snapshot, index);
-    const numericFields = ['type', 'sensor_decimals', 'sensor_value_font', 'sensor_display_mode', 'switch_style', 'navigate_target', 'popup_open_mode', 'key_code', 'key_modifier'];
+    const numericFields = ['type', 'sensor_decimals', 'sensor_value_font', 'sensor_display_mode', 'sensor_gauge_min', 'sensor_gauge_max', 'switch_style', 'navigate_target', 'popup_open_mode', 'key_code', 'key_modifier'];
 
     tile.type = clampInt(snapshot?.type, 0, 255, Number(prev.type) || 0);
     tile.title = snapshot?.title || '';
@@ -351,6 +351,14 @@ void appendAdminScripts(String& html) {
       if (String(snapshot.clock_show_date || '0') === '1') flags |= 2;
       if (flags === 0) flags = 1;
       tile.sensor_decimals = flags;
+    }
+    if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'clock_time_format')) {
+      const num = Number(snapshot.clock_time_format);
+      tile.sensor_gauge_min = Number.isFinite(num) ? num : 0;
+    }
+    if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'clock_date_format')) {
+      const num = Number(snapshot.clock_date_format);
+      tile.sensor_gauge_max = Number.isFinite(num) ? num : 0;
     }
 
     tiles[index] = tile;
@@ -832,6 +840,8 @@ void appendAdminScripts(String& html) {
     const clockDateCheck = document.getElementById(prefix + '_clock_show_date');
     const clockTimeFontSelect = document.getElementById(prefix + '_clock_time_font');
     const clockDateFontSelect = document.getElementById(prefix + '_clock_date_font');
+    const clockTimeFormatSelect = document.getElementById(prefix + '_clock_time_format');
+    const clockDateFormatSelect = document.getElementById(prefix + '_clock_date_format');
     const counterInput = document.getElementById(prefix + '_counter_value');
     const settingsPanel = document.getElementById(prefix + 'Settings');
 
@@ -888,6 +898,16 @@ void appendAdminScripts(String& html) {
       bindLive(clockDateFontSelect, 'change', 'clockDateFont', onClockDateFontChanged);
       bindLive(clockDateFontSelect, 'input', 'clockDateFont', onClockDateFontChanged);
     }
+    if (clockTimeFormatSelect) {
+      const onClockTimeFormatChanged = () => { updateClockValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); };
+      bindLive(clockTimeFormatSelect, 'change', 'clockTimeFormat', onClockTimeFormatChanged);
+      bindLive(clockTimeFormatSelect, 'input', 'clockTimeFormat', onClockTimeFormatChanged);
+    }
+    if (clockDateFormatSelect) {
+      const onClockDateFormatChanged = () => { updateClockValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); };
+      bindLive(clockDateFormatSelect, 'change', 'clockDateFormat', onClockDateFormatChanged);
+      bindLive(clockDateFormatSelect, 'input', 'clockDateFormat', onClockDateFormatChanged);
+    }
 
     if (settingsPanel && settingsPanel.dataset.clockLiveBound !== '1') {
       const delegatedClockRefresh = (e) => {
@@ -905,7 +925,9 @@ void appendAdminScripts(String& html) {
         }
         if (
           target.id === (prefix + '_clock_time_font') ||
-          target.id === (prefix + '_clock_date_font')
+          target.id === (prefix + '_clock_date_font') ||
+          target.id === (prefix + '_clock_time_format') ||
+          target.id === (prefix + '_clock_date_format')
         ) {
           updateClockValuePreview(tab);
           updateDraft(tab);
@@ -998,10 +1020,12 @@ void appendAdminScripts(String& html) {
 
     if (previewKind === 'clock') {
       const flags = getClockFlagsFromInputs(prefix);
-      const clockTimeFont = document.getElementById(prefix + '_clock_time_font')?.value || '48';
-      const clockDateFont = document.getElementById(prefix + '_clock_date_font')?.value || '24';
-      if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 48, '#fff') + '>' + getClockPreviewTime() + '</div>';
-      if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 24, '#cbd5e1') + '>' + getClockPreviewDate() + '</div>';
+      const clockTimeFont = document.getElementById(prefix + '_clock_time_font')?.value || '40';
+      const clockDateFont = document.getElementById(prefix + '_clock_date_font')?.value || '20';
+      const clockTimeFormat = document.getElementById(prefix + '_clock_time_format')?.value || '0';
+      const clockDateFormat = document.getElementById(prefix + '_clock_date_format')?.value || '0';
+      if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, '#fff') + '>' + getClockPreviewTime(clockTimeFormat) + '</div>';
+      if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 24, '#cbd5e1') + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
     }
 
     if (previewKind === 'text') {
@@ -1614,8 +1638,10 @@ void appendAdminScripts(String& html) {
     } else if (safeType === 9) {
       fd.append('clock_show_time', ((Number(tile.sensor_decimals || 1) & 1) !== 0) ? '1' : '0');
       fd.append('clock_show_date', ((Number(tile.sensor_decimals || 1) & 2) !== 0) ? '1' : '0');
-      fd.append('key_code', tile.key_code || 48);
-      fd.append('key_modifier', tile.key_modifier || 24);
+      fd.append('key_code', tile.key_code || 40);
+      fd.append('key_modifier', tile.key_modifier || 20);
+      fd.append('clock_time_format', (tile.sensor_gauge_min !== undefined && tile.sensor_gauge_min !== null) ? tile.sensor_gauge_min : 0);
+      fd.append('clock_date_format', (tile.sensor_gauge_max !== undefined && tile.sensor_gauge_max !== null) ? tile.sensor_gauge_max : 0);
     } else if (safeType === 11) {
       fd.append('counter_value', tile.counter_value || tile.scene_alias || '0');
     } else if (safeType === 12) {
@@ -1688,10 +1714,12 @@ void appendAdminScripts(String& html) {
       }
       if (previewKind === 'clock') {
         const flags = normalizeClockFlags(tile.sensor_decimals);
-        const clockTimeFont = tile.key_code || 48;
-        const clockDateFont = tile.key_modifier || 24;
-        if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 48, '#fff') + '>' + getClockPreviewTime() + '</div>';
-        if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 24, '#cbd5e1') + '>' + getClockPreviewDate() + '</div>';
+        const clockTimeFont = tile.key_code || 40;
+        const clockDateFont = tile.key_modifier || 20;
+        const clockTimeFormat = (tile.sensor_gauge_min !== undefined) ? tile.sensor_gauge_min : 0;
+        const clockDateFormat = (tile.sensor_gauge_max !== undefined) ? tile.sensor_gauge_max : 0;
+        if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, '#fff') + '>' + getClockPreviewTime(clockTimeFormat) + '</div>';
+        if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 24, '#cbd5e1') + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
       }
       if (previewKind === 'text') {
         const textValue = tile.text_value || tile.scene_alias || tile.key_macro || '';

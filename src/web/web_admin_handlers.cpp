@@ -731,9 +731,15 @@ void WebAdminServer::handleSaveMQTT() {
     strncpy(cfg.language, i18n::normalize_language_code(language.c_str()), sizeof(cfg.language) - 1);
     cfg.language[sizeof(cfg.language) - 1] = '\0';
   }
+  if (server.hasArg("timezone")) {
+    String timezone = server.arg("timezone");
+    timezone.trim();
+    copyToBuffer(cfg.timezone, sizeof(cfg.timezone), timezone);
+  }
 
   if (configManager.save(cfg)) {
     settings_refresh_language();
+    uiManager.scheduleNtpSync(0);
     settings_show_mqtt_warning(!configManager.hasMqttConfig());
     // Reload grids im Loop (nicht im Web-Handler)
     tiles_request_reload_all();

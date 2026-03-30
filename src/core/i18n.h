@@ -9,6 +9,7 @@ struct Strings {
   const char* code;
   const char* html_lang;
   const char* language_label;
+  const char* timezone_label;
   const char* language_option_english;
   const char* language_option_german;
 

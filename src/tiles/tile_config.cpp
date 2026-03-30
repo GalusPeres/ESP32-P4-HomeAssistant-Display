@@ -268,6 +268,10 @@ static void normalizeGaugeRange(int32_t& min_val, int32_t& max_val) {
   }
 }
 
+static bool shouldNormalizeGaugeRange(TileType type) {
+  return type != TILE_CLOCK;
+}
+
 static bool looksLikeImagePath(const String& value);
 static const char* kImagePathDir = "/_tile_links";
 static const char* kTileGridDir = "/_tile_grids";
@@ -466,7 +470,9 @@ static void packTile(const Tile& in, PackedTileV7& out) {
   out.sensor_gauge_enabled = (in.sensor_display_mode <= 2) ? in.sensor_display_mode : 0;
   out.sensor_gauge_min = in.sensor_gauge_min;
   out.sensor_gauge_max = in.sensor_gauge_max;
-  normalizeGaugeRange(out.sensor_gauge_min, out.sensor_gauge_max);
+  if (shouldNormalizeGaugeRange(in.type)) {
+    normalizeGaugeRange(out.sensor_gauge_min, out.sensor_gauge_max);
+  }
   out.popup_open_mode = ((in.type == TILE_SENSOR || in.type == TILE_WEATHER) &&
                          getTilePopupOpenMode(in) == TILE_POPUP_OPEN_SHORT_PRESS)
                             ? TILE_POPUP_OPEN_SHORT_PRESS
@@ -578,7 +584,9 @@ static void unpackTileV7(const PackedTileV7& in, Tile& out) {
   out.sensor_display_mode = (in.sensor_gauge_enabled <= 2) ? in.sensor_gauge_enabled : 0;
   out.sensor_gauge_min = in.sensor_gauge_min;
   out.sensor_gauge_max = in.sensor_gauge_max;
-  normalizeGaugeRange(out.sensor_gauge_min, out.sensor_gauge_max);
+  if (shouldNormalizeGaugeRange(out.type)) {
+    normalizeGaugeRange(out.sensor_gauge_min, out.sensor_gauge_max);
+  }
   out.sensor_gauge_arc = 100;
   out.sensor_gauge_size = 350;
   out.sensor_gauge_y_offset = 12;
@@ -668,7 +676,9 @@ static void unpackTileV6(const PackedTileV6& in, Tile& out) {
   out.sensor_display_mode = (in.sensor_gauge_enabled <= 2) ? in.sensor_gauge_enabled : 0;
   out.sensor_gauge_min = in.sensor_gauge_min;
   out.sensor_gauge_max = in.sensor_gauge_max;
-  normalizeGaugeRange(out.sensor_gauge_min, out.sensor_gauge_max);
+  if (shouldNormalizeGaugeRange(out.type)) {
+    normalizeGaugeRange(out.sensor_gauge_min, out.sensor_gauge_max);
+  }
   // Read gauge appearance from scene_alias for TILE_SENSOR
   out.sensor_gauge_arc = 100;     // Default
   out.sensor_gauge_size = 350;    // Default
@@ -755,7 +765,9 @@ static void unpackTileV5(const PackedTileV5& in, Tile& out, uint8_t index) {
   out.sensor_display_mode = (in.sensor_gauge_enabled != 0) ? 1 : 0;  // Legacy: map bool to mode
   out.sensor_gauge_min = in.sensor_gauge_min;
   out.sensor_gauge_max = in.sensor_gauge_max;
-  normalizeGaugeRange(out.sensor_gauge_min, out.sensor_gauge_max);
+  if (shouldNormalizeGaugeRange(out.type)) {
+    normalizeGaugeRange(out.sensor_gauge_min, out.sensor_gauge_max);
+  }
   out.sensor_gauge_arc = 100;
   out.sensor_gauge_size = 350;
   out.sensor_gauge_y_offset = 12;
