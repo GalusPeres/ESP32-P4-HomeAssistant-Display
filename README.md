@@ -19,6 +19,7 @@ This firmware turns supported ESP32-P4 touch displays into configurable Home Ass
 
 Everything visible on the dashboard is tile-based and managed from the built-in web interface:
 - add, remove, move, and resize tiles
+- drag and drop tiles between positions directly in the web interface
 - configure tile content and behavior
 - create folders and navigation structures
 - manage WiFi, MQTT, language, and time zone settings without changing code
@@ -64,6 +65,7 @@ Built-in web admin interface for tiles, folders, WiFi, MQTT, and layout configur
 ## Features
 
 - Fully tile-configurable dashboard via the built-in web admin panel
+- Drag-and-drop tile layout editing in the web admin panel
 - MQTT-based Home Assistant communication
 - Access Point based first-time setup
 - Device-local WiFi and MQTT configuration
