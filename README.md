@@ -140,6 +140,8 @@ That integration handles the Home Assistant-side MQTT communication and entity b
 - OTA is not implemented yet.
 - The microSD card is part of the expected runtime setup and should not be treated as optional.
 - Board selection and board settings must match the target device.
+- On the M5Stacks Tab5, enabling AP mode can currently crash the device if display brightness is above 50% and no battery is installed. This is a known bug.
+- In general, the M5Stacks Tab5 currently feels noticeably slower than the Waveshare B4. This may be related to the display driver or another device-specific bottleneck. If you know the cause or a fix, help is welcome.
 
 ## License
 
