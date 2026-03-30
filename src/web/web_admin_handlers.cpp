@@ -161,6 +161,96 @@ bool saveDrawBufferAsBmp(const lv_draw_buf_t* draw_buf, const String& path, Stri
   return true;
 }
 
+void getSnapshotAreaForObject(lv_obj_t* obj, lv_area_t& area) {
+  lv_obj_update_layout(obj);
+  lv_obj_get_coords(obj, &area);
+}
+
+bool hasVisibleDirectChildren(const lv_obj_t* parent) {
+  if (!parent) return false;
+  const uint32_t child_count = lv_obj_get_child_count(parent);
+  for (uint32_t i = 0; i < child_count; ++i) {
+    const lv_obj_t* child = lv_obj_get_child(parent, static_cast<int32_t>(i));
+    if (child && !lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+uint16_t packRgb565(uint8_t r, uint8_t g, uint8_t b) {
+  return static_cast<uint16_t>(((static_cast<uint16_t>(r) & 0xF8u) << 8) |
+                               ((static_cast<uint16_t>(g) & 0xFCu) << 3) |
+                               (static_cast<uint16_t>(b) >> 3));
+}
+
+bool blendArgb8888OverRgb565(lv_draw_buf_t* base,
+                             const lv_area_t& base_area,
+                             const lv_draw_buf_t* overlay,
+                             const lv_area_t& overlay_area,
+                             String& error) {
+  if (!base || !base->data || !overlay || !overlay->data) {
+    error = "Screenshot buffers missing";
+    return false;
+  }
+  if (base->header.cf != LV_COLOR_FORMAT_RGB565) {
+    error = "Unsupported base screenshot format";
+    return false;
+  }
+  if (overlay->header.cf != LV_COLOR_FORMAT_ARGB8888) {
+    error = "Unsupported overlay screenshot format";
+    return false;
+  }
+
+  const int32_t x1 = std::max(base_area.x1, overlay_area.x1);
+  const int32_t y1 = std::max(base_area.y1, overlay_area.y1);
+  const int32_t x2 = std::min(base_area.x2, overlay_area.x2);
+  const int32_t y2 = std::min(base_area.y2, overlay_area.y2);
+  if (x1 > x2 || y1 > y2) {
+    return true;
+  }
+
+  const uint32_t base_stride = base->header.stride;
+  const uint32_t overlay_stride = overlay->header.stride;
+
+  for (int32_t y = y1; y <= y2; ++y) {
+    uint16_t* dst = reinterpret_cast<uint16_t*>(
+        base->data + static_cast<uint32_t>(y - base_area.y1) * base_stride) + (x1 - base_area.x1);
+    const lv_color32_t* src = reinterpret_cast<const lv_color32_t*>(
+        overlay->data + static_cast<uint32_t>(y - overlay_area.y1) * overlay_stride) + (x1 - overlay_area.x1);
+
+    for (int32_t x = x1; x <= x2; ++x, ++dst, ++src) {
+      const uint8_t alpha = src->alpha;
+      if (alpha == 0) continue;
+
+      const uint8_t src_r = src->red;
+      const uint8_t src_g = src->green;
+      const uint8_t src_b = src->blue;
+
+      if (alpha >= 255) {
+        *dst = packRgb565(src_r, src_g, src_b);
+        continue;
+      }
+
+      const uint16_t dst565 = *dst;
+      const uint8_t dst_r = static_cast<uint8_t>((((dst565 >> 11) & 0x1Fu) * 255u) / 31u);
+      const uint8_t dst_g = static_cast<uint8_t>((((dst565 >> 5) & 0x3Fu) * 255u) / 63u);
+      const uint8_t dst_b = static_cast<uint8_t>(((dst565 & 0x1Fu) * 255u) / 31u);
+      const uint16_t inv_alpha = static_cast<uint16_t>(255u - alpha);
+
+      const uint8_t out_r = static_cast<uint8_t>((static_cast<uint16_t>(src_r) * alpha +
+                                                  static_cast<uint16_t>(dst_r) * inv_alpha + 127u) / 255u);
+      const uint8_t out_g = static_cast<uint8_t>((static_cast<uint16_t>(src_g) * alpha +
+                                                  static_cast<uint16_t>(dst_g) * inv_alpha + 127u) / 255u);
+      const uint8_t out_b = static_cast<uint8_t>((static_cast<uint16_t>(src_b) * alpha +
+                                                  static_cast<uint16_t>(dst_b) * inv_alpha + 127u) / 255u);
+      *dst = packRgb565(out_r, out_g, out_b);
+    }
+  }
+
+  return true;
+}
+
 bool createUiScreenshot(String& error) {
   if (!storageReady()) {
     error = "microSD card not available";
@@ -177,10 +267,31 @@ bool createUiScreenshot(String& error) {
   lv_refr_now(disp);
   Device::displayWaitDisplay();
 
+  lv_area_t screen_area;
+  getSnapshotAreaForObject(screen, screen_area);
   lv_draw_buf_t* draw_buf = lv_snapshot_take(screen, LV_COLOR_FORMAT_RGB565);
   if (!draw_buf) {
     error = "LVGL snapshot failed";
     return false;
+  }
+
+  lv_obj_t* top_layer = lv_display_get_layer_top(disp);
+  if (top_layer && hasVisibleDirectChildren(top_layer)) {
+    lv_area_t top_layer_area;
+    getSnapshotAreaForObject(top_layer, top_layer_area);
+    lv_draw_buf_t* overlay_buf = lv_snapshot_take(top_layer, LV_COLOR_FORMAT_ARGB8888);
+    if (!overlay_buf) {
+      lv_draw_buf_destroy(draw_buf);
+      error = "Popup overlay snapshot failed";
+      return false;
+    }
+
+    const bool blended = blendArgb8888OverRgb565(draw_buf, screen_area, overlay_buf, top_layer_area, error);
+    lv_draw_buf_destroy(overlay_buf);
+    if (!blended) {
+      lv_draw_buf_destroy(draw_buf);
+      return false;
+    }
   }
 
   const bool ok = saveDrawBufferAsBmp(draw_buf, String(kScreenshotPath), error);
