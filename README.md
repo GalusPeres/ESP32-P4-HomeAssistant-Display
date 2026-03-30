@@ -38,7 +38,7 @@ The screenshots below were captured on the Waveshare B4. They are meant as examp
 
 Home dashboard, folder view, and settings screen:
 
-<p align="center">
+<p>
   <img src="docs/images/b4-home.png" alt="Home dashboard" width="32%"> &nbsp; <img src="docs/images/b4-folder-lights.png" alt="Folder view" width="32%"> &nbsp; <img src="docs/images/b4-settings.png" alt="Settings view" width="32%">
 </p>
 
@@ -46,7 +46,7 @@ Home dashboard, folder view, and settings screen:
 
 Sensor history, weather details, and light control popups:
 
-<p align="center">
+<p>
   <img src="docs/images/b4-sensor-popup-kitchen.png" alt="Kitchen sensor popup" width="32%"> &nbsp; <img src="docs/images/b4-sensor-popup-water.png" alt="Water sensor popup" width="32%"> &nbsp; <img src="docs/images/b4-sensor-popup-battery.png" alt="Battery sensor popup" width="32%">
 </p>
 
