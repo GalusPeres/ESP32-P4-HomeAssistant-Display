@@ -207,7 +207,16 @@ void DeviceM5StacksTab5::displayPowerSaveOn() {
     return;
   }
 
+  M5.Display.waitDMA();
+  M5.Display.setBrightness(0);
+  M5.Display.waitDMA();
+  delay(30);
   M5.Display.powerSaveOn();
+  M5.Display.waitDMA();
+  delay(30);
+  M5.Display.sleep();
+  delay(60);
+  M5.Display.waitDMA();
 }
 
 void DeviceM5StacksTab5::displayPowerSaveOff() {
@@ -215,7 +224,12 @@ void DeviceM5StacksTab5::displayPowerSaveOff() {
     return;
   }
 
+  M5.Display.setBrightness(0);
+  M5.Display.waitDMA();
+  M5.Display.wakeup();
   M5.Display.powerSaveOff();
+  M5.Display.waitDMA();
+  delay(30);
   M5.Display.setBrightness(g_brightness);
 }
 

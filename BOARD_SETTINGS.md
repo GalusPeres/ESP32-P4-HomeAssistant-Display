@@ -4,6 +4,9 @@ This file documents the working Arduino IDE board settings for the two device pr
 
 Note:
 - The remaining values should be set exactly as listed below.
+- This repo now contains a shared sketch-root `partitions.csv`.
+- Arduino ESP32 uses that file automatically for both boards during build.
+- The shared layout keeps both OTA app slots below `16MB`.
 
 ## M5Stacks Tab5
 
@@ -12,7 +15,7 @@ Used for:
 
 Important:
 - Leave `Partition Scheme` on the normal Tab5 default.
-- Do not use the repo `partitions.csv` for Tab5 builds.
+- The actual partition layout still comes from the shared repo `partitions.csv`.
 
 Arduino IDE:
 - Board: `M5Tab5`
@@ -38,9 +41,9 @@ Used for:
 - `src/devices/waveshare_4b`
 
 Important:
-- For B4 OTA builds, use the repo-root `partitions.csv`.
-- In Arduino IDE set `Partition Scheme` to `Custom`.
-- This keeps both OTA app slots fully below `16MB`.
+- Leave `Partition Scheme` on the normal 32MB B4 setting.
+- The actual partition layout still comes from the shared repo `partitions.csv`.
+- This avoids switching partition files between boards.
 
 Arduino IDE:
 - Board: `ESP32P4 Dev Module`
@@ -54,7 +57,7 @@ Arduino IDE:
 - Flash Size: `32MB (256Mb)`
 - JTAG Adapter: `Disabled`
 - USB Firmware MSC On Boot: `Disabled`
-- Partition Scheme: `Custom`
+- Partition Scheme: `32M Flash (13MB APP/6.75MB SPIFFS)`
 - PSRAM: `Enabled`
 - Upload Mode: `UART0 / Hardware CDC`
 - Upload Speed: `921600`
