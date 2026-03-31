@@ -6,6 +6,7 @@ Tile-based ESP32-P4 firmware for Home Assistant dashboards with a fully configur
 
 The project currently supports multiple ESP32-P4 display devices and combines:
 
+- OTA firmware updates from the built-in web interface
 - touch-first dashboard UI
 - MQTT-based Home Assistant integration
 - on-device web configuration
@@ -64,6 +65,7 @@ Built-in web admin interface for tiles, folders, WiFi, MQTT, and layout configur
 
 ## Features
 
+- OTA firmware updates directly from the built-in web admin panel
 - Fully tile-configurable dashboard via the built-in web admin panel
 - Drag-and-drop tile layout editing in the web admin panel
 - MQTT-based Home Assistant communication
@@ -146,7 +148,6 @@ That integration handles the Home Assistant-side MQTT communication and entity b
 
 ## Notes
 
-- OTA is not implemented yet.
 - The microSD card is part of the expected runtime setup and should not be treated as optional.
 - Board selection and board settings must match the target device.
 - On the M5Stacks Tab5, enabling AP mode can currently crash the device if display brightness is above 50% and no battery is installed. This is a known bug.
@@ -154,7 +155,6 @@ That integration handles the Home Assistant-side MQTT communication and entity b
 - The popup system still needs more work overall. Sensor popups should become more flexible, for example with more data, longer history ranges, and easier switching between views.
 - The weather popup also still needs improvements, such as a better 24-hour view and larger weather icons.
 - The light popup is still rough and should be simplified further. The sliders currently feel too wide, and a hue wheel may be a better long-term direction.
-- OTA is planned for the future so devices can be updated directly on-device without reflashing over USB.
 - A Windows Electron companion app also exists under `electron-app/`. It can be used to send PC-side data to the device, for example Microsoft Flight Simulator values, system metrics, or simulated keyboard input/commands for Windows. This still needs proper documentation and its own release packaging.
 
 ## License
