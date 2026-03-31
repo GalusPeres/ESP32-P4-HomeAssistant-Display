@@ -89,6 +89,55 @@ void appendAdminStyles(String& html) {
     .settings-note { font-size:12px; color:#64748b; margin-top:4px; }
     .settings-actions { display:flex; gap:10px; flex-wrap:wrap; }
     .settings-actions .btn { width:auto; }
+    .file-picker { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+    .file-picker-name { color:#475569; font-size:14px; overflow-wrap:anywhere; }
+    .btn-inline { width:auto; margin-top:0; }
+    .file-picker .btn,
+    .file-picker .btn-secondary,
+    .file-picker .btn-inline {
+      width:auto;
+      margin-top:0;
+      padding:10px 14px;
+      font-size:14px;
+      flex:0 0 auto;
+    }
+    .ota-version-value {
+      display:inline-block;
+      font-family:Consolas, 'Courier New', monospace;
+      overflow-wrap:anywhere;
+      word-break:break-word;
+    }
+    .ota-status { min-height:18px; margin-top:8px; }
+    .ota-status.error { color:#dc2626; }
+    .ota-status.success { color:#16a34a; }
+    .ota-progress {
+      width:100%;
+      height:10px;
+      margin-top:8px;
+      border-radius:999px;
+      overflow:hidden;
+      background:#dbe4f3;
+    }
+    .ota-progress.active::before {
+      content:'';
+      display:block;
+      width:40%;
+      height:100%;
+      border-radius:999px;
+      background:linear-gradient(90deg, #4f46e5 0%, #3b82f6 100%);
+      animation:ota-progress-slide 1.1s ease-in-out infinite;
+    }
+    .ota-progress-bar {
+      width:0%;
+      height:100%;
+      border-radius:999px;
+      background:linear-gradient(90deg, #4f46e5 0%, #3b82f6 100%);
+      transition:width 0.18s ease;
+    }
+    @keyframes ota-progress-slide {
+      0% { transform:translateX(-100%); }
+      100% { transform:translateX(250%); }
+    }
     .settings-checkbox { display:flex; align-items:center; gap:10px; margin:0; font-size:14px; color:#0f172a; }
     .settings-checkbox input { width:auto; padding:0; margin:0; }
     .is-hidden { display:none !important; }

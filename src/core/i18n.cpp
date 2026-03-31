@@ -46,9 +46,11 @@ static const Strings kStringsDe = {
     "Screenshot erstellen & herunterladen",
     "Speichert /ui_screenshot.bmp auf der microSD-Karte. Die vorhandene Datei wird überschrieben.",
     "Firmware-Datei",
-    "Aktuelle Version",
-    "Update hochladen & installieren",
+    "Aktuelle Firmware",
+    "Update",
     "Hier nur die update.bin hochladen. Die factory.bin ist nur für den ersten Flash gedacht.",
+    "Datei auswählen",
+    "Keine Datei ausgewählt",
 
     "WiFi Status",
     "Verbunden",
@@ -202,6 +204,8 @@ static const Strings kStringsDe = {
     "Screenshot fehlgeschlagen",
     "Bitte zuerst eine update.bin auswählen",
     "Firmware wird hochgeladen...",
+    "Update wird installiert...",
+    "Warte auf Neustart...",
     "Update erfolgreich installiert. Das Gerät startet jetzt neu.",
     "Firmware-Update fehlgeschlagen"};
 
@@ -249,9 +253,11 @@ static const Strings kStringsEn = {
     "Create & Download Screenshot",
     "Saves /ui_screenshot.bmp to the microSD card. The existing file is overwritten.",
     "Firmware file",
-    "Current version",
-    "Upload & Install Update",
+    "Current firmware",
+    "Update",
     "Upload only the update.bin here. The factory.bin is only for the first flash.",
+    "Choose file",
+    "No file selected",
 
     "WiFi Status",
     "Connected",
@@ -404,7 +410,9 @@ static const Strings kStringsEn = {
     "Screenshot saved & download started!",
     "Screenshot failed",
     "Please select an update.bin first",
-    "Uploading firmware update...",
+    "Uploading firmware...",
+    "Installing update...",
+    "Waiting for restart...",
     "Update installed successfully. The device is restarting now.",
     "Firmware update failed"};
 

@@ -51,9 +51,10 @@ bool init_display() {
   }
 
   M5.Display.setRotation(to_panel_rotation(g_rotation));
-  M5.Display.setBrightness(g_brightness);
+  M5.Display.setBrightness(0);
   M5.Display.fillScreen(0x0000);
   M5.Display.waitDMA();
+  M5.Display.setBrightness(g_brightness);
 
   g_display_ready = true;
 
@@ -188,6 +189,7 @@ void DeviceM5StacksTab5::displaySleep() {
   }
 
   M5.Display.waitDMA();
+  M5.Display.setBrightness(0);
   M5.Display.sleep();
 }
 

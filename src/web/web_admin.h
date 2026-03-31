@@ -50,7 +50,9 @@ public:
   void handleCreateScreenshot();
   void handleDownloadScreenshot();
   void handleOtaUpdate();
-  void handleOtaUpdateDone();
+  void handleOtaUploadDone();
+  void handleStartOtaInstall();
+  void handleGetOtaStatus();
   void handleUploadIcon();
   void handleUploadIconDone();
 
@@ -69,5 +71,6 @@ private:
 
 // Globale Instanz
 extern WebAdminServer webAdminServer;
+bool webAdminOtaInProgress();
 
 #endif // WEB_ADMIN_H

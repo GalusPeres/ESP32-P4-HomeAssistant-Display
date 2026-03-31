@@ -67,8 +67,12 @@ void appendAdminScripts(String& html) {
   appendJsEntry("screenshotFailed", tr.js_screenshot_failed);
   appendJsEntry("otaSelectFile", tr.js_ota_select_file);
   appendJsEntry("otaUploading", tr.js_ota_uploading);
+  appendJsEntry("otaInstalling", tr.js_ota_installing);
+  appendJsEntry("otaReconnecting", tr.js_ota_reconnecting);
   appendJsEntry("otaSuccess", tr.js_ota_success);
   appendJsEntry("otaFailed", tr.js_ota_failed);
+  appendJsEntry("otaChooseFile", tr.ota_choose_file);
+  appendJsEntry("otaNoFileSelected", tr.ota_no_file_selected);
   html += R"html(  };
   function t(key) {
     return Object.prototype.hasOwnProperty.call(APP_I18N, key) ? APP_I18N[key] : key;
@@ -113,6 +117,13 @@ void appendAdminScripts(String& html) {
     buttonEl.textContent = isHidden ? hideLabel : showLabel;
   }
 
+  function updateOtaFileName(inputEl) {
+    const nameEl = document.getElementById('ota_file_name');
+    if (!nameEl) return;
+    const file = inputEl && inputEl.files && inputEl.files.length ? inputEl.files[0] : null;
+    nameEl.textContent = file ? file.name : t('otaNoFileSelected');
+  }
+
   async function createScreenshotAndDownload() {
     showNotification(t('screenshotCreating'));
     try {
@@ -136,6 +147,10 @@ void appendAdminScripts(String& html) {
   async function uploadOtaFirmware() {
     const input = document.getElementById('ota_file');
     const button = document.getElementById('ota_upload_btn');
+    const chooseBtn = document.getElementById('ota_choose_btn');
+    const statusEl = document.getElementById('ota_status');
+    const progressEl = document.getElementById('ota_progress');
+    const progressBarEl = document.getElementById('ota_progress_bar');
     if (!input || !input.files || !input.files.length) {
       showNotification(t('otaSelectFile'), false);
       return;
@@ -147,28 +162,160 @@ void appendAdminScripts(String& html) {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('firmware', file);
+    const setOtaUi = (message, phase = 'idle', tone = '', percent = null) => {
+      if (statusEl) {
+        statusEl.textContent = message || '';
+        statusEl.classList.remove('error', 'success');
+        if (tone === 'error' || tone === 'success') statusEl.classList.add(tone);
+      }
+      if (progressEl) {
+        progressEl.classList.toggle('is-hidden', phase === 'idle');
+        progressEl.classList.toggle('active', phase === 'busy' && percent === null);
+      }
+      if (progressBarEl) {
+        if (percent !== null) {
+          const safePercent = Math.max(0, Math.min(100, percent));
+          progressBarEl.style.width = safePercent + '%';
+        } else if (phase === 'done') {
+          progressBarEl.style.width = '100%';
+        } else {
+          progressBarEl.style.width = '0%';
+        }
+      }
+    };
 
-    if (button) button.disabled = true;
-    showNotification(t('otaUploading'));
+    const waitForDeviceReload = () => {
+      const startedAt = Date.now();
+      const tryReload = () => {
+        fetch(window.location.pathname + '?ota_ping=' + Date.now(), {
+          method: 'GET',
+          cache: 'no-store',
+          credentials: 'same-origin'
+        })
+        .then((res) => {
+          if (!res.ok) throw new Error('offline');
+          window.location.reload();
+        })
+        .catch(() => {
+          if (Date.now() - startedAt < 120000) {
+            window.setTimeout(tryReload, 1500);
+          }
+        });
+      };
+      window.setTimeout(tryReload, 2500);
+    };
 
-    try {
-      const res = await fetch('/api/ota', {
-        method: 'POST',
-        body: formData
-      });
+    const startOtaInstall = async () => {
+      const res = await fetch('/api/ota/install', { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
         throw new Error(data.error || t('otaFailed'));
       }
-      showNotification(data.message || t('otaSuccess'));
-      input.value = '';
-    } catch (err) {
-      showNotification(err?.message || t('otaFailed'), false);
-    } finally {
-      if (button) button.disabled = false;
+    };
+
+    const pollOtaInstall = async () => {
+      while (true) {
+        const res = await fetch('/api/ota/status?ts=' + Date.now(), {
+          method: 'GET',
+          cache: 'no-store'
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || t('otaFailed'));
+        }
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        const percent = Number.isFinite(Number(data.percent)) ? Number(data.percent) : 0;
+        setOtaUi(t('otaInstalling') + ' ' + percent + '%', 'busy', '', percent);
+        if (data.install_success) {
+          const message = t('otaSuccess');
+          setOtaUi(message, 'done', 'success', 100);
+          showNotification(message);
+          if (statusEl) statusEl.textContent = message + ' ' + t('otaReconnecting');
+          waitForDeviceReload();
+          return;
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 250));
+      }
+    };
+
+    if (button) {
+      if (!button.dataset.defaultLabel) button.dataset.defaultLabel = button.textContent;
+      button.disabled = true;
+      button.textContent = button.dataset.defaultLabel || 'Update';
     }
+    if (chooseBtn) chooseBtn.disabled = true;
+    input.disabled = true;
+    setOtaUi(t('otaUploading') + ' 0%', 'busy', '', 0);
+    showNotification(t('otaUploading'));
+
+    const formData = new FormData();
+    formData.append('firmware', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/ota/upload', true);
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      const percent = Math.max(1, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+      setOtaUi(t('otaUploading') + ' ' + percent + '%', 'busy', '', percent);
+    };
+
+    xhr.upload.onload = () => {};
+
+    xhr.onload = async () => {
+      let data = {};
+      try {
+        data = JSON.parse(xhr.responseText || '{}');
+      } catch (e) {}
+
+      if (xhr.status < 200 || xhr.status >= 300 || !data.success) {
+        const message = data.error || t('otaFailed');
+        setOtaUi(message, 'idle', 'error');
+        showNotification(message, false);
+        if (button) {
+          button.disabled = false;
+          button.textContent = button.dataset.defaultLabel || 'Update';
+        }
+        if (chooseBtn) chooseBtn.disabled = false;
+        input.disabled = false;
+        return;
+      }
+
+      try {
+        setOtaUi(t('otaInstalling') + ' 0%', 'busy', '', 0);
+        await startOtaInstall();
+        await pollOtaInstall();
+        input.value = '';
+        updateOtaFileName(input);
+      } catch (err) {
+        const message = err?.message || t('otaFailed');
+        setOtaUi(message, 'idle', 'error');
+        showNotification(message, false);
+        if (button) {
+          button.disabled = false;
+          button.textContent = button.dataset.defaultLabel || 'Update';
+        }
+        if (chooseBtn) chooseBtn.disabled = false;
+        input.disabled = false;
+        return;
+      }
+    };
+
+    xhr.onerror = () => {
+      const message = t('otaFailed');
+      setOtaUi(message, 'idle', 'error');
+      showNotification(message, false);
+      if (button) {
+        button.disabled = false;
+        button.textContent = button.dataset.defaultLabel || 'Update';
+      }
+      if (chooseBtn) chooseBtn.disabled = false;
+      input.disabled = false;
+    };
+
+    xhr.send(formData);
   }
 
   // Tile Editor State

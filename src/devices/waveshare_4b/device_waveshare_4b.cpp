@@ -117,9 +117,9 @@ bool init_display() {
     return false;
   }
 
-  g_gfx->displayOn();
   g_gfx->fillScreen(0x0000);
   g_gfx->flush();
+  g_gfx->displayOn();
   return true;
 }
 

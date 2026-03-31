@@ -52,6 +52,8 @@ struct Strings {
   const char* ota_current_version;
   const char* ota_upload_install;
   const char* ota_update_note;
+  const char* ota_choose_file;
+  const char* ota_no_file_selected;
 
   const char* wifi_status;
   const char* wifi_connected;
@@ -205,6 +207,8 @@ struct Strings {
   const char* js_screenshot_failed;
   const char* js_ota_select_file;
   const char* js_ota_uploading;
+  const char* js_ota_installing;
+  const char* js_ota_reconnecting;
   const char* js_ota_success;
   const char* js_ota_failed;
 };

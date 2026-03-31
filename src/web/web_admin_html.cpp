@@ -455,6 +455,8 @@ String WebAdminServer::getAdminPage() {
       cfg.wifi_static_ip[0] || cfg.wifi_gateway[0] || cfg.wifi_subnet[0] || cfg.wifi_dns[0];
   const String admin_panel_title =
       String(Device::displayName()) + (is_german ? " Admin-Panel" : " Admin Panel");
+  const String current_firmware_name =
+      String("esp32-p4-homeassistant-display-") + FW_VERSION + "-" + Device::profile().key;
   const HaBridgeConfigData& ha = haBridgeConfig.get();
   const auto sensorOptions = parseSensorList(ha.sensors_text);
   const auto weatherOptions = parseSensorList(ha.weathers_text);
@@ -836,19 +838,29 @@ String WebAdminServer::getAdminPage() {
   html += R"html(</div>
             <div class="settings-grid">
               <div class="settings-full">
-                <label for="ota_file">)html";
-  html += tr.ota_firmware_file;
-  html += R"html(</label>
                 <div class="settings-note"><strong>)html";
   html += tr.ota_current_version;
-  html += R"html(:</strong> )html";
-  html += FW_VERSION;
+  html += R"html(:</strong></div>
+                <div class="settings-note ota-version-value">)html";
+  html += current_firmware_name;
   html += R"html(</div>
-                <input type="file" id="ota_file" accept=".bin,application/octet-stream">
+                <input type="file" id="ota_file" accept=".bin,application/octet-stream" style="display:none" onchange="updateOtaFileName(this)">
+                <div class="file-picker">
+                  <button class="btn btn-secondary btn-inline" type="button" id="ota_choose_btn" onclick="document.getElementById('ota_file').click()">)html";
+  html += tr.ota_choose_file;
+  html += R"html(</button>
+                  <span id="ota_file_name" class="file-picker-name">)html";
+  html += tr.ota_no_file_selected;
+  html += R"html(</span>
+                </div>
                 <div class="settings-actions">
                   <button class="btn btn-secondary" type="button" id="ota_upload_btn" onclick="uploadOtaFirmware()">)html";
   html += tr.ota_upload_install;
   html += R"html(</button>
+                </div>
+                <div id="ota_status" class="settings-note ota-status"></div>
+                <div id="ota_progress" class="ota-progress is-hidden" aria-hidden="true">
+                  <div id="ota_progress_bar" class="ota-progress-bar"></div>
                 </div>
                 <div class="settings-note">)html";
   html += tr.ota_update_note;

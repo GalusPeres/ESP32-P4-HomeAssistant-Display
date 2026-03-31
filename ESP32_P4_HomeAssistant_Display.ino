@@ -40,9 +40,25 @@ static const uint32_t AP_MODE_TIMEOUT_MS = 10UL * 60UL * 1000UL;
 static uint32_t ap_mode_disable_block_until = 0;
 static bool hotspot_mode_change_pending = false;
 static bool hotspot_mode_requested = false;
+static bool ota_display_suspended = false;
 static TaskHandle_t ui_build_waiter = nullptr;
 static scene_publish_cb_t ui_scene_cb = nullptr;
 static hotspot_start_cb_t ui_hotspot_cb = nullptr;
+
+static void set_display_black_for_restart() {
+  displayManager.setInputEnabled(false);
+  BoardHAL::displayWaitDisplay();
+  BoardHAL::displayFillScreen(0x0000);
+  BoardHAL::displayWaitDisplay();
+  BoardHAL::displaySleep();
+}
+
+static void restore_display_after_ota_pause() {
+  BoardHAL::displayWake();
+  displayManager.setInputEnabled(true);
+  lv_obj_invalidate(lv_screen_active());
+  lv_refr_now(displayManager.getDisplay());
+}
 
 static void build_ui_task(void* param) {
   (void)param;
@@ -254,6 +270,29 @@ void loop() {
     apply_hotspot_mode(hotspot_mode_requested);
   }
 
+  const bool ota_in_progress = webAdminOtaInProgress();
+
+  if (ota_in_progress) {
+    if (!ota_display_suspended) {
+      set_display_black_for_restart();
+      ota_display_suspended = true;
+    }
+    displayManager.resetActivityTimer();
+    if (webAdminServer.isRunning()) webAdminServer.handle();
+    delay(1);
+    if (first_run) {
+      Serial.println("[Loop] OTA mode active - display suspended");
+      Serial.flush();
+      first_run = false;
+    }
+    return;
+  }
+
+  if (ota_display_suspended) {
+    restore_display_after_ota_pause();
+    ota_display_suspended = false;
+  }
+
   if (first_run) Serial.println("[Loop] BoardHAL::update()...");
   BoardHAL::update();
 
@@ -278,7 +317,11 @@ void loop() {
     settings_update_wifi_status_ap(webConfigApSsid(), webConfigApPassword());
     settings_update_power_status();
 
-    if (webConfigServer.hasNewConfig()) { delay(1000); ESP.restart(); }
+    if (webConfigServer.hasNewConfig()) {
+      set_display_black_for_restart();
+      delay(200);
+      ESP.restart();
+    }
 
     if (ap_mode_started_at != 0 && (uint32_t)(now - ap_mode_started_at) > AP_MODE_TIMEOUT_MS) {
       set_hotspot_mode(false);
