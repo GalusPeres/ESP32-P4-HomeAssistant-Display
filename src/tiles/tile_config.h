@@ -2,7 +2,6 @@
 #define TILE_CONFIG_H
 
 #include <Arduino.h>
-#include <map>
 #include <vector>
 
 #include "src/devices/device.h"
@@ -151,7 +150,6 @@ private:
   TileGridConfig active_grid;
   uint16_t active_folder_id = kRootFolderId;
   std::vector<FolderEntry> folders;
-  std::map<uint16_t, TileGridConfig> grid_cache;
 
   bool loadFolders();
   bool saveFolders() const;

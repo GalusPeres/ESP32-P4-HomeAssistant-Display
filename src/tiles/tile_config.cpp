@@ -1766,7 +1766,6 @@ static FolderEntry makeFolderEntry(uint16_t id, uint16_t parent_id, const String
 
 bool TileConfig::load() {
   folders.clear();
-  grid_cache.clear();
   bool folders_ok = loadFolders();
   bool had_root = folderExists(kRootFolderId);
   ensureRootFolder();
@@ -1774,41 +1773,15 @@ bool TileConfig::load() {
     saveFolders();
   }
 
-  // Pre-cache all folder grids in RAM
-  for (const auto& folder : folders) {
-    TileGridConfig grid;
-    if (loadGrid(folder.id, grid)) {
-      grid_cache[folder.id] = grid;
-    }
-  }
-  Serial.printf("[TileConfig] %u Grids im RAM gecacht\n",
-                static_cast<unsigned>(grid_cache.size()));
-
   active_folder_id = kRootFolderId;
-  auto it = grid_cache.find(kRootFolderId);
-  if (it != grid_cache.end()) {
-    active_grid = it->second;
-    return true;
-  }
   return loadGrid(active_folder_id, active_grid);
 }
 
 bool TileConfig::loadFolderGrid(uint16_t folder_id, TileGridConfig& out) {
   if (!folderExists(folder_id)) return false;
-  auto it = grid_cache.find(folder_id);
-  if (it != grid_cache.end()) {
-    out = it->second;
-    if (folder_id == active_folder_id) {
-      active_grid = out;
-    }
-    return true;
-  }
   bool ok = loadGrid(folder_id, out);
-  if (ok) {
-    grid_cache[folder_id] = out;
-    if (folder_id == active_folder_id) {
-      active_grid = out;
-    }
+  if (ok && folder_id == active_folder_id) {
+    active_grid = out;
   }
   return ok;
 }
@@ -1816,24 +1789,14 @@ bool TileConfig::loadFolderGrid(uint16_t folder_id, TileGridConfig& out) {
 bool TileConfig::saveFolderGrid(uint16_t folder_id, const TileGridConfig& grid) {
   if (!folderExists(folder_id)) return false;
   bool ok = saveGrid(folder_id, grid);
-  if (ok) {
-    grid_cache[folder_id] = grid;
-    if (folder_id == active_folder_id) {
-      active_grid = grid;
-    }
+  if (ok && folder_id == active_folder_id) {
+    active_grid = grid;
   }
   return ok;
 }
 
 bool TileConfig::setActiveFolder(uint16_t folder_id) {
   if (!folderExists(folder_id)) return false;
-  auto it = grid_cache.find(folder_id);
-  if (it != grid_cache.end()) {
-    active_folder_id = folder_id;
-    active_grid = it->second;
-    return true;
-  }
-  // Fallback: not in cache, load from storage
   const uint16_t previous_folder_id = active_folder_id;
   if (!loadGrid(folder_id, active_grid)) {
     if (previous_folder_id != folder_id && folderExists(previous_folder_id)) {
@@ -1842,7 +1805,6 @@ bool TileConfig::setActiveFolder(uint16_t folder_id) {
     return false;
   }
   active_folder_id = folder_id;
-  grid_cache[folder_id] = active_grid;
   return true;
 }
 
@@ -1981,7 +1943,6 @@ bool TileConfig::createFolder(uint16_t parent_id, const String& name, const Stri
     return false;
   }
 
-  grid_cache[next_id] = *grid;
   out_id = next_id;
   return true;
 }
@@ -2029,7 +1990,6 @@ bool TileConfig::deleteFolder(uint16_t folder_id) {
   }
 
   for (uint16_t id : to_delete) {
-    grid_cache.erase(id);
     String grid_path = tileGridFile(id);
     if (storageFS().exists(grid_path)) storageFS().remove(grid_path);
     for (size_t i = 0; i < TILES_PER_GRID; ++i) {
