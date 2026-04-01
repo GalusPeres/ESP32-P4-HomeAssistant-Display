@@ -1,3 +1,4 @@
+
 #include <WiFi.h>
 #include <Wire.h>
 #include <HTTPClient.h>
@@ -46,6 +47,15 @@ static bool ota_display_suspended = false;
 static TaskHandle_t ui_build_waiter = nullptr;
 static scene_publish_cb_t ui_scene_cb = nullptr;
 static hotspot_start_cb_t ui_hotspot_cb = nullptr;
+
+static void log_memory_status(const char* tag) {
+  Serial.printf("[Mem] %s | Heap free=%u KB | Heap min=%u KB | PSRAM free=%u KB | PSRAM total=%u KB\n",
+                tag ? tag : "?",
+                ESP.getFreeHeap() / 1024,
+                ESP.getMinFreeHeap() / 1024,
+                ESP.getFreePsram() / 1024,
+                ESP.getPsramSize() / 1024);
+}
 
 static void confirm_running_ota_if_needed() {
   const esp_partition_t* running = esp_ota_get_running_partition();
@@ -159,6 +169,7 @@ void setup() {
   Serial.println("\n\n=== WAVESHARE P4 STARTUP ===");
   Serial.printf("[Setup] Firmware: esp32-p4-homeassistant-display-%s-%s\n", FW_VERSION, Device::profile().key);
   confirm_running_ota_if_needed();
+  log_memory_status("boot-start");
   Serial.flush();
 
   // Board-HAL initialisiert I2C, Display (MIPI-DSI HX8394), GT911 Touch, Backlight
@@ -265,6 +276,7 @@ void setup() {
   lv_refr_now(displayManager.getDisplay());
   BoardHAL::displayWaitDisplay();
   Serial.println("[Setup] Display wake OK");
+  log_memory_status("after-ui-build");
   Serial.flush();
 
   Serial.println("[Setup] MQTT Topics...");
@@ -297,6 +309,7 @@ void setup() {
   }
 
   Serial.println("\n=== SETUP COMPLETE ===\n");
+  log_memory_status("setup-complete");
   Serial.flush();
 }
 

@@ -9,6 +9,8 @@
 #include "src/tiles/mdi_icons.h"
 #include <misc/cache/instance/lv_image_cache.h>
 #include <Arduino.h>
+#include <cstring>
+#include <deque>
 
 /* === Layout-Konstanten === */
 static const int GAP = GRID_GAP;
@@ -26,12 +28,12 @@ static bool g_tiles_reload_only_if_loaded[3] = {true, true, true};
 static bool g_tiles_release_requested[3] = {false, false, false};
 static bool g_tiles_icon_refresh_requested = false;
 
-static constexpr size_t kFolderCacheSize = 3;
 static constexpr uint16_t kInvalidFolderId = 0xFFFF;
 
 struct FolderCacheEntry {
   uint16_t folder_id = kInvalidFolderId;
   lv_obj_t* grid = nullptr;
+  lv_obj_t* tile_objs[TILES_PER_GRID] = {};
   bool loaded = false;
   bool dirty = false;
   bool grid_loaded = false;
@@ -41,10 +43,34 @@ struct FolderCacheEntry {
   uint32_t last_used_ms = 0;
 };
 
-static FolderCacheEntry g_folder_cache[kFolderCacheSize];
+static std::deque<FolderCacheEntry> g_folder_cache;
 static FolderCacheEntry* g_active_cache = nullptr;
 static bool g_folder_switch_pending = false;
 static uint16_t g_pending_folder_id = kInvalidFolderId;
+static constexpr uint32_t kFolderPreloadMinHeapBytes = 384UL * 1024UL;
+static constexpr uint32_t kFolderPreloadMinPsramBytes = 4UL * 1024UL * 1024UL;
+
+static void log_folder_switch_memory(const char* phase, uint16_t folder_id) {
+  Serial.printf("[Tiles] %s folder=%u | heap=%lu KB | heap_min=%lu KB | psram=%lu KB\n",
+                phase ? phase : "switch",
+                static_cast<unsigned>(folder_id),
+                ESP.getFreeHeap() / 1024,
+                ESP.getMinFreeHeap() / 1024,
+                ESP.getFreePsram() / 1024);
+}
+
+static bool can_preload_more_folders() {
+  const uint32_t free_heap = ESP.getFreeHeap();
+  const uint32_t psram_total = ESP.getPsramSize();
+  const uint32_t free_psram = ESP.getFreePsram();
+  if (free_heap < kFolderPreloadMinHeapBytes) {
+    return false;
+  }
+  if (psram_total > 0 && free_psram < kFolderPreloadMinPsramBytes) {
+    return false;
+  }
+  return true;
+}
 
 static void build_grid_track_descriptors(lv_coord_t* dsc, uint8_t count, lv_coord_t cell_size) {
   if (!dsc) return;
@@ -266,9 +292,9 @@ static void mark_occupied(bool occupied[GRID_ROWS][GRID_COLS], uint8_t col, uint
 }
 
 static FolderCacheEntry* find_folder_cache(uint16_t folder_id) {
-  for (size_t i = 0; i < kFolderCacheSize; ++i) {
-    if (g_folder_cache[i].folder_id == folder_id) {
-      return &g_folder_cache[i];
+  for (auto& entry : g_folder_cache) {
+    if (entry.folder_id == folder_id) {
+      return &entry;
     }
   }
   return nullptr;
@@ -278,6 +304,9 @@ static void clear_cache_entry(FolderCacheEntry& entry) {
   if (entry.grid) {
     lv_obj_del_async(entry.grid);
     entry.grid = nullptr;
+  }
+  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+    entry.tile_objs[i] = nullptr;
   }
   entry.loaded = false;
   entry.dirty = false;
@@ -293,37 +322,47 @@ static void reset_cache_entry(FolderCacheEntry& entry) {
 }
 
 static FolderCacheEntry* allocate_folder_cache(uint16_t folder_id) {
-  for (size_t i = 0; i < kFolderCacheSize; ++i) {
-    if (g_folder_cache[i].folder_id == kInvalidFolderId) {
-      g_folder_cache[i].folder_id = folder_id;
-      return &g_folder_cache[i];
-    }
+  if (FolderCacheEntry* existing = find_folder_cache(folder_id)) {
+    return existing;
   }
+  g_folder_cache.emplace_back();
+  g_folder_cache.back().folder_id = folder_id;
+  return &g_folder_cache.back();
+}
 
-  FolderCacheEntry* lru = nullptr;
-  for (size_t i = 0; i < kFolderCacheSize; ++i) {
-    FolderCacheEntry* entry = &g_folder_cache[i];
-    if (entry == g_active_cache) continue;
-    if (!lru || entry->last_used_ms < lru->last_used_ms) {
-      lru = entry;
-    }
+static void rebuild_folder_cache_index() {
+  for (auto& entry : g_folder_cache) {
+    reset_cache_entry(entry);
   }
-
-  if (!lru) {
-    lru = g_active_cache;
+  g_folder_cache.clear();
+  for (const auto& folder : tileConfig.getFolders()) {
+    FolderCacheEntry entry{};
+    entry.folder_id = folder.id;
+    g_folder_cache.push_back(entry);
   }
-  if (!lru) return nullptr;
-
-  reset_cache_entry(*lru);
-  lru->folder_id = folder_id;
-  return lru;
 }
 
 static void snapshot_active_cache() {
   if (!g_active_cache) return;
   tile_renderer_snapshot_tab0(&g_active_cache->widgets);
+  memcpy(g_active_cache->tile_objs, g_tiles_objs[static_cast<uint8_t>(GridType::TAB0)], sizeof(g_active_cache->tile_objs));
   g_active_cache->widgets_valid = true;
+  g_active_cache->grid = g_tiles_grids[static_cast<uint8_t>(GridType::TAB0)];
+  g_active_cache->loaded = (g_active_cache->grid != nullptr) && g_tiles_loaded[static_cast<uint8_t>(GridType::TAB0)];
+  g_active_cache->grid_config = tileConfig.getActiveGrid();
+  g_active_cache->grid_loaded = true;
   g_active_cache->last_used_ms = millis();
+}
+
+static void restore_active_cache(FolderCacheEntry& entry) {
+  const uint8_t idx = static_cast<uint8_t>(GridType::TAB0);
+  g_active_cache = &entry;
+  g_tiles_grids[idx] = entry.grid;
+  g_tiles_loaded[idx] = entry.loaded && (entry.grid != nullptr);
+  memcpy(g_tiles_objs[idx], entry.tile_objs, sizeof(entry.tile_objs));
+  if (entry.widgets_valid) {
+    tile_renderer_restore_tab0(&entry.widgets);
+  }
 }
 
 static void build_folder_cache_entry(FolderCacheEntry& entry, GridType grid_type) {
@@ -352,7 +391,7 @@ static void build_folder_cache_entry(FolderCacheEntry& entry, GridType grid_type
   }
   lv_obj_add_flag(entry.grid, LV_OBJ_FLAG_HIDDEN);
 
-  render_tile_grid(entry.grid, config, grid_type, g_tiles_scene_cbs[idx]);
+  render_tile_grid(entry.grid, config, grid_type, g_tiles_scene_cbs[idx], entry.tile_objs);
 
   tile_renderer_snapshot_tab0(&entry.widgets);
   entry.widgets_valid = true;
@@ -459,14 +498,43 @@ void build_tiles_tab(lv_obj_t *parent, GridType grid_type, scene_publish_cb_t sc
   g_tiles_loaded[idx] = false;
 
   if (grid_type == GridType::TAB0) {
-    for (size_t i = 0; i < kFolderCacheSize; ++i) {
-      reset_cache_entry(g_folder_cache[i]);
+    const uint32_t preload_heap_before = ESP.getFreeHeap();
+    const uint32_t preload_psram_before = ESP.getFreePsram();
+    size_t preloaded_folder_count = 0;
+    rebuild_folder_cache_index();
+    g_active_cache = allocate_folder_cache(tileConfig.getActiveFolderId());
+    if (g_active_cache) {
+      build_folder_cache_entry(*g_active_cache, grid_type);
+      restore_active_cache(*g_active_cache);
+      if (g_tiles_grids[idx]) {
+        lv_obj_clear_flag(g_tiles_grids[idx], LV_OBJ_FLAG_HIDDEN);
+        apply_cached_states(grid_type, g_active_cache->grid_config);
+        process_sensor_update_queue();
+        process_switch_update_queue();
+        process_weather_update_queue();
+        g_active_cache->last_used_ms = millis();
+        preloaded_folder_count = 1;
+      }
     }
-    g_active_cache = nullptr;
-    g_tiles_grids[idx] = create_tiles_grid(parent);
-    g_tiles_loaded[idx] = (g_tiles_grids[idx] != nullptr);
+    for (auto& entry : g_folder_cache) {
+      if (&entry == g_active_cache) continue;
+      if (!can_preload_more_folders()) {
+        Serial.printf("[Tiles] TAB0 folder preload stopped: heap=%lu KB, psram=%lu KB\n",
+                      ESP.getFreeHeap() / 1024, ESP.getFreePsram() / 1024);
+        break;
+      }
+      build_folder_cache_entry(entry, grid_type);
+      if (entry.loaded) {
+        ++preloaded_folder_count;
+      }
+    }
+    Serial.printf("[Tiles] TAB0 folder preload cached %u/%u folders (heap %lu -> %lu KB, psram %lu -> %lu KB)\n",
+                  static_cast<unsigned>(preloaded_folder_count),
+                  static_cast<unsigned>(g_folder_cache.size()),
+                  preload_heap_before / 1024, ESP.getFreeHeap() / 1024,
+                  preload_psram_before / 1024, ESP.getFreePsram() / 1024);
     if (g_tiles_grids[idx]) {
-      tiles_reload_layout(grid_type);
+      schedule_preview_load(grid_type);
     }
   } else {
     g_tiles_grids[idx] = create_tiles_grid(parent);
@@ -559,9 +627,12 @@ void tiles_reload_layout(GridType grid_type) {
     lv_refr_now(disp);
   }
   if (grid_type == GridType::TAB0 && g_active_cache) {
+    g_active_cache->grid = g_tiles_grids[idx];
+    g_active_cache->loaded = g_tiles_loaded[idx];
     g_active_cache->grid_config = tileConfig.getActiveGrid();
     g_active_cache->grid_loaded = true;
     tile_renderer_snapshot_tab0(&g_active_cache->widgets);
+    memcpy(g_active_cache->tile_objs, g_tiles_objs[idx], sizeof(g_active_cache->tile_objs));
     g_active_cache->widgets_valid = true;
     g_active_cache->dirty = false;
     g_active_cache->last_used_ms = millis();
@@ -594,9 +665,10 @@ void tiles_release_layout(GridType grid_type) {
 }
 
 void tiles_release_all() {
-  for (size_t i = 0; i < kFolderCacheSize; ++i) {
-    reset_cache_entry(g_folder_cache[i]);
+  for (auto& entry : g_folder_cache) {
+    reset_cache_entry(entry);
   }
+  g_folder_cache.clear();
   g_active_cache = nullptr;
   g_tiles_grids[0] = nullptr;
   g_tiles_loaded[0] = false;
@@ -682,15 +754,86 @@ void tiles_process_reload_requests() {
     g_pending_folder_id = kInvalidFolderId;
     const uint8_t idx = static_cast<uint8_t>(GridType::TAB0);
 
-    if (g_tiles_roots[idx] && tileConfig.folderExists(folder_id) && tileConfig.setActiveFolder(folder_id)) {
-      if (!g_tiles_grids[idx]) {
-        g_tiles_grids[idx] = create_tiles_grid(g_tiles_roots[idx]);
-        g_tiles_loaded[idx] = (g_tiles_grids[idx] != nullptr);
+    if (g_tiles_roots[idx] && tileConfig.folderExists(folder_id)) {
+      snapshot_active_cache();
+
+      FolderCacheEntry* target = find_folder_cache(folder_id);
+      if (!target) {
+        target = allocate_folder_cache(folder_id);
       }
-      if (g_tiles_grids[idx]) {
-        lv_obj_clear_flag(g_tiles_grids[idx], LV_OBJ_FLAG_HIDDEN);
-        g_tiles_reload_requested[idx] = true;
-        g_tiles_reload_only_if_loaded[idx] = false;
+      if (!target) {
+        return;
+      }
+
+      FolderCacheEntry* previous = g_active_cache;
+      const bool can_reuse = target->grid && target->loaded && target->widgets_valid &&
+                             target->grid_loaded && !target->dirty;
+
+      if (can_reuse) {
+        if (!tileConfig.setActiveFolderCached(folder_id, target->grid_config)) {
+          return;
+        }
+        if (previous && previous != target && previous->grid) {
+          lv_obj_add_flag(previous->grid, LV_OBJ_FLAG_HIDDEN);
+        }
+        restore_active_cache(*target);
+        lv_obj_clear_flag(target->grid, LV_OBJ_FLAG_HIDDEN);
+        apply_cached_states(GridType::TAB0, target->grid_config);
+        process_sensor_update_queue();
+        process_switch_update_queue();
+        process_weather_update_queue();
+        lv_display_t* disp = lv_obj_get_display(target->grid);
+        if (disp) {
+          lv_obj_invalidate(target->grid);
+          lv_refr_now(disp);
+        }
+        target->last_used_ms = millis();
+        schedule_preview_load(GridType::TAB0);
+        log_folder_switch_memory("folder-switch-cached", folder_id);
+        return;
+      }
+
+      build_folder_cache_entry(*target, GridType::TAB0);
+      if (!target->grid || !target->loaded || !target->widgets_valid) {
+        if (previous && previous->grid) {
+          restore_active_cache(*previous);
+          lv_obj_clear_flag(previous->grid, LV_OBJ_FLAG_HIDDEN);
+        }
+        return;
+      }
+      if (!tileConfig.setActiveFolderCached(folder_id, target->grid_config)) {
+        if (target->grid) {
+          lv_obj_add_flag(target->grid, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (previous && previous->grid) {
+          restore_active_cache(*previous);
+          lv_obj_clear_flag(previous->grid, LV_OBJ_FLAG_HIDDEN);
+        }
+        return;
+      }
+
+      if (previous && previous != target && previous->grid) {
+        lv_obj_add_flag(previous->grid, LV_OBJ_FLAG_HIDDEN);
+      }
+
+      restore_active_cache(*target);
+      if (target->grid) {
+        lv_obj_clear_flag(target->grid, LV_OBJ_FLAG_HIDDEN);
+        apply_cached_states(GridType::TAB0, target->grid_config);
+        process_sensor_update_queue();
+        process_switch_update_queue();
+        process_weather_update_queue();
+        lv_display_t* disp = lv_obj_get_display(target->grid);
+        if (disp) {
+          lv_obj_invalidate(target->grid);
+          lv_refr_now(disp);
+        }
+        target->last_used_ms = millis();
+        schedule_preview_load(GridType::TAB0);
+        log_folder_switch_memory("folder-switch-built", folder_id);
+      } else if (previous && previous->grid) {
+        restore_active_cache(*previous);
+        lv_obj_clear_flag(previous->grid, LV_OBJ_FLAG_HIDDEN);
       }
     }
     return;

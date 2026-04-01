@@ -3,6 +3,8 @@
 
 #include <Arduino.h>
 
+bool buildAdminFolderTabFragments(uint16_t folder_id, String& button_html, String& tab_html, String& tab_id);
+
 // Forward declaration to avoid circular dependency
 class WebAdminServer;
 

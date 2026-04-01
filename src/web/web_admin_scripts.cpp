@@ -294,6 +294,7 @@ void appendAdminScripts(String& html) {
   let sensorMetaCache = { values: {}, units: {}, icons: {}, names: {}, loaded: false };
   let sensorMetaFetchInFlight = null;
   let lastSensorMetaFetchMs = 0;
+  const SELECTED_TILE_STORAGE_KEY = 'selectedAdminTile';
 
   function normalizeSensorMetaPayload(payload) {
     if (!payload || typeof payload !== 'object') {
@@ -574,6 +575,96 @@ void appendAdminScripts(String& html) {
 
   function getTilesData(tab) {
     return tilesData[tab] || [];
+  }
+  function restoreCurrentTileSelectionUi() {
+    if (currentTileIndex === -1 || !currentTileTab) return;
+    document.querySelectorAll('.tile').forEach(t => t.classList.remove('active'));
+    const settingsId = currentTileTab + 'Settings';
+    document.getElementById(settingsId)?.classList.remove('hidden');
+    const activeTile = document.getElementById(currentTileTab + '-tile-' + currentTileIndex);
+    if (activeTile) activeTile.classList.add('active');
+  }
+  function ensureNavigateTargetOption(folderId, label) {
+    const folderValue = String(folderId);
+    document.querySelectorAll('select[id$="_navigate_target"]').forEach(select => {
+      let opt = select.querySelector('option[value="' + folderValue + '"]');
+      if (!opt) {
+        opt = document.createElement('option');
+        opt.value = folderValue;
+        select.appendChild(opt);
+      }
+      opt.textContent = label;
+    });
+  }
+  async function ensureFolderTabUi(folderId, name = '', icon = '') {
+    const folderNum = parseInt(folderId, 10);
+    if (isNaN(folderNum) || folderNum <= 0) return false;
+    if (tabByFolder[folderNum]) {
+      updateFolderTabUi(folderNum, name, icon);
+      ensureNavigateTargetOption(folderNum, formatFolderLabel(name, folderNum));
+      return true;
+    }
+    const res = await fetch('/api/folders/tab?folder_id=' + encodeURIComponent(folderNum));
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success || !data.tab_id || !data.button_html || !data.tab_html) {
+      return false;
+    }
+
+    const nav = document.querySelector('.tab-nav');
+    const networkTab = document.getElementById('tab-network');
+    if (!nav || !networkTab) return false;
+
+    const buttonTpl = document.createElement('template');
+    buttonTpl.innerHTML = String(data.button_html || '').trim();
+    const tabTpl = document.createElement('template');
+    tabTpl.innerHTML = String(data.tab_html || '').trim();
+    const buttonEl = buttonTpl.content.firstElementChild;
+    const tabEl = tabTpl.content.firstElementChild;
+    if (!buttonEl || !tabEl) return false;
+
+    const networkBtn = Array.from(nav.querySelectorAll('.tab-btn')).find(btn => btn.getAttribute('onclick')?.includes("'tab-network'"));
+    if (networkBtn) nav.insertBefore(buttonEl, networkBtn);
+    else nav.appendChild(buttonEl);
+    networkTab.parentNode.insertBefore(tabEl, networkTab);
+
+    initTileTabs();
+    enableTileDrag(String(data.tab_id));
+    enableTileResize(String(data.tab_id));
+    ensureNavigateTargetOption(folderNum, formatFolderLabel(name, folderNum));
+    updateFolderTabUi(folderNum, name, icon);
+    loadSensorValues(true, true);
+    return true;
+  }
+  function persistSelectedTileState() {
+    try {
+      if (currentTileTab && currentTileIndex >= 0) {
+        localStorage.setItem(SELECTED_TILE_STORAGE_KEY, JSON.stringify({ tab: currentTileTab, index: currentTileIndex }));
+      } else {
+        localStorage.removeItem(SELECTED_TILE_STORAGE_KEY);
+      }
+    } catch (e) {}
+  }
+  function restoreSelectedTileState() {
+    try {
+      const raw = localStorage.getItem(SELECTED_TILE_STORAGE_KEY);
+      if (!raw) return false;
+      const saved = JSON.parse(raw);
+      const tab = saved && typeof saved.tab === 'string' ? saved.tab : '';
+      const index = Number(saved && saved.index);
+      if (!tab || !Number.isInteger(index) || index < 0 || index >= TILES_PER_GRID) {
+        localStorage.removeItem(SELECTED_TILE_STORAGE_KEY);
+        return false;
+      }
+      if (!document.getElementById(tab) || !document.getElementById(tab + '-tile-' + index)) {
+        localStorage.removeItem(SELECTED_TILE_STORAGE_KEY);
+        return false;
+      }
+      selectTile(index, tab);
+      return true;
+    } catch (e) {
+      try { localStorage.removeItem(SELECTED_TILE_STORAGE_KEY); } catch (ignored) {}
+      return false;
+    }
   }
   function clampInt(value, min, max, fallback) {
     const v = parseInt(value, 10);
@@ -898,6 +989,7 @@ void appendAdminScripts(String& html) {
   function selectTile(index, tab) {
     currentTileIndex = index;
     currentTileTab = tab;
+    persistSelectedTileState();
     document.querySelectorAll('.tile').forEach(t => t.classList.remove('active', 'drop-target', 'dragging'));
     const tileId = tab + '-tile-' + index;
     document.getElementById(tileId)?.classList.add('active');
@@ -1435,16 +1527,26 @@ void appendAdminScripts(String& html) {
           clearDraft(tab, tileIndex);
           if (!silent) loadSensorValues(true);
           if (typeValue === '4') {
-            const navTarget = snapshot.navigate_target || '0';
-            if (String(navTarget) === '0') {
-              setTimeout(() => location.reload(), 400);
-            } else {
-              const titleVal = snapshot.title || '';
-              const iconVal = snapshot.icon || '';
-              updateFolderTabUi(navTarget, titleVal, iconVal);
+            const resolvedNavTarget = String((data && data.navigate_target !== undefined && data.navigate_target !== null)
+              ? data.navigate_target
+              : (snapshot.navigate_target || '0'));
+            snapshot.navigate_target = resolvedNavTarget;
+            if (tilesData[tab] && tilesData[tab][tileIndex]) {
+              tilesData[tab][tileIndex].navigate_target = parseInt(resolvedNavTarget, 10) || 0;
             }
+            const navTargetNum = parseInt(resolvedNavTarget, 10);
+            const titleVal = snapshot.title || '';
+            const iconVal = snapshot.icon || '';
+            ensureFolderTabUi(navTargetNum, titleVal, iconVal).then(ok => {
+              restoreCurrentTileSelectionUi();
+              if (!ok) {
+                persistSelectedTileState();
+                setTimeout(() => location.reload(), 400);
+              }
+            });
           }
           if (previousType === 4 && typeValue === '0') {
+            persistSelectedTileState();
             setTimeout(() => location.reload(), 400);
           }
         } else {
@@ -1921,10 +2023,9 @@ void appendAdminScripts(String& html) {
         layoutTiles(tab, tilesForRender);
       });
       if (currentTileIndex !== -1 && currentTileTab) {
-        const settingsId = currentTileTab + 'Settings';
-        document.getElementById(settingsId)?.classList.remove('hidden');
-        const activeTile = document.getElementById(currentTileTab + '-tile-' + currentTileIndex);
-        if (activeTile) activeTile.classList.add('active');
+        restoreCurrentTileSelectionUi();
+      } else {
+        restoreSelectedTileState();
       }
     })
     .catch(err => console.error('Fehler beim Laden der Sensorwerte:', err));

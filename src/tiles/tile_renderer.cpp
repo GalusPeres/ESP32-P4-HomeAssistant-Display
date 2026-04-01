@@ -1616,7 +1616,8 @@ static void mark_occupied(bool occupied[GRID_ROWS][GRID_COLS], uint8_t col, uint
   }
 }
 
-void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType grid_type, scene_publish_cb_t scene_cb) {
+void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType grid_type,
+                      scene_publish_cb_t scene_cb, lv_obj_t** out_tile_objs) {
   // Memory Monitoring - Vorher
   uint32_t heap_before = ESP.getFreeHeap();
   uint32_t psram_before = ESP.getFreePsram();
@@ -1631,6 +1632,12 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
   if (parent == nullptr) {
     Serial.println("[TileRenderer] ERROR: Parent ist NULL!");
     return;
+  }
+
+  if (out_tile_objs) {
+    for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+      out_tile_objs[i] = nullptr;
+    }
   }
 
   bool occupied[GRID_ROWS][GRID_COLS] = {};
@@ -1674,7 +1681,10 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
     layout_tile.row = layouts[i].row;
     layout_tile.span_w = layouts[i].span_w;
     layout_tile.span_h = layouts[i].span_h;
-    render_tile(parent, layouts[i].col, layouts[i].row, layout_tile, i, grid_type, scene_cb);
+    lv_obj_t* tile_obj = render_tile(parent, layouts[i].col, layouts[i].row, layout_tile, i, grid_type, scene_cb);
+    if (out_tile_objs) {
+      out_tile_objs[i] = tile_obj;
+    }
 
     if ((++render_count % GRID_COLS) == 0) {
       yield();

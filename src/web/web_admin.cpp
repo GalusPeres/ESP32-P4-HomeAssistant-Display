@@ -27,6 +27,7 @@ bool WebAdminServer::start() {
   server.on("/api/tiles", HTTP_POST, [this]() { this->handleSaveTiles(); });
   server.on("/api/tiles/reorder", HTTP_POST, [this]() { this->handleReorderTiles(); });
   server.on("/api/folders", HTTP_GET, [this]() { this->handleGetFolders(); });
+  server.on("/api/folders/tab", HTTP_GET, [this]() { this->handleGetFolderTab(); });
   server.on("/api/folders/delete", HTTP_POST, [this]() { this->handleDeleteFolder(); });
   server.on("/api/sensor_values", HTTP_GET, [this]() { this->handleGetSensorValues(); });
   server.on("/api/sd_images", HTTP_GET, [this]() { this->handleGetSdImages(); });

@@ -447,6 +447,109 @@ static void appendTileTabHTML(
 )html";
 }
 
+static String buildFolderTabButtonHtml(const FolderEntry& entry) {
+  const auto& tr = i18n::strings(configManager.getConfig().language);
+  String tab_id = "folder" + String(entry.id);
+  String icon = String(entry.icon_name);
+  String name = String(entry.name);
+  icon.trim();
+  icon.toLowerCase();
+  if (icon.startsWith("mdi:")) icon = icon.substring(4);
+  else if (icon.startsWith("mdi-")) icon = icon.substring(4);
+  name.trim();
+  if (!name.length()) {
+    name = (entry.id == 0) ? String(tr.home) : String(tr.folder_prefix) + String(entry.id);
+  }
+
+  String html;
+  html += R"html(
+        <button class="tab-btn" onclick="switchTab('tab-tiles-)html";
+  html += tab_id;
+  html += R"html(')">)html";
+  if (icon.length()) {
+    html += R"html(
+          <i class="mdi mdi-)html";
+    html += icon;
+    html += R"html(" style="font-size:24px;"></i>)html";
+  }
+  html += R"html(
+          <span style="font-size:14px;font-weight:600;">)html";
+  appendHtmlEscaped(html, name);
+  html += R"html(</span>
+        </button>
+)html";
+  return html;
+}
+
+bool buildAdminFolderTabFragments(uint16_t folder_id, String& button_html, String& tab_html, String& tab_id) {
+  const FolderEntry* folder = tileConfig.getFolder(folder_id);
+  if (!folder) return false;
+
+  const HaBridgeConfigData& ha = haBridgeConfig.get();
+  const auto sensorOptions = parseSensorList(ha.sensors_text);
+  const auto weatherOptions = parseSensorList(ha.weathers_text);
+  const auto sceneOptions = parseSceneList(ha.scene_alias_text);
+  const auto lightOptions = parseSensorList(ha.lights_text);
+  const auto switchOptionsRaw = parseSensorList(ha.switches_text);
+  std::vector<String> switchOptions;
+  switchOptions.reserve(lightOptions.size() + switchOptionsRaw.size());
+  auto addSwitchOption = [&](const String& entry) {
+    if (!entry.length()) return;
+    for (const auto& existing : switchOptions) {
+      if (existing.equalsIgnoreCase(entry)) return;
+    }
+    switchOptions.push_back(entry);
+  };
+  for (const auto& opt : lightOptions) addSwitchOption(opt);
+  for (const auto& opt : switchOptionsRaw) addSwitchOption(opt);
+  addSwitchOption(kEntityDisplayBrightness);
+  addSwitchOption(kEntityDisplayRotate);
+  addSwitchOption(kEntityDisplaySleep);
+
+  auto formatSensorValue = [](const String& raw, uint8_t decimals) -> String {
+    String v = raw;
+    v.trim();
+    if (!v.length()) return String("--");
+    String lower = v;
+    lower.toLowerCase();
+    if (lower == "unavailable") return String("--");
+    if (decimals == 0xFF) return v;
+    String normalized = v;
+    normalized.replace(",", ".");
+    char* end = nullptr;
+    float f = strtof(normalized.c_str(), &end);
+    if (!end || end == normalized.c_str()) return v;
+    if (isnan(f) || isinf(f)) return v;
+    uint8_t d = decimals > 6 ? 6 : decimals;
+    return String(f, static_cast<unsigned int>(d));
+  };
+
+  String navigateOptionsHtml;
+  for (const auto& entry : tileConfig.getFolders()) {
+    if (entry.id == 0) continue;
+    String label = String(entry.name);
+    label.trim();
+    if (!label.length()) {
+      label = i18n::strings(configManager.getConfig().language).folder_prefix;
+      label += String(entry.id);
+    }
+    navigateOptionsHtml += "<option value=\"";
+    navigateOptionsHtml += String(entry.id);
+    navigateOptionsHtml += "\">";
+    appendHtmlEscaped(navigateOptionsHtml, label);
+    navigateOptionsHtml += "</option>\n";
+  }
+
+  TileGridConfig grid{};
+  tileConfig.loadFolderGrid(folder_id, grid);
+  tab_id = "folder" + String(folder_id);
+  button_html = buildFolderTabButtonHtml(*folder);
+  tab_html = "";
+  appendTileTabHTML(tab_html, folder_id, *folder, grid, sensorOptions, weatherOptions,
+                    sceneOptions, switchOptions, formatSensorValue, navigateOptionsHtml);
+  return true;
+}
+
 String WebAdminServer::getAdminPage() {
   const DeviceConfig& cfg = configManager.getConfig();
   const auto& tr = i18n::strings(cfg.language);

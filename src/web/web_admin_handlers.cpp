@@ -1,4 +1,5 @@
 #include "src/web/web_admin.h"
+#include "src/web/web_admin_html.h"
 #include "src/core/i18n.h"
 #include "src/web/web_admin_utils.h"
 #include "src/network/network_manager.h"
@@ -1384,7 +1385,13 @@ void WebAdminServer::handleSaveTiles() {
       tiles_request_reload_if_loaded(GridType::TAB0);
     }
 
-    server.send(200, "application/json", "{\"success\":true}");
+    String response = "{\"success\":true";
+    if (tile.type == TILE_FOLDER) {
+      response += ",\"navigate_target\":";
+      response += String(getNavigateTargetId(tile));
+    }
+    response += "}";
+    server.send(200, "application/json", response);
   } else {
     Serial.printf("[WebAdmin] Fehler beim Speichern von Tile folder %u[%d]\n", static_cast<unsigned>(folder_id), index);
     server.send(500, "application/json", "{\"success\":false,\"error\":\"Save failed\"}");
@@ -1834,6 +1841,38 @@ void WebAdminServer::handleGetFolders() {
     json += "\"}";
   }
   json += "]";
+  server.send(200, "application/json", json);
+}
+
+void WebAdminServer::handleGetFolderTab() {
+  if (!server.hasArg("folder_id")) {
+    server.send(400, "application/json", "{\"success\":false,\"error\":\"Missing folder_id\"}");
+    return;
+  }
+
+  const uint16_t folder_id = static_cast<uint16_t>(server.arg("folder_id").toInt());
+  if (!tileConfig.folderExists(folder_id)) {
+    server.send(404, "application/json", "{\"success\":false,\"error\":\"Folder not found\"}");
+    return;
+  }
+
+  String button_html;
+  String tab_html;
+  String tab_id;
+  if (!buildAdminFolderTabFragments(folder_id, button_html, tab_html, tab_id)) {
+    server.send(500, "application/json", "{\"success\":false,\"error\":\"Folder tab build failed\"}");
+    return;
+  }
+
+  String json = "{\"success\":true,\"folder_id\":";
+  json += String(folder_id);
+  json += ",\"tab_id\":\"";
+  appendJsonEscaped(json, tab_id);
+  json += "\",\"button_html\":\"";
+  appendJsonEscaped(json, button_html);
+  json += "\",\"tab_html\":\"";
+  appendJsonEscaped(json, tab_html);
+  json += "\"}";
   server.send(200, "application/json", json);
 }
 

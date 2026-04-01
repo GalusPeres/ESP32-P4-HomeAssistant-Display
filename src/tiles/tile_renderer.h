@@ -86,7 +86,8 @@ struct TileWidgetCache {
 };
 
 // Rendert ein komplettes Tile-Grid (4x4)
-void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType grid_type, scene_publish_cb_t scene_cb = nullptr);
+void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType grid_type,
+                      scene_publish_cb_t scene_cb = nullptr, lv_obj_t** out_tile_objs = nullptr);
 
 // Rendert eine einzelne Kachel basierend auf Typ und liefert das erzeugte Objekt
 lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type, scene_publish_cb_t scene_cb);
