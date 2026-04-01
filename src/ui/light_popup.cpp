@@ -13,7 +13,10 @@
 namespace {
 
 constexpr int kCardMargin = 4;
-constexpr int kCardWidth = SCREEN_WIDTH - (kCardMargin * 2);
+constexpr int kCardWidth =
+    (SCREEN_WIDTH > SCREEN_HEIGHT)
+        ? (SCREEN_HEIGHT - (kCardMargin * 2))
+        : (SCREEN_WIDTH - (kCardMargin * 2));
 constexpr int kCardHeight = SCREEN_HEIGHT - (kCardMargin * 2);
 constexpr int kCardPad = 20;
 constexpr int kHeaderPadTop = 4;
