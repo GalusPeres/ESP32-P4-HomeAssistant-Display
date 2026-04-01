@@ -10,7 +10,7 @@ The project currently supports multiple ESP32-P4 display devices and combines:
 - touch-first dashboard UI
 - MQTT-based Home Assistant integration
 - on-device web configuration
-- microSD-backed runtime storage
+- LittleFS-backed runtime storage with optional microSD support for screenshots
 
 <br clear="both">
 
@@ -61,7 +61,6 @@ Built-in web admin interface for tiles, folders, WiFi, MQTT, and layout configur
 - Home Assistant
 - MQTT broker
 - Home Assistant bridge/integration: [ha-tab5-mqtt-bridge](https://github.com/GalusPeres/ha-tab5-mqtt-bridge)
-- microSD card required, formatted as FAT32
 
 ## Features
 
@@ -72,7 +71,8 @@ Built-in web admin interface for tiles, folders, WiFi, MQTT, and layout configur
 - Access Point based first-time setup
 - Device-local WiFi and MQTT configuration
 - English and German UI/admin support
-- Local screenshot export to microSD from the web interface
+- Runtime storage on internal LittleFS
+- Optional screenshot export to microSD from the web interface
 - Tile types currently include:
   - clock
   - counter
@@ -114,20 +114,23 @@ When using the ESP Flash Download Tool:
 
 ## First Setup
 
-1. Insert a microSD card formatted as FAT32.
-2. Flash the firmware.
-3. Boot the device.
-4. Activate AP mode on the device to continue setup.
-5. Connect your phone or computer to the temporary device WiFi Access Point.
-6. Use password `12345678`.
-7. Open the captive portal and enter your WiFi credentials.
-8. After saving, the device restarts and connects to your WiFi network.
-9. Open the on-device `Settings` tab and note the displayed IP address.
-10. Open the web admin panel through that IP address.
-11. Enter your MQTT settings in the web interface.
-12. Set up the Home Assistant bridge/integration so the device receives entity data:
-    [ha-tab5-mqtt-bridge](https://github.com/GalusPeres/ha-tab5-mqtt-bridge)
-13. Configure your tiles, folders, and layout.
+1. Flash the firmware.
+2. Boot the device.
+3. Activate AP mode on the device to continue setup.
+4. Connect your phone or computer to the temporary device WiFi Access Point.
+5. Use password `12345678`.
+6. Open the captive portal and enter your WiFi credentials.
+7. After saving, the device restarts and connects to your WiFi network.
+8. Open the on-device `Settings` tab and note the displayed IP address.
+9. Open the web admin panel through that IP address.
+10. Enter your MQTT settings in the web interface.
+11. Set up the Home Assistant bridge/integration so the device receives entity data:
+     [ha-tab5-mqtt-bridge](https://github.com/GalusPeres/ha-tab5-mqtt-bridge)
+12. Configure your tiles, folders, and layout.
+
+Optional:
+- Insert a FAT32-formatted microSD card if you want to use screenshot export from the web interface.
+- A microSD card can also be useful for one-time migration from older SD-based setups.
 
 ## Home Assistant Integration
 
@@ -146,11 +149,17 @@ That integration handles the Home Assistant-side MQTT communication and entity b
 - `simconnect-bridge/` additional companion tooling
 - `BOARD_SETTINGS.md` documented Arduino IDE board settings
 
+## Known Issues
+
+- Waveshare B4: software restart is currently unreliable. The display may remain black after a restart even though the firmware continues to run. Workaround: press the hardware reset button once.
+- Waveshare B4: tile edits can briefly flash blue after the move from SD-backed storage to LittleFS. This appears to be caused by writes to internal flash during live updates.
+- M5Stacks Tab5: Access Point mode is currently only reliable with a battery installed. Without a battery, keep brightness at the lowest available level; otherwise the device can crash.
+
 ## Notes
 
-- The microSD card is part of the expected runtime setup and should not be treated as optional.
+- A microSD card is no longer required for normal runtime operation.
+- A microSD card is currently only needed for screenshot export and optional migration from older SD-based setups.
 - Board selection and board settings must match the target device.
-- On the M5Stacks Tab5, enabling AP mode can currently crash the device if display brightness is above 50% and no battery is installed. This is a known bug.
 - In general, the M5Stacks Tab5 currently feels noticeably slower than the Waveshare B4. This may be related to the display driver or another device-specific bottleneck. If you know the cause or a fix, help is welcome.
 - The popup system still needs more work overall. Sensor popups should become more flexible, for example with more data, longer history ranges, and easier switching between views.
 - The weather popup also still needs improvements, such as a better 24-hour view and larger weather icons.
