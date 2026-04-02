@@ -29,7 +29,7 @@ constexpr int kContentPadTop = 76;
 constexpr int kContentRowGap = 15;
 constexpr int kChartHeight = 300;
 constexpr int kTimeAxisHeight = 20;  // space for time labels below chart
-constexpr int kTimeAxisMarkerCount = 4;  // 4 time markers (every 6h)
+constexpr int kTimeAxisMarkerCount = 7;
 constexpr int kChartLineWidth = 4;
 constexpr uint16_t kHistoryHours24h = 24;
 constexpr uint16_t kHistoryPeriodMinutes24h = 5;
@@ -37,9 +37,9 @@ constexpr uint16_t kHistoryPoints24h = 288;
 constexpr uint16_t kHistoryHours7d = 168;
 constexpr uint16_t kHistoryPeriodMinutes7d = 60;
 constexpr uint16_t kHistoryPoints7d = 168;
-constexpr int kRangeButtonWidth = 72;
-constexpr int kRangeButtonHeight = 40;
-constexpr int kRangeButtonGap = 10;
+constexpr int kRangeButtonWidth = 96;
+constexpr int kRangeButtonHeight = 64;
+constexpr int kRangeButtonGap = 12;
 
 enum class SensorHistoryRange : uint8_t {
   Day24,
@@ -64,6 +64,7 @@ struct SensorPopupContext {
   lv_obj_t* title_label = nullptr;
   lv_obj_t* icon_label = nullptr;
   lv_obj_t* value_label = nullptr;
+  lv_obj_t* range_row = nullptr;
   lv_obj_t* range_day_btn = nullptr;
   lv_obj_t* range_week_btn = nullptr;
   lv_obj_t* chart = nullptr;
@@ -170,16 +171,25 @@ static void update_value_label(SensorPopupContext* ctx, const String& value, con
 
 static void style_range_button(lv_obj_t* btn, bool active) {
   if (!btn) return;
-  lv_obj_set_style_bg_color(btn, active ? lv_color_white() : lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_bg_opa(btn, active ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-  lv_obj_set_style_border_color(btn, lv_color_white(), 0);
-  lv_obj_set_style_border_width(btn, 2, 0);
-  lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, 0);
+  auto apply_selector = [&](lv_style_selector_t selector) {
+    lv_obj_set_style_bg_color(btn, active ? lv_color_white() : lv_color_hex(0xFFFFFF), selector);
+    lv_obj_set_style_bg_opa(btn, active ? LV_OPA_COVER : LV_OPA_TRANSP, selector);
+    lv_obj_set_style_border_color(btn, lv_color_white(), selector);
+    lv_obj_set_style_border_width(btn, 2, selector);
+    lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, selector);
+    lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, selector);
+    lv_obj_set_style_transform_width(btn, 0, selector);
+    lv_obj_set_style_transform_height(btn, 0, selector);
+    lv_obj_set_style_translate_y(btn, 0, selector);
+  };
+
+  apply_selector(0);
+  apply_selector(LV_STATE_PRESSED);
 
   lv_obj_t* label = lv_obj_get_child(btn, 0);
   if (label) {
     lv_obj_set_style_text_color(label, active ? lv_color_hex(0x1F1F1F) : lv_color_white(), 0);
+    lv_obj_set_style_text_color(label, active ? lv_color_hex(0x1F1F1F) : lv_color_white(), LV_STATE_PRESSED);
   }
 }
 
@@ -187,6 +197,15 @@ static void update_range_buttons(SensorPopupContext* ctx) {
   if (!ctx) return;
   style_range_button(ctx->range_day_btn, ctx->history_range == SensorHistoryRange::Day24);
   style_range_button(ctx->range_week_btn, ctx->history_range == SensorHistoryRange::Day7);
+}
+
+static void set_range_buttons_visible(SensorPopupContext* ctx, bool visible) {
+  if (!ctx || !ctx->range_row) return;
+  if (visible) {
+    lv_obj_clear_flag(ctx->range_row, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    lv_obj_add_flag(ctx->range_row, LV_OBJ_FLAG_HIDDEN);
+  }
 }
 
 static bool extract_numeric(JsonVariant v, float& out) {
@@ -303,10 +322,7 @@ static String format_day_axis_label(time_t ts) {
   localtime_r(&ts, &timeinfo);
 #endif
   const bool is_de = configManager.getConfig().language[0] == 'd';
-  String label = get_weekday_abbrev(static_cast<uint8_t>(timeinfo.tm_wday), is_de);
-  label += " ";
-  label += String(timeinfo.tm_mday);
-  return label;
+  return String(get_weekday_abbrev(static_cast<uint8_t>(timeinfo.tm_wday), is_de));
 }
 
 // Calculate time axis marker positions and labels.
@@ -320,13 +336,14 @@ static int calc_time_axis(const SensorPopupContext* ctx, String out_labels[], fl
     time_t now_local = mktime(&now_tm);
     if (now_local <= 0) return 0;
 
-    static constexpr int kDayOffsets[] = {6, 4, 2, 0};
     int count = 0;
-    for (int offset : kDayOffsets) {
+    for (int i = 0; i < 7 && count < max_markers; ++i) {
+      const int offset = 6 - i;
+      const float frac = (static_cast<float>(i) + 0.5f) / 7.0f;
       if (count >= max_markers) break;
       time_t marker_time = now_local - static_cast<time_t>(offset) * 24 * 60 * 60;
       out_labels[count] = format_day_axis_label(marker_time);
-      out_frac[count] = 1.0f - (static_cast<float>(offset) / 7.0f);
+      out_frac[count] = frac;
       ++count;
     }
     return count;
@@ -417,16 +434,28 @@ static void update_y_axis_layout(SensorPopupContext* ctx) {
   int chart_draw_w = kAvailW - chart_left - chart_right_reserve;
   if (chart_draw_w < 10) return;
 
+  const bool is_week_range = ctx->history_range == SensorHistoryRange::Day7;
+
   for (int i = 0; i < kTimeAxisMarkerCount; ++i) {
     if (i < n) {
-      int x = chart_left + static_cast<int>(fracs[i] * chart_draw_w);
+      int label_x_anchor = chart_left + static_cast<int>(fracs[i] * chart_draw_w);
+      int line_x = label_x_anchor;
+      if (is_week_range) {
+        if (i < (n - 1)) {
+          line_x = chart_left + static_cast<int>(((static_cast<float>(i) + 1.0f) / 7.0f) * chart_draw_w);
+        }
+      }
       if (ctx->time_lines[i]) {
-        lv_obj_set_x(ctx->time_lines[i], x);
-        lv_obj_clear_flag(ctx->time_lines[i], LV_OBJ_FLAG_HIDDEN);
+        if (is_week_range && i >= (n - 1)) {
+          lv_obj_add_flag(ctx->time_lines[i], LV_OBJ_FLAG_HIDDEN);
+        } else {
+          lv_obj_set_x(ctx->time_lines[i], line_x);
+          lv_obj_clear_flag(ctx->time_lines[i], LV_OBJ_FLAG_HIDDEN);
+        }
       }
       if (ctx->time_labels[i]) {
         lv_coord_t lbl_w = lv_obj_get_width(ctx->time_labels[i]);
-        int label_x = x - lbl_w / 2;
+        int label_x = label_x_anchor - lbl_w / 2;
         int min_x = chart_left - (lbl_w / 2);
         if (min_x < 0) min_x = 0;
         int max_x = kAvailW - lbl_w;
@@ -501,6 +530,7 @@ static void apply_history_payload(SensorPopupContext* ctx, const char* payload) 
 
   size_t count = values.size();
   if (count == 0) {
+    set_range_buttons_visible(ctx, false);
     clear_chart(ctx, range_cfg.points);
     return;
   }
@@ -556,6 +586,8 @@ static void apply_history_payload(SensorPopupContext* ctx, const char* payload) 
       if (val > max_v) max_v = val;
     }
   }
+
+  set_range_buttons_visible(ctx, numeric_count > 1);
 
   int scale = 1;
   if (has_range) {
@@ -682,7 +714,7 @@ static void on_overlay_delete(lv_event_t* e) {
 static void on_range_click(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   SensorPopupContext* ctx = static_cast<SensorPopupContext*>(lv_event_get_user_data(e));
-  lv_obj_t* target = lv_event_get_target(e);
+  lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
   if (!ctx || !target) return;
 
   SensorHistoryRange next_range =
@@ -756,6 +788,49 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
 
   lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 8, 0);
 
+  lv_obj_t* range_row = lv_obj_create(card);
+  ctx->range_row = range_row;
+  lv_obj_remove_style_all(range_row);
+  lv_obj_set_size(range_row, (kRangeButtonWidth * 2) + kRangeButtonGap, kRangeButtonHeight);
+  lv_obj_align(range_row, LV_ALIGN_TOP_RIGHT, -4, 129);
+  lv_obj_set_style_bg_opa(range_row, LV_OPA_TRANSP, 0);
+  lv_obj_set_layout(range_row, LV_LAYOUT_FLEX);
+  lv_obj_set_flex_flow(range_row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(range_row, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(range_row, kRangeButtonGap, 0);
+  lv_obj_clear_flag(range_row, LV_OBJ_FLAG_CLICKABLE);
+
+  auto make_range_button = [&](const char* text) -> lv_obj_t* {
+    lv_obj_t* btn = lv_button_create(range_row);
+    lv_obj_set_size(btn, kRangeButtonWidth, kRangeButtonHeight);
+    lv_obj_set_style_radius(btn, 16, 0);
+    lv_obj_set_style_pad_all(btn, 0, 0);
+    lv_obj_set_style_anim_time(btn, 0, 0);
+    lv_obj_set_style_anim_time(btn, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, LV_STATE_PRESSED);
+    lv_obj_set_style_transform_width(btn, 0, 0);
+    lv_obj_set_style_transform_width(btn, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_transform_height(btn, 0, 0);
+    lv_obj_set_style_transform_height(btn, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_translate_y(btn, 0, 0);
+    lv_obj_set_style_translate_y(btn, 0, LV_STATE_PRESSED);
+    lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(btn, LV_OBJ_FLAG_PRESS_LOCK);
+    lv_obj_t* label = lv_label_create(btn);
+    set_label_style(label, lv_color_white(), &ui_font_28);
+    lv_label_set_text(label, text);
+    lv_obj_center(label);
+    return btn;
+  };
+
+  ctx->range_day_btn = make_range_button("24H");
+  ctx->range_week_btn = make_range_button("7D");
+  lv_obj_add_event_cb(ctx->range_day_btn, on_range_click, LV_EVENT_CLICKED, ctx);
+  lv_obj_add_event_cb(ctx->range_week_btn, on_range_click, LV_EVENT_CLICKED, ctx);
+  update_range_buttons(ctx);
+  set_range_buttons_visible(ctx, false);
+
   lv_obj_t* content = lv_obj_create(card);
   lv_obj_set_size(content, LV_PCT(100), LV_PCT(100));
   lv_obj_align(content, LV_ALIGN_BOTTOM_LEFT, 0, 0);
@@ -775,37 +850,7 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
   set_label_style(value, lv_color_white(), get_value_font());
   lv_obj_set_style_text_align(value, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_width(value, LV_PCT(100));
-  lv_obj_set_style_translate_y(value, -6, 0);
-
-  lv_obj_t* range_row = lv_obj_create(content);
-  lv_obj_remove_style_all(range_row);
-  lv_obj_set_size(range_row, LV_PCT(100), kRangeButtonHeight);
-  lv_obj_set_style_bg_opa(range_row, LV_OPA_TRANSP, 0);
-  lv_obj_set_layout(range_row, LV_LAYOUT_FLEX);
-  lv_obj_set_flex_flow(range_row, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(range_row, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(range_row, kRangeButtonGap, 0);
-  lv_obj_clear_flag(range_row, LV_OBJ_FLAG_CLICKABLE);
-
-  auto make_range_button = [&](const char* text) -> lv_obj_t* {
-    lv_obj_t* btn = lv_button_create(range_row);
-    lv_obj_set_size(btn, kRangeButtonWidth, kRangeButtonHeight);
-    lv_obj_set_style_radius(btn, 14, 0);
-    lv_obj_set_style_pad_all(btn, 0, 0);
-    lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(btn, LV_OBJ_FLAG_PRESS_LOCK);
-    lv_obj_t* label = lv_label_create(btn);
-    set_label_style(label, lv_color_white(), &ui_font_20);
-    lv_label_set_text(label, text);
-    lv_obj_center(label);
-    return btn;
-  };
-
-  ctx->range_day_btn = make_range_button("24H");
-  ctx->range_week_btn = make_range_button("7D");
-  lv_obj_add_event_cb(ctx->range_day_btn, on_range_click, LV_EVENT_CLICKED, ctx);
-  lv_obj_add_event_cb(ctx->range_week_btn, on_range_click, LV_EVENT_CLICKED, ctx);
-  update_range_buttons(ctx);
+  lv_obj_set_style_translate_y(value, -20, 0);
 
   // Chart wrapper: Y-axis labels on the left, chart on the right, time labels below.
   // Extra vertical space (kLabelOverhang) at top/bottom so labels don't get clipped.
@@ -906,6 +951,7 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
 
   lv_obj_move_foreground(icon);
   lv_obj_move_foreground(title);
+  lv_obj_move_foreground(range_row);
   lv_obj_move_foreground(close_btn);
 
   apply_init_to_context(ctx, init);
@@ -937,6 +983,7 @@ void show_sensor_popup(const SensorPopupInit& init) {
   }
 
   g_pending_history.valid = false;
+  set_range_buttons_visible(g_sensor_popup_ctx, false);
   request_history_for_context(g_sensor_popup_ctx);
 }
 
