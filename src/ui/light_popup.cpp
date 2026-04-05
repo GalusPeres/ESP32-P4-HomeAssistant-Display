@@ -1473,9 +1473,8 @@ void show_light_popup(const LightPopupInit& init) {
   ctx->controls_row = lv_obj_create(content);
   lv_obj_set_height(ctx->controls_row, kControlsRowHeight);
   lv_obj_set_width(ctx->controls_row, LV_SIZE_CONTENT);
-  lv_obj_set_style_bg_color(ctx->controls_row, lv_color_hex(kControlBarBg), 0);
-  lv_obj_set_style_bg_opa(ctx->controls_row, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(ctx->controls_row, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_opa(ctx->controls_row, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_radius(ctx->controls_row, 0, 0);
   lv_obj_set_style_border_width(ctx->controls_row, 0, 0);
   lv_obj_set_style_pad_left(ctx->controls_row, kControlsRowPadX, 0);
   lv_obj_set_style_pad_right(ctx->controls_row, kControlsRowPadX, 0);

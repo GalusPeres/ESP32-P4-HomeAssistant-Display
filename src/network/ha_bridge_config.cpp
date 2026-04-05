@@ -40,7 +40,7 @@ bool HaBridgeConfig::load() {
   data.sensor_units_map = prefs.getString("ha_sens_units", "");
   data.sensor_names_map = prefs.getString("ha_sens_names", "");
   data.sensor_values_map = prefs.getString("ha_sens_vals", "");
-  data.entity_icons_map = "";
+  data.entity_icons_map = prefs.getString("ha_ent_icons", "");
   for (size_t i = 0; i < HA_SENSOR_SLOT_COUNT; ++i) {
     char key[12];
     snprintf(key, sizeof(key), "slot_s%u", static_cast<unsigned>(i));
@@ -79,6 +79,8 @@ bool HaBridgeConfig::save(const HaBridgeConfigData& incoming) {
   // prefs.putString("ha_sens_units", incoming.sensor_units_map);
   // prefs.putString("ha_sens_names", incoming.sensor_names_map);
   // prefs.putString("ha_sens_vals", incoming.sensor_values_map);
+  // Die Icon-Map bleibt klein genug und wird fuer korrekte Auto-Icons nach Neustart gebraucht.
+  prefs.putString("ha_ent_icons", incoming.entity_icons_map);
   for (size_t i = 0; i < HA_SENSOR_SLOT_COUNT; ++i) {
     char key[12];
     snprintf(key, sizeof(key), "slot_s%u", static_cast<unsigned>(i));
