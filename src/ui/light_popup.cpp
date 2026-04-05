@@ -42,7 +42,7 @@ constexpr int kTempHandleHeight = kTempHandleRadius * 2;
 constexpr int kTempHandleDashWidth = 46;
 constexpr int kTempHandleDashHeight = 4;
 constexpr int kTempWrapWidth = kVerticalSliderWidth;
-constexpr int kTempWrapHeight = kVerticalSliderHeight + kTempHandleHeight;
+constexpr int kTempWrapHeight = kVerticalSliderHeight;
 constexpr int kColorFieldWidth = 340;
 constexpr int kColorFieldHeight = 340;
 constexpr int kColorFieldWrapHeight = 384;
@@ -130,6 +130,7 @@ static LightPopupContext* g_light_popup_ctx = nullptr;
 
 // Forward declarations
 static void update_preview(LightPopupContext* ctx);
+static void update_temperature_handle(LightPopupContext* ctx);
 static void commit_popup_state(LightPopupContext* ctx);
 static void maybe_live_publish_during_drag(LightPopupContext* ctx);
 static void on_overlay_click(lv_event_t* e);
@@ -497,6 +498,7 @@ static void update_temperature_slider_visuals(LightPopupContext* ctx, bool inval
       color_from_temperature_kelvin(ctx->max_color_temp_kelvin),
       LV_PART_MAIN);
   lv_obj_set_style_bg_grad_dir(ctx->temp_slider, LV_GRAD_DIR_VER, LV_PART_MAIN);
+  update_temperature_handle(ctx);
   if (invalidate) lv_obj_invalidate(ctx->temp_slider);
 }
 
@@ -513,13 +515,31 @@ static void update_temperature_handle(LightPopupContext* ctx) {
   const int track_height = lv_area_get_height(&track_area);
   if (track_height <= 1) return;
 
-  float ratio = static_cast<float>(ctx->color_temp_kelvin - 2200) /
-                static_cast<float>(6500 - 2200);
-  if (ratio < 0.0f) ratio = 0.0f;
-  if (ratio > 1.0f) ratio = 1.0f;
+  if (!ctx->use_color_temperature) {
+    lv_obj_add_flag(ctx->temp_slider_handle, LV_OBJ_FLAG_HIDDEN);
+    return;
+  }
+
+  lv_obj_clear_flag(ctx->temp_slider_handle, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_set_style_bg_color(ctx->temp_slider_handle,
+                            color_from_temperature_kelvin(ctx->color_temp_kelvin),
+                            0);
+
+  float ratio = get_color_temp_ratio(ctx->color_temp_kelvin,
+                                     ctx->min_color_temp_kelvin,
+                                     ctx->max_color_temp_kelvin);
 
   const int center_x = track_area.x1 + (lv_area_get_width(&track_area) / 2);
-  const int center_y = track_area.y1 + static_cast<int>(lroundf(ratio * (track_height - 1)));
+  const int half_handle = kTempHandleHeight / 2;
+  const int min_center_y = track_area.y1 + half_handle;
+  const int max_center_y = track_area.y2 - half_handle + 1;
+  const int usable_range = max_center_y - min_center_y;
+  int center_y = min_center_y;
+  if (usable_range > 0) {
+    center_y += static_cast<int>(lroundf(ratio * usable_range));
+  }
+  if (center_y < min_center_y) center_y = min_center_y;
+  if (center_y > max_center_y) center_y = max_center_y;
   const int local_x = center_x - wrap_area.x1 - (kTempHandleWidth / 2);
   const int local_y = center_y - wrap_area.y1 - (kTempHandleHeight / 2);
 
@@ -828,7 +848,7 @@ static lv_obj_t* create_vertical_slider_panel(lv_obj_t* parent,
 
 static lv_obj_t* create_temperature_panel(lv_obj_t* parent,
                                           lv_obj_t** wrap_out,
-                                          lv_obj_t** track_out,
+                                          lv_obj_t** slider_out,
                                           lv_obj_t** handle_out,
                                           lv_obj_t** value_out) {
   lv_obj_t* panel = lv_obj_create(parent);
@@ -844,30 +864,33 @@ static lv_obj_t* create_temperature_panel(lv_obj_t* parent,
   lv_obj_t* wrap = lv_obj_create(panel);
   lv_obj_set_size(wrap, kTempWrapWidth, kTempWrapHeight);
   lv_obj_set_style_bg_opa(wrap, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_radius(wrap, kVerticalSliderRadius, 0);
   lv_obj_set_style_border_width(wrap, 0, 0);
   lv_obj_set_style_pad_all(wrap, 0, 0);
-  lv_obj_add_flag(wrap, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_style_clip_corner(wrap, true, 0);
   lv_obj_clear_flag(wrap, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(wrap, LV_SCROLLBAR_MODE_OFF);
-  lv_obj_set_ext_click_area(wrap, 24);
+  lv_obj_clear_flag(wrap, LV_OBJ_FLAG_CLICKABLE);
 
-  lv_obj_t* track = lv_obj_create(wrap);
-  lv_obj_set_size(track, kVerticalSliderWidth, kVerticalSliderHeight);
-  lv_obj_center(track);
-  lv_obj_set_style_radius(track, kVerticalSliderRadius, 0);
-  lv_obj_set_style_bg_color(track, lv_color_hex(kTempWarmColor), 0);
-  lv_obj_set_style_bg_grad_color(track, lv_color_hex(kTempCoolColor), 0);
-  lv_obj_set_style_bg_grad_dir(track, LV_GRAD_DIR_VER, 0);
-  lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
-  lv_obj_set_style_border_width(track, 0, 0);
-  lv_obj_set_style_shadow_width(track, 0, 0);
-  lv_obj_clear_flag(track, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_clear_flag(track, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(track, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_t* slider = lv_slider_create(wrap);
+  lv_obj_set_size(slider, kVerticalSliderWidth, kVerticalSliderHeight);
+  lv_obj_center(slider);
+  lv_slider_set_range(slider, 2200, 6500);
+  lv_obj_set_style_radius(slider, kVerticalSliderRadius, LV_PART_MAIN);
+  lv_obj_set_style_radius(slider, kVerticalSliderRadius, LV_PART_INDICATOR);
+  lv_obj_set_style_bg_color(slider, lv_color_hex(kTempWarmColor), LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(slider, lv_color_hex(kTempCoolColor), LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(slider, LV_GRAD_DIR_VER, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(slider, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(slider, LV_OPA_TRANSP, LV_PART_INDICATOR);
+  lv_obj_set_style_bg_opa(slider, LV_OPA_TRANSP, LV_PART_KNOB);
+  lv_obj_set_style_border_width(slider, 0, LV_PART_MAIN);
+  lv_obj_set_style_border_width(slider, 0, LV_PART_INDICATOR);
+  lv_obj_set_ext_click_area(slider, 24);
 
   lv_obj_t* handle = lv_obj_create(wrap);
   lv_obj_set_size(handle, kTempHandleWidth, kTempHandleHeight);
-  lv_obj_set_style_bg_color(handle, lv_color_hex(0xF5F2EE), 0);
+  lv_obj_set_style_bg_color(handle, lv_color_hex(kTempWarmColor), 0);
   lv_obj_set_style_bg_opa(handle, LV_OPA_COVER, 0);
   lv_obj_set_style_radius(handle, kTempHandleRadius, 0);
   lv_obj_set_style_border_width(handle, 0, 0);
@@ -875,15 +898,18 @@ static lv_obj_t* create_temperature_panel(lv_obj_t* parent,
   lv_obj_set_style_shadow_width(handle, 18, 0);
   lv_obj_set_style_shadow_color(handle, lv_color_black(), 0);
   lv_obj_set_style_shadow_opa(handle, LV_OPA_20, 0);
+  lv_obj_set_style_shadow_ofs_x(handle, 0, 0);
+  lv_obj_set_style_shadow_ofs_y(handle, 0, 0);
   lv_obj_add_flag(handle, LV_OBJ_FLAG_IGNORE_LAYOUT);
   lv_obj_clear_flag(handle, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_clear_flag(handle, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(handle, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_move_foreground(handle);
 
   lv_obj_t* dash = lv_obj_create(handle);
   lv_obj_set_size(dash, kTempHandleDashWidth, kTempHandleDashHeight);
   lv_obj_set_style_radius(dash, LV_RADIUS_CIRCLE, 0);
-  lv_obj_set_style_bg_color(dash, lv_color_hex(0x707684), 0);
+  lv_obj_set_style_bg_color(dash, lv_color_hex(kControlButtonBg), 0);
   lv_obj_set_style_bg_opa(dash, LV_OPA_COVER, 0);
   lv_obj_set_style_border_width(dash, 0, 0);
   lv_obj_set_style_shadow_width(dash, 0, 0);
@@ -895,9 +921,10 @@ static lv_obj_t* create_temperature_panel(lv_obj_t* parent,
   lv_obj_set_style_text_font(value, &ui_font_24, 0);
   lv_obj_set_style_text_color(value, lv_color_white(), 0);
   lv_label_set_text(value, "");
+  lv_obj_add_flag(value, LV_OBJ_FLAG_HIDDEN);
 
   if (wrap_out) *wrap_out = wrap;
-  if (track_out) *track_out = track;
+  if (slider_out) *slider_out = slider;
   if (handle_out) *handle_out = handle;
   if (value_out) *value_out = value;
   return panel;
@@ -1115,6 +1142,7 @@ static void on_temp_changed(lv_event_t* e) {
     }
   }
   mark_user_action(ctx);
+  update_temperature_handle(ctx);
   update_top_value_label(ctx);
   update_header_and_power_visuals(ctx, get_preview_icon_rgb(ctx));
   if ((was_on != ctx->is_on || restored_brightness) && is_visible_obj(ctx->brightness_panel)) {
@@ -1216,14 +1244,37 @@ static void on_temp_slider_draw(lv_event_t* e) {
   handle_area.y1 = center_y - half_handle;
   handle_area.y2 = handle_area.y1 + kTempHandleHeight - 1;
 
+  lv_layer_t* layer = lv_event_get_layer(e);
+
   lv_draw_rect_dsc_t handle_dsc;
   lv_draw_rect_dsc_init(&handle_dsc);
-  handle_dsc.bg_color = lv_color_hex(0xF5F2EE);
+  handle_dsc.bg_color = color_from_temperature_kelvin(ctx->color_temp_kelvin);
   handle_dsc.bg_opa = LV_OPA_COVER;
   handle_dsc.radius = kTempHandleRadius;
-
-  lv_layer_t* layer = lv_event_get_layer(e);
   lv_draw_rect(layer, &handle_dsc, &handle_area);
+
+  // Inner rounded shadow so the full contour is visible without extending outside the slider.
+  lv_draw_rect_dsc_t inner_shadow_dsc;
+  lv_draw_rect_dsc_init(&inner_shadow_dsc);
+  inner_shadow_dsc.bg_color = lv_color_black();
+  inner_shadow_dsc.bg_opa = LV_OPA_10;
+  inner_shadow_dsc.radius = kTempHandleRadius;
+
+  lv_area_t inner_shadow_top = handle_area;
+  inner_shadow_top.y2 = inner_shadow_top.y1 + 11;
+  lv_draw_rect(layer, &inner_shadow_dsc, &inner_shadow_top);
+
+  lv_area_t inner_shadow_bottom = handle_area;
+  inner_shadow_bottom.y1 = inner_shadow_bottom.y2 - 11;
+  lv_draw_rect(layer, &inner_shadow_dsc, &inner_shadow_bottom);
+
+  lv_area_t inner_shadow_left = handle_area;
+  inner_shadow_left.x2 = inner_shadow_left.x1 + 9;
+  lv_draw_rect(layer, &inner_shadow_dsc, &inner_shadow_left);
+
+  lv_area_t inner_shadow_right = handle_area;
+  inner_shadow_right.x1 = inner_shadow_right.x2 - 9;
+  lv_draw_rect(layer, &inner_shadow_dsc, &inner_shadow_right);
 
   lv_area_t dash_area;
   dash_area.x1 = slider_area.x1 + ((lv_area_get_width(&slider_area) - kTempHandleDashWidth) / 2);
@@ -1267,6 +1318,15 @@ static void apply_temperature_point(LightPopupContext* ctx, const lv_point_t& po
       ctx->min_color_temp_kelvin,
       ctx->max_color_temp_kelvin);
   ctx->use_color_temperature = true;
+  if (ctx->temp_slider) {
+    ctx->suppress_events = true;
+    lv_slider_set_value(ctx->temp_slider,
+                        slider_value_from_kelvin(ctx->color_temp_kelvin,
+                                                 ctx->min_color_temp_kelvin,
+                                                 ctx->max_color_temp_kelvin),
+                        LV_ANIM_OFF);
+    ctx->suppress_events = false;
+  }
   ctx->is_on = true;
   if (ctx->supports_brightness && ctx->val == 0) {
     ctx->val = ctx->last_brightness > 0 ? ctx->last_brightness : 100;
@@ -1278,9 +1338,9 @@ static void apply_temperature_point(LightPopupContext* ctx, const lv_point_t& po
     }
   }
   mark_user_action(ctx);
+  update_temperature_handle(ctx);
   update_top_value_label(ctx);
   update_header_and_power_visuals(ctx, get_preview_icon_rgb(ctx));
-  lv_obj_invalidate(ctx->temp_slider);
   if ((was_on != ctx->is_on || restored_brightness) && is_visible_obj(ctx->brightness_panel)) {
     update_brightness_slider_visuals(ctx, get_preview_icon_rgb(ctx), true);
   }
@@ -1540,10 +1600,11 @@ void show_light_popup(const LightPopupInit& init) {
                                               &ctx->color_field_frame,
                                               &ctx->color_field_canvas,
                                               &ctx->color_field_cursor);
-  ctx->temperature_panel = create_vertical_slider_panel(ctx->main_panel,
-                                                        &ctx->temp_slider,
-                                                        &ctx->temp_value_label,
-                                                        true);
+  ctx->temperature_panel = create_temperature_panel(ctx->main_panel,
+                                                    &ctx->temp_slider_wrap,
+                                                    &ctx->temp_slider,
+                                                    &ctx->temp_slider_handle,
+                                                    &ctx->temp_value_label);
   render_color_field(ctx);
 
   ctx->controls_row = lv_obj_create(content);
@@ -1582,15 +1643,12 @@ void show_light_popup(const LightPopupInit& init) {
   lv_obj_add_event_cb(ctx->val_slider, on_val_changed, LV_EVENT_VALUE_CHANGED, ctx);
   lv_obj_add_event_cb(ctx->val_slider, on_val_slider_draw, LV_EVENT_DRAW_MAIN_END, ctx);
   lv_obj_add_event_cb(ctx->temp_slider, on_temp_changed, LV_EVENT_VALUE_CHANGED, ctx);
-  lv_obj_add_event_cb(ctx->temp_slider, on_temp_slider_draw, LV_EVENT_REFR_EXT_DRAW_SIZE, ctx);
-  lv_obj_add_event_cb(ctx->temp_slider, on_temp_slider_draw, LV_EVENT_DRAW_MAIN_END, ctx);
   lv_obj_add_event_cb(ctx->val_slider, on_slider_pressed, LV_EVENT_PRESSED, ctx);
   lv_obj_add_event_cb(ctx->temp_slider, on_slider_pressed, LV_EVENT_PRESSED, ctx);
   lv_obj_add_event_cb(ctx->val_slider, on_slider_released, LV_EVENT_RELEASED, ctx);
   lv_obj_add_event_cb(ctx->temp_slider, on_slider_released, LV_EVENT_RELEASED, ctx);
   lv_obj_add_event_cb(ctx->val_slider, on_slider_released, LV_EVENT_PRESS_LOST, ctx);
   lv_obj_add_event_cb(ctx->temp_slider, on_slider_released, LV_EVENT_PRESS_LOST, ctx);
-  lv_obj_refresh_ext_draw_size(ctx->temp_slider);
   if (ctx->color_field_frame) {
     lv_obj_add_event_cb(ctx->color_field_frame, on_color_field_event, LV_EVENT_PRESSED, ctx);
     lv_obj_add_event_cb(ctx->color_field_frame, on_color_field_event, LV_EVENT_PRESSING, ctx);
