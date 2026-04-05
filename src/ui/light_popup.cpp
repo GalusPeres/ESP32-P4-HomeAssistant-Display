@@ -28,10 +28,10 @@ constexpr int kTopValueHeight = 60;
 constexpr int kTopValueBottomPad = 16;
 constexpr int kMainPanelHeight = 384;
 constexpr int kControlsRowTopPad = 12;
-constexpr int kControlsRowHeight = 98;
+constexpr int kControlsRowHeight = 104;
 constexpr int kControlsRowPadX = 12;
 constexpr int kControlsRowGap = 12;
-constexpr int kControlButtonSize = 86;
+constexpr int kControlButtonSize = 92;
 constexpr int kVerticalSliderWidth = 160;
 constexpr int kVerticalSliderHeight = 340;
 constexpr int kVerticalSliderRadius = 32;
@@ -54,6 +54,7 @@ constexpr uint32_t kDefaultColor = 0xFFD54F;
 constexpr uint32_t kSwitchOnColor = 0x3B82F6;
 constexpr uint32_t kRemoteBlockMs = 3000;
 constexpr uint32_t kControlButtonBg = 0x2A2A2A;
+constexpr uint32_t kControlButtonActiveBg = 0x3A3A3D;
 constexpr uint32_t kControlButtonDisabled = 0x6B6B6B;
 constexpr uint32_t kControlBarBg = 0x1F1F22;
 constexpr uint32_t kTempWarmColor = 0xFFD27D;
@@ -477,16 +478,18 @@ static void style_control_button(lv_obj_t* button,
                                  bool enabled,
                                  lv_color_t accent = lv_color_white()) {
   if (!button) return;
-  lv_obj_set_style_bg_color(button, lv_color_hex(kControlButtonBg), 0);
+  lv_obj_set_style_bg_color(button,
+                            lv_color_hex(active ? kControlButtonActiveBg : kControlButtonBg),
+                            0);
   lv_obj_set_style_bg_opa(button, enabled ? LV_OPA_COVER : LV_OPA_30, 0);
-  lv_obj_set_style_border_width(button, active ? 2 : 0, 0);
-  lv_obj_set_style_border_color(button, accent, 0);
+  lv_obj_set_style_border_width(button, 0, 0);
+  lv_obj_set_style_border_opa(button, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_width(button, 0, 0);
   lv_obj_set_style_shadow_width(button, 0, 0);
   if (icon) {
     lv_obj_set_style_text_color(
         icon,
-        enabled ? (active ? accent : lv_color_white()) : lv_color_hex(kControlButtonDisabled),
+        enabled ? lv_color_white() : lv_color_hex(kControlButtonDisabled),
         0);
   }
 }
@@ -623,15 +626,14 @@ static void update_preview(LightPopupContext* ctx) {
         0);
   }
   if (ctx->power_button) {
-    lv_obj_set_style_bg_color(ctx->power_button,
-                              lv_color_hex(ctx->is_on ? kSwitchOnColor : kControlButtonBg),
-                              0);
-    lv_obj_set_style_border_width(ctx->power_button, ctx->is_on ? 0 : 1, 0);
-    lv_obj_set_style_border_color(ctx->power_button, lv_color_hex(0x4A4A4A), 0);
+    lv_obj_set_style_bg_color(ctx->power_button, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_bg_opa(ctx->power_button, ctx->is_on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ctx->power_button, 0, 0);
+    lv_obj_set_style_border_opa(ctx->power_button, LV_OPA_TRANSP, 0);
   }
   if (ctx->power_button_icon) {
     lv_obj_set_style_text_color(ctx->power_button_icon,
-                                lv_color_hex(ctx->is_on ? 0xFFFFFF : 0xB8B8B8),
+                                lv_color_hex(ctx->is_on ? kControlButtonBg : 0xFFFFFF),
                                 0);
   }
 
