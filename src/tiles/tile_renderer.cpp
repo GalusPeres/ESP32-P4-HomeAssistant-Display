@@ -672,6 +672,8 @@ static LightPopupInit build_popup_init_from_state(
   init.hs_h = state.hs_h;
   init.hs_s = state.hs_s;
   init.color_temp_kelvin = state.color_temp_kelvin;
+  init.min_color_temp_kelvin = state.min_color_temp_kelvin;
+  init.max_color_temp_kelvin = state.max_color_temp_kelvin;
 
   if (state.has_state) {
     init.is_on = state.is_on;
@@ -721,6 +723,23 @@ static SwitchState parse_switch_payload(const char* payload) {
     out.supports_temperature = true;
   };
 
+  auto set_color_temp_range = [&out](float raw_min_kelvin, float raw_max_kelvin) {
+    int min_kelvin = static_cast<int>(roundf(raw_min_kelvin));
+    int max_kelvin = static_cast<int>(roundf(raw_max_kelvin));
+    if (min_kelvin < 1500) min_kelvin = 1500;
+    if (max_kelvin > 9000) max_kelvin = 9000;
+    if (max_kelvin < 1500) max_kelvin = 1500;
+    if (min_kelvin > 9000) min_kelvin = 9000;
+    if (min_kelvin > max_kelvin) {
+      const int tmp = min_kelvin;
+      min_kelvin = max_kelvin;
+      max_kelvin = tmp;
+    }
+    out.min_color_temp_kelvin = static_cast<uint16_t>(min_kelvin);
+    out.max_color_temp_kelvin = static_cast<uint16_t>(max_kelvin);
+    out.supports_temperature = true;
+  };
+
   auto try_extract_color_temp = [&set_color_temp_kelvin](const String& source) {
     float color_temp_kelvin = 0.0f;
     if (extract_json_number_field(source, "color_temp_kelvin", color_temp_kelvin) ||
@@ -738,6 +757,36 @@ static SwitchState parse_switch_payload(const char* payload) {
         set_color_temp_kelvin(1000000.0f / color_temp_mired);
         return true;
       }
+    }
+
+    return false;
+  };
+
+  auto try_extract_color_temp_range = [&set_color_temp_range](const String& source) {
+    float min_kelvin = 0.0f;
+    float max_kelvin = 0.0f;
+    const bool has_min_kelvin =
+        extract_json_number_field(source, "min_color_temp_kelvin", min_kelvin) ||
+        extract_json_number_or_string_field(source, "min_color_temp_kelvin", min_kelvin);
+    const bool has_max_kelvin =
+        extract_json_number_field(source, "max_color_temp_kelvin", max_kelvin) ||
+        extract_json_number_or_string_field(source, "max_color_temp_kelvin", max_kelvin);
+    if (has_min_kelvin && has_max_kelvin) {
+      set_color_temp_range(min_kelvin, max_kelvin);
+      return true;
+    }
+
+    float min_mired = 0.0f;
+    float max_mired = 0.0f;
+    const bool has_min_mired =
+        extract_json_number_field(source, "min_mireds", min_mired) ||
+        extract_json_number_or_string_field(source, "min_mireds", min_mired);
+    const bool has_max_mired =
+        extract_json_number_field(source, "max_mireds", max_mired) ||
+        extract_json_number_or_string_field(source, "max_mireds", max_mired);
+    if (has_min_mired && has_max_mired && min_mired > 0.0f && max_mired > 0.0f) {
+      set_color_temp_range(1000000.0f / max_mired, 1000000.0f / min_mired);
+      return true;
     }
 
     return false;
@@ -839,6 +888,7 @@ static SwitchState parse_switch_payload(const char* payload) {
     }
 
     try_extract_color_temp(text);
+    try_extract_color_temp_range(text);
 
     String attributes;
     if (extract_json_object_field(text, "attributes", attributes)) {
@@ -929,6 +979,7 @@ static SwitchState parse_switch_payload(const char* payload) {
       }
 
       try_extract_color_temp(attributes);
+      try_extract_color_temp_range(attributes);
     }
   }
 

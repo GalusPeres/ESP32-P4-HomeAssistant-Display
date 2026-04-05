@@ -10,6 +10,8 @@ struct LightPopupInit {
   uint32_t color = 0;
   uint8_t brightness_pct = 100;
   uint16_t color_temp_kelvin = 4000;
+  uint16_t min_color_temp_kelvin = 2200;
+  uint16_t max_color_temp_kelvin = 6500;
   bool has_color = false;
   bool has_brightness = false;
   bool has_color_temp = false;

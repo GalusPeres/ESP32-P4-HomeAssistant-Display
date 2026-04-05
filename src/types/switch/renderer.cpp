@@ -65,6 +65,8 @@ static LightPopupInit build_light_popup_init(const SwitchEventData* data) {
   init.hs_h = state.hs_h;
   init.hs_s = state.hs_s;
   init.color_temp_kelvin = state.color_temp_kelvin;
+  init.min_color_temp_kelvin = state.min_color_temp_kelvin;
+  init.max_color_temp_kelvin = state.max_color_temp_kelvin;
   if (state.has_state) {
     init.is_on = state.is_on;
   } else if (state.has_brightness) {
@@ -294,4 +296,3 @@ lv_obj_set_style_bg_grad_dir(container, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STAT
 
   return container;
 }
-
