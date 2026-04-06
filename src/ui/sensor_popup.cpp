@@ -174,6 +174,12 @@ static void update_value_label(SensorPopupContext* ctx, const String& value, con
 
 static void style_range_button(lv_obj_t* btn, bool active) {
   if (!btn) return;
+  lv_color_t active_text_color = lv_color_hex(0x2A2A2A);
+  lv_obj_t* row = lv_obj_get_parent(btn);
+  lv_obj_t* card = row ? lv_obj_get_parent(row) : nullptr;
+  if (card) {
+    active_text_color = lv_obj_get_style_bg_color(card, LV_PART_MAIN);
+  }
   auto apply_selector = [&](lv_style_selector_t selector) {
     lv_obj_set_style_bg_color(btn, active ? lv_color_white() : lv_color_hex(0xFFFFFF), selector);
     lv_obj_set_style_bg_opa(btn, active ? LV_OPA_COVER : LV_OPA_TRANSP, selector);
@@ -191,8 +197,8 @@ static void style_range_button(lv_obj_t* btn, bool active) {
 
   lv_obj_t* label = lv_obj_get_child(btn, 0);
   if (label) {
-    lv_obj_set_style_text_color(label, active ? lv_color_hex(0x1F1F1F) : lv_color_white(), 0);
-    lv_obj_set_style_text_color(label, active ? lv_color_hex(0x1F1F1F) : lv_color_white(), LV_STATE_PRESSED);
+    lv_obj_set_style_text_color(label, active ? active_text_color : lv_color_white(), 0);
+    lv_obj_set_style_text_color(label, active ? active_text_color : lv_color_white(), LV_STATE_PRESSED);
   }
 }
 
