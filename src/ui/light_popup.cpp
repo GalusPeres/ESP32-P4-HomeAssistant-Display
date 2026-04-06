@@ -53,6 +53,7 @@ constexpr int kColorFieldWrapHeight = 384;
 constexpr int kColorFieldCursorSize = 30;
 constexpr int kBrightnessDashWidth = kTempHandleDashWidth;
 constexpr int kBrightnessDashHeight = kTempHandleDashHeight;
+constexpr int kBrightnessOffDragThreshold = kVerticalSliderRadius;
 
 constexpr uint32_t kDefaultColor = 0xFFD54F;
 constexpr uint32_t kSwitchOnColor = 0x3B82F6;
@@ -323,9 +324,11 @@ static uint8_t brightness_value_from_point(const lv_area_t& area, const lv_point
   const int radius = kVerticalSliderRadius;
   const int min_center_y = area.y1 + radius;
   const int max_center_y = area.y2 - radius + 1;
+  const int off_threshold_y = max_center_y + kBrightnessOffDragThreshold;
 
   if (point.y <= min_center_y) return 100;
-  if (point.y > max_center_y) return 0;
+  if (point.y > off_threshold_y) return 0;
+  if (point.y > max_center_y) return 1;
 
   const int usable_range = max_center_y - min_center_y;
   if (usable_range <= 0) return 100;
