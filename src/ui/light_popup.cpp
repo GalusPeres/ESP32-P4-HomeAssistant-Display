@@ -98,6 +98,7 @@ struct LightPopupContext {
   lv_obj_t* color_field_cursor = nullptr;
   lv_obj_t* val_slider = nullptr;
   lv_obj_t* val_fill = nullptr;
+  lv_obj_t* val_cap = nullptr;
   lv_obj_t* val_dash = nullptr;
   lv_obj_t* val_value = nullptr;
   lv_obj_t* temp_slider_wrap = nullptr;
@@ -521,12 +522,16 @@ static void update_brightness_slider_visuals(LightPopupContext* ctx, uint32_t ic
     lv_obj_set_style_bg_color(ctx->val_fill, base_color, 0);
     lv_obj_set_style_bg_opa(ctx->val_fill, LV_OPA_COVER, 0);
   }
+  if (ctx->val_cap) {
+    lv_obj_set_style_bg_color(ctx->val_cap, base_color, 0);
+    lv_obj_set_style_bg_opa(ctx->val_cap, LV_OPA_COVER, 0);
+  }
   update_brightness_fill(ctx);
   if (invalidate) lv_obj_invalidate(ctx->val_slider);
 }
 
 static void update_brightness_fill(LightPopupContext* ctx) {
-  if (!ctx || !ctx->val_slider || !ctx->val_fill || !ctx->val_dash) return;
+  if (!ctx || !ctx->val_slider || !ctx->val_fill || !ctx->val_cap || !ctx->val_dash) return;
 
   lv_obj_update_layout(ctx->val_slider);
   lv_area_t track_area;
@@ -537,10 +542,12 @@ static void update_brightness_fill(LightPopupContext* ctx) {
   const uint8_t value = (ctx->is_on || ctx->val > 0) ? ctx->val : 0;
   if (value == 0) {
     lv_obj_add_flag(ctx->val_fill, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ctx->val_cap, LV_OBJ_FLAG_HIDDEN);
     return;
   }
 
   lv_obj_clear_flag(ctx->val_fill, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_clear_flag(ctx->val_cap, LV_OBJ_FLAG_HIDDEN);
 
   const int radius = kVerticalSliderRadius;
   const int min_center_y = track_area.y1 + radius;
@@ -554,17 +561,21 @@ static void update_brightness_fill(LightPopupContext* ctx) {
     dash_center_y = min_center_y +
                     static_cast<int>(lroundf(progress * static_cast<float>(usable_range)));
   }
-  const int fill_top = dash_center_y - kVerticalSliderRadius;
-  const int fill_height = track_area.y2 - fill_top + 1;
+  const int cap_top = dash_center_y - kVerticalSliderRadius;
+  const int body_top = dash_center_y;
+  const int body_height = track_area.y2 - body_top + 1;
 
-  lv_obj_set_pos(ctx->val_fill, 0, fill_top - track_area.y1);
-  lv_obj_set_size(ctx->val_fill, kVerticalSliderWidth, fill_height);
+  lv_obj_set_pos(ctx->val_cap, 0, cap_top - track_area.y1);
+  lv_obj_set_size(ctx->val_cap, kVerticalSliderWidth, kVerticalSliderRadius * 2);
 
-  const int dash_local_y = dash_center_y - fill_top - (kBrightnessDashHeight / 2);
+  lv_obj_set_pos(ctx->val_fill, 0, body_top - track_area.y1);
+  lv_obj_set_size(ctx->val_fill, kVerticalSliderWidth, body_height);
+
+  const int dash_local_y = kVerticalSliderRadius - (kBrightnessDashHeight / 2);
   lv_obj_set_pos(ctx->val_dash,
                  (kVerticalSliderWidth - kBrightnessDashWidth) / 2,
                  dash_local_y);
-  lv_obj_move_foreground(ctx->val_fill);
+  lv_obj_move_foreground(ctx->val_cap);
 }
 
 static void update_temperature_slider_visuals(LightPopupContext* ctx, bool invalidate) {
@@ -889,6 +900,7 @@ static lv_obj_t* create_color_field_panel(lv_obj_t* parent,
 static lv_obj_t* create_vertical_slider_panel(lv_obj_t* parent,
                                               lv_obj_t** slider_out,
                                               lv_obj_t** fill_out,
+                                              lv_obj_t** cap_out,
                                               lv_obj_t** dash_out,
                                               lv_obj_t** value_out,
                                               bool warm_style) {
@@ -926,10 +938,11 @@ static lv_obj_t* create_vertical_slider_panel(lv_obj_t* parent,
   }
 
   lv_obj_t* fill = nullptr;
+  lv_obj_t* cap = nullptr;
   lv_obj_t* dash = nullptr;
   if (!warm_style) {
     fill = lv_obj_create(slider);
-    lv_obj_set_style_radius(fill, kVerticalSliderRadius, 0);
+    lv_obj_set_style_radius(fill, 0, 0);
     lv_obj_set_style_bg_color(fill, lv_color_hex(kDefaultColor), 0);
     lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(fill, 0, 0);
@@ -939,7 +952,19 @@ static lv_obj_t* create_vertical_slider_panel(lv_obj_t* parent,
     lv_obj_clear_flag(fill, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(fill, LV_OBJ_FLAG_SCROLLABLE);
 
-    dash = lv_obj_create(fill);
+    cap = lv_obj_create(slider);
+    lv_obj_set_size(cap, kVerticalSliderWidth, kVerticalSliderRadius * 2);
+    lv_obj_set_style_radius(cap, kVerticalSliderRadius, 0);
+    lv_obj_set_style_bg_color(cap, lv_color_hex(kDefaultColor), 0);
+    lv_obj_set_style_bg_opa(cap, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(cap, 0, 0);
+    lv_obj_set_style_pad_all(cap, 0, 0);
+    lv_obj_set_style_shadow_width(cap, 0, 0);
+    lv_obj_add_flag(cap, LV_OBJ_FLAG_IGNORE_LAYOUT);
+    lv_obj_clear_flag(cap, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(cap, LV_OBJ_FLAG_SCROLLABLE);
+
+    dash = lv_obj_create(cap);
     lv_obj_set_size(dash, kBrightnessDashWidth, kBrightnessDashHeight);
     lv_obj_set_style_radius(dash, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(dash, lv_color_hex(0x2A2A2A), 0);
@@ -958,6 +983,7 @@ static lv_obj_t* create_vertical_slider_panel(lv_obj_t* parent,
 
   if (slider_out) *slider_out = slider;
   if (fill_out) *fill_out = fill;
+  if (cap_out) *cap_out = cap;
   if (dash_out) *dash_out = dash;
   if (value_out) *value_out = value;
   return panel;
@@ -1220,7 +1246,11 @@ static void apply_brightness_point(LightPopupContext* ctx, const lv_point_t& poi
   mark_user_action(ctx);
   update_top_value_label(ctx);
   const uint32_t icon_rgb = get_preview_icon_rgb(ctx);
-  update_brightness_slider_visuals(ctx, icon_rgb, true);
+  if (was_on != ctx->is_on) {
+    update_brightness_slider_visuals(ctx, icon_rgb, true);
+  } else {
+    update_brightness_fill(ctx);
+  }
   if (was_on != ctx->is_on) {
     update_header_and_power_visuals(ctx, icon_rgb);
   }
@@ -1509,6 +1539,7 @@ void show_light_popup(const LightPopupInit& init) {
       create_vertical_slider_panel(ctx->main_panel,
                                    &ctx->val_slider,
                                    &ctx->val_fill,
+                                   &ctx->val_cap,
                                    &ctx->val_dash,
                                    &ctx->val_value,
                                    false);
