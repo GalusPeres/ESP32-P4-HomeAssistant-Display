@@ -13,13 +13,7 @@ struct SwitchEventData {
   String title;
   GridType grid_type;
   uint8_t index = 0;
-  bool suppress_click = false;
-};
-
-struct SwitchWidgetEventData {
-  String entity_id;
-  GridType grid_type = GridType::TAB0;
-  uint8_t index = 0;
+  bool use_switch_widget = false;
 };
 
 static SwitchState* get_switch_state_array(GridType grid_type) {
@@ -33,6 +27,23 @@ static SwitchState get_switch_state(GridType grid_type, uint8_t index) {
 }
 
 static bool is_switch_widget_tile(const Tile& tile);
+
+static void toggle_switch_tile(const SwitchEventData* data) {
+  if (!data || !data->entity_id.length()) return;
+
+  if (data->use_switch_widget) {
+    const SwitchState current = get_switch_state(data->grid_type, data->index);
+    if (current.has_state) {
+      const bool next_on = !current.is_on;
+      update_switch_tile_state(data->grid_type, data->index, next_on ? "on" : "off");
+      mqttPublishSwitchCommand(data->entity_id.c_str(), next_on ? "on" : "off");
+      return;
+    }
+  }
+
+  Serial.printf("[Tile] Switch toggle: %s\n", data->entity_id.c_str());
+  mqttPublishSwitchCommand(data->entity_id.c_str(), "toggle");
+}
 
 static LightPopupInit build_light_popup_init(const SwitchEventData* data) {
   LightPopupInit init;
@@ -195,37 +206,12 @@ lv_obj_set_style_bg_grad_dir(container, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STAT
       lv_obj_set_size(switch_obj, 90, 44);
       lv_obj_align(switch_obj, LV_ALIGN_CENTER, 0, 28);
       lv_obj_set_ext_click_area(switch_obj, 18);
-      lv_obj_add_flag(switch_obj, LV_OBJ_FLAG_EVENT_BUBBLE);
+      lv_obj_clear_flag(switch_obj, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_clear_flag(switch_obj, LV_OBJ_FLAG_SCROLLABLE);
+      lv_obj_set_scrollbar_mode(switch_obj, LV_SCROLLBAR_MODE_OFF);
       lv_obj_set_style_bg_color(switch_obj, lv_color_hex(tile_color), LV_PART_KNOB);
       lv_obj_set_style_bg_color(switch_obj, lv_color_hex(0xFFFFFF), LV_PART_INDICATOR | LV_STATE_DEFAULT);
       lv_obj_set_style_bg_color(switch_obj, lv_color_hex(0x3B82F6), LV_PART_INDICATOR | LV_STATE_CHECKED);
-      SwitchWidgetEventData* widget_data = new SwitchWidgetEventData{
-        tile.sensor_entity,
-        grid_type,
-        index
-      };
-      lv_obj_add_event_cb(
-          switch_obj,
-          [](lv_event_t* e) {
-            if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
-            SwitchWidgetEventData* data = static_cast<SwitchWidgetEventData*>(lv_event_get_user_data(e));
-            if (!data || !data->entity_id.length()) return;
-            lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
-            bool is_on = target && lv_obj_has_state(target, LV_STATE_CHECKED);
-            update_switch_tile_state(data->grid_type, data->index, is_on ? "on" : "off");
-            mqttPublishSwitchCommand(data->entity_id.c_str(), is_on ? "on" : "off");
-          },
-          LV_EVENT_VALUE_CHANGED,
-          widget_data);
-      lv_obj_add_event_cb(
-          switch_obj,
-          [](lv_event_t* e) {
-            if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
-            SwitchWidgetEventData* data = static_cast<SwitchWidgetEventData*>(lv_event_get_user_data(e));
-            delete data;
-          },
-          LV_EVENT_DELETE,
-          widget_data);
     }
   }
 
@@ -249,38 +235,36 @@ lv_obj_set_style_bg_grad_dir(container, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STAT
       tile.title,
       grid_type,
       index,
-      false
+      use_switch_widget
     };
-
-    if (!use_switch_widget) {
-      lv_obj_add_event_cb(
-          container,
-          [](lv_event_t* e) {
-            if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
-            SwitchEventData* data = static_cast<SwitchEventData*>(lv_event_get_user_data(e));
-            if (!data) return;
-            if (data->suppress_click) {
-              data->suppress_click = false;
-              return;
-            }
-            Serial.printf("[Tile] Switch toggle: %s\n", data->entity_id.c_str());
-            mqttPublishSwitchCommand(data->entity_id.c_str(), "toggle");
-          },
-          LV_EVENT_CLICKED,
-          event_data);
-    }
+    const bool popup_on_short = getTilePopupOpenMode(tile) == TILE_POPUP_OPEN_SHORT_PRESS;
+    const lv_event_code_t popup_event =
+        popup_on_short ? LV_EVENT_SHORT_CLICKED : LV_EVENT_LONG_PRESSED;
+    const lv_event_code_t toggle_event =
+        popup_on_short ? LV_EVENT_LONG_PRESSED : LV_EVENT_SHORT_CLICKED;
 
     lv_obj_add_event_cb(
         container,
         [](lv_event_t* e) {
-          if (lv_event_get_code(e) != LV_EVENT_LONG_PRESSED) return;
+          lv_event_code_t code = lv_event_get_code(e);
+          if (code != LV_EVENT_SHORT_CLICKED && code != LV_EVENT_LONG_PRESSED) return;
+          SwitchEventData* data = static_cast<SwitchEventData*>(lv_event_get_user_data(e));
+          toggle_switch_tile(data);
+        },
+        toggle_event,
+        event_data);
+
+    lv_obj_add_event_cb(
+        container,
+        [](lv_event_t* e) {
+          lv_event_code_t code = lv_event_get_code(e);
+          if (code != LV_EVENT_SHORT_CLICKED && code != LV_EVENT_LONG_PRESSED) return;
           SwitchEventData* data = static_cast<SwitchEventData*>(lv_event_get_user_data(e));
           if (!data) return;
-          data->suppress_click = true;
           LightPopupInit init = build_light_popup_init(data);
           show_light_popup(init);
         },
-        LV_EVENT_LONG_PRESSED,
+        popup_event,
         event_data);
 
     lv_obj_add_event_cb(

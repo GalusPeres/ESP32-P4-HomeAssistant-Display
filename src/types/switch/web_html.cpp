@@ -44,6 +44,19 @@ void append_switch_fields_html(String& html, const String& tab_id, const std::ve
   html += tr.switch_lvgl_switch;
   html += R"html(</option>
               </select>
+              <label>)html";
+  html += tr.popup_open;
+  html += R"html(</label>
+              <select id=")html";
+  html += tab_id;
+  html += R"html(_switch_popup_open_mode">
+                <option value="0">)html";
+  html += tr.long_press;
+  html += R"html(</option>
+                <option value="1">)html";
+  html += tr.short_press;
+  html += R"html(</option>
+              </select>
             </div>
 )html";
 }

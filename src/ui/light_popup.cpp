@@ -101,6 +101,7 @@ struct LightPopupContext {
   lv_obj_t* val_fill = nullptr;
   lv_obj_t* val_cap = nullptr;
   lv_obj_t* val_dash = nullptr;
+  lv_obj_t* val_switch_icon = nullptr;
   lv_obj_t* val_value = nullptr;
   lv_obj_t* temp_slider_wrap = nullptr;
   lv_obj_t* temp_slider = nullptr;
@@ -129,6 +130,7 @@ struct LightPopupContext {
   bool suppress_events = false;
   bool color_field_ready = false;
   bool use_color_temperature = false;
+  bool switch_drag_dirty = false;
   uint8_t* color_field_buf = nullptr;
   uint32_t color_field_stride = 0;
   LightPopupMode mode = LightPopupMode::Color;
@@ -455,6 +457,15 @@ static void update_color_field_cursor(LightPopupContext* ctx) {
   lv_obj_set_style_bg_color(ctx->color_field_cursor, lv_color_hex(display_rgb), 0);
 }
 
+static bool is_simple_switch_popup(const LightPopupContext* ctx) {
+  return ctx && !ctx->supports_brightness && !ctx->supports_color && !ctx->supports_temperature;
+}
+
+static const char* get_switch_slider_icon_name(const LightPopupContext* ctx) {
+  if (!ctx) return "power";
+  return ctx->is_on ? "power" : "circle-outline";
+}
+
 static void update_top_value_label(LightPopupContext* ctx) {
   if (!ctx || !ctx->top_value_label) return;
   char buf[24];
@@ -515,8 +526,49 @@ static void update_header_and_power_visuals(LightPopupContext* ctx, uint32_t ico
   }
 }
 
+static void update_switch_slider_visuals(LightPopupContext* ctx, uint32_t icon_rgb, bool invalidate) {
+  if (!ctx || !ctx->val_slider || !ctx->val_cap) return;
+
+  const lv_color_t accent_color = lv_color_hex(icon_rgb);
+  const lv_color_t thumb_color = ctx->is_on ? accent_color : lv_color_hex(0x8A8D96);
+
+  lv_obj_set_style_bg_color(ctx->val_slider, accent_color, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(ctx->val_slider, LV_OPA_30, LV_PART_MAIN);
+  lv_obj_set_style_border_width(ctx->val_slider, 0, LV_PART_MAIN);
+
+  if (ctx->val_fill) {
+    lv_obj_add_flag(ctx->val_fill, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (ctx->val_dash) {
+    lv_obj_add_flag(ctx->val_dash, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  constexpr int kSwitchThumbHeight = kVerticalSliderHeight / 2;
+  const int thumb_y = ctx->is_on ? 0 : (kVerticalSliderHeight - kSwitchThumbHeight);
+  lv_obj_clear_flag(ctx->val_cap, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_set_pos(ctx->val_cap, 0, thumb_y);
+  lv_obj_set_size(ctx->val_cap, kVerticalSliderWidth, kSwitchThumbHeight);
+  lv_obj_set_style_radius(ctx->val_cap, kVerticalSliderRadius, 0);
+  lv_obj_set_style_bg_color(ctx->val_cap, thumb_color, 0);
+  lv_obj_set_style_bg_opa(ctx->val_cap, LV_OPA_COVER, 0);
+
+  if (ctx->val_switch_icon) {
+    lv_obj_clear_flag(ctx->val_switch_icon, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_text_color(ctx->val_switch_icon, lv_color_hex(0x2A2A2A), 0);
+    lv_label_set_text(ctx->val_switch_icon, getMdiChar(get_switch_slider_icon_name(ctx)).c_str());
+    lv_obj_center(ctx->val_switch_icon);
+  }
+
+  lv_obj_move_foreground(ctx->val_cap);
+  if (invalidate) lv_obj_invalidate(ctx->val_slider);
+}
+
 static void update_brightness_slider_visuals(LightPopupContext* ctx, uint32_t icon_rgb, bool invalidate) {
   if (!ctx || !ctx->val_slider) return;
+  if (is_simple_switch_popup(ctx)) {
+    update_switch_slider_visuals(ctx, icon_rgb, invalidate);
+    return;
+  }
   lv_color_t base_color = lv_color_hex(icon_rgb);
   lv_obj_set_style_bg_color(ctx->val_slider, base_color, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(ctx->val_slider, LV_OPA_30, LV_PART_MAIN);
@@ -528,6 +580,12 @@ static void update_brightness_slider_visuals(LightPopupContext* ctx, uint32_t ic
   if (ctx->val_cap) {
     lv_obj_set_style_bg_color(ctx->val_cap, base_color, 0);
     lv_obj_set_style_bg_opa(ctx->val_cap, LV_OPA_COVER, 0);
+  }
+  if (ctx->val_dash) {
+    lv_obj_clear_flag(ctx->val_dash, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (ctx->val_switch_icon) {
+    lv_obj_add_flag(ctx->val_switch_icon, LV_OBJ_FLAG_HIDDEN);
   }
   update_brightness_fill(ctx);
   if (invalidate) lv_obj_invalidate(ctx->val_slider);
@@ -678,9 +736,20 @@ static lv_obj_t* get_control_button_slot(lv_obj_t* button) {
 
 static void apply_mode_visibility(LightPopupContext* ctx) {
   if (!ctx) return;
-  const bool show_brightness = ctx->is_light && ctx->mode == LightPopupMode::Brightness && ctx->supports_brightness;
+  const bool show_switch_slider = is_simple_switch_popup(ctx);
+  const bool show_controls_row = !show_switch_slider;
+  const uint8_t available_mode_count =
+      (ctx->supports_brightness ? 1 : 0) +
+      (ctx->supports_color ? 1 : 0) +
+      (ctx->supports_temperature ? 1 : 0);
+  const bool show_mode_buttons = show_controls_row && ctx->is_light && available_mode_count > 1;
+  const bool show_brightness =
+      show_switch_slider || (ctx->is_light && ctx->mode == LightPopupMode::Brightness && ctx->supports_brightness);
   const bool show_color = ctx->is_light && ctx->mode == LightPopupMode::Color && ctx->supports_color;
   const bool show_temperature = ctx->is_light && ctx->mode == LightPopupMode::Temperature && ctx->supports_temperature;
+  const bool show_brightness_button = show_mode_buttons && ctx->supports_brightness;
+  const bool show_color_button = show_mode_buttons && ctx->supports_color;
+  const bool show_temperature_button = show_mode_buttons && ctx->supports_temperature;
 
   if (ctx->brightness_panel) {
     if (show_brightness) lv_obj_clear_flag(ctx->brightness_panel, LV_OBJ_FLAG_HIDDEN);
@@ -695,29 +764,30 @@ static void apply_mode_visibility(LightPopupContext* ctx) {
     else lv_obj_add_flag(ctx->temperature_panel, LV_OBJ_FLAG_HIDDEN);
   }
   if (ctx->main_panel) {
-    if (ctx->is_light) lv_obj_clear_flag(ctx->main_panel, LV_OBJ_FLAG_HIDDEN);
-    else lv_obj_add_flag(ctx->main_panel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(ctx->main_panel, LV_OBJ_FLAG_HIDDEN);
   }
-
-  const bool show_modes = ctx->is_light;
+  if (ctx->controls_row) {
+    if (show_controls_row) lv_obj_clear_flag(ctx->controls_row, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(ctx->controls_row, LV_OBJ_FLAG_HIDDEN);
+  }
   if (ctx->brightness_button) {
     lv_obj_t* slot = get_control_button_slot(ctx->brightness_button);
     if (slot) {
-      if (show_modes) lv_obj_clear_flag(slot, LV_OBJ_FLAG_HIDDEN);
+      if (show_brightness_button) lv_obj_clear_flag(slot, LV_OBJ_FLAG_HIDDEN);
       else lv_obj_add_flag(slot, LV_OBJ_FLAG_HIDDEN);
     }
   }
   if (ctx->color_button) {
     lv_obj_t* slot = get_control_button_slot(ctx->color_button);
     if (slot) {
-      if (show_modes) lv_obj_clear_flag(slot, LV_OBJ_FLAG_HIDDEN);
+      if (show_color_button) lv_obj_clear_flag(slot, LV_OBJ_FLAG_HIDDEN);
       else lv_obj_add_flag(slot, LV_OBJ_FLAG_HIDDEN);
     }
   }
   if (ctx->temperature_button) {
     lv_obj_t* slot = get_control_button_slot(ctx->temperature_button);
     if (slot) {
-      if (show_modes) lv_obj_clear_flag(slot, LV_OBJ_FLAG_HIDDEN);
+      if (show_temperature_button) lv_obj_clear_flag(slot, LV_OBJ_FLAG_HIDDEN);
       else lv_obj_add_flag(slot, LV_OBJ_FLAG_HIDDEN);
     }
   }
@@ -907,6 +977,7 @@ static lv_obj_t* create_vertical_slider_panel(lv_obj_t* parent,
                                               lv_obj_t** fill_out,
                                               lv_obj_t** cap_out,
                                               lv_obj_t** dash_out,
+                                              lv_obj_t** switch_icon_out,
                                               lv_obj_t** value_out,
                                               bool warm_style) {
   lv_obj_t* panel = lv_obj_create(parent);
@@ -945,6 +1016,7 @@ static lv_obj_t* create_vertical_slider_panel(lv_obj_t* parent,
   lv_obj_t* fill = nullptr;
   lv_obj_t* cap = nullptr;
   lv_obj_t* dash = nullptr;
+  lv_obj_t* switch_icon = nullptr;
   if (!warm_style) {
     fill = lv_obj_create(slider);
     lv_obj_set_style_radius(fill, 0, 0);
@@ -978,6 +1050,15 @@ static lv_obj_t* create_vertical_slider_panel(lv_obj_t* parent,
     lv_obj_set_style_shadow_width(dash, 0, 0);
     lv_obj_clear_flag(dash, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(dash, LV_OBJ_FLAG_SCROLLABLE);
+
+    switch_icon = lv_label_create(cap);
+    lv_obj_set_style_text_font(switch_icon, FONT_MDI_ICONS, 0);
+    lv_obj_set_style_text_color(switch_icon, lv_color_white(), 0);
+    lv_label_set_text(switch_icon, "");
+    lv_obj_center(switch_icon);
+    lv_obj_add_flag(switch_icon, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(switch_icon, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(switch_icon, LV_OBJ_FLAG_SCROLLABLE);
   }
 
   lv_obj_t* value = lv_label_create(panel);
@@ -990,6 +1071,7 @@ static lv_obj_t* create_vertical_slider_panel(lv_obj_t* parent,
   if (fill_out) *fill_out = fill;
   if (cap_out) *cap_out = cap;
   if (dash_out) *dash_out = dash;
+  if (switch_icon_out) *switch_icon_out = switch_icon;
   if (value_out) *value_out = value;
   return panel;
 }
@@ -1116,6 +1198,7 @@ static void apply_init_to_context(LightPopupContext* ctx, const LightPopupInit& 
   ctx->suppress_events = true;
   update_popup_language(ctx);
   ctx->entity_id = init.entity_id;
+  ctx->switch_drag_dirty = false;
   ctx->supports_color = init.supports_color;
   ctx->supports_brightness = init.supports_brightness || init.supports_color;
   ctx->supports_temperature = init.supports_temperature;
@@ -1219,6 +1302,48 @@ static void on_power_button_click(lv_event_t* e) {
 
   update_preview(ctx);
   commit_popup_state(ctx);
+}
+
+static void apply_switch_slider_point(LightPopupContext* ctx, const lv_point_t& point) {
+  if (!ctx || !ctx->val_slider || !is_simple_switch_popup(ctx)) return;
+
+  lv_area_t area;
+  lv_obj_get_coords(ctx->val_slider, &area);
+  const int center_y = area.y1 + (lv_area_get_height(&area) / 2);
+  const bool next_is_on = point.y < center_y;
+  if (next_is_on == ctx->is_on) return;
+
+  mark_user_action(ctx);
+  ctx->is_on = next_is_on;
+  ctx->switch_drag_dirty = true;
+  update_preview(ctx);
+}
+
+static void on_switch_slider_event(lv_event_t* e) {
+  LightPopupContext* ctx = static_cast<LightPopupContext*>(lv_event_get_user_data(e));
+  if (!ctx || ctx->suppress_events || !is_simple_switch_popup(ctx)) return;
+
+  const lv_event_code_t code = lv_event_get_code(e);
+  if (code == LV_EVENT_PRESSED) {
+    ctx->user_dragging = true;
+    ctx->switch_drag_dirty = false;
+  } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+    ctx->user_dragging = false;
+  } else if (code != LV_EVENT_PRESSING) {
+    return;
+  }
+
+  lv_indev_t* indev = lv_indev_get_act();
+  if (indev) {
+    lv_point_t point;
+    lv_indev_get_point(indev, &point);
+    apply_switch_slider_point(ctx, point);
+  }
+
+  if ((code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) && ctx->switch_drag_dirty) {
+    commit_popup_state(ctx);
+    ctx->switch_drag_dirty = false;
+  }
 }
 
 static void on_mode_brightness_click(lv_event_t* e) {
@@ -1546,6 +1671,7 @@ void show_light_popup(const LightPopupInit& init) {
                                    &ctx->val_fill,
                                    &ctx->val_cap,
                                    &ctx->val_dash,
+                                   &ctx->val_switch_icon,
                                    &ctx->val_value,
                                    false);
   ctx->color_panel = create_color_field_panel(ctx->main_panel,
@@ -1596,6 +1722,10 @@ void show_light_popup(const LightPopupInit& init) {
   lv_obj_add_event_cb(ctx->val_slider, on_brightness_track_event, LV_EVENT_PRESSING, ctx);
   lv_obj_add_event_cb(ctx->val_slider, on_brightness_track_event, LV_EVENT_RELEASED, ctx);
   lv_obj_add_event_cb(ctx->val_slider, on_brightness_track_event, LV_EVENT_PRESS_LOST, ctx);
+  lv_obj_add_event_cb(ctx->val_slider, on_switch_slider_event, LV_EVENT_PRESSED, ctx);
+  lv_obj_add_event_cb(ctx->val_slider, on_switch_slider_event, LV_EVENT_PRESSING, ctx);
+  lv_obj_add_event_cb(ctx->val_slider, on_switch_slider_event, LV_EVENT_RELEASED, ctx);
+  lv_obj_add_event_cb(ctx->val_slider, on_switch_slider_event, LV_EVENT_PRESS_LOST, ctx);
   lv_obj_add_event_cb(ctx->temp_slider, on_temp_track_event, LV_EVENT_PRESSED, ctx);
   lv_obj_add_event_cb(ctx->temp_slider, on_temp_track_event, LV_EVENT_PRESSING, ctx);
   lv_obj_add_event_cb(ctx->temp_slider, on_temp_track_event, LV_EVENT_RELEASED, ctx);

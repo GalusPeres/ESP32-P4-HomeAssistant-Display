@@ -37,6 +37,12 @@ enum TilePopupOpenMode : uint8_t {
   TILE_POPUP_OPEN_SHORT_PRESS = 1
 };
 
+enum SwitchPopupOpenModeStorage : uint8_t {
+  TILE_SWITCH_POPUP_MODE_LEGACY = 0,
+  TILE_SWITCH_POPUP_MODE_SHORT = 1,
+  TILE_SWITCH_POPUP_MODE_LONG = 2
+};
+
 struct Tile {
   TileType type;
   String title;
@@ -95,6 +101,11 @@ struct Tile {
 };
 
 static inline uint8_t getTilePopupOpenMode(const Tile& tile) {
+  if (tile.type == TILE_SWITCH) {
+    return (tile.key_code == TILE_SWITCH_POPUP_MODE_LONG)
+               ? TILE_POPUP_OPEN_LONG_PRESS
+               : TILE_POPUP_OPEN_SHORT_PRESS;
+  }
   if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER) {
     return TILE_POPUP_OPEN_LONG_PRESS;
   }
@@ -104,6 +115,21 @@ static inline uint8_t getTilePopupOpenMode(const Tile& tile) {
 }
 
 static inline void setTilePopupOpenMode(Tile& tile, uint8_t mode) {
+  if (tile.type == TILE_SWITCH) {
+    const uint8_t normalized =
+        (mode == TILE_POPUP_OPEN_SHORT_PRESS)
+            ? TILE_POPUP_OPEN_SHORT_PRESS
+            : TILE_POPUP_OPEN_LONG_PRESS;
+    tile.popup_open_mode = normalized;
+    // Switch tiles previously had no configurable popup mode. Use the otherwise
+    // unused key_code slot to distinguish legacy tiles (default to short press)
+    // from an explicitly saved long-press configuration.
+    tile.key_code = (normalized == TILE_POPUP_OPEN_SHORT_PRESS)
+                        ? TILE_SWITCH_POPUP_MODE_SHORT
+                        : TILE_SWITCH_POPUP_MODE_LONG;
+    tile.key_modifier = 0;
+    return;
+  }
   if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER) return;
   tile.popup_open_mode = (mode == TILE_POPUP_OPEN_SHORT_PRESS)
                              ? TILE_POPUP_OPEN_SHORT_PRESS

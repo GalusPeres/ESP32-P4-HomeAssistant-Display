@@ -14,6 +14,20 @@ The project currently supports multiple ESP32-P4 display devices and combines:
 
 <br clear="both">
 
+## New In v0.1.4
+
+- refreshed light popup with dedicated layouts for on/off, dimming, color, and temperature control
+- improved sensor popup history views with clearer 24h and 7d layouts
+- corrected day and time labels in the lower history area of the sensor popup
+- complete switch type overhaul with configurable popup opening via short or long press
+- general popup fixes and interaction polish
+
+Updated popup examples from the Waveshare B4:
+
+<img src="docs/images/b4-light-popup-brightness-off.png" alt="Light popup on off view" width="24%"> <img src="docs/images/b4-light-popup-brightness.png" alt="Light popup brightness view" width="24%"> <img src="docs/images/b4-light-popup-color.png" alt="Light popup color view" width="24%"> <img src="docs/images/b4-light-popup-temperature.png" alt="Light popup temperature view" width="24%">
+
+<img src="docs/images/b4-sensor-popup-water-24h.png" alt="Sensor popup water 24 hour view" width="32%"> <img src="docs/images/b4-sensor-popup-water-7d.png" alt="Sensor popup water 7 day view" width="32%"> <img src="docs/images/b4-weather-popup.png" alt="Weather popup" width="32%">
+
 ## Overview
 
 This firmware turns supported ESP32-P4 touch displays into configurable Home Assistant control panels.
@@ -44,9 +58,13 @@ Home dashboard, folder view, and settings screen:
 
 ### Popups
 
-Sensor history, weather details, and light control popups:
+Sensor history views:
 
-<img src="docs/images/b4-sensor-popup-kitchen.png" alt="Kitchen sensor popup" width="32%"> <img src="docs/images/b4-sensor-popup-water.png" alt="Water sensor popup" width="32%"> <img src="docs/images/b4-sensor-popup-battery.png" alt="Battery sensor popup" width="32%"> <img src="docs/images/b4-weather-popup.png" alt="Weather popup" width="32%"> <img src="docs/images/b4-light-popup-desk.png" alt="Light control popup" width="32%">
+<img src="docs/images/b4-sensor-popup-water-24h.png" alt="Sensor popup water 24 hour view" width="32%"> <img src="docs/images/b4-sensor-popup-water-7d.png" alt="Sensor popup water 7 day view" width="32%"> <img src="docs/images/b4-weather-popup.png" alt="Weather popup" width="32%">
+
+Light control views:
+
+<img src="docs/images/b4-light-popup-brightness-off.png" alt="Light popup on off view" width="24%"> <img src="docs/images/b4-light-popup-brightness.png" alt="Light popup brightness view" width="24%"> <img src="docs/images/b4-light-popup-color.png" alt="Light popup color view" width="24%"> <img src="docs/images/b4-light-popup-temperature.png" alt="Light popup temperature view" width="24%">
 
 ### Web Admin
 
@@ -161,9 +179,6 @@ That integration handles the Home Assistant-side MQTT communication and entity b
 - A microSD card is currently only needed for screenshot export and optional migration from older SD-based setups.
 - Board selection and board settings must match the target device.
 - In general, the M5Stacks Tab5 currently feels noticeably slower than the Waveshare B4. This may be related to the display driver or another device-specific bottleneck. If you know the cause or a fix, help is welcome.
-- The popup system still needs more work overall. Sensor popups should become more flexible, for example with more data, longer history ranges, and easier switching between views.
-- The weather popup also still needs improvements, such as a better 24-hour view and larger weather icons.
-- The light popup is still rough and should be simplified further. The sliders currently feel too wide, and a hue wheel may be a better long-term direction.
 - A Windows Electron companion app also exists under `electron-app/`. It can be used to send PC-side data to the device, for example Microsoft Flight Simulator values, system metrics, or simulated keyboard input/commands for Windows. This still needs proper documentation and its own release packaging.
 
 ## License

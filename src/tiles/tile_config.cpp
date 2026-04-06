@@ -473,7 +473,9 @@ static void packTile(const Tile& in, PackedTileV7& out) {
   if (shouldNormalizeGaugeRange(in.type)) {
     normalizeGaugeRange(out.sensor_gauge_min, out.sensor_gauge_max);
   }
-  out.popup_open_mode = ((in.type == TILE_SENSOR || in.type == TILE_WEATHER) &&
+  out.popup_open_mode = ((in.type == TILE_SENSOR ||
+                          in.type == TILE_WEATHER ||
+                          in.type == TILE_SWITCH) &&
                          getTilePopupOpenMode(in) == TILE_POPUP_OPEN_SHORT_PRESS)
                             ? TILE_POPUP_OPEN_SHORT_PRESS
                             : TILE_POPUP_OPEN_LONG_PRESS;
@@ -612,7 +614,7 @@ static void unpackTileV7(const PackedTileV7& in, Tile& out) {
                        (static_cast<uint8_t>(in.scene_alias[10]) << 8);
     if (graph_h >= 20 && graph_h <= 200) out.sensor_graph_height = graph_h;
   }
-  if ((out.type == TILE_SENSOR || out.type == TILE_WEATHER) &&
+  if ((out.type == TILE_SENSOR || out.type == TILE_WEATHER || out.type == TILE_SWITCH) &&
       in.popup_open_mode == TILE_POPUP_OPEN_SHORT_PRESS) {
     out.popup_open_mode = TILE_POPUP_OPEN_SHORT_PRESS;
   }

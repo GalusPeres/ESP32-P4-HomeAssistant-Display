@@ -195,6 +195,10 @@ void append_switch_scripts(String& html) {
     if (styleEl) {
       styleEl.value = (data.switch_style !== undefined && data.switch_style !== null) ? String(data.switch_style) : '0';
     }
+    const popupModeEl = document.getElementById(prefix + '_switch_popup_open_mode');
+    if (popupModeEl) {
+      popupModeEl.value = (data.popup_open_mode !== undefined) ? String(data.popup_open_mode) : '1';
+    }
     maybeFillTitleFromSwitch(tab);
   }
 
@@ -203,6 +207,7 @@ void append_switch_scripts(String& html) {
     formData.append('switch_entity', document.getElementById(prefix + '_switch_entity')?.value || '');
     const styleEl = document.getElementById(prefix + '_switch_style');
     formData.append('switch_style', styleEl ? styleEl.value : '0');
+    formData.append('popup_open_mode', document.getElementById(prefix + '_switch_popup_open_mode')?.value || '1');
   }
 
   function resetSwitchFields(tab) {
@@ -211,6 +216,8 @@ void append_switch_scripts(String& html) {
     if (entityEl) entityEl.value = '';
     const styleEl = document.getElementById(prefix + '_switch_style');
     if (styleEl) styleEl.value = '0';
+    const popupModeEl = document.getElementById(prefix + '_switch_popup_open_mode');
+    if (popupModeEl) popupModeEl.value = '1';
   }
   </script>
 )html";
