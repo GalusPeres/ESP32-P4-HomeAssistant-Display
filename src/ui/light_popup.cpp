@@ -546,7 +546,7 @@ static void update_brightness_fill(LightPopupContext* ctx) {
     return;
   }
 
-  lv_obj_clear_flag(ctx->val_fill, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_flag(ctx->val_fill, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(ctx->val_cap, LV_OBJ_FLAG_HIDDEN);
 
   const int radius = kVerticalSliderRadius;
@@ -562,14 +562,10 @@ static void update_brightness_fill(LightPopupContext* ctx) {
                     static_cast<int>(lroundf(progress * static_cast<float>(usable_range)));
   }
   const int cap_top = dash_center_y - kVerticalSliderRadius;
-  const int body_top = dash_center_y;
-  const int body_height = track_area.y2 - body_top + 1;
+  const int cap_height = track_area.y2 - cap_top + 1;
 
   lv_obj_set_pos(ctx->val_cap, 0, cap_top - track_area.y1);
-  lv_obj_set_size(ctx->val_cap, kVerticalSliderWidth, kVerticalSliderRadius * 2);
-
-  lv_obj_set_pos(ctx->val_fill, 0, body_top - track_area.y1);
-  lv_obj_set_size(ctx->val_fill, kVerticalSliderWidth, body_height);
+  lv_obj_set_size(ctx->val_cap, kVerticalSliderWidth, cap_height);
 
   const int dash_local_y = kVerticalSliderRadius - (kBrightnessDashHeight / 2);
   lv_obj_set_pos(ctx->val_dash,
@@ -954,7 +950,7 @@ static lv_obj_t* create_vertical_slider_panel(lv_obj_t* parent,
 
     cap = lv_obj_create(slider);
     lv_obj_set_size(cap, kVerticalSliderWidth, kVerticalSliderRadius * 2);
-    lv_obj_set_style_radius(cap, kVerticalSliderRadius, 0);
+    lv_obj_set_style_radius(cap, 0, 0);
     lv_obj_set_style_bg_color(cap, lv_color_hex(kDefaultColor), 0);
     lv_obj_set_style_bg_opa(cap, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(cap, 0, 0);
