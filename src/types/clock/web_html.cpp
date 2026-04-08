@@ -4,12 +4,6 @@
 
 void append_clock_fields_html(String& html, const String& tab_id) {
   const auto& tr = i18n::strings(configManager.getConfig().language);
-  const bool is_de = i18n::normalize_language_code(configManager.getConfig().language)[0] == 'd';
-  const char* time_format_label = is_de ? "Zeitformat" : "Time format";
-  const char* date_format_label = is_de ? "Datumsformat" : "Date format";
-  const char* auto_label = is_de ? "Auto (Sprache)" : "Auto (language)";
-  const char* time_24_label = is_de ? "24 Stunden" : "24-hour";
-  const char* time_12_label = is_de ? "12 Stunden" : "12-hour";
   html += R"html(
             <!-- Clock Fields -->
             <div id=")html";
@@ -60,29 +54,29 @@ void append_clock_fields_html(String& html, const String& tab_id) {
                 <option value="48">48</option>
               </select>
               <label>)html";
-  html += time_format_label;
+  html += tr.time_format_label;
   html += R"html(</label>
               <select id=")html";
   html += tab_id;
   html += R"html(_clock_time_format">
                 <option value="0">)html";
-  html += auto_label;
+  html += tr.format_auto_localization;
   html += R"html(</option>
                 <option value="1">)html";
-  html += time_24_label;
+  html += tr.format_24_hour;
   html += R"html(</option>
                 <option value="2">)html";
-  html += time_12_label;
+  html += tr.format_12_hour;
   html += R"html(</option>
               </select>
               <label>)html";
-  html += date_format_label;
+  html += tr.date_format_label;
   html += R"html(</label>
               <select id=")html";
   html += tab_id;
   html += R"html(_clock_date_format">
                 <option value="0">)html";
-  html += auto_label;
+  html += tr.format_auto_localization;
   html += R"html(</option>
                 <option value="1">DD.MM.YYYY</option>
                 <option value="2">MM/DD/YYYY</option>

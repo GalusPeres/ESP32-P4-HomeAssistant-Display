@@ -45,6 +45,8 @@ struct DeviceConfig {
   char ha_prefix[CONFIG_HA_PREFIX_MAX];
   char language[CONFIG_LANG_MAX];
   char timezone[CONFIG_TIMEZONE_MAX];
+  uint8_t global_time_format;
+  uint8_t global_date_format;
   bool configured;  // Flag ob Konfiguration vorhanden ist
 
   // Display & Power Settings

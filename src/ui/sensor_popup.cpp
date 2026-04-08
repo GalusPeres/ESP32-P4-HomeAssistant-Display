@@ -7,6 +7,7 @@
 #include "src/network/mqtt_handlers.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/tiles/tile_config.h"
+#include "src/types/clock/clock_format.h"
 #include <ArduinoJson.h>
 #include <math.h>
 #include <stdlib.h>
@@ -313,9 +314,15 @@ static bool get_valid_local_time(struct tm& out) {
 static String format_time_axis_label(int hour24) {
   int normalized = hour24 % 24;
   if (normalized < 0) normalized += 24;
-  const bool is_de = configManager.getConfig().language[0] == 'd';
-  if (is_de) {
-    return String(normalized) + " Uhr";
+  const DeviceConfig& cfg = configManager.getConfig();
+  const uint8_t time_format =
+      clock_tile::resolve_time_format(clock_tile::TIME_FORMAT_AUTO, cfg.global_time_format, cfg.language);
+  if (time_format == clock_tile::TIME_FORMAT_24H) {
+    const bool is_de = clock_tile::language_prefers_german_locale(cfg.language);
+    if (is_de) {
+      return String(normalized) + " Uhr";
+    }
+    return String(normalized) + ":00";
   }
 
   int hour12 = normalized % 12;

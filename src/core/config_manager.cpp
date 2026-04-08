@@ -1,5 +1,6 @@
 #include "src/core/config_manager.h"
 #include "src/core/i18n.h"
+#include "src/types/clock/clock_format.h"
 #include <Preferences.h>
 #include <string.h>
 
@@ -116,6 +117,14 @@ static void set_timezone_code(char* dst, size_t dst_size, const char* timezone_c
   dst[dst_size - 1] = '\0';
 }
 
+static uint8_t normalize_global_time_format(int raw) {
+  return clock_tile::normalize_time_format(raw);
+}
+
+static uint8_t normalize_global_date_format(int raw) {
+  return clock_tile::normalize_date_format(raw);
+}
+
 ConfigManager::ConfigManager() {
   memset(&config, 0, sizeof(config));
   config.configured = false;
@@ -124,6 +133,8 @@ ConfigManager::ConfigManager() {
   strncpy(config.ha_prefix, "ha/statestream", CONFIG_HA_PREFIX_MAX - 1);
   set_language_code(config.language, sizeof(config.language), "en");
   set_timezone_code(config.timezone, sizeof(config.timezone), "berlin");
+  config.global_time_format = clock_tile::TIME_FORMAT_AUTO;
+  config.global_date_format = clock_tile::DATE_FORMAT_AUTO;
 
   // Display & Power Defaults
   config.display_brightness = 200;
@@ -177,6 +188,10 @@ bool ConfigManager::load() {
   char stored_timezone[CONFIG_TIMEZONE_MAX] = {0};
   prefs.getString("tz", stored_timezone, CONFIG_TIMEZONE_MAX);
   set_timezone_code(config.timezone, sizeof(config.timezone), stored_timezone);
+  config.global_time_format =
+      normalize_global_time_format(prefs.getUChar("time_fmt", clock_tile::TIME_FORMAT_AUTO));
+  config.global_date_format =
+      normalize_global_date_format(prefs.getUChar("date_fmt", clock_tile::DATE_FORMAT_AUTO));
 
   // Display & Power Settings laden
   config.display_brightness = prefs.getUChar("disp_bright", 200);
@@ -292,6 +307,10 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   prefs.putString("lang", normalized.language);
   set_timezone_code(normalized.timezone, sizeof(normalized.timezone), normalized.timezone);
   prefs.putString("tz", normalized.timezone);
+  normalized.global_time_format = normalize_global_time_format(normalized.global_time_format);
+  normalized.global_date_format = normalize_global_date_format(normalized.global_date_format);
+  prefs.putUChar("time_fmt", normalized.global_time_format);
+  prefs.putUChar("date_fmt", normalized.global_date_format);
 
   // Display & Power Settings speichern
   prefs.putUChar("disp_bright", normalized.display_brightness);
@@ -435,6 +454,8 @@ void ConfigManager::clear() {
   strncpy(config.ha_prefix, "ha/statestream", CONFIG_HA_PREFIX_MAX - 1);
   set_language_code(config.language, sizeof(config.language), "en");
   set_timezone_code(config.timezone, sizeof(config.timezone), "berlin");
+  config.global_time_format = clock_tile::TIME_FORMAT_AUTO;
+  config.global_date_format = clock_tile::DATE_FORMAT_AUTO;
   config.display_rotated_180 = false;
   config.display_rotation_quarters = Device::kRotationDefault;
   config.display_rotation_mode = kDisplayRotationNormal;

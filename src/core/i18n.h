@@ -10,6 +10,12 @@ struct Strings {
   const char* html_lang;
   const char* language_label;
   const char* timezone_label;
+  const char* time_format_label;
+  const char* date_format_label;
+  const char* format_auto_language;
+  const char* format_auto_localization;
+  const char* format_24_hour;
+  const char* format_12_hour;
   const char* language_option_english;
   const char* language_option_german;
 

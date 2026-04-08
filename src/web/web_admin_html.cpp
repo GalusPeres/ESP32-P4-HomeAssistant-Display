@@ -16,6 +16,7 @@
 #include "src/core/firmware_version.h"
 #include "src/core/i18n.h"
 #include "src/devices/device.h"
+#include "src/types/clock/clock_format.h"
 #include <cstring>
 
 namespace {
@@ -94,6 +95,49 @@ static String buildTimezoneOptionsHtml(const char* selected_code, bool is_german
     html += "</option>";
   }
   if (current_group != 255) html += "</optgroup>";
+  return html;
+}
+
+static String buildGlobalTimeFormatOptionsHtml(uint8_t selected_format, const i18n::Strings& tr) {
+  selected_format = clock_tile::normalize_time_format(selected_format);
+  String html;
+  html.reserve(192);
+  html += "<option value=\"0\"";
+  if (selected_format == clock_tile::TIME_FORMAT_AUTO) html += " selected";
+  html += ">";
+  html += tr.format_auto_language;
+  html += "</option>";
+  html += "<option value=\"1\"";
+  if (selected_format == clock_tile::TIME_FORMAT_24H) html += " selected";
+  html += ">";
+  html += tr.format_24_hour;
+  html += "</option>";
+  html += "<option value=\"2\"";
+  if (selected_format == clock_tile::TIME_FORMAT_12H) html += " selected";
+  html += ">";
+  html += tr.format_12_hour;
+  html += "</option>";
+  return html;
+}
+
+static String buildGlobalDateFormatOptionsHtml(uint8_t selected_format, const i18n::Strings& tr) {
+  selected_format = clock_tile::normalize_date_format(selected_format);
+  String html;
+  html.reserve(224);
+  html += "<option value=\"0\"";
+  if (selected_format == clock_tile::DATE_FORMAT_AUTO) html += " selected";
+  html += ">";
+  html += tr.format_auto_language;
+  html += "</option>";
+  html += "<option value=\"1\"";
+  if (selected_format == clock_tile::DATE_FORMAT_DMY) html += " selected";
+  html += ">DD.MM.YYYY</option>";
+  html += "<option value=\"2\"";
+  if (selected_format == clock_tile::DATE_FORMAT_MDY) html += " selected";
+  html += ">MM/DD/YYYY</option>";
+  html += "<option value=\"3\"";
+  if (selected_format == clock_tile::DATE_FORMAT_YMD) html += " selected";
+  html += ">YYYY/MM/DD</option>";
   return html;
 }
 
@@ -912,6 +956,22 @@ String WebAdminServer::getAdminPage() {
   html += R"html(</label>
                 <select id="timezone" name="timezone">)html";
   html += buildTimezoneOptionsHtml(cfg.timezone, is_german);
+  html += R"html(</select>
+              </div>
+              <div>
+                <label for="locale_time_format">)html";
+  html += tr.time_format_label;
+  html += R"html(</label>
+                <select id="locale_time_format" name="locale_time_format">)html";
+  html += buildGlobalTimeFormatOptionsHtml(cfg.global_time_format, tr);
+  html += R"html(</select>
+              </div>
+              <div>
+                <label for="locale_date_format">)html";
+  html += tr.date_format_label;
+  html += R"html(</label>
+                <select id="locale_date_format" name="locale_date_format">)html";
+  html += buildGlobalDateFormatOptionsHtml(cfg.global_date_format, tr);
   html += R"html(</select>
               </div>
             </div>

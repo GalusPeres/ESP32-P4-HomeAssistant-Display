@@ -23,20 +23,14 @@ static uint8_t normalize_clock_font_size(uint8_t raw, uint8_t fallback) {
   }
 }
 
-static bool clock_language_is_german() {
-  return i18n::normalize_language_code(configManager.getConfig().language)[0] == 'd';
-}
-
 static uint8_t resolve_clock_time_format(const Tile& tile) {
-  const uint8_t raw = clock_tile::normalize_time_format(tile.sensor_gauge_min);
-  if (raw != clock_tile::TIME_FORMAT_AUTO) return raw;
-  return clock_language_is_german() ? clock_tile::TIME_FORMAT_24H : clock_tile::TIME_FORMAT_12H;
+  const DeviceConfig& cfg = configManager.getConfig();
+  return clock_tile::resolve_time_format(tile.sensor_gauge_min, cfg.global_time_format, cfg.language);
 }
 
 static uint8_t resolve_clock_date_format(const Tile& tile) {
-  const uint8_t raw = clock_tile::normalize_date_format(tile.sensor_gauge_max);
-  if (raw != clock_tile::DATE_FORMAT_AUTO) return raw;
-  return clock_language_is_german() ? clock_tile::DATE_FORMAT_DMY : clock_tile::DATE_FORMAT_MDY;
+  const DeviceConfig& cfg = configManager.getConfig();
+  return clock_tile::resolve_date_format(tile.sensor_gauge_max, cfg.global_date_format, cfg.language);
 }
 
 static const lv_font_t* get_clock_time_font(const Tile& tile) {

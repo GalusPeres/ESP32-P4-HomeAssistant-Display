@@ -12,6 +12,7 @@
 #include "src/ui/ui_manager.h"
 #include "src/web/web_admin_tile_helpers.h"
 #include "src/types/types_registry.h"
+#include "src/types/clock/clock_format.h"
 #include "src/devices/device.h"
 #include "src/core/board_hal.h"
 #include "src/core/display_manager.h"
@@ -894,6 +895,14 @@ void WebAdminServer::handleSaveMQTT() {
     String timezone = server.arg("timezone");
     timezone.trim();
     copyToBuffer(cfg.timezone, sizeof(cfg.timezone), timezone);
+  }
+  if (server.hasArg("locale_time_format")) {
+    cfg.global_time_format =
+        clock_tile::normalize_time_format(server.arg("locale_time_format").toInt());
+  }
+  if (server.hasArg("locale_date_format")) {
+    cfg.global_date_format =
+        clock_tile::normalize_date_format(server.arg("locale_date_format").toInt());
   }
 
   if (configManager.save(cfg)) {
