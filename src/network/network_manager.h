@@ -34,6 +34,7 @@ public:
   const char* getBridgeRequestTopic() const;
   const char* getHistoryRequestTopic() const;
   const char* getHistoryResponseTopic() const;
+  const char* getWeatherRequestTopic() const;
 
   // WiFi Power Management
   void setWifiPowerSaving(bool enable);
@@ -56,6 +57,7 @@ private:
   String bridge_request_topic_;
   String history_request_topic_;
   String history_response_topic_;
+  String weather_request_topic_;
 
 };
 

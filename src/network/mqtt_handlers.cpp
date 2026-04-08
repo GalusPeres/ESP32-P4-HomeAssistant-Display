@@ -1507,6 +1507,23 @@ void mqttPublishHistoryRequest(const char* entity_id,
   }
 }
 
+void mqttPublishWeatherRequest(const char* entity_id) {
+  if (!entity_id || !*entity_id) return;
+
+  PubSubClient& mqtt = networkManager.getMqttClient();
+  if (!mqtt.connected()) return;
+
+  const char* weather_topic = networkManager.getWeatherRequestTopic();
+  if (!weather_topic || !*weather_topic) return;
+
+  String payload = "{\"entity_id\":\"";
+  payload += entity_id;
+  payload += "\"}";
+
+  bool ok = mqtt.publish(weather_topic, payload.c_str(), false);
+  Serial.printf("Weather request -> MQTT '%s' (%s)\n", weather_topic, ok ? "ok" : "fail");
+}
+
 // ========== Home Assistant MQTT Discovery ==========
 void mqttPublishDiscovery() {
   PubSubClient& mqtt = networkManager.getMqttClient();

@@ -1,6 +1,7 @@
 #include "src/ui/weather_popup.h"
 #include "src/ui/light_popup.h"
 #include "src/ui/sensor_popup.h"
+#include "src/network/mqtt_handlers.h"
 #include "src/core/display_manager.h"
 #include "src/ui/tab_tiles_unified.h"
 #include "src/tiles/mdi_icons.h"
@@ -11,6 +12,7 @@
 #include "src/core/i18n.h"
 #include <math.h>
 #include <stdlib.h>
+#include <time.h>
 
 namespace {
 
@@ -21,19 +23,94 @@ constexpr int kCardWidth =
         : (SCREEN_WIDTH - (kCardMargin * 2));
 constexpr int kCardHeight = SCREEN_HEIGHT - (kCardMargin * 2);
 constexpr int kCardPad = 20;
-constexpr int kForecastGap = 16;
-constexpr int kCols = 5;
-constexpr int kRows = 2;
-constexpr int kCellW = (kCardWidth - (kCardPad * 2) - (kForecastGap * (kCols - 1))) / kCols;
-constexpr int kCellH = (kCardHeight - (kCardPad * 2) - (kForecastGap * (kRows - 1))) / kRows;
+constexpr int kCols = 7;
+constexpr int kHourlyForecastMax = 168;
+constexpr int kDetailMarkerCount = 4;
+constexpr int kModeRowOffsetY = 124;
+constexpr int kModeButtonWidth = 96;
+constexpr int kModeButtonHeight = 54;
+constexpr int kModeButtonGap = 12;
+constexpr int kSummaryRowTop = 142;
+constexpr int kForecastRowTop = 208;
+constexpr int kForecastRowHeight = kCardHeight - kForecastRowTop - kCardPad - 10;
+constexpr int kForecastSidePad = 4;
+constexpr int kForecastColGap = 4;
+constexpr int kForecastDayTop = 2;
+constexpr int kForecastDayIconGap = 6;
+constexpr int kForecastIconTop = 30;
+constexpr int kForecastTempChartTop = 96;
+constexpr int kForecastTempChartHeight = 164;
+constexpr int kForecastHighLabelGap = 6;
+constexpr int kForecastLowLabelGap = 8;
+constexpr int kForecastPrecipChartTop = 296;
+constexpr int kForecastPrecipChartHeight = 54;
+constexpr int kForecastAmountTop = 358;
+constexpr int kForecastProbabilityTop = 386;
+constexpr int kForecastBarWidth = 10;
+constexpr int kForecastChartSideInset = 20;
+constexpr int kDetailTitleTop = 0;
+constexpr int kDetailChartWrapTop = 44;
+constexpr int kDetailLabelOverhang = 12;
+constexpr int kDetailYAxisWidth = 48;
+constexpr int kDetailTempChartHeight = 188;
+constexpr int kDetailPrecipChartHeight = 62;
+constexpr int kDetailChartGap = 18;
+constexpr int kDetailTimeAxisHeight = 24;
+constexpr int kDetailProbabilityGap = 4;
+constexpr int kDetailProbabilityHeight = 22;
+constexpr int kDetailTempChartTop = kDetailLabelOverhang;
+constexpr int kDetailPrecipChartTop = kDetailTempChartTop + kDetailTempChartHeight + kDetailChartGap;
+constexpr int kDetailTimeAxisTop = kDetailPrecipChartTop + kDetailPrecipChartHeight + 8;
+constexpr int kDetailProbabilityTop = kDetailTimeAxisTop + kDetailTimeAxisHeight + kDetailProbabilityGap;
+constexpr int kDetailChartWrapHeight =
+    kDetailProbabilityTop + kDetailProbabilityHeight + kDetailLabelOverhang;
+constexpr int kDetailTimeLabelY = kDetailTimeAxisTop;
 constexpr int kHeaderPadTop = 4;
 constexpr int kHeaderIconOffsetX = 4;
 constexpr int kHeaderIconOffsetY = -8;
 
 struct ForecastWidgets {
+  lv_obj_t* column = nullptr;
   lv_obj_t* day_label = nullptr;
   lv_obj_t* icon_label = nullptr;
-  lv_obj_t* temp_label = nullptr;
+  lv_obj_t* high_label = nullptr;
+  lv_obj_t* low_label = nullptr;
+  lv_obj_t* precip_bar = nullptr;
+  lv_obj_t* precip_amount_label = nullptr;
+  lv_obj_t* precip_probability_label = nullptr;
+};
+
+struct ForecastData {
+  bool active = false;
+  String day;
+  String date_local;
+  String icon;
+  bool has_high = false;
+  float high = 0.0f;
+  bool has_low = false;
+  float low = 0.0f;
+  bool has_precipitation = false;
+  float precipitation = 0.0f;
+  bool has_precipitation_probability = false;
+  float precipitation_probability = 0.0f;
+};
+
+struct HourlyForecastData {
+  bool active = false;
+  String date_local;
+  int hour_local = -1;
+  String icon;
+  bool has_temp = false;
+  float temp = 0.0f;
+  bool has_precipitation = false;
+  float precipitation = 0.0f;
+  bool has_precipitation_probability = false;
+  float precipitation_probability = 0.0f;
+};
+
+enum class WeatherPopupViewMode {
+  Week,
+  Day,
 };
 
 struct WeatherPopupContext {
@@ -41,6 +118,7 @@ struct WeatherPopupContext {
   String title;
   uint32_t bg_color = 0;
   String unit;
+  String precipitation_unit = "mm";
   lv_obj_t* overlay = nullptr;
   lv_obj_t* card = nullptr;
   lv_obj_t* location_label = nullptr;
@@ -49,7 +127,37 @@ struct WeatherPopupContext {
   lv_obj_t* condition_label = nullptr;
   lv_obj_t* condition_sep_label = nullptr;
   lv_obj_t* temp_label = nullptr;
+  lv_obj_t* mode_row = nullptr;
+  lv_obj_t* mode_week_btn = nullptr;
+  lv_obj_t* mode_day_btn = nullptr;
+  lv_obj_t* forecast_row = nullptr;
+  lv_obj_t* forecast_temp_chart = nullptr;
+  lv_obj_t* forecast_precip_base = nullptr;
+  lv_obj_t* forecast_dividers[kCols - 1] = {};
+  lv_chart_series_t* forecast_high_series = nullptr;
+  lv_chart_series_t* forecast_low_series = nullptr;
+  int forecast_temp_min = 0;
+  int forecast_temp_max = 100;
+  lv_obj_t* detail_wrap = nullptr;
+  lv_obj_t* detail_title_label = nullptr;
+  lv_obj_t* detail_y_max_label = nullptr;
+  lv_obj_t* detail_y_min_label = nullptr;
+  lv_obj_t* detail_y_max_line = nullptr;
+  lv_obj_t* detail_y_min_line = nullptr;
+  lv_obj_t* detail_time_lines[kDetailMarkerCount] = {};
+  lv_obj_t* detail_time_labels[kDetailMarkerCount] = {};
+  lv_obj_t* detail_probability_labels[kDetailMarkerCount] = {};
+  lv_obj_t* detail_temp_chart = nullptr;
+  lv_chart_series_t* detail_temp_series = nullptr;
+  lv_obj_t* detail_precip_chart = nullptr;
+  lv_chart_series_t* detail_precip_series = nullptr;
+  int detail_temp_min = 0;
+  int detail_temp_max = 100;
+  WeatherPopupViewMode view_mode = WeatherPopupViewMode::Week;
+  int selected_day_index = -1;
   ForecastWidgets forecast[kCols];
+  ForecastData forecast_data[kCols];
+  HourlyForecastData hourly[kHourlyForecastMax];
 };
 
 struct PendingWeatherUpdate {
@@ -227,6 +335,273 @@ static String format_weather_temp(float temp, const String& unit) {
   return text;
 }
 
+static String format_precipitation_amount(float amount, const String& unit) {
+  String text = String(amount, 1);
+  if (text.endsWith(".0")) {
+    text.remove(text.length() - 2);
+  }
+  text += " ";
+  text += unit.length() ? unit : "mm";
+  return text;
+}
+
+static String format_precipitation_probability(float probability) {
+  return String(static_cast<int>(lroundf(probability))) + " %";
+}
+
+static String format_forecast_chart_temp(float temp) {
+  String text = String(temp, 1);
+  if (text.endsWith(".0")) {
+    text.remove(text.length() - 2);
+  }
+  text += "\xC2\xB0";
+  return text;
+}
+
+static int scale_forecast_temp(float temp) {
+  return static_cast<int>(lroundf(temp * 10.0f));
+}
+
+static lv_coord_t map_forecast_chart_y(const WeatherPopupContext* ctx, int scaled_temp) {
+  if (!ctx) return kForecastTempChartTop + (kForecastTempChartHeight / 2);
+  int min_temp = ctx->forecast_temp_min;
+  int max_temp = ctx->forecast_temp_max;
+  if (max_temp <= min_temp) return kForecastTempChartTop + (kForecastTempChartHeight / 2);
+  const lv_coord_t pad = 4;
+  const lv_coord_t draw_h = kForecastTempChartHeight - pad * 2;
+  const float ratio = static_cast<float>(max_temp - scaled_temp) /
+                      static_cast<float>(max_temp - min_temp);
+  return kForecastTempChartTop + pad + static_cast<lv_coord_t>(lroundf(ratio * draw_h));
+}
+
+static void clear_forecast_chart(WeatherPopupContext* ctx) {
+  if (!ctx || !ctx->forecast_temp_chart || !ctx->forecast_high_series || !ctx->forecast_low_series) return;
+  lv_chart_set_point_count(ctx->forecast_temp_chart, kCols);
+  lv_chart_set_all_value(ctx->forecast_temp_chart, ctx->forecast_high_series, LV_CHART_POINT_NONE);
+  lv_chart_set_all_value(ctx->forecast_temp_chart, ctx->forecast_low_series, LV_CHART_POINT_NONE);
+  lv_chart_set_range(ctx->forecast_temp_chart, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
+  lv_chart_refresh(ctx->forecast_temp_chart);
+}
+
+static void update_forecast_graph(WeatherPopupContext* ctx) {
+  if (!ctx) return;
+
+  bool has_temp = false;
+  int min_temp = 0;
+  int max_temp = 0;
+  bool has_precipitation = false;
+  float max_precipitation = 0.0f;
+
+  if (ctx->forecast_temp_chart && ctx->forecast_high_series && ctx->forecast_low_series) {
+    lv_chart_set_point_count(ctx->forecast_temp_chart, kCols);
+  }
+
+  for (int i = 0; i < kCols; ++i) {
+    const ForecastData& data = ctx->forecast_data[i];
+
+    if (ctx->forecast_temp_chart && ctx->forecast_high_series) {
+      if (data.has_high) {
+        int scaled = scale_forecast_temp(data.high);
+        lv_chart_set_value_by_id(ctx->forecast_temp_chart, ctx->forecast_high_series, i, scaled);
+        if (!has_temp) {
+          min_temp = scaled;
+          max_temp = scaled;
+          has_temp = true;
+        } else {
+          if (scaled < min_temp) min_temp = scaled;
+          if (scaled > max_temp) max_temp = scaled;
+        }
+      } else {
+        lv_chart_set_value_by_id(ctx->forecast_temp_chart, ctx->forecast_high_series, i, LV_CHART_POINT_NONE);
+      }
+    }
+
+    if (ctx->forecast_temp_chart && ctx->forecast_low_series) {
+      if (data.has_low) {
+        int scaled = scale_forecast_temp(data.low);
+        lv_chart_set_value_by_id(ctx->forecast_temp_chart, ctx->forecast_low_series, i, scaled);
+        if (!has_temp) {
+          min_temp = scaled;
+          max_temp = scaled;
+          has_temp = true;
+        } else {
+          if (scaled < min_temp) min_temp = scaled;
+          if (scaled > max_temp) max_temp = scaled;
+        }
+      } else {
+        lv_chart_set_value_by_id(ctx->forecast_temp_chart, ctx->forecast_low_series, i, LV_CHART_POINT_NONE);
+      }
+    }
+
+    if (data.has_precipitation) {
+      if (!has_precipitation || data.precipitation > max_precipitation) {
+        max_precipitation = data.precipitation;
+      }
+      has_precipitation = true;
+    }
+  }
+
+  if (has_temp) {
+    int padding = (max_temp - min_temp) / 6;
+    if (padding < 6) padding = 6;
+    if (max_temp == min_temp) padding = 10;
+    ctx->forecast_temp_min = min_temp - padding;
+    ctx->forecast_temp_max = max_temp + padding;
+  } else {
+    ctx->forecast_temp_min = 0;
+    ctx->forecast_temp_max = 100;
+  }
+
+  if (ctx->forecast_temp_chart) {
+    lv_chart_set_range(ctx->forecast_temp_chart,
+                       LV_CHART_AXIS_PRIMARY_Y,
+                       ctx->forecast_temp_min,
+                       ctx->forecast_temp_max);
+    lv_chart_refresh(ctx->forecast_temp_chart);
+  }
+
+  for (int i = 0; i < kCols; ++i) {
+    ForecastWidgets& fw = ctx->forecast[i];
+    const ForecastData& data = ctx->forecast_data[i];
+    if (!fw.column) continue;
+
+    if (fw.day_label) {
+      if (data.active) {
+        String text = data.day.length() ? data.day : "--";
+        lv_label_set_text(fw.day_label, text.c_str());
+        lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_update_layout(fw.day_label);
+      } else {
+        lv_label_set_text(fw.day_label, "");
+        lv_obj_add_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
+      }
+    }
+
+    if (fw.icon_label) {
+      if (data.active && data.icon.length()) {
+        String icon_char = getMdiChar(data.icon);
+        if (icon_char.length()) {
+          lv_label_set_text(fw.icon_label, icon_char.c_str());
+          lv_obj_clear_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
+          if (fw.day_label && !lv_obj_has_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN)) {
+            lv_obj_align_to(fw.icon_label,
+                            fw.day_label,
+                            LV_ALIGN_OUT_BOTTOM_MID,
+                            0,
+                            kForecastDayIconGap);
+          } else {
+            lv_obj_align(fw.icon_label, LV_ALIGN_TOP_MID, 0, kForecastIconTop);
+          }
+        } else {
+          lv_label_set_text(fw.icon_label, "");
+          lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
+        }
+      } else {
+        lv_label_set_text(fw.icon_label, "");
+        lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
+      }
+    }
+
+    lv_coord_t high_y = kForecastTempChartTop;
+    lv_coord_t low_y = kForecastTempChartTop + kForecastTempChartHeight - 18;
+    lv_coord_t high_h = 0;
+    lv_coord_t low_h = 0;
+
+    if (fw.high_label) {
+      if (data.active && data.has_high) {
+        String text = format_forecast_chart_temp(data.high);
+        lv_label_set_text(fw.high_label, text.c_str());
+        lv_obj_clear_flag(fw.high_label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_update_layout(fw.high_label);
+        high_h = lv_obj_get_height(fw.high_label);
+        high_y = map_forecast_chart_y(ctx, scale_forecast_temp(data.high)) - high_h - kForecastHighLabelGap;
+      } else {
+        lv_label_set_text(fw.high_label, "");
+        lv_obj_add_flag(fw.high_label, LV_OBJ_FLAG_HIDDEN);
+      }
+    }
+
+    if (fw.low_label) {
+      if (data.active && data.has_low) {
+        String text = format_forecast_chart_temp(data.low);
+        lv_label_set_text(fw.low_label, text.c_str());
+        lv_obj_clear_flag(fw.low_label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_update_layout(fw.low_label);
+        low_h = lv_obj_get_height(fw.low_label);
+        low_y = map_forecast_chart_y(ctx, scale_forecast_temp(data.low)) + kForecastLowLabelGap;
+      } else {
+        lv_label_set_text(fw.low_label, "");
+        lv_obj_add_flag(fw.low_label, LV_OBJ_FLAG_HIDDEN);
+      }
+    }
+
+    if (fw.high_label && fw.low_label && data.active && data.has_high && data.has_low) {
+      if (high_y + high_h > low_y - 2) {
+        const lv_coord_t overlap = (high_y + high_h) - low_y + 2;
+        high_y -= (overlap + 1) / 2;
+        low_y += overlap / 2;
+      }
+    }
+
+    const lv_coord_t high_min_y = kForecastIconTop + 18;
+    const lv_coord_t high_max_y = kForecastPrecipChartTop - 42;
+    const lv_coord_t low_min_y = kForecastTempChartTop + 10;
+    const lv_coord_t low_max_y = kForecastPrecipChartTop - 22;
+
+    if (fw.high_label && !lv_obj_has_flag(fw.high_label, LV_OBJ_FLAG_HIDDEN)) {
+      if (high_y < high_min_y) high_y = high_min_y;
+      if (high_y > high_max_y) high_y = high_max_y;
+      lv_obj_set_y(fw.high_label, high_y);
+    }
+
+    if (fw.low_label && !lv_obj_has_flag(fw.low_label, LV_OBJ_FLAG_HIDDEN)) {
+      if (low_y < low_min_y) low_y = low_min_y;
+      if (low_y > low_max_y) low_y = low_max_y;
+      lv_obj_set_y(fw.low_label, low_y);
+    }
+
+    if (fw.precip_amount_label) {
+      if (data.active && data.has_precipitation) {
+        String text = format_precipitation_amount(data.precipitation, ctx->precipitation_unit);
+        lv_label_set_text(fw.precip_amount_label, text.c_str());
+        lv_obj_clear_flag(fw.precip_amount_label, LV_OBJ_FLAG_HIDDEN);
+      } else {
+        lv_label_set_text(fw.precip_amount_label, "");
+        lv_obj_add_flag(fw.precip_amount_label, LV_OBJ_FLAG_HIDDEN);
+      }
+    }
+
+    if (fw.precip_probability_label) {
+      if (data.active && data.has_precipitation_probability) {
+        String text = format_precipitation_probability(data.precipitation_probability);
+        lv_label_set_text(fw.precip_probability_label, text.c_str());
+        lv_obj_clear_flag(fw.precip_probability_label, LV_OBJ_FLAG_HIDDEN);
+      } else {
+        lv_label_set_text(fw.precip_probability_label, "");
+        lv_obj_add_flag(fw.precip_probability_label, LV_OBJ_FLAG_HIDDEN);
+      }
+    }
+
+    if (fw.precip_bar) {
+      if (data.active && data.has_precipitation && data.precipitation > 0.0f &&
+          has_precipitation && max_precipitation > 0.0f) {
+        lv_coord_t col_w = lv_obj_get_width(fw.column);
+        lv_coord_t bar_h = static_cast<lv_coord_t>(lroundf(
+            (data.precipitation / max_precipitation) * kForecastPrecipChartHeight));
+        if (bar_h < 4) bar_h = 4;
+        if (bar_h > kForecastPrecipChartHeight) bar_h = kForecastPrecipChartHeight;
+        lv_obj_set_size(fw.precip_bar, kForecastBarWidth, bar_h);
+        lv_obj_set_pos(fw.precip_bar,
+                       (col_w - kForecastBarWidth) / 2,
+                       kForecastPrecipChartTop + kForecastPrecipChartHeight - bar_h);
+        lv_obj_clear_flag(fw.precip_bar, LV_OBJ_FLAG_HIDDEN);
+      } else {
+        lv_obj_add_flag(fw.precip_bar, LV_OBJ_FLAG_HIDDEN);
+      }
+    }
+  }
+}
+
 static String weather_icon_from_condition(const String& condition) {
   String key = condition;
   key.trim();
@@ -306,6 +681,48 @@ static String weekday_from_iso(const String& iso) {
   return String(kDaysDe[dow]);
 }
 
+static String iso_date_part(const String& text) {
+  if (text.length() < 10) return "";
+  return text.substring(0, 10);
+}
+
+static int iso_hour_part(const String& text) {
+  if (text.length() < 13) return -1;
+  return text.substring(11, 13).toInt();
+}
+
+static bool get_local_now_parts(String& date_out, int& hour_out) {
+  time_t now = time(nullptr);
+  if (now < 1704067200) return false;
+
+  struct tm local_tm;
+  if (!localtime_r(&now, &local_tm)) return false;
+
+  char date_buf[11];
+  if (strftime(date_buf, sizeof(date_buf), "%Y-%m-%d", &local_tm) == 0) return false;
+
+  date_out = date_buf;
+  hour_out = local_tm.tm_hour;
+  return true;
+}
+
+static String format_detail_day_title(const ForecastData& data) {
+  String title = data.day;
+  if (!data.date_local.length()) return title.length() ? title : String("--");
+  if (data.date_local.length() < 10) return title.length() ? title : data.date_local;
+
+  String date_text = data.date_local.substring(8, 10);
+  date_text += ".";
+  date_text += data.date_local.substring(5, 7);
+  date_text += ".";
+
+  if (!title.length()) return date_text;
+
+  title += " | ";
+  title += date_text;
+  return title;
+}
+
 static void set_label_style(lv_obj_t* lbl, lv_color_t color, const lv_font_t* font) {
   if (!lbl) return;
   lv_obj_set_style_text_color(lbl, color, 0);
@@ -314,33 +731,466 @@ static void set_label_style(lv_obj_t* lbl, lv_color_t color, const lv_font_t* fo
   }
 }
 
+static void align_header_row(lv_obj_t* card, lv_obj_t* title_label, lv_obj_t* icon_label);
+
+static bool next_json_object_in_array(const String& array, int& cursor, String& out) {
+  bool in_string = false;
+  int depth = 0;
+  int start = -1;
+
+  for (int i = cursor; i < array.length(); ++i) {
+    char c = array.charAt(i);
+    if (c == '"' && (i == 0 || array.charAt(i - 1) != '\\')) {
+      in_string = !in_string;
+    }
+    if (in_string) continue;
+    if (c == '{') {
+      if (depth == 0) start = i;
+      ++depth;
+    } else if (c == '}') {
+      --depth;
+      if (depth == 0 && start >= 0) {
+        out = array.substring(start, i + 1);
+        cursor = i + 1;
+        return true;
+      }
+    }
+  }
+
+  cursor = array.length();
+  return false;
+}
+
+static void style_mode_button(lv_obj_t* btn, bool active) {
+  if (!btn) return;
+  lv_color_t active_text_color = lv_color_hex(0x2A2A2A);
+  lv_obj_t* row = lv_obj_get_parent(btn);
+  lv_obj_t* card = row ? lv_obj_get_parent(row) : nullptr;
+  if (card) {
+    active_text_color = lv_obj_get_style_bg_color(card, LV_PART_MAIN);
+  }
+
+  auto apply_selector = [&](lv_style_selector_t selector) {
+    lv_obj_set_style_bg_color(btn, lv_color_white(), selector);
+    lv_obj_set_style_bg_opa(btn, active ? LV_OPA_COVER : LV_OPA_TRANSP, selector);
+    lv_obj_set_style_border_color(btn, lv_color_white(), selector);
+    lv_obj_set_style_border_width(btn, 2, selector);
+    lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, selector);
+    lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, selector);
+    lv_obj_set_style_transform_width(btn, 0, selector);
+    lv_obj_set_style_transform_height(btn, 0, selector);
+    lv_obj_set_style_translate_y(btn, 0, selector);
+  };
+
+  apply_selector(0);
+  apply_selector(LV_STATE_PRESSED);
+
+  lv_obj_t* label = lv_obj_get_child(btn, 0);
+  if (label) {
+    lv_obj_set_style_text_color(label, active ? active_text_color : lv_color_white(), 0);
+    lv_obj_set_style_text_color(label, active ? active_text_color : lv_color_white(), LV_STATE_PRESSED);
+  }
+}
+
+static void update_mode_buttons(WeatherPopupContext* ctx) {
+  if (!ctx) return;
+  if (ctx->mode_week_btn) {
+    lv_obj_t* label = lv_obj_get_child(ctx->mode_week_btn, 0);
+    if (label) {
+      set_label_style(label, lv_color_white(), FONT_MDI_ICONS);
+      lv_label_set_text(label, getMdiChar("arrow-left").c_str());
+    }
+    style_mode_button(ctx->mode_week_btn, true);
+  }
+  if (ctx->mode_row) {
+    if (ctx->view_mode == WeatherPopupViewMode::Day) {
+      lv_obj_clear_flag(ctx->mode_row, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(ctx->mode_row, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+}
+
+static void clear_hourly(WeatherPopupContext* ctx) {
+  if (!ctx) return;
+  for (int i = 0; i < kHourlyForecastMax; ++i) {
+    ctx->hourly[i] = HourlyForecastData();
+  }
+}
+
+static int find_active_day_index(const WeatherPopupContext* ctx, const String& date_local) {
+  if (!ctx || !date_local.length()) return -1;
+  for (int i = 0; i < kCols; ++i) {
+    if (ctx->forecast_data[i].active && ctx->forecast_data[i].date_local == date_local) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+static int find_first_active_day_index(const WeatherPopupContext* ctx) {
+  if (!ctx) return -1;
+  for (int i = 0; i < kCols; ++i) {
+    if (ctx->forecast_data[i].active) return i;
+  }
+  return -1;
+}
+
+static int get_default_day_index(const WeatherPopupContext* ctx) {
+  if (!ctx) return -1;
+  String today_date;
+  int today_hour = 0;
+  if (get_local_now_parts(today_date, today_hour)) {
+    int today_index = find_active_day_index(ctx, today_date);
+    if (today_index >= 0) return today_index;
+  }
+  return find_first_active_day_index(ctx);
+}
+
+static void set_popup_view_mode(WeatherPopupContext* ctx, WeatherPopupViewMode mode) {
+  if (!ctx) return;
+  if (ctx->forecast_row) {
+    if (mode == WeatherPopupViewMode::Week) {
+      lv_obj_clear_flag(ctx->forecast_row, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(ctx->forecast_row, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+  if (ctx->detail_wrap) {
+    if (mode == WeatherPopupViewMode::Day) {
+      lv_obj_clear_flag(ctx->detail_wrap, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(ctx->detail_wrap, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+  ctx->view_mode = mode;
+  update_mode_buttons(ctx);
+}
+
+static void clear_detail_view(WeatherPopupContext* ctx) {
+  if (!ctx) return;
+
+  if (ctx->detail_title_label) {
+    lv_label_set_text(ctx->detail_title_label, "");
+  }
+
+  if (ctx->detail_temp_chart && ctx->detail_temp_series) {
+    lv_chart_set_point_count(ctx->detail_temp_chart, 24);
+    lv_chart_set_all_value(ctx->detail_temp_chart, ctx->detail_temp_series, LV_CHART_POINT_NONE);
+    lv_chart_set_range(ctx->detail_temp_chart, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
+    lv_chart_refresh(ctx->detail_temp_chart);
+  }
+
+  if (ctx->detail_precip_chart && ctx->detail_precip_series) {
+    lv_chart_set_point_count(ctx->detail_precip_chart, 24);
+    lv_chart_set_all_value(ctx->detail_precip_chart, ctx->detail_precip_series, 0);
+    lv_chart_set_range(ctx->detail_precip_chart, LV_CHART_AXIS_PRIMARY_Y, 0, 10);
+    lv_chart_refresh(ctx->detail_precip_chart);
+  }
+
+  if (ctx->detail_y_max_label) {
+    lv_label_set_text(ctx->detail_y_max_label, "");
+    lv_obj_add_flag(ctx->detail_y_max_label, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (ctx->detail_y_min_label) {
+    lv_label_set_text(ctx->detail_y_min_label, "");
+    lv_obj_add_flag(ctx->detail_y_min_label, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (ctx->detail_y_max_line) lv_obj_add_flag(ctx->detail_y_max_line, LV_OBJ_FLAG_HIDDEN);
+  if (ctx->detail_y_min_line) lv_obj_add_flag(ctx->detail_y_min_line, LV_OBJ_FLAG_HIDDEN);
+
+  for (int i = 0; i < kDetailMarkerCount; ++i) {
+    if (ctx->detail_time_lines[i]) lv_obj_add_flag(ctx->detail_time_lines[i], LV_OBJ_FLAG_HIDDEN);
+    if (ctx->detail_time_labels[i]) {
+      lv_label_set_text(ctx->detail_time_labels[i], "");
+      lv_obj_add_flag(ctx->detail_time_labels[i], LV_OBJ_FLAG_HIDDEN);
+    }
+    if (ctx->detail_probability_labels[i]) {
+      lv_label_set_text(ctx->detail_probability_labels[i], "");
+      lv_obj_add_flag(ctx->detail_probability_labels[i], LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+}
+
 static void clear_forecast(WeatherPopupContext* ctx) {
   if (!ctx) return;
 
   for (int i = 0; i < kCols; ++i) {
+    ctx->forecast_data[i] = ForecastData();
+  }
+
+  clear_forecast_chart(ctx);
+
+  for (int i = 0; i < kCols; ++i) {
     ForecastWidgets& fw = ctx->forecast[i];
     if (fw.day_label) {
-      lv_label_set_text(fw.day_label, "--");
-      lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
+      lv_label_set_text(fw.day_label, "");
+      lv_obj_add_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
     }
     if (fw.icon_label) {
       lv_label_set_text(fw.icon_label, "");
       lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
     }
-    if (fw.temp_label) {
-      lv_label_set_text(fw.temp_label, "--\n--");
-      lv_obj_clear_flag(fw.temp_label, LV_OBJ_FLAG_HIDDEN);
+    if (fw.high_label) {
+      lv_label_set_text(fw.high_label, "");
+      lv_obj_add_flag(fw.high_label, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (fw.low_label) {
+      lv_label_set_text(fw.low_label, "");
+      lv_obj_add_flag(fw.low_label, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (fw.precip_bar) {
+      lv_obj_add_flag(fw.precip_bar, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (fw.precip_amount_label) {
+      lv_label_set_text(fw.precip_amount_label, "");
+      lv_obj_add_flag(fw.precip_amount_label, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (fw.precip_probability_label) {
+      lv_label_set_text(fw.precip_probability_label, "");
+      lv_obj_add_flag(fw.precip_probability_label, LV_OBJ_FLAG_HIDDEN);
     }
   }
 }
 
-static void align_header_row(lv_obj_t* card, lv_obj_t* title_label, lv_obj_t* icon_label);
+static bool update_detail_view(WeatherPopupContext* ctx, int day_index) {
+  if (!ctx) return false;
+  clear_detail_view(ctx);
+
+  if (day_index < 0 || day_index >= kCols) return false;
+  const ForecastData& day = ctx->forecast_data[day_index];
+  if (!day.active || !day.date_local.length()) return false;
+
+  if (ctx->detail_title_label) {
+    String title = format_detail_day_title(day);
+    if (!title.length()) title = day.day.length() ? day.day : String("--");
+    lv_label_set_text(ctx->detail_title_label, title.c_str());
+  }
+
+  if (!ctx->detail_temp_chart || !ctx->detail_temp_series ||
+      !ctx->detail_precip_chart || !ctx->detail_precip_series) {
+    return true;
+  }
+
+  constexpr int kDetailHourCount = 24;
+  const int marker_hours[kDetailMarkerCount] = {0, 6, 12, 18};
+  bool has_temp = false;
+  int min_temp = 0;
+  int max_temp = 0;
+  bool has_precipitation = false;
+  int max_precipitation = 0;
+  bool marker_has_probability[kDetailMarkerCount] = {};
+  float marker_probability[kDetailMarkerCount] = {};
+
+  String now_date;
+  int now_hour = 0;
+  const bool clip_today = get_local_now_parts(now_date, now_hour) && now_date == day.date_local;
+
+  lv_chart_set_point_count(ctx->detail_temp_chart, kDetailHourCount);
+  lv_chart_set_all_value(ctx->detail_temp_chart, ctx->detail_temp_series, LV_CHART_POINT_NONE);
+  lv_chart_set_point_count(ctx->detail_precip_chart, kDetailHourCount);
+  lv_chart_set_all_value(ctx->detail_precip_chart, ctx->detail_precip_series, 0);
+
+  for (int i = 0; i < kHourlyForecastMax; ++i) {
+    const HourlyForecastData& hour = ctx->hourly[i];
+    if (!hour.active || hour.date_local != day.date_local) continue;
+    if (hour.hour_local < 0 || hour.hour_local >= kDetailHourCount) continue;
+    if (clip_today && hour.hour_local < now_hour) continue;
+
+    if (hour.has_temp) {
+      const int scaled = scale_forecast_temp(hour.temp);
+      lv_chart_set_value_by_id(ctx->detail_temp_chart, ctx->detail_temp_series, hour.hour_local, scaled);
+      if (!has_temp) {
+        min_temp = scaled;
+        max_temp = scaled;
+        has_temp = true;
+      } else {
+        if (scaled < min_temp) min_temp = scaled;
+        if (scaled > max_temp) max_temp = scaled;
+      }
+    }
+
+    if (hour.has_precipitation) {
+      const int scaled_precip = static_cast<int>(lroundf(hour.precipitation * 10.0f));
+      lv_chart_set_value_by_id(ctx->detail_precip_chart,
+                               ctx->detail_precip_series,
+                               hour.hour_local,
+                               scaled_precip);
+      if (scaled_precip > 0) {
+        has_precipitation = true;
+        if (scaled_precip > max_precipitation) max_precipitation = scaled_precip;
+      }
+    }
+
+    if (hour.has_precipitation_probability) {
+      for (int marker = 0; marker < kDetailMarkerCount; ++marker) {
+        if (hour.hour_local == marker_hours[marker]) {
+          marker_has_probability[marker] = true;
+          marker_probability[marker] = hour.precipitation_probability;
+          break;
+        }
+      }
+    }
+  }
+
+  if (has_temp) {
+    int padding = (max_temp - min_temp) / 6;
+    if (padding < 6) padding = 6;
+    if (max_temp == min_temp) padding = 10;
+    ctx->detail_temp_min = min_temp - padding;
+    ctx->detail_temp_max = max_temp + padding;
+    lv_chart_set_range(ctx->detail_temp_chart,
+                       LV_CHART_AXIS_PRIMARY_Y,
+                       ctx->detail_temp_min,
+                       ctx->detail_temp_max);
+    lv_chart_refresh(ctx->detail_temp_chart);
+
+    if (ctx->detail_y_max_label) {
+      lv_label_set_text(ctx->detail_y_max_label,
+                        format_forecast_chart_temp(static_cast<float>(max_temp) / 10.0f).c_str());
+      lv_obj_clear_flag(ctx->detail_y_max_label, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (ctx->detail_y_min_label) {
+      lv_label_set_text(ctx->detail_y_min_label,
+                        format_forecast_chart_temp(static_cast<float>(min_temp) / 10.0f).c_str());
+      lv_obj_clear_flag(ctx->detail_y_min_label, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (ctx->detail_y_max_line) lv_obj_clear_flag(ctx->detail_y_max_line, LV_OBJ_FLAG_HIDDEN);
+    if (ctx->detail_y_min_line) lv_obj_clear_flag(ctx->detail_y_min_line, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    ctx->detail_temp_min = 0;
+    ctx->detail_temp_max = 100;
+    lv_chart_set_range(ctx->detail_temp_chart, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
+    lv_chart_refresh(ctx->detail_temp_chart);
+  }
+
+  if (!has_precipitation) {
+    max_precipitation = 10;
+  } else if (max_precipitation < 10) {
+    max_precipitation = 10;
+  }
+  lv_chart_set_range(ctx->detail_precip_chart, LV_CHART_AXIS_PRIMARY_Y, 0, max_precipitation);
+  lv_chart_refresh(ctx->detail_precip_chart);
+
+  lv_obj_t* chart_wrap = lv_obj_get_parent(ctx->detail_temp_chart);
+  if (!chart_wrap) return true;
+  lv_obj_update_layout(chart_wrap);
+  const lv_coord_t chart_wrap_w = lv_obj_get_width(chart_wrap);
+  const lv_coord_t plot_left = kDetailYAxisWidth;
+  const lv_coord_t plot_w = chart_wrap_w - plot_left - 8;
+  const lv_coord_t line_h = kDetailPrecipChartTop + kDetailPrecipChartHeight - kDetailTempChartTop;
+
+  for (int marker = 0; marker < kDetailMarkerCount; ++marker) {
+    const float ratio = static_cast<float>(marker_hours[marker]) / 23.0f;
+    lv_coord_t line_x = plot_left + static_cast<lv_coord_t>(lroundf(ratio * plot_w));
+    if (line_x < plot_left) line_x = plot_left;
+    if (line_x > chart_wrap_w - 8) line_x = chart_wrap_w - 8;
+
+    if (ctx->detail_time_lines[marker]) {
+      lv_obj_set_pos(ctx->detail_time_lines[marker], line_x, kDetailTempChartTop);
+      lv_obj_set_size(ctx->detail_time_lines[marker], 1, line_h);
+      lv_obj_clear_flag(ctx->detail_time_lines[marker], LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (ctx->detail_time_labels[marker]) {
+      String label = String(marker_hours[marker]) + " Uhr";
+      lv_label_set_text(ctx->detail_time_labels[marker], label.c_str());
+      lv_obj_update_layout(ctx->detail_time_labels[marker]);
+      lv_coord_t lbl_w = lv_obj_get_width(ctx->detail_time_labels[marker]);
+      lv_coord_t x = line_x - (lbl_w / 2);
+      if (x < plot_left) x = plot_left;
+      if (x > chart_wrap_w - lbl_w) x = chart_wrap_w - lbl_w;
+      lv_obj_set_pos(ctx->detail_time_labels[marker], x, kDetailTimeLabelY);
+      lv_obj_clear_flag(ctx->detail_time_labels[marker], LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (ctx->detail_probability_labels[marker]) {
+      if (marker_has_probability[marker] && (!clip_today || marker_hours[marker] >= now_hour)) {
+        String label = format_precipitation_probability(marker_probability[marker]);
+        lv_label_set_text(ctx->detail_probability_labels[marker], label.c_str());
+        lv_obj_update_layout(ctx->detail_probability_labels[marker]);
+        lv_coord_t lbl_w = lv_obj_get_width(ctx->detail_probability_labels[marker]);
+        lv_coord_t x = line_x - (lbl_w / 2);
+        if (x < plot_left) x = plot_left;
+        if (x > chart_wrap_w - lbl_w) x = chart_wrap_w - lbl_w;
+        lv_obj_set_pos(ctx->detail_probability_labels[marker], x, kDetailProbabilityTop);
+        lv_obj_clear_flag(ctx->detail_probability_labels[marker], LV_OBJ_FLAG_HIDDEN);
+      } else {
+        lv_label_set_text(ctx->detail_probability_labels[marker], "");
+        lv_obj_add_flag(ctx->detail_probability_labels[marker], LV_OBJ_FLAG_HIDDEN);
+      }
+    }
+  }
+
+  return true;
+}
+
+static void show_week_view(WeatherPopupContext* ctx) {
+  if (!ctx) return;
+  set_popup_view_mode(ctx, WeatherPopupViewMode::Week);
+}
+
+static void show_day_view(WeatherPopupContext* ctx, int day_index) {
+  if (!ctx) return;
+  if (day_index < 0 || day_index >= kCols || !ctx->forecast_data[day_index].active) {
+    day_index = get_default_day_index(ctx);
+  }
+  if (day_index < 0 || !update_detail_view(ctx, day_index)) {
+    show_week_view(ctx);
+    return;
+  }
+  ctx->selected_day_index = day_index;
+  set_popup_view_mode(ctx, WeatherPopupViewMode::Day);
+}
+
+static void reset_weather_popup_content(WeatherPopupContext* ctx) {
+  if (!ctx) return;
+
+  if (ctx->icon_label) {
+    lv_label_set_text(ctx->icon_label, "");
+    lv_obj_add_flag(ctx->icon_label, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  if (ctx->condition_label) {
+    lv_label_set_text(ctx->condition_label, "");
+    lv_obj_add_flag(ctx->condition_label, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  if (ctx->condition_sep_label) {
+    lv_label_set_text(ctx->condition_sep_label, "");
+    lv_obj_add_flag(ctx->condition_sep_label, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  if (ctx->temp_label) {
+    lv_label_set_text(ctx->temp_label, "--");
+    lv_obj_clear_flag(ctx->temp_label, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  ctx->selected_day_index = -1;
+  clear_hourly(ctx);
+  clear_forecast(ctx);
+  clear_detail_view(ctx);
+  show_week_view(ctx);
+  align_header_row(ctx->card, ctx->location_label, ctx->icon_label);
+}
+
+static void request_weather_for_context(WeatherPopupContext* ctx) {
+  if (!ctx || !ctx->entity_id.length()) return;
+  if (ctx->entity_id.startsWith("__")) return;
+  mqttPublishWeatherRequest(ctx->entity_id.c_str());
+}
 
 static void apply_weather_payload(WeatherPopupContext* ctx, const char* payload) {
   if (!ctx || !payload || !*payload) return;
   String json = payload;
   json.trim();
   if (!json.length()) return;
+
+  String previous_selected_date;
+  if (ctx->selected_day_index >= 0 && ctx->selected_day_index < kCols) {
+    previous_selected_date = ctx->forecast_data[ctx->selected_day_index].date_local;
+  }
+  WeatherPopupViewMode previous_mode = ctx->view_mode;
 
   String condition;
   if (!extract_json_string_field(json, "state", condition)) {
@@ -357,17 +1207,30 @@ static void apply_weather_payload(WeatherPopupContext* ctx, const char* payload)
   bool has_temp = extract_json_number_or_string_field(json, "temperature", temperature);
 
   String unit;
+  String precipitation_unit;
   String units_obj;
   if (extract_json_object_field(json, "units", units_obj)) {
     extract_json_string_field(units_obj, "temperature", unit);
+    extract_json_string_field(units_obj, "precipitation", precipitation_unit);
   } else {
     extract_json_string_field(json, "temperature_unit", unit);
+    extract_json_string_field(json, "precipitation_unit", precipitation_unit);
   }
   decode_basic_json_escapes(unit);
+  decode_basic_json_escapes(precipitation_unit);
   if (unit.length()) {
     ctx->unit = unit;
   } else {
     unit = ctx->unit;
+  }
+  if (precipitation_unit.length()) {
+    ctx->precipitation_unit = precipitation_unit;
+  } else {
+    precipitation_unit = ctx->precipitation_unit;
+  }
+  if (!precipitation_unit.length()) {
+    precipitation_unit = "mm";
+    ctx->precipitation_unit = precipitation_unit;
   }
 
   if (ctx->icon_label) {
@@ -429,108 +1292,143 @@ static void apply_weather_payload(WeatherPopupContext* ctx, const char* payload)
   }
   align_header_row(ctx->card, ctx->location_label, ctx->icon_label);
 
+  clear_forecast(ctx);
+  clear_hourly(ctx);
+
   String forecast_raw;
-  uint8_t forecast_count = 0;
-  bool has_forecast = false;
-  if (extract_json_array_field(json, "forecast", forecast_raw)) {
-    if (forecast_raw.indexOf('{') >= 0) {
-      has_forecast = true;
-    }
-  }
-  if (has_forecast) {
-    bool in_string = false;
-    int depth = 0;
-    int start = -1;
-    for (int i = 0; i < forecast_raw.length() && forecast_count < kCols; ++i) {
-      char c = forecast_raw.charAt(i);
-      if (c == '"' && (i == 0 || forecast_raw.charAt(i - 1) != '\\')) {
-        in_string = !in_string;
-      }
-      if (in_string) continue;
-      if (c == '{') {
-        if (depth == 0) start = i;
-        depth++;
-      } else if (c == '}') {
-        depth--;
-        if (depth == 0 && start >= 0) {
-          String obj = forecast_raw.substring(start, i + 1);
-          String f_condition;
-          String f_icon;
-          String f_day;
-          float f_temp = 0.0f;
-          float f_low = 0.0f;
-          bool f_has_temp = extract_json_number_or_string_field(obj, "temperature", f_temp);
-          bool f_has_low = false;
-          if (extract_json_number_or_string_field(obj, "templow", f_low)) f_has_low = true;
-          if (!f_has_low && extract_json_number_or_string_field(obj, "temperature_low", f_low)) f_has_low = true;
-          if (!f_has_low && extract_json_number_or_string_field(obj, "temp_low", f_low)) f_has_low = true;
-          if (!f_has_low && extract_json_number_or_string_field(obj, "low", f_low)) f_has_low = true;
-          extract_json_string_field(obj, "condition", f_condition);
-          extract_json_string_field(obj, "icon", f_icon);
-          String datetime;
-          if (extract_json_string_field(obj, "datetime", datetime)) {
-            f_day = weekday_from_iso(datetime);
-          }
-          if (!f_day.length() && forecast_count == 0) {
-            f_day = i18n::weather_tomorrow_label(configManager.getConfig().language);
-          }
-          if (!f_icon.length() && f_condition.length()) {
-            f_icon = weather_icon_from_condition(f_condition);
-          }
+  if (extract_json_array_field(json, "forecast", forecast_raw) && forecast_raw.indexOf('{') >= 0) {
+    int cursor = 0;
+    int forecast_count = 0;
+    String obj;
+    while (forecast_count < kCols && next_json_object_in_array(forecast_raw, cursor, obj)) {
+      String f_condition;
+      String f_icon;
+      String f_day;
+      String f_datetime;
+      String f_date_local;
+      float f_high = 0.0f;
+      float f_low = 0.0f;
+      float f_precipitation = 0.0f;
+      float f_probability = 0.0f;
+      bool f_has_high = extract_json_number_or_string_field(obj, "temperature", f_high);
+      bool f_has_low = false;
+      bool f_has_precipitation =
+          extract_json_number_or_string_field(obj, "precipitation", f_precipitation);
+      bool f_has_probability =
+          extract_json_number_or_string_field(obj, "precipitation_probability", f_probability);
+      if (extract_json_number_or_string_field(obj, "templow", f_low)) f_has_low = true;
+      if (!f_has_low && extract_json_number_or_string_field(obj, "temperature_low", f_low)) f_has_low = true;
+      if (!f_has_low && extract_json_number_or_string_field(obj, "temp_low", f_low)) f_has_low = true;
+      if (!f_has_low && extract_json_number_or_string_field(obj, "low", f_low)) f_has_low = true;
 
-          ForecastWidgets& fw = ctx->forecast[forecast_count];
-          if (fw.day_label) {
-            String day_text = f_day.length() ? f_day : "--";
-            if (f_icon.length()) day_text += " |";
-            lv_label_set_text(fw.day_label, day_text.c_str());
-            lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
-          }
-          if (fw.icon_label) {
-            if (f_icon.length()) {
-              String iconChar = getMdiChar(f_icon);
-              if (iconChar.length()) {
-                lv_label_set_text(fw.icon_label, iconChar.c_str());
-                lv_obj_clear_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
-              } else {
-                lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
-              }
-            } else {
-              lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
-            }
-          }
-          if (fw.temp_label) {
-            String hi_text = f_has_temp ? format_weather_temp(f_temp, unit) : String("--");
-            String lo_text = f_has_low ? format_weather_temp(f_low, unit) : String("--");
-            String temp_text = hi_text + "\n" + lo_text;
-            lv_label_set_text(fw.temp_label, temp_text.c_str());
-            lv_obj_clear_flag(fw.temp_label, LV_OBJ_FLAG_HIDDEN);
-          }
+      extract_json_string_field(obj, "condition", f_condition);
+      extract_json_string_field(obj, "icon", f_icon);
+      extract_json_string_field(obj, "datetime", f_datetime);
+      extract_json_string_field(obj, "date_local", f_date_local);
 
-          forecast_count++;
-          start = -1;
-        }
+      if (!f_date_local.length() && f_datetime.length()) {
+        f_date_local = iso_date_part(f_datetime);
       }
+      if (f_date_local.length()) {
+        f_day = weekday_from_iso(f_date_local);
+      } else if (f_datetime.length()) {
+        f_day = weekday_from_iso(f_datetime);
+      }
+      if (!f_icon.length() && f_condition.length()) {
+        f_icon = weather_icon_from_condition(f_condition);
+      }
+
+      ForecastData& data = ctx->forecast_data[forecast_count];
+      data.active = true;
+      data.day = f_day.length() ? f_day : String("--");
+      data.date_local = f_date_local;
+      data.icon = f_icon;
+      data.has_high = f_has_high;
+      data.high = f_high;
+      data.has_low = f_has_low;
+      data.low = f_low;
+      data.has_precipitation = f_has_precipitation;
+      data.precipitation = f_precipitation;
+      data.has_precipitation_probability = f_has_probability;
+      data.precipitation_probability = f_probability;
+      ++forecast_count;
     }
   }
 
-  if (has_forecast) {
-    for (uint8_t i = forecast_count; i < kCols; ++i) {
-      ForecastWidgets& fw = ctx->forecast[i];
-      if (fw.day_label) {
-        lv_label_set_text(fw.day_label, "--");
-        lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
+  String hourly_raw;
+  if (extract_json_array_field(json, "forecast_hourly", hourly_raw) && hourly_raw.indexOf('{') >= 0) {
+    int cursor = 0;
+    int hourly_count = 0;
+    String obj;
+    while (hourly_count < kHourlyForecastMax && next_json_object_in_array(hourly_raw, cursor, obj)) {
+      String h_condition;
+      String h_icon;
+      String h_datetime;
+      String h_date_local;
+      float h_hour_local = -1.0f;
+      float h_temp = 0.0f;
+      float h_precipitation = 0.0f;
+      float h_probability = 0.0f;
+
+      extract_json_string_field(obj, "condition", h_condition);
+      extract_json_string_field(obj, "icon", h_icon);
+      extract_json_string_field(obj, "datetime", h_datetime);
+      extract_json_string_field(obj, "date_local", h_date_local);
+      if (!h_date_local.length()) {
+        extract_json_string_field(obj, "d", h_date_local);
       }
-      if (fw.icon_label) {
-        lv_label_set_text(fw.icon_label, "");
-        lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
+      if (!extract_json_number_or_string_field(obj, "hour_local", h_hour_local)) {
+        extract_json_number_or_string_field(obj, "h", h_hour_local);
       }
-      if (fw.temp_label) {
-        lv_label_set_text(fw.temp_label, "--\n--");
-        lv_obj_clear_flag(fw.temp_label, LV_OBJ_FLAG_HIDDEN);
+
+      if (!h_icon.length() && h_condition.length()) {
+        h_icon = weather_icon_from_condition(h_condition);
       }
+      if (!h_date_local.length() && h_datetime.length()) {
+        h_date_local = iso_date_part(h_datetime);
+      }
+      if (h_hour_local < 0.0f && h_datetime.length()) {
+        h_hour_local = static_cast<float>(iso_hour_part(h_datetime));
+      }
+      if (!h_date_local.length() || h_hour_local < 0.0f) continue;
+
+      HourlyForecastData& hour = ctx->hourly[hourly_count];
+      hour = HourlyForecastData();
+      hour.active = true;
+      hour.date_local = h_date_local;
+      hour.hour_local = static_cast<int>(lroundf(h_hour_local));
+      hour.icon = h_icon;
+      hour.has_temp = extract_json_number_or_string_field(obj, "temperature", h_temp) ||
+                      extract_json_number_or_string_field(obj, "t", h_temp);
+      hour.temp = h_temp;
+      hour.has_precipitation = extract_json_number_or_string_field(obj, "precipitation", h_precipitation) ||
+                               extract_json_number_or_string_field(obj, "p", h_precipitation);
+      hour.precipitation = h_precipitation;
+      hour.has_precipitation_probability =
+          extract_json_number_or_string_field(obj, "precipitation_probability", h_probability) ||
+          extract_json_number_or_string_field(obj, "pp", h_probability);
+      hour.precipitation_probability = h_probability;
+      ++hourly_count;
     }
+  }
+
+  update_forecast_graph(ctx);
+
+  int selected_day_index = ctx->selected_day_index;
+  if (previous_selected_date.length()) {
+    int by_date = find_active_day_index(ctx, previous_selected_date);
+    if (by_date >= 0) selected_day_index = by_date;
+  }
+  if (selected_day_index < 0 || selected_day_index >= kCols ||
+      !ctx->forecast_data[selected_day_index].active) {
+    selected_day_index = get_default_day_index(ctx);
+  }
+  ctx->selected_day_index = selected_day_index;
+
+  if (previous_mode == WeatherPopupViewMode::Day) {
+    show_day_view(ctx, selected_day_index);
   } else {
-    clear_forecast(ctx);
+    show_week_view(ctx);
   }
 }
 
@@ -566,6 +1464,7 @@ static void apply_init_to_context(WeatherPopupContext* ctx, const WeatherPopupIn
     if (!title.length()) title = "--";
     lv_label_set_text(ctx->location_label, title.c_str());
   }
+  update_mode_buttons(ctx);
   align_header_row(ctx->card, ctx->location_label, ctx->icon_label);
 }
 
@@ -591,6 +1490,31 @@ static void on_overlay_delete(lv_event_t* e) {
     g_weather_popup_ctx = nullptr;
   }
   delete ctx;
+}
+
+static void on_mode_click(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  WeatherPopupContext* ctx = static_cast<WeatherPopupContext*>(lv_event_get_user_data(e));
+  lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
+  if (!ctx || !target) return;
+
+  if (target == ctx->mode_week_btn) {
+    show_week_view(ctx);
+  }
+}
+
+static void on_day_column_click(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+  WeatherPopupContext* ctx = static_cast<WeatherPopupContext*>(lv_event_get_user_data(e));
+  lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
+  if (!ctx || !target) return;
+
+  for (int i = 0; i < kCols; ++i) {
+    if (ctx->forecast[i].column == target) {
+      show_day_view(ctx, i);
+      return;
+    }
+  }
 }
 
 static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& init) {
@@ -654,6 +1578,47 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 8, 0);
 
+  lv_obj_t* mode_row = lv_obj_create(card);
+  ctx->mode_row = mode_row;
+  lv_obj_remove_style_all(mode_row);
+  lv_obj_set_size(mode_row, kModeButtonWidth, kModeButtonHeight);
+  lv_obj_align(mode_row, LV_ALIGN_TOP_LEFT, 0, kModeRowOffsetY);
+  lv_obj_set_style_bg_opa(mode_row, LV_OPA_TRANSP, 0);
+  lv_obj_set_layout(mode_row, LV_LAYOUT_FLEX);
+  lv_obj_set_flex_flow(mode_row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(mode_row, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(mode_row, kModeButtonGap, 0);
+  lv_obj_clear_flag(mode_row, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_flag(mode_row, LV_OBJ_FLAG_HIDDEN);
+
+  auto make_mode_button = [&](const char* text) -> lv_obj_t* {
+    lv_obj_t* btn = lv_button_create(mode_row);
+    lv_obj_set_size(btn, kModeButtonWidth, kModeButtonHeight);
+    lv_obj_set_style_radius(btn, 16, 0);
+    lv_obj_set_style_pad_all(btn, 0, 0);
+    lv_obj_set_style_anim_time(btn, 0, 0);
+    lv_obj_set_style_anim_time(btn, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, LV_STATE_PRESSED);
+    lv_obj_set_style_transform_width(btn, 0, 0);
+    lv_obj_set_style_transform_width(btn, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_transform_height(btn, 0, 0);
+    lv_obj_set_style_transform_height(btn, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_translate_y(btn, 0, 0);
+    lv_obj_set_style_translate_y(btn, 0, LV_STATE_PRESSED);
+    lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(btn, LV_OBJ_FLAG_PRESS_LOCK);
+    lv_obj_t* label = lv_label_create(btn);
+    set_label_style(label, lv_color_white(), FONT_MDI_ICONS);
+    lv_label_set_text(label, text);
+    lv_obj_center(label);
+    return btn;
+  };
+
+  ctx->mode_week_btn = make_mode_button(getMdiChar("arrow-left").c_str());
+  ctx->mode_day_btn = nullptr;
+  lv_obj_add_event_cb(ctx->mode_week_btn, on_mode_click, LV_EVENT_CLICKED, ctx);
+
   lv_obj_t* value_row = lv_obj_create(card);
   ctx->value_row = value_row;
   lv_obj_remove_style_all(value_row);
@@ -666,7 +1631,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* condition_label = lv_label_create(value_row);
   ctx->condition_label = condition_label;
-  set_label_style(condition_label, lv_color_hex(0xD0D0D0), FONT_TITLE);
+  set_label_style(condition_label, lv_color_white(), FONT_TITLE);
   lv_label_set_long_mode(condition_label, LV_LABEL_LONG_DOT);
   lv_obj_set_width(condition_label, LV_SIZE_CONTENT);
   lv_obj_set_style_max_width(condition_label, 220, 0);
@@ -675,7 +1640,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* sep_label = lv_label_create(value_row);
   ctx->condition_sep_label = sep_label;
-  set_label_style(sep_label, lv_color_hex(0xB0B0B0), FONT_TITLE);
+  set_label_style(sep_label, lv_color_white(), FONT_TITLE);
   lv_label_set_text(sep_label, "|");
   lv_obj_add_flag(sep_label, LV_OBJ_FLAG_HIDDEN);
 
@@ -683,26 +1648,73 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   ctx->temp_label = temp_label;
   set_label_style(temp_label, lv_color_white(), FONT_VALUE);
   lv_label_set_text(temp_label, "--");
+  lv_obj_align(value_row, LV_ALIGN_TOP_MID, 0, kSummaryRowTop);
 
-  lv_obj_update_layout(value_row);
-  lv_coord_t row_h = lv_obj_get_height(value_row);
-  lv_coord_t base_center = ((kCellH - 48) / 2) + 28;
-  lv_coord_t value_row_y = base_center - (row_h / 2) + 18;
-  lv_obj_align(value_row, LV_ALIGN_TOP_MID, 0, value_row_y);
-
-  const lv_coord_t forecast_total_w = kCardWidth;
-  const lv_coord_t cols_total = kCols * WEATHER_FORECAST_COL_W;
-  const lv_coord_t forecast_remaining = forecast_total_w - cols_total;
-  const lv_coord_t forecast_spacing = forecast_remaining / (kCols + 1);
-  const lv_coord_t forecast_col_w = WEATHER_FORECAST_COL_W;
+  const lv_coord_t forecast_total_w = kCardWidth - (kCardPad * 2);
+  const lv_coord_t forecast_col_w =
+      (forecast_total_w - (kForecastSidePad * 2) - (kForecastColGap * (kCols - 1))) / kCols;
+  const lv_coord_t forecast_chart_x = kForecastSidePad + (forecast_col_w / 2);
+  const lv_coord_t forecast_chart_w =
+      (kCols > 1) ? ((kCols - 1) * (forecast_col_w + kForecastColGap)) : 1;
 
   lv_obj_t* forecast_row = lv_obj_create(card);
+  ctx->forecast_row = forecast_row;
   lv_obj_remove_style_all(forecast_row);
-  lv_obj_set_size(forecast_row, forecast_total_w, GRID_CELL_H);
+  lv_obj_set_size(forecast_row, forecast_total_w, kForecastRowHeight);
   lv_obj_set_style_bg_opa(forecast_row, LV_OPA_TRANSP, 0);
   lv_obj_set_style_pad_all(forecast_row, 0, 0);
   lv_obj_remove_flag(forecast_row, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_pos(forecast_row, -kCardPad, kCellH + kForecastGap + 18);
+  lv_obj_set_pos(forecast_row, 0, kForecastRowTop);
+
+  lv_obj_t* temp_chart = lv_chart_create(forecast_row);
+  ctx->forecast_temp_chart = temp_chart;
+  lv_obj_set_size(temp_chart, forecast_chart_w, kForecastTempChartHeight);
+  lv_obj_set_pos(temp_chart, forecast_chart_x, kForecastTempChartTop);
+  lv_obj_set_style_bg_opa(temp_chart, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_set_style_border_width(temp_chart, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_top(temp_chart, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_bottom(temp_chart, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_left(temp_chart, kForecastChartSideInset, LV_PART_MAIN);
+  lv_obj_set_style_pad_right(temp_chart, kForecastChartSideInset, LV_PART_MAIN);
+  lv_obj_set_style_line_width(temp_chart, 3, LV_PART_ITEMS);
+  lv_obj_set_style_line_rounded(temp_chart, true, LV_PART_ITEMS);
+  lv_obj_set_style_size(temp_chart, 6, 6, LV_PART_INDICATOR);
+  lv_obj_remove_flag(temp_chart, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_remove_flag(temp_chart, LV_OBJ_FLAG_CLICKABLE);
+  lv_chart_set_div_line_count(temp_chart, 0, 0);
+  lv_chart_set_type(temp_chart, LV_CHART_TYPE_CURVE);
+  lv_chart_set_update_mode(temp_chart, LV_CHART_UPDATE_MODE_SHIFT);
+  lv_chart_set_point_count(temp_chart, kCols);
+  ctx->forecast_high_series =
+      lv_chart_add_series(temp_chart, lv_color_white(), LV_CHART_AXIS_PRIMARY_Y);
+  ctx->forecast_low_series =
+      lv_chart_add_series(temp_chart, lv_color_white(), LV_CHART_AXIS_PRIMARY_Y);
+
+  for (int i = 1; i < kCols; ++i) {
+    lv_obj_t* divider = lv_obj_create(forecast_row);
+    lv_obj_remove_style_all(divider);
+    lv_obj_set_size(divider, 1, kForecastRowHeight - 12);
+    lv_obj_set_style_bg_color(divider, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_bg_opa(divider, LV_OPA_10, 0);
+    lv_obj_set_style_radius(divider, 0, 0);
+    lv_obj_remove_flag(divider, LV_OBJ_FLAG_SCROLLABLE);
+    lv_coord_t divider_x = kForecastSidePad +
+                           i * forecast_col_w +
+                           (i - 1) * kForecastColGap +
+                           (kForecastColGap / 2);
+    lv_obj_set_pos(divider, divider_x, 10);
+  }
+
+  lv_obj_t* precip_base = lv_obj_create(forecast_row);
+  lv_obj_remove_style_all(precip_base);
+  lv_obj_set_size(precip_base,
+                  forecast_total_w - (kForecastSidePad * 2),
+                  1);
+  lv_obj_set_style_bg_color(precip_base, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_style_bg_opa(precip_base, LV_OPA_20, 0);
+  lv_obj_set_style_radius(precip_base, 0, 0);
+  lv_obj_remove_flag(precip_base, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_pos(precip_base, kForecastSidePad, kForecastPrecipChartTop + kForecastPrecipChartHeight);
 
   lv_obj_move_foreground(icon);
   lv_obj_move_foreground(location);
@@ -711,42 +1723,229 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   for (int i = 0; i < kCols; ++i) {
     lv_obj_t* col = lv_obj_create(forecast_row);
     lv_obj_remove_style_all(col);
-    lv_obj_set_size(col, forecast_col_w, GRID_CELL_H);
-    lv_obj_set_style_pad_hor(col, kCardPad, 0);
-    lv_obj_set_style_pad_ver(col, 24, 0);
+    lv_obj_set_size(col, forecast_col_w, kForecastRowHeight);
     lv_obj_set_style_bg_opa(col, LV_OPA_TRANSP, 0);
-    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_pos(col, forecast_spacing + i * (forecast_col_w + forecast_spacing), 0);
+    lv_obj_add_flag(col, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(col, LV_OBJ_FLAG_PRESS_LOCK);
+    lv_obj_clear_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_ext_click_area(col, 4);
+    lv_obj_set_pos(col, kForecastSidePad + i * (forecast_col_w + kForecastColGap), 0);
+    lv_obj_add_event_cb(col, on_day_column_click, LV_EVENT_CLICKED, ctx);
+    ctx->forecast[i].column = col;
 
     lv_obj_t* day = lv_label_create(col);
     set_label_style(day, lv_color_white(), FONT_TITLE);
     lv_label_set_long_mode(day, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(day, LV_PCT(70));
-    lv_label_set_text(day, "--");
-    lv_obj_align(day, LV_ALIGN_TOP_LEFT, 2, 4);
+    lv_obj_set_width(day, LV_PCT(100));
+    lv_obj_set_style_text_align(day, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(day, "");
+    lv_obj_add_flag(day, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_pos(day, 0, kForecastDayTop);
 
     lv_obj_t* icon_day = lv_label_create(col);
     set_label_style(icon_day, lv_color_white(), FONT_MDI_ICONS);
     lv_label_set_text(icon_day, "");
     lv_obj_add_flag(icon_day, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_align(icon_day, LV_ALIGN_TOP_RIGHT, -2, -8);
+    lv_obj_align(icon_day, LV_ALIGN_TOP_MID, 0, kForecastIconTop);
 
-    lv_obj_t* temp = lv_label_create(col);
-    set_label_style(temp, lv_color_white(), &ui_font_24);
-    lv_label_set_long_mode(temp, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(temp, LV_PCT(100));
-    lv_obj_set_style_text_align(temp, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_line_space(temp, 8, 0);
-    lv_label_set_text(temp, "--\n--");
-    lv_obj_align(temp, LV_ALIGN_CENTER, 0, 28);
+    lv_obj_t* high = lv_label_create(col);
+    set_label_style(high, lv_color_white(), FONT_TITLE);
+    lv_obj_set_width(high, LV_PCT(100));
+    lv_obj_set_style_text_align(high, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(high, "");
+    lv_obj_add_flag(high, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_pos(high, 0, kForecastTempChartTop);
+
+    lv_obj_t* low = lv_label_create(col);
+    set_label_style(low, lv_color_white(), FONT_TITLE);
+    lv_obj_set_width(low, LV_PCT(100));
+    lv_obj_set_style_text_align(low, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(low, "");
+    lv_obj_add_flag(low, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_pos(low, 0, kForecastTempChartTop + 24);
+
+    lv_obj_t* precip_bar = lv_obj_create(col);
+    lv_obj_remove_style_all(precip_bar);
+    lv_obj_set_size(precip_bar, kForecastBarWidth, 0);
+    lv_obj_set_style_bg_color(precip_bar, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(precip_bar, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(precip_bar, 6, 0);
+    lv_obj_add_flag(precip_bar, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(precip_bar, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* amount = lv_label_create(col);
+    set_label_style(amount, lv_color_white(), FONT_TITLE);
+    lv_obj_set_width(amount, LV_PCT(100));
+    lv_obj_set_style_text_align(amount, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(amount, "");
+    lv_obj_add_flag(amount, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_pos(amount, 0, kForecastAmountTop);
+
+    lv_obj_t* probability = lv_label_create(col);
+    set_label_style(probability, lv_color_white(), FONT_TITLE);
+    lv_obj_set_width(probability, LV_PCT(100));
+    lv_obj_set_style_text_align(probability, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(probability, "");
+    lv_obj_add_flag(probability, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_pos(probability, 0, kForecastProbabilityTop);
 
     ctx->forecast[i].day_label = day;
     ctx->forecast[i].icon_label = icon_day;
-    ctx->forecast[i].temp_label = temp;
+    ctx->forecast[i].high_label = high;
+    ctx->forecast[i].low_label = low;
+    ctx->forecast[i].precip_bar = precip_bar;
+    ctx->forecast[i].precip_amount_label = amount;
+    ctx->forecast[i].precip_probability_label = probability;
   }
+
+  lv_obj_t* detail_wrap = lv_obj_create(card);
+  ctx->detail_wrap = detail_wrap;
+  lv_obj_remove_style_all(detail_wrap);
+  lv_obj_set_size(detail_wrap, forecast_total_w, kForecastRowHeight);
+  lv_obj_set_style_bg_opa(detail_wrap, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_pad_all(detail_wrap, 0, 0);
+  lv_obj_remove_flag(detail_wrap, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_pos(detail_wrap, 0, kForecastRowTop);
+  lv_obj_add_flag(detail_wrap, LV_OBJ_FLAG_HIDDEN);
+
+  lv_obj_t* detail_title = lv_label_create(detail_wrap);
+  ctx->detail_title_label = detail_title;
+  set_label_style(detail_title, lv_color_white(), FONT_TITLE);
+  lv_obj_set_width(detail_title, LV_PCT(100));
+  lv_obj_set_style_text_align(detail_title, LV_TEXT_ALIGN_CENTER, 0);
+  lv_label_set_text(detail_title, "");
+  lv_obj_set_pos(detail_title, 0, kDetailTitleTop);
+
+  lv_obj_t* chart_wrap = lv_obj_create(detail_wrap);
+  lv_obj_remove_style_all(chart_wrap);
+  lv_obj_set_size(chart_wrap, LV_PCT(100), kDetailChartWrapHeight);
+  lv_obj_set_pos(chart_wrap, 0, kDetailChartWrapTop);
+  lv_obj_set_style_bg_opa(chart_wrap, LV_OPA_TRANSP, 0);
+  lv_obj_remove_flag(chart_wrap, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t* y_max = lv_label_create(chart_wrap);
+  ctx->detail_y_max_label = y_max;
+  set_label_style(y_max, lv_color_white(), FONT_TITLE);
+  lv_obj_set_style_text_align(y_max, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_set_width(y_max, kDetailYAxisWidth - 10);
+  lv_label_set_text(y_max, "");
+  lv_obj_set_pos(y_max, 0, 0);
+  lv_obj_add_flag(y_max, LV_OBJ_FLAG_HIDDEN);
+
+  lv_obj_t* y_min = lv_label_create(chart_wrap);
+  ctx->detail_y_min_label = y_min;
+  set_label_style(y_min, lv_color_white(), FONT_TITLE);
+  lv_obj_set_style_text_align(y_min, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_set_width(y_min, kDetailYAxisWidth - 10);
+  lv_label_set_text(y_min, "");
+  lv_obj_set_pos(y_min, 0, kDetailTempChartHeight);
+  lv_obj_add_flag(y_min, LV_OBJ_FLAG_HIDDEN);
+
+  constexpr int kLineOverlap = 6;
+  const int line_start = kDetailYAxisWidth - kLineOverlap;
+  const int line_width = forecast_total_w - line_start;
+  auto make_guide_line = [&](int16_t y_pos) -> lv_obj_t* {
+    lv_obj_t* line = lv_obj_create(chart_wrap);
+    lv_obj_remove_style_all(line);
+    lv_obj_set_size(line, line_width, 1);
+    lv_obj_set_style_bg_color(line, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(line, LV_OPA_30, 0);
+    lv_obj_remove_flag(line, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(line, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_pos(line, line_start, y_pos);
+    lv_obj_add_flag(line, LV_OBJ_FLAG_HIDDEN);
+    return line;
+  };
+  ctx->detail_y_max_line = make_guide_line(kDetailLabelOverhang);
+  ctx->detail_y_min_line = make_guide_line(kDetailLabelOverhang + kDetailTempChartHeight - 1);
+
+  for (int i = 0; i < kDetailMarkerCount; ++i) {
+    lv_obj_t* vline = lv_obj_create(chart_wrap);
+    lv_obj_remove_style_all(vline);
+    lv_obj_set_size(vline, 1, 0);
+    lv_obj_set_style_bg_color(vline, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(vline, LV_OPA_30, 0);
+    lv_obj_remove_flag(vline, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(vline, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_pos(vline, 0, kDetailTempChartTop);
+    lv_obj_add_flag(vline, LV_OBJ_FLAG_HIDDEN);
+    ctx->detail_time_lines[i] = vline;
+
+    lv_obj_t* tlbl = lv_label_create(chart_wrap);
+    set_label_style(tlbl, lv_color_white(), FONT_TITLE);
+    lv_obj_set_style_text_align(tlbl, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(tlbl, "");
+    lv_obj_set_pos(tlbl, 0, kDetailTimeLabelY);
+    lv_obj_add_flag(tlbl, LV_OBJ_FLAG_HIDDEN);
+    ctx->detail_time_labels[i] = tlbl;
+
+    lv_obj_t* plbl = lv_label_create(chart_wrap);
+    set_label_style(plbl, lv_color_white(), FONT_TITLE);
+    lv_obj_set_style_text_align(plbl, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(plbl, "");
+    lv_obj_set_pos(plbl, 0, kDetailProbabilityTop);
+    lv_obj_add_flag(plbl, LV_OBJ_FLAG_HIDDEN);
+    ctx->detail_probability_labels[i] = plbl;
+  }
+
+  lv_obj_t* detail_temp_chart = lv_chart_create(chart_wrap);
+  ctx->detail_temp_chart = detail_temp_chart;
+  lv_obj_set_size(detail_temp_chart, LV_PCT(100), kDetailTempChartHeight);
+  lv_obj_set_pos(detail_temp_chart, 0, kDetailTempChartTop);
+  lv_obj_set_style_bg_opa(detail_temp_chart, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(detail_temp_chart, 0, 0);
+  lv_obj_set_style_pad_left(detail_temp_chart, kDetailYAxisWidth, 0);
+  lv_obj_set_style_pad_right(detail_temp_chart, 0, 0);
+  lv_obj_set_style_pad_top(detail_temp_chart, 0, 0);
+  lv_obj_set_style_pad_bottom(detail_temp_chart, 0, 0);
+  lv_obj_set_style_line_width(detail_temp_chart, 4, LV_PART_ITEMS);
+  lv_obj_set_style_line_color(detail_temp_chart, lv_color_white(), LV_PART_ITEMS);
+  lv_obj_set_style_line_rounded(detail_temp_chart, true, LV_PART_ITEMS);
+  lv_obj_set_style_size(detail_temp_chart, 0, 0, LV_PART_INDICATOR);
+  lv_obj_remove_flag(detail_temp_chart, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_remove_flag(detail_temp_chart, LV_OBJ_FLAG_CLICKABLE);
+  lv_chart_set_div_line_count(detail_temp_chart, 0, 0);
+  lv_chart_set_type(detail_temp_chart, LV_CHART_TYPE_CURVE);
+  lv_chart_set_update_mode(detail_temp_chart, LV_CHART_UPDATE_MODE_SHIFT);
+  lv_chart_set_point_count(detail_temp_chart, 24);
+  ctx->detail_temp_series =
+      lv_chart_add_series(detail_temp_chart, lv_color_white(), LV_CHART_AXIS_PRIMARY_Y);
+
+  lv_obj_t* detail_precip_chart = lv_chart_create(chart_wrap);
+  ctx->detail_precip_chart = detail_precip_chart;
+  lv_obj_set_size(detail_precip_chart, LV_PCT(100), kDetailPrecipChartHeight);
+  lv_obj_set_pos(detail_precip_chart, 0, kDetailPrecipChartTop);
+  lv_obj_set_style_bg_opa(detail_precip_chart, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(detail_precip_chart, 0, 0);
+  lv_obj_set_style_pad_left(detail_precip_chart, kDetailYAxisWidth, 0);
+  lv_obj_set_style_pad_right(detail_precip_chart, 0, 0);
+  lv_obj_set_style_pad_top(detail_precip_chart, 0, 0);
+  lv_obj_set_style_pad_bottom(detail_precip_chart, 0, 0);
+  lv_obj_set_style_bg_color(detail_precip_chart, lv_color_white(), LV_PART_ITEMS);
+  lv_obj_set_style_bg_opa(detail_precip_chart, LV_OPA_80, LV_PART_ITEMS);
+  lv_obj_set_style_radius(detail_precip_chart, 2, LV_PART_ITEMS);
+  lv_obj_set_style_line_width(detail_precip_chart, 0, LV_PART_ITEMS);
+  lv_obj_set_style_size(detail_precip_chart, 0, 0, LV_PART_INDICATOR);
+  lv_obj_remove_flag(detail_precip_chart, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_remove_flag(detail_precip_chart, LV_OBJ_FLAG_CLICKABLE);
+  lv_chart_set_div_line_count(detail_precip_chart, 0, 0);
+  lv_chart_set_type(detail_precip_chart, LV_CHART_TYPE_BAR);
+  lv_chart_set_update_mode(detail_precip_chart, LV_CHART_UPDATE_MODE_SHIFT);
+  lv_chart_set_point_count(detail_precip_chart, 24);
+  ctx->detail_precip_series =
+      lv_chart_add_series(detail_precip_chart, lv_color_white(), LV_CHART_AXIS_PRIMARY_Y);
+
+  clear_forecast_chart(ctx);
+  clear_detail_view(ctx);
+  show_week_view(ctx);
 
   apply_init_to_context(ctx, init);
 
+  lv_obj_move_foreground(icon);
+  lv_obj_move_foreground(location);
+  lv_obj_move_foreground(mode_row);
+  lv_obj_move_foreground(value_row);
+  lv_obj_move_foreground(close_btn);
   lv_obj_add_event_cb(overlay, on_overlay_click, LV_EVENT_CLICKED, ctx);
   lv_obj_add_event_cb(overlay, on_overlay_delete, LV_EVENT_DELETE, ctx);
 }
@@ -769,12 +1968,15 @@ void show_weather_popup(const WeatherPopupInit& init) {
     build_popup_ui(ctx, init);
   }
 
+  reset_weather_popup_content(g_weather_popup_ctx);
+  g_pending_weather.valid = false;
+
   String cached;
   if (tiles_get_cached_entity_payload(init.entity_id.c_str(), cached)) {
     apply_weather_payload(g_weather_popup_ctx, cached.c_str());
-  } else {
-    clear_forecast(g_weather_popup_ctx);
   }
+
+  request_weather_for_context(g_weather_popup_ctx);
 }
 
 void preload_weather_popup() {

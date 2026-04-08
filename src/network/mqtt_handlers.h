@@ -19,6 +19,7 @@ void mqttPublishHistoryRequest(const char* entity_id,
                                uint16_t hours = 24,
                                uint16_t period_minutes = 5,
                                uint16_t points = 288);
+void mqttPublishWeatherRequest(const char* entity_id);
 void mqttPublishHomeSnapshot();
 void mqttPublishDeviceSettings();
 void mqttServiceLocalSensors();

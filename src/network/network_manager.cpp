@@ -147,6 +147,10 @@ void Tab5NetworkManager::connectMqtt() {
   history_response_topic_ += did;
   history_response_topic_ += "/history/response";
 
+  weather_request_topic_ = "tab5_lvgl/config/";
+  weather_request_topic_ += did;
+  weather_request_topic_ += "/weather/request";
+
   Serial.printf("MQTT: Verbinde mit %s:%u als %s\n", cfg.mqtt_host, cfg.mqtt_port, client_id);
 
   const char* stat_topic = mqttTopics.topic(TopicKey::STAT_CONN);
@@ -257,6 +261,10 @@ const char* Tab5NetworkManager::getHistoryRequestTopic() const {
 
 const char* Tab5NetworkManager::getHistoryResponseTopic() const {
   return history_response_topic_.length() ? history_response_topic_.c_str() : nullptr;
+}
+
+const char* Tab5NetworkManager::getWeatherRequestTopic() const {
+  return weather_request_topic_.length() ? weather_request_topic_.c_str() : nullptr;
 }
 
 // ========== Update-Schleife ==========
