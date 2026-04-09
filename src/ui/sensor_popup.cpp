@@ -42,7 +42,7 @@ constexpr uint16_t kHistoryHours7d = 168;
 constexpr uint16_t kHistoryPeriodMinutes7d = 60;
 constexpr uint16_t kHistoryPoints7d = 168;
 constexpr int kRangeButtonWidth = 96;
-constexpr int kRangeButtonHeight = 64;
+constexpr int kRangeButtonHeight = 58;
 constexpr int kRangeButtonGap = 12;
 
 enum class SensorHistoryRange : uint8_t {
@@ -182,10 +182,11 @@ static void style_range_button(lv_obj_t* btn, bool active) {
     active_text_color = lv_obj_get_style_bg_color(card, LV_PART_MAIN);
   }
   auto apply_selector = [&](lv_style_selector_t selector) {
-    lv_obj_set_style_bg_color(btn, active ? lv_color_white() : lv_color_hex(0xFFFFFF), selector);
+    lv_obj_set_style_bg_color(btn, lv_color_white(), selector);
     lv_obj_set_style_bg_opa(btn, active ? LV_OPA_COVER : LV_OPA_TRANSP, selector);
     lv_obj_set_style_border_color(btn, lv_color_white(), selector);
     lv_obj_set_style_border_width(btn, 2, selector);
+    lv_obj_set_style_border_opa(btn, active ? LV_OPA_TRANSP : LV_OPA_COVER, selector);
     lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, selector);
     lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, selector);
     lv_obj_set_style_transform_width(btn, 0, selector);
@@ -198,6 +199,8 @@ static void style_range_button(lv_obj_t* btn, bool active) {
 
   lv_obj_t* label = lv_obj_get_child(btn, 0);
   if (label) {
+    lv_obj_set_style_text_font(label, &ui_font_24, 0);
+    lv_obj_set_style_text_font(label, &ui_font_24, LV_STATE_PRESSED);
     lv_obj_set_style_text_color(label, active ? active_text_color : lv_color_white(), 0);
     lv_obj_set_style_text_color(label, active ? active_text_color : lv_color_white(), LV_STATE_PRESSED);
   }
@@ -875,9 +878,9 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
 
   lv_obj_t* title = lv_label_create(card);
   ctx->title_label = title;
-  set_label_style(title, lv_color_white(), &ui_font_20);
+  set_label_style(title, lv_color_white(), &ui_font_24);
   lv_label_set_text(title, init.title.c_str());
-  lv_obj_set_width(title, LV_PCT(62));
+  lv_obj_set_width(title, LV_PCT(38));
   lv_obj_align(title, LV_ALIGN_TOP_LEFT, 78, 10);
 
   lv_obj_t* icon = lv_label_create(card);
@@ -895,8 +898,8 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
   lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_radius(close_btn, 16, 0);
   lv_obj_set_style_pad_all(close_btn, 0, 0);
-  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, 12, -12);
-  lv_obj_set_ext_click_area(close_btn, 28);
+  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, 6, -6);
+  lv_obj_set_ext_click_area(close_btn, 8);
   lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
   lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_CLICKED, ctx);
@@ -913,7 +916,7 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
   ctx->range_row = range_row;
   lv_obj_remove_style_all(range_row);
   lv_obj_set_size(range_row, (kRangeButtonWidth * 2) + kRangeButtonGap, kRangeButtonHeight);
-  lv_obj_align(range_row, LV_ALIGN_TOP_RIGHT, -4, kRangeRowOffsetY);
+  lv_obj_align(range_row, LV_ALIGN_TOP_RIGHT, -106, 13);
   lv_obj_set_style_bg_opa(range_row, LV_OPA_TRANSP, 0);
   lv_obj_set_layout(range_row, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(range_row, LV_FLEX_FLOW_ROW);
@@ -939,7 +942,7 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
     lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(btn, LV_OBJ_FLAG_PRESS_LOCK);
     lv_obj_t* label = lv_label_create(btn);
-    set_label_style(label, lv_color_white(), &ui_font_28);
+    set_label_style(label, lv_color_white(), &ui_font_24);
     lv_label_set_text(label, text);
     lv_obj_center(label);
     return btn;

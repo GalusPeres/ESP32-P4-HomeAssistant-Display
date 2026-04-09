@@ -50,6 +50,12 @@ constexpr int kForecastAmountTop = 376;
 constexpr int kForecastProbabilityTop = 408;
 constexpr int kForecastBarWidth = 10;
 constexpr int kForecastChartSideInset = 12;
+constexpr int kForecastPlotTotalW = kCardWidth - (kCardPad * 2);
+constexpr int kForecastPlotColW =
+    (kForecastPlotTotalW - (kForecastSidePad * 2) - (kForecastColGap * (kCols - 1))) / kCols;
+constexpr int kForecastFirstCenter = kForecastSidePad + (kForecastPlotColW / 2);
+constexpr int kForecastLastCenter =
+    kForecastSidePad + ((kCols - 1) * (kForecastPlotColW + kForecastColGap)) + (kForecastPlotColW / 2);
 constexpr int kDetailRowTop = kForecastRowTop;
 constexpr int kDetailTitleTop = kSummaryRowTop;
 constexpr int kDetailChartWrapTop = 0;
@@ -64,8 +70,8 @@ constexpr int kDetailProbabilityHeight = 22;
 constexpr int kDetailTempValueGap = 14;
 constexpr int kDetailTempMarkerSize = 10;
 constexpr int kDetailPrecipBarWidth = 12;
-constexpr int kDetailChartLeftInset = 30;
-constexpr int kDetailChartRightInset = 30;
+constexpr int kDetailChartLeftInset = kForecastFirstCenter;
+constexpr int kDetailChartRightInset = kForecastPlotTotalW - kForecastLastCenter;
 constexpr int kDetailTimeLabelY = kForecastDayTop;
 constexpr int kDetailIconY = kForecastIconTop;
 constexpr int kDetailTempChartTop = kForecastTempChartTop;
@@ -153,6 +159,7 @@ struct WeatherPopupContext {
   lv_obj_t* detail_title_label = nullptr;
   lv_obj_t* detail_prev_btn = nullptr;
   lv_obj_t* detail_next_btn = nullptr;
+  lv_obj_t* detail_past_overlay = nullptr;
   lv_obj_t* detail_y_max_label = nullptr;
   lv_obj_t* detail_y_min_label = nullptr;
   lv_obj_t* detail_y_max_line = nullptr;
@@ -1112,6 +1119,9 @@ static void clear_detail_view(WeatherPopupContext* ctx) {
     lv_chart_set_range(ctx->detail_precip_chart, LV_CHART_AXIS_PRIMARY_Y, 0, 10);
     lv_chart_refresh(ctx->detail_precip_chart);
   }
+  if (ctx->detail_past_overlay) {
+    lv_obj_add_flag(ctx->detail_past_overlay, LV_OBJ_FLAG_HIDDEN);
+  }
   for (int i = 0; i < kDetailChartPointCount; ++i) {
     if (ctx->detail_precip_bars[i]) {
       lv_obj_add_flag(ctx->detail_precip_bars[i], LV_OBJ_FLAG_HIDDEN);
@@ -1351,6 +1361,20 @@ static bool update_detail_view(WeatherPopupContext* ctx, int day_index) {
   lv_obj_update_layout(chart_wrap);
   lv_obj_update_layout(ctx->detail_temp_chart);
   lv_obj_update_layout(ctx->detail_precip_chart);
+  if (ctx->detail_past_overlay) {
+    lv_obj_add_flag(ctx->detail_past_overlay, LV_OBJ_FLAG_HIDDEN);
+    if (clip_today && now_hour > 0) {
+      lv_coord_t overlay_right = map_detail_chart_x(ctx, now_hour);
+      const lv_coord_t prev_x = map_detail_chart_x(ctx, now_hour - 1);
+      overlay_right = prev_x + ((overlay_right - prev_x) / 2);
+      if (overlay_right > 0) {
+        lv_obj_set_pos(ctx->detail_past_overlay, 0, 0);
+        lv_obj_set_size(ctx->detail_past_overlay, overlay_right, kDetailChartWrapHeight);
+        lv_obj_clear_flag(ctx->detail_past_overlay, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(ctx->detail_past_overlay);
+      }
+    }
+  }
   const lv_coord_t chart_wrap_w = lv_obj_get_width(chart_wrap);
   const lv_coord_t line_h =
       (kDetailPrecipChartTop + kDetailPrecipChartHeight) - kDetailTempChartTop;
@@ -1972,7 +1996,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* location = lv_label_create(card);
   ctx->location_label = location;
-  set_label_style(location, lv_color_white(), &ui_font_28);
+  set_label_style(location, lv_color_white(), &ui_font_24);
   lv_label_set_long_mode(location, LV_LABEL_LONG_DOT);
   lv_obj_set_width(location, LV_PCT(38));
   lv_obj_align(location, LV_ALIGN_TOP_LEFT, 78, 10);
@@ -2096,7 +2120,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* condition_label = lv_label_create(value_row);
   ctx->condition_label = condition_label;
-  set_label_style(condition_label, lv_color_white(), FONT_TITLE);
+  set_label_style(condition_label, lv_color_white(), &ui_font_24);
   lv_label_set_long_mode(condition_label, LV_LABEL_LONG_DOT);
   lv_obj_set_width(condition_label, LV_SIZE_CONTENT);
   lv_obj_set_style_max_width(condition_label, 220, 0);
@@ -2105,13 +2129,13 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* sep_label = lv_label_create(value_row);
   ctx->condition_sep_label = sep_label;
-  set_label_style(sep_label, lv_color_white(), FONT_TITLE);
+  set_label_style(sep_label, lv_color_white(), &ui_font_24);
   lv_label_set_text(sep_label, "|");
   lv_obj_add_flag(sep_label, LV_OBJ_FLAG_HIDDEN);
 
   lv_obj_t* temp_label = lv_label_create(value_row);
   ctx->temp_label = temp_label;
-  set_label_style(temp_label, lv_color_white(), FONT_VALUE);
+  set_label_style(temp_label, lv_color_white(), &ui_font_24);
   lv_label_set_text(temp_label, "--");
   lv_obj_align(value_row, LV_ALIGN_TOP_MID, 0, kSummaryRowTop);
 
@@ -2283,7 +2307,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* detail_title = lv_label_create(card);
   ctx->detail_title_label = detail_title;
-  set_label_style(detail_title, lv_color_white(), &ui_font_28);
+  set_label_style(detail_title, lv_color_white(), &ui_font_24);
   lv_label_set_long_mode(detail_title, LV_LABEL_LONG_DOT);
   lv_obj_set_width(detail_title, forecast_total_w - 300);
   lv_obj_set_style_text_align(detail_title, LV_TEXT_ALIGN_CENTER, 0);
@@ -2326,6 +2350,18 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   lv_obj_set_pos(chart_wrap, 0, kDetailChartWrapTop);
   lv_obj_set_style_bg_opa(chart_wrap, LV_OPA_TRANSP, 0);
   lv_obj_remove_flag(chart_wrap, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t* past_overlay = lv_obj_create(chart_wrap);
+  ctx->detail_past_overlay = past_overlay;
+  lv_obj_remove_style_all(past_overlay);
+  lv_obj_set_size(past_overlay, 0, kDetailChartWrapHeight);
+  lv_obj_set_pos(past_overlay, 0, 0);
+  lv_obj_set_style_bg_color(past_overlay, lv_color_white(), 0);
+  lv_obj_set_style_bg_opa(past_overlay, 32, 0);
+  lv_obj_set_style_border_width(past_overlay, 0, 0);
+  lv_obj_remove_flag(past_overlay, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_remove_flag(past_overlay, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(past_overlay, LV_OBJ_FLAG_HIDDEN);
 
   lv_obj_t* y_max = lv_label_create(chart_wrap);
   ctx->detail_y_max_label = y_max;
@@ -2516,6 +2552,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     if (ctx->detail_precip_amount_labels[i]) lv_obj_move_foreground(ctx->detail_precip_amount_labels[i]);
     if (ctx->detail_probability_labels[i]) lv_obj_move_foreground(ctx->detail_probability_labels[i]);
   }
+  if (ctx->detail_past_overlay) lv_obj_move_foreground(ctx->detail_past_overlay);
 
   clear_forecast_chart(ctx);
   clear_detail_view(ctx);

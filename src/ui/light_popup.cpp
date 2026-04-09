@@ -1599,7 +1599,7 @@ void show_light_popup(const LightPopupInit& init) {
   lv_obj_t* title = lv_label_create(card);
   ctx->title_label = title;
   set_label_style(title, lv_color_white());
-  lv_obj_set_style_text_font(title, &ui_font_20, 0);
+  lv_obj_set_style_text_font(title, &ui_font_24, 0);
   lv_obj_set_width(title, LV_PCT(62));
   lv_label_set_text(title, init.title.c_str());
 
@@ -1620,8 +1620,8 @@ void show_light_popup(const LightPopupInit& init) {
   lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_radius(close_btn, 16, 0);
   lv_obj_set_style_pad_all(close_btn, 0, 0);
-  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, 12, -12);
-  lv_obj_set_ext_click_area(close_btn, 28);
+  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, 6, -6);
+  lv_obj_set_ext_click_area(close_btn, 8);
   lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
   lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_CLICKED, ctx);
