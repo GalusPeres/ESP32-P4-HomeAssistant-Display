@@ -32,9 +32,9 @@ constexpr int kModeRowOffsetY = 124;
 constexpr int kModeButtonWidth = 96;
 constexpr int kModeButtonHeight = 54;
 constexpr int kModeButtonGap = 12;
-constexpr int kSummaryRowTop = 134;
-constexpr int kDetailHeaderSubrowTop = 168;
-constexpr int kForecastRowTop = 208;
+constexpr int kSummaryRowTop = 108;
+constexpr int kDetailHeaderSubrowTop = 170;
+constexpr int kForecastRowTop = 230;
 constexpr int kForecastRowHeight = kCardHeight - kForecastRowTop - kCardPad - 10;
 constexpr int kForecastSidePad = 4;
 constexpr int kForecastColGap = 4;
@@ -2292,22 +2292,22 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* condition_label = lv_label_create(value_row);
   ctx->condition_label = condition_label;
-  set_label_style(condition_label, lv_color_white(), &ui_font_24);
+  set_label_style(condition_label, lv_color_white(), FONT_VALUE);
   lv_label_set_long_mode(condition_label, LV_LABEL_LONG_DOT);
   lv_obj_set_width(condition_label, LV_SIZE_CONTENT);
-  lv_obj_set_style_max_width(condition_label, 220, 0);
+  lv_obj_set_style_max_width(condition_label, 250, 0);
   lv_label_set_text(condition_label, "--");
   lv_obj_add_flag(condition_label, LV_OBJ_FLAG_HIDDEN);
 
   lv_obj_t* sep_label = lv_label_create(value_row);
   ctx->condition_sep_label = sep_label;
-  set_label_style(sep_label, lv_color_white(), &ui_font_24);
+  set_label_style(sep_label, lv_color_white(), FONT_VALUE);
   lv_label_set_text(sep_label, "|");
   lv_obj_add_flag(sep_label, LV_OBJ_FLAG_HIDDEN);
 
   lv_obj_t* temp_label = lv_label_create(value_row);
   ctx->temp_label = temp_label;
-  set_label_style(temp_label, lv_color_white(), &ui_font_24);
+  set_label_style(temp_label, lv_color_white(), FONT_VALUE);
   lv_label_set_text(temp_label, "--");
   lv_obj_align(value_row, LV_ALIGN_TOP_MID, 0, kSummaryRowTop);
 
@@ -2510,6 +2510,15 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_set_style_border_opa(btn, LV_OPA_COVER, 0);
     lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, 0);
     lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, LV_STATE_PRESSED);
+    lv_obj_set_style_anim_time(btn, 0, 0);
+    lv_obj_set_style_anim_time(btn, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_transform_width(btn, 0, 0);
+    lv_obj_set_style_transform_width(btn, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_transform_height(btn, 0, 0);
+    lv_obj_set_style_transform_height(btn, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_translate_y(btn, 0, 0);
+    lv_obj_set_style_translate_y(btn, 0, LV_STATE_PRESSED);
     lv_obj_set_style_pad_all(btn, 0, 0);
     lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(btn, LV_OBJ_FLAG_PRESS_LOCK);
@@ -2916,7 +2925,4 @@ void process_weather_popup_queue() {
     g_pending_weather.valid = false;
   }
 }
-
-
-
 
