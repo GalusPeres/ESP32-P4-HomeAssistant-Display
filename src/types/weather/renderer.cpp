@@ -2,6 +2,7 @@
 #include "src/tiles/tile_renderer_shared.h"
 #include "src/tiles/tile_renderer_fonts.h"
 #include "src/tiles/mdi_icons.h"
+#include "src/types/types_registry.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/ui/weather_popup.h"
 #include <Arduino.h>
@@ -29,7 +30,9 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
   lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_add_flag(card, LV_OBJ_FLAG_PRESS_LOCK);
 
-  uint32_t card_color = (tile.bg_color != 0) ? tile.bg_color : 0x2A2A2A;
+  uint32_t card_color = tile.bg_color;
+  if (card_color == 0) card_color = get_tile_type_default_bg(tile.type);
+  if (card_color == 0) card_color = 0x2A2A2A;
   lv_obj_set_style_bg_color(card, lv_color_hex(card_color), LV_PART_MAIN | LV_STATE_DEFAULT);
 lv_obj_set_style_bg_grad_color(card, lv_color_hex(card_color), LV_PART_MAIN | LV_STATE_DEFAULT);
 lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -241,7 +244,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
       tile.sensor_entity,
       location,
       location_label,
-      (tile.bg_color != 0) ? tile.bg_color : 0x2A2A2A
+      card_color
     };
 
     const lv_event_code_t popup_event =
