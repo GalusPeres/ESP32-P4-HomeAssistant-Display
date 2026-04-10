@@ -58,7 +58,10 @@ constexpr int kForecastFirstCenter = kForecastSidePad + (kForecastPlotColW / 2);
 constexpr int kForecastLastCenter =
     kForecastSidePad + ((kCols - 1) * (kForecastPlotColW + kForecastColGap)) + (kForecastPlotColW / 2);
 constexpr int kDetailRowTop = kForecastRowTop;
-constexpr int kDetailTitleTop = kDetailHeaderSubrowTop;
+constexpr int kDetailTitleTop = kDetailHeaderSubrowTop + 6;
+constexpr int kDetailNavButtonSize = 74;
+constexpr int kDetailNavButtonOffsetX = 196;
+constexpr int kDetailNavButtonOffsetY = kDetailHeaderSubrowTop - 18;
 constexpr int kDetailChartWrapTop = 0;
 constexpr int kDetailLabelOverhang = 12;
 constexpr int kDetailYAxisWidth = 18;
@@ -832,6 +835,24 @@ static String format_localized_date_from_iso(const String& iso) {
   }
 }
 
+static String format_localized_short_date_from_iso(const String& iso) {
+  if (iso.length() < 10) return iso;
+  const DeviceConfig& cfg = configManager.getConfig();
+  const uint8_t date_format =
+      clock_tile::resolve_date_format(clock_tile::DATE_FORMAT_AUTO, cfg.global_date_format, cfg.language);
+  const String yy = iso.substring(2, 4);
+  const String mm = iso.substring(5, 7);
+  const String dd = iso.substring(8, 10);
+  switch (date_format) {
+    case clock_tile::DATE_FORMAT_MDY:
+      return mm + "/" + dd;
+    case clock_tile::DATE_FORMAT_YMD:
+      return yy + "/" + mm + "/" + dd;
+    default:
+      return dd + "." + mm + ".";
+  }
+}
+
 static const char* weather_today_button_text() {
   return (configManager.getConfig().language[0] == 'd') ? "Heute" : "Today";
 }
@@ -862,16 +883,17 @@ static bool get_local_now_parts(String& date_out, int& hour_out) {
 }
 
 static String format_detail_day_title(const ForecastData& data) {
-  String title = weekday_long_from_iso(data.date_local);
+  String title = weekday_from_iso(data.date_local);
   if (!title.length()) title = data.day;
   if (!data.date_local.length()) return title.length() ? title : String("--");
   if (data.date_local.length() < 10) return title.length() ? title : data.date_local;
 
-  String date_text = format_localized_date_from_iso(data.date_local);
+  String date_text = format_localized_short_date_from_iso(data.date_local);
 
   if (!title.length()) return date_text;
+  if (!date_text.length()) return title;
 
-  title += " | ";
+  title += ", ";
   title += date_text;
   return title;
 }
@@ -2499,15 +2521,17 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   auto make_detail_nav_button = [&](const char* mdi_icon, int x_ofs) -> lv_obj_t* {
     lv_obj_t* btn = lv_button_create(card);
-    lv_obj_set_size(btn, 56, 56);
-    lv_obj_set_style_radius(btn, 18, 0);
+    lv_obj_set_size(btn, kDetailNavButtonSize, kDetailNavButtonSize);
+    lv_obj_set_style_radius(btn, 22, 0);
     lv_obj_set_style_bg_color(btn, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, 0);
     lv_obj_set_style_bg_color(btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
-    lv_obj_set_style_bg_opa(btn, LV_OPA_20, LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(btn, 12, LV_STATE_PRESSED);
     lv_obj_set_style_border_color(btn, lv_color_white(), 0);
-    lv_obj_set_style_border_width(btn, 2, 0);
-    lv_obj_set_style_border_opa(btn, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(btn, 0, 0);
+    lv_obj_set_style_border_width(btn, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_border_opa(btn, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_opa(btn, LV_OPA_TRANSP, LV_STATE_PRESSED);
     lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, 0);
     lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, 0);
     lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, LV_STATE_PRESSED);
@@ -2522,7 +2546,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_set_style_pad_all(btn, 0, 0);
     lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(btn, LV_OBJ_FLAG_PRESS_LOCK);
-    lv_obj_align(btn, LV_ALIGN_TOP_MID, x_ofs, kDetailTitleTop - 10);
+    lv_obj_align(btn, LV_ALIGN_TOP_MID, x_ofs, kDetailNavButtonOffsetY);
     lv_obj_add_flag(btn, LV_OBJ_FLAG_HIDDEN);
     lv_obj_t* label = lv_label_create(btn);
     set_label_style(label, lv_color_white(), FONT_MDI_ICONS);
@@ -2532,8 +2556,8 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     return btn;
   };
 
-  ctx->detail_prev_btn = make_detail_nav_button("chevron-left", -240);
-  ctx->detail_next_btn = make_detail_nav_button("chevron-right", 240);
+  ctx->detail_prev_btn = make_detail_nav_button("chevron-left", -kDetailNavButtonOffsetX);
+  ctx->detail_next_btn = make_detail_nav_button("chevron-right", kDetailNavButtonOffsetX);
 
   lv_obj_t* chart_wrap = lv_obj_create(detail_wrap);
   lv_obj_remove_style_all(chart_wrap);
