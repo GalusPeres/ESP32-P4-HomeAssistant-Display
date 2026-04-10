@@ -1700,6 +1700,13 @@ static bool update_detail_view(WeatherPopupContext* ctx, int day_index) {
   const ForecastData& day = ctx->forecast_data[day_index];
   if (!day.date_local.length()) return false;
 
+  // Hide container during update to suppress per-element render invalidation.
+  // LVGL skips invalidation for children of hidden parents, making bulk
+  // updates much faster. The container is re-shown by set_popup_view_mode.
+  if (ctx->detail_wrap && !lv_obj_has_flag(ctx->detail_wrap, LV_OBJ_FLAG_HIDDEN)) {
+    lv_obj_add_flag(ctx->detail_wrap, LV_OBJ_FLAG_HIDDEN);
+  }
+
   if (ctx->detail_title_label) {
     String title = format_detail_day_title(day);
     if (!title.length()) title = day.day.length() ? day.day : String("--");
@@ -2782,10 +2789,10 @@ static void on_detail_nav_click(lv_event_t* e) {
 
   if (target == ctx->detail_prev_btn) {
     int prev_day = find_prev_active_day_index(ctx, ctx->selected_day_index);
-    if (prev_day >= 0) g_pending_weather.pending_day_nav = prev_day;
+    if (prev_day >= 0) show_day_view(ctx, prev_day);
   } else if (target == ctx->detail_next_btn) {
     int next_day = find_next_active_day_index(ctx, ctx->selected_day_index);
-    if (next_day >= 0) g_pending_weather.pending_day_nav = next_day;
+    if (next_day >= 0) show_day_view(ctx, next_day);
   }
 }
 
