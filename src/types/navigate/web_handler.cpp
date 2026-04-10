@@ -7,8 +7,8 @@ bool apply_navigate_fields_from_request(
     uint16_t folder_id,
     TileConfig& tileConfig,
     String& error_message) {
-  uint16_t target_id = getNavigateTargetId(tile);
   int raw = server.hasArg("navigate_target") ? server.arg("navigate_target").toInt() : -1;
+  uint16_t target_id = 0;
   if (raw > 0 && tileConfig.folderExists(static_cast<uint16_t>(raw))) {
     target_id = static_cast<uint16_t>(raw);
   }
