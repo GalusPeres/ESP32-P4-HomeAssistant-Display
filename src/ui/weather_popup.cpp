@@ -264,6 +264,7 @@ struct PendingWeatherUpdate {
   bool build_ui_pending = false;
   String previous_selected_date;
   WeatherPopupViewMode previous_mode = WeatherPopupViewMode::Week;
+  int pending_day_nav = -1;
 };
 
 static WeatherPopupContext* g_weather_popup_ctx = nullptr;
@@ -2771,10 +2772,10 @@ static void on_detail_nav_click(lv_event_t* e) {
 
   if (target == ctx->detail_prev_btn) {
     int prev_day = find_prev_active_day_index(ctx, ctx->selected_day_index);
-    if (prev_day >= 0) show_day_view(ctx, prev_day);
+    if (prev_day >= 0) g_pending_weather.pending_day_nav = prev_day;
   } else if (target == ctx->detail_next_btn) {
     int next_day = find_next_active_day_index(ctx, ctx->selected_day_index);
-    if (next_day >= 0) show_day_view(ctx, next_day);
+    if (next_day >= 0) g_pending_weather.pending_day_nav = next_day;
   }
 }
 
@@ -3736,6 +3737,7 @@ void show_weather_popup(const WeatherPopupInit& init) {
   reset_weather_popup_content(g_weather_popup_ctx);
   g_pending_weather.valid = false;
   g_pending_weather.build_ui_pending = false;
+  g_pending_weather.pending_day_nav = -1;
 
   // Apply header immediately (icon, condition, temp) so popup appears populated
   String cached;
@@ -3779,6 +3781,17 @@ void process_weather_popup_queue() {
   if (!g_weather_popup_ctx || !g_weather_popup_ctx->card) {
     g_pending_weather.valid = false;
     g_pending_weather.build_ui_pending = false;
+    g_pending_weather.pending_day_nav = -1;
+    return;
+  }
+
+  // Day navigation (deferred from arrow click)
+  if (g_pending_weather.pending_day_nav >= 0) {
+    int target_day = g_pending_weather.pending_day_nav;
+    g_pending_weather.pending_day_nav = -1;
+    if (is_popup_visible(g_weather_popup_ctx)) {
+      show_day_view(g_weather_popup_ctx, target_day);
+    }
     return;
   }
 
