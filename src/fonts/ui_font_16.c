@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 16 px
  * Bpp: 4
- * Opts: --bpp 4 --no-compress --format lvgl --size 16 --font C:/Users/Sebastian/AppData/Local/Microsoft/Windows/Fonts/Montserrat-Medium.ttf --range 32-127 --symbols °²³µÄÖÜäöüß€ -o c:/Users/Sebastian/Desktop/Projekte/CodexCLI/ESP32_P4_HomeAssistant_Display/src/fonts/ui_font_16.c
+ * Opts: --bpp 4 --no-compress --format lvgl --size 16 --font C:/Users/Sebastian/AppData/Local/Microsoft/Windows/Fonts/Montserrat-Medium.ttf --range 32-127 --symbols °²³µÄÖÜäöüß€  -o c:/Users/Sebastian/Desktop/Projekte/CodexCLI/ESP32_P4_HomeAssistant_Display/src/fonts/ui_font_16.c
  ******************************************************************************/
 
 #include <lvgl.h>
@@ -933,6 +933,8 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
     0x57, 0xf4, 0x0, 0xb, 0xf5, 0x1f, 0xf8, 0x7c,
     0xef, 0x50, 0x3b, 0xff, 0xb3, 0xf5,
 
+    /* U+2009 " " */
+
     /* U+20AC "€" */
     0x0, 0x0, 0x7, 0xcf, 0xfd, 0x80, 0x0, 0x0,
     0x1d, 0xfc, 0x88, 0xbf, 0xd1, 0x0, 0xd, 0xf5,
@@ -1059,6 +1061,7 @@ static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
     {.bitmap_index = 5085, .adv_w = 153, .box_w = 9, .box_h = 12, .ofs_x = 0, .ofs_y = 0},
     {.bitmap_index = 5139, .adv_w = 163, .box_w = 10, .box_h = 12, .ofs_x = 0, .ofs_y = 0},
     {.bitmap_index = 5199, .adv_w = 173, .box_w = 9, .box_h = 12, .ofs_x = 1, .ofs_y = 0},
+    {.bitmap_index = 5253, .adv_w = 34, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0},
     {.bitmap_index = 5253, .adv_w = 204, .box_w = 13, .box_h = 12, .ofs_x = 0, .ofs_y = 0}
 };
 
@@ -1068,7 +1071,7 @@ static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
 
 static const uint16_t unicode_list_1[] = {
     0x0, 0x2, 0x3, 0x5, 0x14, 0x26, 0x2c, 0x2f,
-    0x34, 0x46, 0x4c, 0x1ffc
+    0x34, 0x46, 0x4c, 0x1f59, 0x1ffc
 };
 
 /*Collect the unicode lists and glyph_id offsets*/
@@ -1080,7 +1083,7 @@ static const lv_font_fmt_txt_cmap_t cmaps[] =
     },
     {
         .range_start = 176, .range_length = 8189, .glyph_id_start = 96,
-        .unicode_list = unicode_list_1, .glyph_id_ofs_list = NULL, .list_length = 12, .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY
+        .unicode_list = unicode_list_1, .glyph_id_ofs_list = NULL, .list_length = 13, .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY
     }
 };
 

@@ -437,7 +437,7 @@ static String format_precipitation_amount_value(float amount) {
 }
 
 static String format_precipitation_amount_unit(const String& unit) {
-  return unit.length() ? unit : "mm";
+  return String("\xE2\x80\x89") + (unit.length() ? unit : "mm");
 }
 
 static String format_precipitation_probability(float probability) {
@@ -1943,7 +1943,7 @@ static bool update_detail_view(WeatherPopupContext* ctx, int day_index) {
         String val = format_precipitation_probability_value(marker_probability[marker]);
         lv_label_set_text(ctx->detail_probability_labels[marker], val.c_str());
         if (pu) {
-          lv_label_set_text(pu, "%");
+          lv_label_set_text(pu, "\xE2\x80\x89%");
           position_value_unit_centered(ctx->detail_probability_labels[marker], pu,
                                        marker_x, kDetailProbabilityTop, chart_wrap_w);
           lv_obj_clear_flag(pu, LV_OBJ_FLAG_HIDDEN);
@@ -2028,7 +2028,7 @@ static bool update_detail_view(WeatherPopupContext* ctx, int day_index) {
         String val = format_precipitation_probability_value(now_marker_probability);
         lv_label_set_text(ctx->detail_now_probability_label, val.c_str());
         if (npu) {
-          lv_label_set_text(npu, "%");
+          lv_label_set_text(npu, "\xE2\x80\x89%");
           position_value_unit_centered(ctx->detail_now_probability_label, npu,
                                        now_x, kDetailProbabilityTop, chart_wrap_w);
           lv_obj_clear_flag(npu, LV_OBJ_FLAG_HIDDEN);
