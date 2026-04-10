@@ -2389,17 +2389,8 @@ static void request_weather_for_context(WeatherPopupContext* ctx) {
   mqttPublishWeatherRequest(ctx->entity_id.c_str());
 }
 
-static void apply_weather_payload(WeatherPopupContext* ctx, const char* payload) {
-  if (!ctx || !payload || !*payload) return;
-  String json = payload;
-  json.trim();
-  if (!json.length()) return;
-
-  String previous_selected_date;
-  if (ctx->selected_day_index >= 0 && ctx->selected_day_index < kCols) {
-    previous_selected_date = ctx->forecast_data[ctx->selected_day_index].date_local;
-  }
-  WeatherPopupViewMode previous_mode = ctx->view_mode;
+static void apply_weather_header(WeatherPopupContext* ctx, const String& json) {
+  if (!ctx || !json.length()) return;
 
   String condition;
   String icon_name;
@@ -2420,16 +2411,10 @@ static void apply_weather_payload(WeatherPopupContext* ctx, const char* payload)
   }
   decode_basic_json_escapes(unit);
   decode_basic_json_escapes(precipitation_unit);
-  if (unit.length()) {
-    ctx->unit = unit;
-  } else {
-    unit = ctx->unit;
-  }
-  if (precipitation_unit.length()) {
-    ctx->precipitation_unit = precipitation_unit;
-  } else {
-    precipitation_unit = ctx->precipitation_unit;
-  }
+  if (unit.length()) ctx->unit = unit;
+  else unit = ctx->unit;
+  if (precipitation_unit.length()) ctx->precipitation_unit = precipitation_unit;
+  else precipitation_unit = ctx->precipitation_unit;
   if (!precipitation_unit.length()) {
     precipitation_unit = "mm";
     ctx->precipitation_unit = precipitation_unit;
@@ -2497,6 +2482,21 @@ static void apply_weather_payload(WeatherPopupContext* ctx, const char* payload)
     lv_obj_clear_flag(ctx->location_label, LV_OBJ_FLAG_HIDDEN);
   }
   align_header_row(ctx->card, ctx->location_label, ctx->icon_label);
+}
+
+static void apply_weather_payload(WeatherPopupContext* ctx, const char* payload) {
+  if (!ctx || !payload || !*payload) return;
+  String json = payload;
+  json.trim();
+  if (!json.length()) return;
+
+  String previous_selected_date;
+  if (ctx->selected_day_index >= 0 && ctx->selected_day_index < kCols) {
+    previous_selected_date = ctx->forecast_data[ctx->selected_day_index].date_local;
+  }
+  WeatherPopupViewMode previous_mode = ctx->view_mode;
+
+  apply_weather_header(ctx, json);
 
   clear_forecast(ctx);
   clear_hourly(ctx);
@@ -3728,9 +3728,12 @@ void show_weather_popup(const WeatherPopupInit& init) {
   reset_weather_popup_content(g_weather_popup_ctx);
   g_pending_weather.valid = false;
 
+  // Apply header immediately (icon, condition, temp) so popup appears populated
   String cached;
   if (tiles_get_cached_entity_payload(init.entity_id.c_str(), cached)) {
-    apply_weather_payload(g_weather_popup_ctx, cached.c_str());
+    apply_weather_header(g_weather_popup_ctx, cached);
+    // Queue cached content for processing in next loop iteration
+    queue_weather_popup_payload(init.entity_id.c_str(), cached.c_str());
   }
 
   request_weather_for_context(g_weather_popup_ctx);
