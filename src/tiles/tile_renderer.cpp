@@ -16,6 +16,7 @@
 #include <cstring>
 #include <math.h>
 #include <stdlib.h>
+#include <time.h>
 #include <vector>
 
 /* === Layout-Konstanten === */
@@ -613,6 +614,71 @@ static String weekday_from_iso(const String& iso) {
   static const char* kDaysDe[] = {"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"};
   if (dow < 0 || dow > 6) return "";
   return String(kDaysDe[dow]);
+}
+
+static const char* weather_today_tile_label() {
+  return (configManager.getConfig().language[0] == 'd') ? "Heute" : "Today";
+}
+
+static bool get_local_today_date(String& date_out) {
+  time_t now = time(nullptr);
+  if (now < 1704067200) return false;
+
+  struct tm local_tm;
+  if (!localtime_r(&now, &local_tm)) return false;
+
+  char date_buf[11];
+  if (strftime(date_buf, sizeof(date_buf), "%Y-%m-%d", &local_tm) == 0) return false;
+  date_out = date_buf;
+  return true;
+}
+
+static String iso_date_add_days(const String& iso, int day_offset) {
+  int y = 0, m = 0, d = 0;
+  if (!parse_iso_date(iso, y, m, d)) return "";
+
+  struct tm date_tm = {};
+  date_tm.tm_year = y - 1900;
+  date_tm.tm_mon = m - 1;
+  date_tm.tm_mday = d + day_offset;
+  date_tm.tm_hour = 12;
+
+  time_t date_value = mktime(&date_tm);
+  if (date_value < 0) return "";
+
+  struct tm normalized_tm;
+  if (!localtime_r(&date_value, &normalized_tm)) return "";
+
+  char date_buf[11];
+  if (strftime(date_buf, sizeof(date_buf), "%Y-%m-%d", &normalized_tm) == 0) return "";
+  return date_buf;
+}
+
+static int iso_date_day_offset(const String& base_iso, const String& target_iso) {
+  int base_y = 0, base_m = 0, base_d = 0;
+  int target_y = 0, target_m = 0, target_d = 0;
+  if (!parse_iso_date(base_iso, base_y, base_m, base_d) ||
+      !parse_iso_date(target_iso, target_y, target_m, target_d)) {
+    return -32768;
+  }
+
+  struct tm base_tm = {};
+  base_tm.tm_year = base_y - 1900;
+  base_tm.tm_mon = base_m - 1;
+  base_tm.tm_mday = base_d;
+  base_tm.tm_hour = 12;
+
+  struct tm target_tm = {};
+  target_tm.tm_year = target_y - 1900;
+  target_tm.tm_mon = target_m - 1;
+  target_tm.tm_mday = target_d;
+  target_tm.tm_hour = 12;
+
+  time_t base_value = mktime(&base_tm);
+  time_t target_value = mktime(&target_tm);
+  if (base_value < 0 || target_value < 0) return -32768;
+
+  return static_cast<int>((target_value - base_value) / 86400);
 }
 
 static bool list_contains_mode(String list, const char* mode) {
@@ -1265,6 +1331,8 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
   const bool show_condition = (tile.span_w > 1) && has_condition_text;
   const uint8_t forecast_limit =
       (tile.span_h >= 2) ? weather_forecast_count(tile.span_w) : 0;
+  String today_date;
+  const bool has_today = get_local_today_date(today_date);
 
   if (widgets.temp_label) {
     String temp_text = has_temp ? format_weather_temp(temperature, unit) : String("--");
@@ -1319,19 +1387,31 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
   }
 
   // Forecast handling (up to WEATHER_FORECAST_MAX entries)
+  struct TileForecastSlot {
+    bool has_data = false;
+    String date_local;
+    String day_text;
+    String icon_name;
+    bool has_temp = false;
+    float temp = 0.0f;
+    bool has_low = false;
+    float low = 0.0f;
+  };
+
+  TileForecastSlot forecast_slots[WEATHER_FORECAST_MAX];
   String forecast_raw;
-  uint8_t forecast_count = 0;
   bool has_forecast = false;
-  if (extract_json_array_field(json, "forecast", forecast_raw)) {
-    if (forecast_raw.indexOf('{') >= 0) {
-      has_forecast = true;
-    }
+  String base_forecast_date = has_today ? today_date : "";
+  if (extract_json_array_field(json, "forecast", forecast_raw) && forecast_raw.indexOf('{') >= 0) {
+    has_forecast = true;
   }
+
   if (has_forecast && forecast_limit > 0) {
     bool in_string = false;
     int depth = 0;
     int start = -1;
-    for (int i = 0; i < forecast_raw.length() && forecast_count < forecast_limit; ++i) {
+    uint8_t fallback_slot = 0;
+    for (int i = 0; i < forecast_raw.length(); ++i) {
       char c = forecast_raw.charAt(i);
       if (c == '"' && (i == 0 || forecast_raw.charAt(i - 1) != '\\')) {
         in_string = !in_string;
@@ -1347,9 +1427,10 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
           String f_condition;
           String f_icon;
           String f_day;
+          String f_date_local;
           float f_temp = 0.0f;
           float f_low = 0.0f;
-          bool f_has_temp = extract_json_number_or_string_field(obj, "temperature", f_temp);
+          const bool f_has_temp = extract_json_number_or_string_field(obj, "temperature", f_temp);
           bool f_has_low = false;
           if (extract_json_number_or_string_field(obj, "templow", f_low)) f_has_low = true;
           if (!f_has_low && extract_json_number_or_string_field(obj, "temperature_low", f_low)) f_has_low = true;
@@ -1358,87 +1439,107 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
           extract_json_string_field(obj, "condition", f_condition);
           extract_json_string_field(obj, "icon", f_icon);
           String datetime;
+          extract_json_string_field(obj, "date_local", f_date_local);
           if (extract_json_string_field(obj, "datetime", datetime)) {
             f_day = weekday_from_iso(datetime);
-          }
-          if (!f_day.length() && forecast_count == 0) {
-            f_day = i18n::weather_tomorrow_label(configManager.getConfig().language);
+            if (!f_date_local.length() && datetime.length() >= 10) {
+              f_date_local = datetime.substring(0, 10);
+            }
           }
           if (!f_icon.length() && f_condition.length()) {
             f_icon = weather_icon_from_condition(f_condition);
           }
-
-          WeatherForecastWidgets& fw = widgets.forecast[forecast_count];
-          if (fw.day_label) {
-            String day_text = f_day.length() ? f_day : "--";
-            if (f_icon.length()) day_text += " |";
-            lv_label_set_text(fw.day_label, day_text.c_str());
-            lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
+          if (!base_forecast_date.length() && f_date_local.length()) {
+            base_forecast_date = f_date_local;
           }
-          if (fw.icon_label) {
-            if (f_icon.length()) {
-              String iconChar = getMdiChar(f_icon);
-              if (iconChar.length()) {
-                lv_label_set_text(fw.icon_label, iconChar.c_str());
-                lv_obj_clear_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
-              } else {
-                lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
-              }
-            } else {
-              lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
+
+          int slot_index = -1;
+          if (base_forecast_date.length() && f_date_local.length()) {
+            const int offset = iso_date_day_offset(base_forecast_date, f_date_local);
+            if (offset >= 0 && offset < forecast_limit) {
+              slot_index = offset;
             }
           }
-          if (fw.temp_label) {
-            String hi_text = f_has_temp ? format_weather_temp(f_temp, unit) : String("--");
-            String lo_text = f_has_low ? format_weather_temp(f_low, unit) : String("--");
-            String temp_text = hi_text + "\n" + lo_text;
-            lv_label_set_text(fw.temp_label, temp_text.c_str());
-            lv_obj_clear_flag(fw.temp_label, LV_OBJ_FLAG_HIDDEN);
+          if (slot_index < 0) {
+            while (fallback_slot < forecast_limit && forecast_slots[fallback_slot].has_data) ++fallback_slot;
+            if (fallback_slot < forecast_limit) {
+              slot_index = fallback_slot++;
+            }
+          }
+          if (slot_index >= 0 && slot_index < forecast_limit) {
+            TileForecastSlot& slot = forecast_slots[slot_index];
+            slot.has_data = true;
+            slot.date_local = f_date_local;
+            slot.day_text = f_day;
+            slot.icon_name = f_icon;
+            slot.has_temp = f_has_temp;
+            slot.temp = f_temp;
+            slot.has_low = f_has_low;
+            slot.low = f_low;
           }
 
-          forecast_count++;
           start = -1;
         }
       }
     }
   }
 
-  if (has_forecast && forecast_limit > 0) {
-    for (uint8_t i = forecast_count; i < forecast_limit; ++i) {
-      WeatherForecastWidgets& fw = widgets.forecast[i];
-      if (fw.day_label) {
-        lv_label_set_text(fw.day_label, "--");
-        lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
-      }
-      if (fw.sep_label) {
-        lv_obj_add_flag(fw.sep_label, LV_OBJ_FLAG_HIDDEN);
-      }
-      if (fw.icon_label) {
+  const lv_color_t forecast_active_color = lv_color_white();
+  const lv_color_t forecast_inactive_color = lv_color_hex(0x7F8BAA);
+  for (uint8_t i = 0; i < forecast_limit; ++i) {
+    WeatherForecastWidgets& fw = widgets.forecast[i];
+    TileForecastSlot& slot = forecast_slots[i];
+    String display_date = slot.date_local;
+    if (!display_date.length() && base_forecast_date.length()) {
+      display_date = iso_date_add_days(base_forecast_date, i);
+    }
+
+    String day_text = slot.day_text;
+    if (has_today && display_date.length() && display_date == today_date) {
+      day_text = weather_today_tile_label();
+    } else if (!day_text.length() && display_date.length()) {
+      day_text = weekday_from_iso(display_date);
+    } else if (!day_text.length() && i == 0 && has_today) {
+      day_text = weather_today_tile_label();
+    }
+    if (!day_text.length()) day_text = "--";
+
+    if (fw.day_label) {
+      lv_label_set_text(fw.day_label, day_text.c_str());
+      lv_obj_set_style_text_color(fw.day_label,
+                                  slot.has_data ? forecast_active_color : forecast_inactive_color,
+                                  0);
+      lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (fw.sep_label) {
+      lv_obj_add_flag(fw.sep_label, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (fw.icon_label) {
+      if (slot.has_data && slot.icon_name.length()) {
+        String icon_char = getMdiChar(slot.icon_name);
+        if (icon_char.length()) {
+          lv_label_set_text(fw.icon_label, icon_char.c_str());
+          lv_obj_set_style_text_color(fw.icon_label, forecast_active_color, 0);
+          lv_obj_clear_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
+        } else {
+          lv_label_set_text(fw.icon_label, "");
+          lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
+        }
+      } else {
         lv_label_set_text(fw.icon_label, "");
         lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
-      }
-      if (fw.temp_label) {
-        lv_label_set_text(fw.temp_label, "--\n--");
-        lv_obj_clear_flag(fw.temp_label, LV_OBJ_FLAG_HIDDEN);
       }
     }
-  } else if (forecast_limit > 0) {
-    for (uint8_t i = 0; i < forecast_limit; ++i) {
-      WeatherForecastWidgets& fw = widgets.forecast[i];
-      if (fw.day_label) {
-        lv_label_set_text(fw.day_label, "--");
-        lv_obj_clear_flag(fw.day_label, LV_OBJ_FLAG_HIDDEN);
-      }
-      if (fw.sep_label) {
-        lv_obj_add_flag(fw.sep_label, LV_OBJ_FLAG_HIDDEN);
-      }
-      if (fw.icon_label) {
-        lv_label_set_text(fw.icon_label, "");
-        lv_obj_add_flag(fw.icon_label, LV_OBJ_FLAG_HIDDEN);
-      }
-      if (fw.temp_label) {
-        lv_label_set_text(fw.temp_label, "--\n--");
+    if (fw.temp_label) {
+      if (slot.has_data) {
+        String hi_text = slot.has_temp ? format_weather_temp(slot.temp, unit) : String("--");
+        String lo_text = slot.has_low ? format_weather_temp(slot.low, unit) : String("--");
+        lv_label_set_text(fw.temp_label, (hi_text + "\n" + lo_text).c_str());
+        lv_obj_set_style_text_color(fw.temp_label, forecast_active_color, 0);
         lv_obj_clear_flag(fw.temp_label, LV_OBJ_FLAG_HIDDEN);
+      } else {
+        lv_label_set_text(fw.temp_label, "");
+        lv_obj_add_flag(fw.temp_label, LV_OBJ_FLAG_HIDDEN);
       }
     }
   }

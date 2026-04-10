@@ -131,10 +131,10 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   lv_obj_t* temp_label = nullptr;
 
   if (span_w > 1) {
-    const lv_font_t* condition_font = FONT_TITLE;
+    const lv_font_t* condition_font = FONT_VALUE;
 
     condition_label = lv_label_create(value_row);
-    set_label_style(condition_label, lv_color_hex(0xD0D0D0), condition_font);
+    set_label_style(condition_label, lv_color_white(), condition_font);
     lv_label_set_long_mode(condition_label, LV_LABEL_LONG_DOT);
     lv_obj_set_width(condition_label, LV_SIZE_CONTENT);
     lv_obj_set_style_max_width(condition_label, (span_w >= 3) ? 220 : 140, 0);
@@ -172,6 +172,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
     lv_obj_set_style_pad_all(forecast_row, 0, 0);
     enable_bubble(forecast_row);
     lv_obj_remove_flag(forecast_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(forecast_row, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
     lv_coord_t forecast_x = -pad_hor;
     lv_coord_t forecast_y = ((span_h - 1) * (GRID_CELL_H + GRID_GAP)) - pad_ver;
     lv_obj_set_pos(forecast_row, forecast_x, forecast_y);
@@ -201,22 +202,29 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
         lv_obj_set_style_bg_opa(col, LV_OPA_TRANSP, 0);
         enable_bubble(col);
         lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(col, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
         lv_obj_set_pos(col, spacing + i * (WEATHER_FORECAST_COL_W + spacing), 0);
 
-        // Header: day left, icon right
+        constexpr lv_coord_t kTileForecastDayTop = -33;
+        constexpr lv_coord_t kTileForecastIconTop = -8;
+        constexpr lv_coord_t kTileForecastTempTop = 54;
+
         lv_obj_t* day = lv_label_create(col);
         set_label_style(day, lv_color_white(), FONT_TITLE);
         lv_label_set_long_mode(day, LV_LABEL_LONG_DOT);
-        lv_obj_set_width(day, LV_PCT(70));
+        lv_obj_set_width(day, LV_PCT(100));
+        lv_obj_set_style_text_align(day, LV_TEXT_ALIGN_CENTER, 0);
         lv_label_set_text(day, "--");
-        lv_obj_align(day, LV_ALIGN_TOP_LEFT, 2, 4);
+        lv_obj_set_pos(day, 0, kTileForecastDayTop);
         enable_bubble(day);
 
         lv_obj_t* icon = lv_label_create(col);
         set_label_style(icon, lv_color_white(), FONT_MDI_ICONS);
+        lv_obj_set_width(icon, LV_PCT(100));
+        lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, 0);
         lv_label_set_text(icon, "");
         lv_obj_add_flag(icon, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_align(icon, LV_ALIGN_TOP_RIGHT, -2, -8);
+        lv_obj_set_pos(icon, 0, kTileForecastIconTop);
         enable_bubble(icon);
 
         lv_obj_t* temp = lv_label_create(col);
@@ -224,10 +232,9 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
         lv_label_set_long_mode(temp, LV_LABEL_LONG_WRAP);
         lv_obj_set_width(temp, LV_PCT(100));
         lv_obj_set_style_text_align(temp, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_text_line_space(temp, 8, 0);
+        lv_obj_set_style_text_line_space(temp, 6, 0);
         lv_label_set_text(temp, "--\n--");
-        // Position like sensor value: center with +28 offset.
-        lv_obj_align(temp, LV_ALIGN_CENTER, 0, 28);
+        lv_obj_set_pos(temp, 0, kTileForecastTempTop);
         enable_bubble(temp);
 
         widgets.forecast[i].day_label = day;
