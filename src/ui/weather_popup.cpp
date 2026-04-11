@@ -3013,10 +3013,10 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   ctx->week_range_label = week_range_label;
   set_label_style(week_range_label, lv_color_white(), &ui_font_24);
   lv_label_set_long_mode(week_range_label, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(week_range_label, (kCardWidth - (kCardPad * 2)) - 260);
+  lv_obj_set_width(week_range_label, (kCardWidth - (kCardPad * 2)) - 300);
   lv_obj_set_style_text_align(week_range_label, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_text(week_range_label, "");
-  lv_obj_align(week_range_label, LV_ALIGN_TOP_MID, 0, kDetailHeaderSubrowTop);
+  lv_obj_align(week_range_label, LV_ALIGN_TOP_MID, 0, kDetailTitleTop);
   lv_obj_add_flag(week_range_label, LV_OBJ_FLAG_HIDDEN);
 
   const lv_coord_t forecast_total_w = kCardWidth - (kCardPad * 2);
