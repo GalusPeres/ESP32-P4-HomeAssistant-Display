@@ -84,9 +84,6 @@ const char* icon_for_energy(const EnergyEntryData& entry) {
 void queue_energy_tile_update_for_entry(const EnergyEntryData& entry) {
   if (!entry.id.length()) return;
 
-  haBridgeConfig.updateEntityMeta(entry.id, entry.name, entry.unit, icon_for_energy(entry));
-  haBridgeConfig.updateSensorValue(entry.id, format_energy_total(entry.total, entry.is_cost));
-
   if (powerManager.isInSleep()) return;
   if (!tiles_is_loaded(GridType::TAB0)) return;
 
