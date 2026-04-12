@@ -15,8 +15,14 @@ static bool mapEqualsIgnoringOrder(const String& a, const String& b);
 static bool bridgeConfigEquals(const HaBridgeConfigData& a, const HaBridgeConfigData& b);
 static void parseSensorMetaSection(const String& body, String& units, String& names, String& values);
 static void parseIconMetaSections(const String& body, String& icons);
+static void parseEnergySection(const String& body,
+                               String& energy,
+                               String& units,
+                               String& names,
+                               String& icons);
 static bool extractStringField(const String& object, const char* key, String& out);
 static String lookupKeyValue(const String& text, const String& key);
+static void upsertKeyValueMap(String& text, const String& key, const String& value);
 static String decodeJsonEscapes(const String& value);
 static void appendUtf8(String& out, uint32_t codepoint);
 static bool isHexDigit(char c);
@@ -33,6 +39,7 @@ bool HaBridgeConfig::load() {
   }
 
   data.sensors_text = prefs.getString("ha_sensors", "");
+  data.energy_text = "";
   data.weathers_text = "";
   data.lights_text = "";
   data.switches_text = "";
@@ -109,6 +116,7 @@ bool HaBridgeConfig::save(const HaBridgeConfigData& incoming) {
 
 bool HaBridgeConfig::hasData() const {
   return data.sensors_text.length() > 0 ||
+         data.energy_text.length() > 0 ||
          data.weathers_text.length() > 0 ||
          data.lights_text.length() > 0 ||
          data.switches_text.length() > 0 ||
@@ -310,6 +318,11 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
     parseArraySection(json.substring(sensors_idx), merged.sensors_text);
   }
 
+  int energy_idx = json.indexOf("\"energy\"");
+  if (energy_idx < 0) {
+    merged.energy_text = "";
+  }
+
   int weathers_idx = json.indexOf("\"weathers\"");
   if (weathers_idx >= 0) {
     parseArraySection(json.substring(weathers_idx), merged.weathers_text);
@@ -335,6 +348,13 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
   parseIconMetaSections(json, merged.entity_icons_map);
   if (!merged.entity_icons_map.length() && prev_icons.length()) {
     merged.entity_icons_map = prev_icons;
+  }
+  if (energy_idx >= 0) {
+    parseEnergySection(json.substring(energy_idx),
+                       merged.energy_text,
+                       merged.sensor_units_map,
+                       merged.sensor_names_map,
+                       merged.entity_icons_map);
   }
   bool icon_map_changed = !mapEqualsIgnoringOrder(prev_icons, merged.entity_icons_map);
   if (out_icons_changed) {
@@ -364,6 +384,7 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
     if (ok) {
       Serial.println("[Bridge] Konfiguration aus Home Assistant uebernommen");
       logList("Sensoren", data.sensors_text);
+      logList("Energy", data.energy_text);
       logList("Wetter", data.weathers_text);
       logList("Lichter", data.lights_text);
       logList("Schalter", data.switches_text);
@@ -566,6 +587,7 @@ static bool mapEqualsIgnoringOrder(const String& a, const String& b) {
 
 static bool bridgeConfigEquals(const HaBridgeConfigData& a, const HaBridgeConfigData& b) {
   if (!listEqualsIgnoringOrder(a.sensors_text, b.sensors_text)) return false;
+  if (!listEqualsIgnoringOrder(a.energy_text, b.energy_text)) return false;
   if (!listEqualsIgnoringOrder(a.weathers_text, b.weathers_text)) return false;
   if (!listEqualsIgnoringOrder(a.lights_text, b.lights_text)) return false;
   if (!listEqualsIgnoringOrder(a.switches_text, b.switches_text)) return false;
@@ -696,6 +718,74 @@ static bool extractStringField(const String& object, const char* key, String& ou
   out = decodeJsonEscapes(out);
   out.trim();
   return out.length() > 0;
+}
+
+static const char* energyIconForCategory(const String& category, const String& id, const String& unit) {
+  String cat = category;
+  cat.trim();
+  cat.toLowerCase();
+  String entity = id;
+  entity.toLowerCase();
+  String u = unit;
+  u.toLowerCase();
+
+  if (entity.endsWith("_cost") || u == "eur" || u == "euro") return "currency-eur";
+  if (cat == "solar") return "solar-power";
+  if (cat == "grid") return "transmission-tower";
+  if (cat == "battery") return "battery-charging";
+  if (cat == "gas") return "fire";
+  if (cat == "water" || cat == "device_water") return "water";
+  return "lightning-bolt";
+}
+
+static void appendUniqueListEntry(String& list, const String& entry) {
+  if (!entry.length()) return;
+  if (sensorExistsInList(list, entry)) return;
+  if (list.length()) list += '\n';
+  list += entry;
+}
+
+static void parseEnergySection(const String& body,
+                               String& energy,
+                               String& units,
+                               String& names,
+                               String& icons) {
+  energy = "";
+  int energy_idx = body.indexOf("\"energy\"");
+  int array_start = body.indexOf('[', energy_idx >= 0 ? energy_idx : 0);
+  int array_end = body.indexOf(']', array_start);
+  if (array_start < 0 || array_end < array_start) {
+    return;
+  }
+
+  String segment = body.substring(array_start + 1, array_end);
+  int obj_start = segment.indexOf('{');
+  while (obj_start >= 0) {
+    int obj_end = segment.indexOf('}', obj_start);
+    if (obj_end < 0) break;
+
+    String object = segment.substring(obj_start, obj_end + 1);
+    String id;
+    if (extractStringField(object, "id", id)) {
+      appendUniqueListEntry(energy, id);
+
+      String name;
+      if (extractStringField(object, "name", name)) {
+        upsertKeyValueMap(names, id, name);
+      }
+
+      String unit;
+      if (extractStringField(object, "unit", unit)) {
+        upsertKeyValueMap(units, id, unit);
+      }
+
+      String category;
+      extractStringField(object, "category", category);
+      upsertKeyValueMap(icons, id, energyIconForCategory(category, id, unit));
+    }
+
+    obj_start = segment.indexOf('{', obj_end + 1);
+  }
 }
 
 static void parseSensorMetaSection(const String& body, String& units, String& names, String& values) {

@@ -5,6 +5,7 @@
 #include "src/ui/tab_tiles_unified.h"
 #include "src/ui/sensor_popup.h"
 #include "src/ui/tab_settings.h"
+#include "src/types/energy/energy_data.h"
 #include "src/tiles/tile_config.h"
 #include "src/tiles/tile_renderer.h"
 #include "src/core/config_manager.h"
@@ -1266,6 +1267,15 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
     return;
   }
 
+  const char* energy_topic = networkManager.getEnergyResponseTopic();
+  if (energy_topic && strcmp(topic, energy_topic) == 0) {
+    size_t copy_len = length < (LARGE_BUF - 1) ? length : (LARGE_BUF - 1);
+    memcpy(large_buf, payload, copy_len);
+    large_buf[copy_len] = '\0';
+    queue_energy_response(large_buf, copy_len);
+    return;
+  }
+
   if (processed_static) {
     return;
   }
@@ -1522,6 +1532,35 @@ void mqttPublishWeatherRequest(const char* entity_id) {
 
   bool ok = mqtt.publish(weather_topic, payload.c_str(), false);
   Serial.printf("Weather request -> MQTT '%s' (%s)\n", weather_topic, ok ? "ok" : "fail");
+}
+
+void mqttPublishEnergyRequest(const char* period) {
+  const char* p = (period && *period) ? period : "day";
+  if (strcmp(p, "week") != 0 && strcmp(p, "month") != 0) {
+    p = "day";
+  }
+
+  PubSubClient& mqtt = networkManager.getMqttClient();
+  if (!mqtt.connected()) {
+    Serial.printf("Energy request skipped (MQTT offline): %s\n", p);
+    return;
+  }
+
+  const char* energy_topic = networkManager.getEnergyRequestTopic();
+  if (!energy_topic || !*energy_topic) {
+    Serial.printf("Energy request skipped (no topic): %s\n", p);
+    return;
+  }
+
+  String payload = "{\"period\":\"";
+  payload += p;
+  payload += "\"}";
+
+  bool ok = mqtt.publish(energy_topic, payload.c_str(), false);
+  Serial.printf("Energy request -> MQTT '%s' period=%s (%s)\n",
+                energy_topic,
+                p,
+                ok ? "ok" : "fail");
 }
 
 // ========== Home Assistant MQTT Discovery ==========

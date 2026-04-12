@@ -150,6 +150,7 @@ static void appendTileTabHTML(
     const FolderEntry& folder,
     const TileGridConfig& grid,
     const std::vector<String>& sensorOptions,
+    const std::vector<String>& energyOptions,
     const std::vector<String>& weatherOptions,
     const std::vector<SceneOption>& sceneOptions,
     const std::vector<String>& switchOptions,
@@ -437,6 +438,7 @@ static void appendTileTabHTML(
             TileTypeWebContext type_ctx;
             type_ctx.tab_id = &tab_id;
             type_ctx.sensor_options = &sensorOptions;
+            type_ctx.energy_options = &energyOptions;
             type_ctx.weather_options = &weatherOptions;
             type_ctx.scene_options = &sceneOptions;
             type_ctx.switch_options = &switchOptions;
@@ -531,6 +533,7 @@ bool buildAdminFolderTabFragments(uint16_t folder_id, String& button_html, Strin
 
   const HaBridgeConfigData& ha = haBridgeConfig.get();
   const auto sensorOptions = parseSensorList(ha.sensors_text);
+  const auto energyOptions = parseSensorList(ha.energy_text);
   const auto weatherOptions = parseSensorList(ha.weathers_text);
   const auto sceneOptions = parseSceneList(ha.scene_alias_text);
   const auto lightOptions = parseSensorList(ha.lights_text);
@@ -589,7 +592,7 @@ bool buildAdminFolderTabFragments(uint16_t folder_id, String& button_html, Strin
   tab_id = "folder" + String(folder_id);
   button_html = buildFolderTabButtonHtml(*folder);
   tab_html = "";
-  appendTileTabHTML(tab_html, folder_id, *folder, grid, sensorOptions, weatherOptions,
+  appendTileTabHTML(tab_html, folder_id, *folder, grid, sensorOptions, energyOptions, weatherOptions,
                     sceneOptions, switchOptions, formatSensorValue, navigateOptionsHtml);
   return true;
 }
@@ -606,6 +609,7 @@ String WebAdminServer::getAdminPage() {
       String("esp32-p4-homeassistant-display-") + FW_VERSION + "-" + Device::profile().key;
   const HaBridgeConfigData& ha = haBridgeConfig.get();
   const auto sensorOptions = parseSensorList(ha.sensors_text);
+  const auto energyOptions = parseSensorList(ha.energy_text);
   const auto weatherOptions = parseSensorList(ha.weathers_text);
   const auto sceneOptions = parseSceneList(ha.scene_alias_text);
   const auto lightOptions = parseSensorList(ha.lights_text);
@@ -739,7 +743,7 @@ String WebAdminServer::getAdminPage() {
   for (const auto& entry : folders) {
     TileGridConfig grid{};
     tileConfig.loadFolderGrid(entry.id, grid);
-    appendTileTabHTML(html, entry.id, entry, grid, sensorOptions, weatherOptions, sceneOptions, switchOptions, formatSensorValue, navigateOptionsHtml);
+    appendTileTabHTML(html, entry.id, entry, grid, sensorOptions, energyOptions, weatherOptions, sceneOptions, switchOptions, formatSensorValue, navigateOptionsHtml);
   }
 
   html += R"html(

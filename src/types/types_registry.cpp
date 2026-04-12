@@ -13,6 +13,7 @@
 #include "src/types/switch/renderer.h"
 #include "src/types/text/renderer.h"
 #include "src/types/counter/renderer.h"
+#include "src/types/energy/renderer.h"
 #include "src/types/weather/renderer.h"
 
 #include "src/types/clock/web_handler.h"
@@ -23,6 +24,7 @@
 #include "src/types/switch/web_handler.h"
 #include "src/types/text/web_handler.h"
 #include "src/types/counter/web_handler.h"
+#include "src/types/energy/web_handler.h"
 #include "src/types/weather/web_handler.h"
 
 #include "src/types/clock/web_html.h"
@@ -33,6 +35,7 @@
 #include "src/types/switch/web_html.h"
 #include "src/types/text/web_html.h"
 #include "src/types/counter/web_html.h"
+#include "src/types/energy/web_html.h"
 #include "src/types/weather/web_html.h"
 
 #include "src/types/clock/web_scripts.h"
@@ -43,6 +46,7 @@
 #include "src/types/switch/web_scripts.h"
 #include "src/types/text/web_scripts.h"
 #include "src/types/counter/web_scripts.h"
+#include "src/types/energy/web_scripts.h"
 #include "src/types/weather/web_scripts.h"
 
 #include "src/types/clock/web_styles.h"
@@ -53,6 +57,7 @@
 #include "src/types/switch/web_styles.h"
 #include "src/types/text/web_styles.h"
 #include "src/types/counter/web_styles.h"
+#include "src/types/energy/web_styles.h"
 #include "src/types/weather/web_styles.h"
 
 #include "src/core/config_manager.h"
@@ -167,6 +172,16 @@ lv_obj_t* render_weather_wrapper(lv_obj_t* parent,
   return render_weather_tile(parent, col, row, tile, index, grid_type);
 }
 
+lv_obj_t* render_energy_wrapper(lv_obj_t* parent,
+                                int col,
+                                int row,
+                                const Tile& tile,
+                                uint8_t index,
+                                GridType grid_type,
+                                scene_publish_cb_t) {
+  return render_energy_tile(parent, col, row, tile, index, grid_type);
+}
+
 lv_obj_t* render_empty_wrapper(lv_obj_t* parent,
                                int col,
                                int row,
@@ -221,6 +236,11 @@ bool apply_counter_wrapper(WebServer& server, Tile& tile, const TileTypeApplyCon
 
 bool apply_weather_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
   apply_weather_fields_from_request(server, tile);
+  return true;
+}
+
+bool apply_energy_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
+  apply_energy_fields_from_request(server, tile);
   return true;
 }
 
@@ -285,6 +305,10 @@ void append_weather_fields_wrapper(String& html, const TileTypeWebContext& ctx) 
   append_weather_fields_html(html, safeString(ctx.tab_id), safeStrings(ctx.weather_options));
 }
 
+void append_energy_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
+  append_energy_fields_html(html, safeString(ctx.tab_id), safeStrings(ctx.energy_options));
+}
+
 const TileTypeDescriptor kTileTypes[] = {
   {
     TILE_EMPTY,
@@ -321,6 +345,24 @@ const TileTypeDescriptor kTileTypes[] = {
     append_sensor_fields_wrapper,
     append_sensor_styles,
     append_sensor_scripts
+  },
+  {
+    TILE_ENERGY,
+    "Energie",
+    "energy",
+    "energy",
+    "sensor",
+    nullptr,
+    "loadEnergyFields",
+    "saveEnergyFields",
+    "resetEnergyFields",
+    0x2A2A2A,
+    false,
+    render_energy_wrapper,
+    apply_energy_wrapper,
+    append_energy_fields_wrapper,
+    append_energy_styles,
+    append_energy_scripts
   },
   {
     TILE_WEATHER,
@@ -564,6 +606,7 @@ void append_tile_type_select_options(String& html) {
     switch (entry.type) {
       case TILE_EMPTY: label = tr.tile_type_empty; break;
       case TILE_SENSOR: label = tr.tile_type_sensor; break;
+      case TILE_ENERGY: label = tr.tile_type_energy; break;
       case TILE_WEATHER: label = tr.tile_type_weather; break;
       case TILE_SCENE: label = tr.tile_type_scene; break;
       case TILE_KEY: label = tr.tile_type_key; break;
@@ -592,6 +635,7 @@ void append_tile_type_registry_js(String& html) {
     switch (entry.type) {
       case TILE_EMPTY: label = tr.tile_type_empty; break;
       case TILE_SENSOR: label = tr.tile_type_sensor; break;
+      case TILE_ENERGY: label = tr.tile_type_energy; break;
       case TILE_WEATHER: label = tr.tile_type_weather; break;
       case TILE_SCENE: label = tr.tile_type_scene; break;
       case TILE_KEY: label = tr.tile_type_key; break;

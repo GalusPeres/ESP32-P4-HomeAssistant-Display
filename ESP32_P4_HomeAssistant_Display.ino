@@ -18,6 +18,8 @@
 #include "src/ui/ui_manager.h"
 #include "src/ui/sensor_popup.h"
 #include "src/ui/weather_popup.h"
+#include "src/ui/energy_popup.h"
+#include "src/types/energy/energy_data.h"
 #include "src/network/network_manager.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/network/mqtt_topics.h"
@@ -436,6 +438,8 @@ void loop() {
   // Popup-Queues immer sofort verarbeiten (User wartet auf Inhalt)
   process_sensor_popup_queue();
   process_weather_popup_queue();
+  process_energy_response_queue();
+  process_energy_popup_queue();
 
   // Im Idle nur alle 2s tile/sensor Queues verarbeiten (spart CPU bei 10 FPS)
   {
@@ -446,6 +450,7 @@ void loop() {
       process_switch_update_queue();
       process_weather_update_queue();
       process_tile_graph_queue();
+      energy_service_periodic();
       last_queue_ms = millis();
     }
   }

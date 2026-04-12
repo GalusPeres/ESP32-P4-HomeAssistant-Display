@@ -11,6 +11,7 @@ class TileConfig;
 struct TileTypeWebContext {
   const String* tab_id = nullptr;
   const std::vector<String>* sensor_options = nullptr;
+  const std::vector<String>* energy_options = nullptr;
   const std::vector<String>* weather_options = nullptr;
   const std::vector<SceneOption>* scene_options = nullptr;
   const std::vector<String>* switch_options = nullptr;

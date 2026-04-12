@@ -130,6 +130,7 @@ struct Strings {
 
   const char* tile_type_empty;
   const char* tile_type_sensor;
+  const char* tile_type_energy;
   const char* tile_type_weather;
   const char* tile_type_scene;
   const char* tile_type_key;
@@ -161,6 +162,7 @@ struct Strings {
   const char* long_press;
   const char* sensor_value_y_offset;
   const char* weather_entity;
+  const char* energy_entity;
   const char* switch_light;
   const char* switch_display;
   const char* switch_icon_button;

@@ -274,6 +274,7 @@ static bool shouldNormalizeGaugeRange(TileType type) {
 
 static bool looksLikeImagePath(const String& value);
 static const char* kImagePathDir = "/_tile_links";
+static const char* kEntityPathDir = "/_tile_entities";
 static const char* kTileGridDir = "/_tile_grids";
 static const char* kFolderIndexFile = "/_tile_grids/folders.bin";
 static constexpr uint32_t kFolderIndexMagic = 0x54464C44;  // 'TFLD'
@@ -291,6 +292,12 @@ static bool ensureImagePathDir() {
   if (!storageReady()) return false;
   if (storageFS().exists(kImagePathDir)) return true;
   return storageFS().mkdir(kImagePathDir);
+}
+
+static bool ensureEntityPathDir() {
+  if (!storageReady()) return false;
+  if (storageFS().exists(kEntityPathDir)) return true;
+  return storageFS().mkdir(kEntityPathDir);
 }
 
 static bool ensureTileGridDir() {
@@ -314,6 +321,18 @@ static String imagePathFile(uint16_t folder_id, size_t index) {
 static String imagePathFileLegacy(const char* prefix, size_t index) {
   char buf[64];
   snprintf(buf, sizeof(buf), "%s/%s_%02u.url", kImagePathDir, prefix, static_cast<unsigned>(index));
+  return String(buf);
+}
+
+static String entityPathFile(uint16_t folder_id, size_t index) {
+  char buf[64];
+  snprintf(buf, sizeof(buf), "%s/f%u_%02u.ent", kEntityPathDir, static_cast<unsigned>(folder_id), static_cast<unsigned>(index));
+  return String(buf);
+}
+
+static String entityPathFileLegacy(const char* prefix, size_t index) {
+  char buf[64];
+  snprintf(buf, sizeof(buf), "%s/%s_%02u.ent", kEntityPathDir, prefix, static_cast<unsigned>(index));
   return String(buf);
 }
 
@@ -446,6 +465,42 @@ static bool readImagePathSd(uint16_t folder_id, size_t index, String& out) {
   return out.length() > 0;
 }
 
+static bool entityTileStoresSensorEntity(TileType type) {
+  return type == TILE_SENSOR || type == TILE_SWITCH || type == TILE_WEATHER || type == TILE_ENERGY;
+}
+
+static bool writeLongEntityIdSd(uint16_t folder_id, size_t index, const String& entity) {
+  if (!storageReady()) return false;
+  String filePath = entityPathFile(folder_id, index);
+  if (entity.length() < ENTITY_MAX) {
+    if (storageFS().exists(filePath)) storageFS().remove(filePath);
+    return true;
+  }
+  if (!ensureEntityPathDir()) return false;
+  if (storageFS().exists(filePath)) storageFS().remove(filePath);
+  File f = storageFS().open(filePath, FILE_WRITE);
+  if (!f) return false;
+  f.print(entity);
+  f.close();
+  return true;
+}
+
+static bool readLongEntityIdSd(uint16_t folder_id, size_t index, String& out) {
+  out = "";
+  if (!storageReady()) return false;
+  String filePath = entityPathFile(folder_id, index);
+  if (!storageFS().exists(filePath) && folder_id == 0) {
+    filePath = entityPathFileLegacy("tab0", index);
+  }
+  if (!storageFS().exists(filePath)) return false;
+  File f = storageFS().open(filePath, FILE_READ);
+  if (!f) return false;
+  out = f.readString();
+  f.close();
+  out.trim();
+  return out.length() > 0;
+}
+
 static void packTile(const Tile& in, PackedTileV7& out) {
   memset(&out, 0, sizeof(out));
   out.type = static_cast<uint8_t>(in.type);
@@ -475,6 +530,7 @@ static void packTile(const Tile& in, PackedTileV7& out) {
   }
   out.popup_open_mode = ((in.type == TILE_SENSOR ||
                           in.type == TILE_WEATHER ||
+                          in.type == TILE_ENERGY ||
                           in.type == TILE_SWITCH) &&
                          getTilePopupOpenMode(in) == TILE_POPUP_OPEN_SHORT_PRESS)
                             ? TILE_POPUP_OPEN_SHORT_PRESS
@@ -559,6 +615,23 @@ static void applyImagePathsFromSd(uint16_t folder_id, TileGridConfig& grid) {
   }
 }
 
+static void applyLongEntityIdsFromSd(uint16_t folder_id, TileGridConfig& grid) {
+  const bool have_storage = storageReady();
+  if (!have_storage) return;
+  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+    Tile& tile = grid.tiles[i];
+    if (!entityTileStoresSensorEntity(tile.type)) continue;
+    String full_entity;
+    if (readLongEntityIdSd(folder_id, i, full_entity)) {
+      tile.sensor_entity = full_entity;
+      Serial.printf("[TileConfig] applyLongEntity folder=%u idx=%u -> '%s'\n",
+                    static_cast<unsigned>(folder_id),
+                    static_cast<unsigned>(i),
+                    full_entity.c_str());
+    }
+  }
+}
+
 static void unpackTileV7(const PackedTileV7& in, Tile& out) {
   TileType type = static_cast<TileType>(in.type);
   if (type == TILE_FOLDER) {
@@ -614,13 +687,13 @@ static void unpackTileV7(const PackedTileV7& in, Tile& out) {
                        (static_cast<uint8_t>(in.scene_alias[10]) << 8);
     if (graph_h >= 20 && graph_h <= 200) out.sensor_graph_height = graph_h;
   }
-  if ((out.type == TILE_SENSOR || out.type == TILE_WEATHER || out.type == TILE_SWITCH) &&
+  if ((out.type == TILE_SENSOR || out.type == TILE_WEATHER || out.type == TILE_ENERGY || out.type == TILE_SWITCH) &&
       in.popup_open_mode == TILE_POPUP_OPEN_SHORT_PRESS) {
     out.popup_open_mode = TILE_POPUP_OPEN_SHORT_PRESS;
   }
   out.key_code = in.key_code;
   out.key_modifier = in.key_modifier;
-  if (out.type == TILE_SENSOR || out.type == TILE_WEATHER) {
+  if (out.type == TILE_SENSOR || out.type == TILE_WEATHER || out.type == TILE_ENERGY) {
     out.key_code = 0;
     out.key_modifier = 0;
   } else if (out.type == TILE_SETTINGS || out.type == TILE_BACK) {
@@ -710,7 +783,7 @@ static void unpackTileV6(const PackedTileV6& in, Tile& out) {
   }
   out.key_code = in.key_code;
   out.key_modifier = in.key_modifier;
-  if (out.type == TILE_SENSOR || out.type == TILE_WEATHER) {
+  if (out.type == TILE_SENSOR || out.type == TILE_WEATHER || out.type == TILE_ENERGY) {
     if (in.key_code == TILE_POPUP_OPEN_SHORT_PRESS ||
         in.key_modifier == TILE_POPUP_OPEN_SHORT_PRESS) {
       out.popup_open_mode = TILE_POPUP_OPEN_SHORT_PRESS;
@@ -1997,6 +2070,8 @@ bool TileConfig::deleteFolder(uint16_t folder_id) {
     for (size_t i = 0; i < TILES_PER_GRID; ++i) {
       String link_path = imagePathFile(id, i);
       if (storageFS().exists(link_path)) storageFS().remove(link_path);
+      String entity_path = entityPathFile(id, i);
+      if (storageFS().exists(entity_path)) storageFS().remove(entity_path);
     }
   }
 
@@ -2062,6 +2137,7 @@ bool TileConfig::loadGrid(uint16_t folder_id, TileGridConfig& grid) {
   }
 
   applyImagePathsFromSd(folder_id, grid);
+  applyLongEntityIdsFromSd(folder_id, grid);
 
   // Migration: removed tile types → TILE_EMPTY
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
@@ -2108,6 +2184,13 @@ bool TileConfig::saveGrid(uint16_t folder_id, const TileGridConfig& grid) {
         } else if (!writeImagePathSd(folder_id, grid_idx, working.tiles[grid_idx].image_path)) {
           Serial.println("[TileConfig] WARN: image_path konnte nicht im Storage gespeichert werden");
         }
+      }
+      if (entityTileStoresSensorEntity(working.tiles[grid_idx].type)) {
+        if (!writeLongEntityIdSd(folder_id, grid_idx, working.tiles[grid_idx].sensor_entity)) {
+          Serial.println("[TileConfig] WARN: lange sensor_entity konnte nicht im Storage gespeichert werden");
+        }
+      } else {
+        writeLongEntityIdSd(folder_id, grid_idx, "");
       }
       packTile(working.tiles[grid_idx], packed[q].tiles[i]);
     }

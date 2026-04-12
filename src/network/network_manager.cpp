@@ -151,6 +151,14 @@ void Tab5NetworkManager::connectMqtt() {
   weather_request_topic_ += did;
   weather_request_topic_ += "/weather/request";
 
+  energy_request_topic_ = "tab5_lvgl/config/";
+  energy_request_topic_ += did;
+  energy_request_topic_ += "/energy/request";
+
+  energy_response_topic_ = "tab5_lvgl/config/";
+  energy_response_topic_ += did;
+  energy_response_topic_ += "/energy/response";
+
   Serial.printf("MQTT: Verbinde mit %s:%u als %s\n", cfg.mqtt_host, cfg.mqtt_port, client_id);
 
   const char* stat_topic = mqttTopics.topic(TopicKey::STAT_CONN);
@@ -184,6 +192,10 @@ void Tab5NetworkManager::connectMqtt() {
   if (!history_response_topic_.isEmpty()) {
     mqtt_client.subscribe(history_response_topic_.c_str());
     Serial.printf("[MQTT] Listening for history responses on %s\n", history_response_topic_.c_str());
+  }
+  if (!energy_response_topic_.isEmpty()) {
+    mqtt_client.subscribe(energy_response_topic_.c_str());
+    Serial.printf("[MQTT] Listening for energy responses on %s\n", energy_response_topic_.c_str());
   }
   mqttPublishDiscovery();
   mqttPublishDeviceSettings();
@@ -265,6 +277,14 @@ const char* Tab5NetworkManager::getHistoryResponseTopic() const {
 
 const char* Tab5NetworkManager::getWeatherRequestTopic() const {
   return weather_request_topic_.length() ? weather_request_topic_.c_str() : nullptr;
+}
+
+const char* Tab5NetworkManager::getEnergyRequestTopic() const {
+  return energy_request_topic_.length() ? energy_request_topic_.c_str() : nullptr;
+}
+
+const char* Tab5NetworkManager::getEnergyResponseTopic() const {
+  return energy_response_topic_.length() ? energy_response_topic_.c_str() : nullptr;
 }
 
 // ========== Update-Schleife ==========

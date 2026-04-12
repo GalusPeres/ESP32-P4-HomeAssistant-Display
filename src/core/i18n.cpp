@@ -127,6 +127,7 @@ static const Strings kStringsDe = {
 
     "Leer",
     "Sensor",
+    "Energie",
     "Wetter",
     "Szene",
     "Key",
@@ -158,6 +159,7 @@ static const Strings kStringsDe = {
     "Long Press",
     "Wert Y-Offset (-100 bis 200)",
     "Weather Entity",
+    "Energie-Quelle",
     "Schalter/Licht",
     "Anzeige",
     "Icon Button",
@@ -340,6 +342,7 @@ static const Strings kStringsEn = {
 
     "Empty",
     "Sensor",
+    "Energy",
     "Weather",
     "Scene",
     "Key",
@@ -371,6 +374,7 @@ static const Strings kStringsEn = {
     "Long Press",
     "Value Y offset (-100 to 200)",
     "Weather Entity",
+    "Energy Entity",
     "Switch / Light",
     "Display",
     "Icon Button",

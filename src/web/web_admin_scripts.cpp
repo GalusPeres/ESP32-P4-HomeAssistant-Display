@@ -491,6 +491,9 @@ void appendAdminScripts(String& html) {
     if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'weather_entity')) {
       tile.sensor_entity = snapshot.weather_entity || '';
     }
+    if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'energy_entity')) {
+      tile.sensor_entity = snapshot.energy_entity || '';
+    }
     if (snapshot && (Object.prototype.hasOwnProperty.call(snapshot, 'clock_show_time') || Object.prototype.hasOwnProperty.call(snapshot, 'clock_show_date'))) {
       let flags = 0;
       if (String(snapshot.clock_show_time || '0') === '1') flags |= 1;
@@ -1066,6 +1069,12 @@ void appendAdminScripts(String& html) {
       const graphHeightInput = document.getElementById(prefix + '_sensor_graph_height');
       const weatherSelect = document.getElementById(prefix + '_weather_entity');
       const weatherPopupModeSelect = document.getElementById(prefix + '_weather_popup_open_mode');
+      const energySelect = document.getElementById(prefix + '_energy_entity');
+      const energyUnitInput = document.getElementById(prefix + '_energy_unit');
+      const energyDecimalsInput = document.getElementById(prefix + '_energy_decimals');
+      const energyValueFontSelect = document.getElementById(prefix + '_energy_value_font');
+      const energyPopupModeSelect = document.getElementById(prefix + '_energy_popup_open_mode');
+      const energyValueYOffsetInput = document.getElementById(prefix + '_energy_value_y_offset');
       const sceneInput = document.getElementById(prefix + '_scene_alias');
     const keyInput = document.getElementById(prefix + '_key_macro');
     const textInput = document.getElementById(prefix + '_text_value');
@@ -1093,6 +1102,12 @@ void appendAdminScripts(String& html) {
     bindLive(entitySelect, 'change', 'sensorEntity', () => { maybeFillTitleFromSensor(tab); updateTilePreview(tab); updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(weatherSelect, 'change', 'weatherEntity', () => { maybeFillTitleFromWeather(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(weatherPopupModeSelect, 'change', 'weatherPopupMode', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(energySelect, 'change', 'energyEntity', () => { maybeFillTitleFromEnergy(tab); updateTilePreview(tab); updateEnergyValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(energyUnitInput, 'input', 'energyUnit', () => { updateEnergyValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(energyDecimalsInput, 'input', 'energyDecimals', () => { updateEnergyValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(energyValueFontSelect, 'change', 'energyValueFont', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(energyPopupModeSelect, 'change', 'energyPopupMode', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(energyValueYOffsetInput, 'input', 'energyValueYOffset', () => { updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(unitInput, 'input', 'sensorUnit', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(decimalsInput, 'input', 'sensorDecimals', () => { updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(valueFontSelect, 'change', 'sensorValueFont', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -1192,14 +1207,18 @@ void appendAdminScripts(String& html) {
     const meta = getTileTypeMeta(type);
     const iconInput = document.getElementById(prefix + '_tile_icon');
     const switchStyle = document.getElementById(prefix + '_switch_style')?.value || '0';
-    const sensorValueFont = document.getElementById(prefix + '_sensor_value_font')?.value || '0';
+    const isEnergyType = type === '14';
+    const sensorValueFont = isEnergyType
+      ? (document.getElementById(prefix + '_energy_value_font')?.value || '0')
+      : (document.getElementById(prefix + '_sensor_value_font')?.value || '0');
     const sensorValueClass = getSensorValueFontClass(sensorValueFont);
     const previewKind = meta.preview || 'none';
     const sensorEntity = document.getElementById(prefix + '_sensor_entity')?.value || '';
+    const energyEntity = document.getElementById(prefix + '_energy_entity')?.value || '';
     const weatherEntity = document.getElementById(prefix + '_weather_entity')?.value || '';
     const switchEntity = document.getElementById(prefix + '_switch_entity')?.value || '';
     const iconEntity = (previewKind === 'sensor')
-      ? sensorEntity
+      ? (isEnergyType ? energyEntity : sensorEntity)
       : (previewKind === 'switch'
         ? switchEntity
         : (previewKind === 'weather' ? weatherEntity : ''));
@@ -1241,8 +1260,8 @@ void appendAdminScripts(String& html) {
     }
 
     if (previewKind === 'sensor') {
-      const entitySelect = document.getElementById(prefix + '_sensor_entity');
-      const unitInput = document.getElementById(prefix + '_sensor_unit');
+      const entitySelect = document.getElementById(prefix + (isEnergyType ? '_energy_entity' : '_sensor_entity'));
+      const unitInput = document.getElementById(prefix + (isEnergyType ? '_energy_unit' : '_sensor_unit'));
       const entity = entitySelect ? entitySelect.value : '';
       const unit = resolveUnitValue(unitInput ? unitInput.value : '', entity, sensorMetaCache.units);
       html += '<div class="tile-value ' + sensorValueClass + '" id="' + tileId + '-value">--';
@@ -1251,7 +1270,8 @@ void appendAdminScripts(String& html) {
       if (entity) {
         tileElem.innerHTML = html;
         if (wasActive) tileElem.classList.add('active');
-        updateSensorValuePreview(tab);
+        if (isEnergyType) updateEnergyValuePreview(tab);
+        else updateSensorValuePreview(tab);
       }
     }
 
@@ -1895,6 +1915,20 @@ void appendAdminScripts(String& html) {
       fd.append('weather_entity', tile.sensor_entity || tile.weather_entity || '');
       if (tile.popup_open_mode !== undefined && tile.popup_open_mode !== null) {
         fd.append('popup_open_mode', tile.popup_open_mode);
+      }
+    } else if (safeType === 14) {
+      fd.append('energy_entity', tile.sensor_entity || tile.energy_entity || '');
+      fd.append('sensor_unit', tile.sensor_unit || '');
+      const dec = tile.sensor_decimals;
+      fd.append('sensor_decimals', (dec !== undefined && dec !== null && Number(dec) >= 0) ? dec : '1');
+      if (tile.sensor_value_font !== undefined && tile.sensor_value_font !== null) {
+        fd.append('sensor_value_font', tile.sensor_value_font);
+      }
+      if (tile.popup_open_mode !== undefined && tile.popup_open_mode !== null) {
+        fd.append('popup_open_mode', tile.popup_open_mode);
+      }
+      if (tile.sensor_value_y_offset !== undefined && tile.sensor_value_y_offset !== null && String(tile.sensor_value_y_offset).length > 0) {
+        fd.append('sensor_value_y_offset', tile.sensor_value_y_offset);
       }
     }
 

@@ -75,6 +75,8 @@ static void clear_sensor_widgets(GridType grid_type) {
     target[i].gauge = nullptr;
     target[i].gauge_min = 0;
     target[i].gauge_max = 100;
+    target[i].chart = nullptr;
+    target[i].series = nullptr;
   }
 }
 

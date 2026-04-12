@@ -29,7 +29,8 @@ enum TileType : uint8_t {
   TILE_TEXT = 10,
   TILE_COUNTER = 11,
   TILE_WEATHER = 12,
-  TILE_RADAR = 13
+  TILE_RADAR = 13,
+  TILE_ENERGY = 14
 };
 
 enum TilePopupOpenMode : uint8_t {
@@ -106,7 +107,7 @@ static inline uint8_t getTilePopupOpenMode(const Tile& tile) {
                ? TILE_POPUP_OPEN_LONG_PRESS
                : TILE_POPUP_OPEN_SHORT_PRESS;
   }
-  if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER) {
+  if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER && tile.type != TILE_ENERGY) {
     return TILE_POPUP_OPEN_LONG_PRESS;
   }
   return (tile.popup_open_mode == TILE_POPUP_OPEN_SHORT_PRESS)
@@ -130,7 +131,7 @@ static inline void setTilePopupOpenMode(Tile& tile, uint8_t mode) {
     tile.key_modifier = 0;
     return;
   }
-  if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER) return;
+  if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER && tile.type != TILE_ENERGY) return;
   tile.popup_open_mode = (mode == TILE_POPUP_OPEN_SHORT_PRESS)
                              ? TILE_POPUP_OPEN_SHORT_PRESS
                              : TILE_POPUP_OPEN_LONG_PRESS;

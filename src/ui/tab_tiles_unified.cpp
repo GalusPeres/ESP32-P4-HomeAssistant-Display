@@ -431,13 +431,14 @@ static lv_obj_t* create_tiles_grid(lv_obj_t* parent) {
 static void apply_cached_states(GridType grid_type, const TileGridConfig& config) {
   for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
     const Tile& tile = config.tiles[i];
-    if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH && tile.type != TILE_WEATHER) continue;
+    if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH &&
+        tile.type != TILE_WEATHER && tile.type != TILE_ENERGY) continue;
     if (tile.sensor_entity.length() == 0) continue;
 
     String payload;
     if (!get_cached_or_initial_payload(tile, payload)) continue;
 
-    if (tile.type == TILE_SENSOR) {
+    if (tile.type == TILE_SENSOR || tile.type == TILE_ENERGY) {
       String unit = tile.sensor_unit;
       if (is_disabled_token(unit)) {
         unit = "";
@@ -457,13 +458,14 @@ static void apply_cached_states(GridType grid_type, const TileGridConfig& config
 static void apply_cached_state_for_index(GridType grid_type, const TileGridConfig& config, uint8_t index) {
   if (index >= TILES_PER_GRID) return;
   const Tile& tile = config.tiles[index];
-  if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH && tile.type != TILE_WEATHER) return;
+  if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH &&
+      tile.type != TILE_WEATHER && tile.type != TILE_ENERGY) return;
   if (tile.sensor_entity.length() == 0) return;
 
   String payload;
   if (!get_cached_or_initial_payload(tile, payload)) return;
 
-  if (tile.type == TILE_SENSOR) {
+  if (tile.type == TILE_SENSOR || tile.type == TILE_ENERGY) {
     String unit = tile.sensor_unit;
     if (is_disabled_token(unit)) {
       unit = "";
@@ -974,7 +976,8 @@ static void tiles_refresh_icons_for_grid(GridType grid_type) {
   const TileGridConfig& config = getGridConfig(grid_type);
   for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
     const Tile& tile = config.tiles[i];
-    if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH && tile.type != TILE_SCENE) continue;
+    if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH &&
+        tile.type != TILE_SCENE && tile.type != TILE_ENERGY) continue;
     lv_obj_t* tile_obj = g_tiles_objs[idx][i];
     if (!tile_obj) continue;
 
