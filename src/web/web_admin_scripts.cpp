@@ -1082,6 +1082,7 @@ void appendAdminScripts(String& html) {
     const navigateSelect = document.getElementById(prefix + '_navigate_target');
     const switchSelect = document.getElementById(prefix + '_switch_entity');
     const switchStyleSelect = document.getElementById(prefix + '_switch_style');
+    const switchPopupModeSelect = document.getElementById(prefix + '_switch_popup_open_mode');
     const clockTimeCheck = document.getElementById(prefix + '_clock_show_time');
     const clockDateCheck = document.getElementById(prefix + '_clock_show_date');
     const clockTimeFontSelect = document.getElementById(prefix + '_clock_time_font');
@@ -1128,6 +1129,7 @@ void appendAdminScripts(String& html) {
     bindLive(navigateSelect, 'change', 'navigateTarget', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(switchSelect, 'change', 'switchEntity', () => { maybeFillTitleFromSwitch(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(switchStyleSelect, 'change', 'switchStyle', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(switchPopupModeSelect, 'change', 'switchPopupMode', () => { updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(clockTimeCheck, 'change', 'clockShowTime', () => {
       ensureClockSelection(prefix);
       updateTilePreview(tab);
@@ -1899,6 +1901,9 @@ void appendAdminScripts(String& html) {
         ? tile.switch_style
         : (tile.sensor_decimals === 1 ? 1 : 0);
       fd.append('switch_style', style);
+      if (tile.popup_open_mode !== undefined && tile.popup_open_mode !== null) {
+        fd.append('popup_open_mode', tile.popup_open_mode);
+      }
     } else if (safeType === 10) {
       fd.append('text_value', tile.text_value || tile.scene_alias || tile.key_macro || '');
       fd.append('text_value_font', tile.text_value_font || tile.sensor_value_font || '0');
