@@ -14,15 +14,26 @@ The project currently supports multiple ESP32-P4 display devices and combines:
 
 <br clear="both">
 
-## New In v0.1.4
+## Requirements
 
-- refreshed light popup with dedicated layouts for on/off, dimming, color, and temperature control
-- improved sensor popup history views with clearer 24h and 7d layouts
-- corrected day and time labels in the lower history area of the sensor popup
-- complete switch type overhaul with configurable popup opening via short or long press
-- general popup fixes and interaction polish
+**Important:** This firmware requires the Home Assistant bridge/integration:
+[ESP32-P4 HomeAssistant Display Bridge](https://github.com/GalusPeres/ESP32-P4-HomeAssistant-Display-Bridge)
 
-Updated popup examples from the Waveshare B4:
+- Home Assistant
+- MQTT broker
+- Home Assistant bridge/integration:
+  [ESP32-P4 HomeAssistant Display Bridge](https://github.com/GalusPeres/ESP32-P4-HomeAssistant-Display-Bridge)
+
+## New In v0.1.6
+
+- new Energy tile backed by Home Assistant energy statistics
+- Energy popup with 24h and 7d bar-chart views for kWh and cost values
+- positive and negative energy/cost bars with clearer axis labels and zero handling
+- Energy tile values refresh from MQTT statistics without needing to open the popup first
+- Home Assistant icon changes now update live without persisting runtime icon metadata to flash
+- M5Stacks Tab5 display sleep now keeps touch wake available by blanking the backlight instead of sleeping the panel
+
+Popup examples from the Waveshare B4:
 
 <img src="docs/images/b4-light-popup-brightness-off.png" alt="Light popup on off view" width="24%"> <img src="docs/images/b4-light-popup-brightness.png" alt="Light popup brightness view" width="24%"> <img src="docs/images/b4-light-popup-color.png" alt="Light popup color view" width="24%"> <img src="docs/images/b4-light-popup-temperature.png" alt="Light popup temperature view" width="24%">
 
@@ -74,12 +85,6 @@ Built-in web admin interface for tiles, folders, WiFi, MQTT, and layout configur
   <img src="docs/images/web-admin.png" alt="Web admin interface" width="100%">
 </p>
 
-## Requirements
-
-- Home Assistant
-- MQTT broker
-- Home Assistant bridge/integration: [ha-tab5-mqtt-bridge](https://github.com/GalusPeres/ha-tab5-mqtt-bridge)
-
 ## Features
 
 - OTA firmware updates directly from the built-in web admin panel
@@ -89,11 +94,13 @@ Built-in web admin interface for tiles, folders, WiFi, MQTT, and layout configur
 - Access Point based first-time setup
 - Device-local WiFi and MQTT configuration
 - English and German UI/admin support
+- Home Assistant energy statistics tile with 24h and 7d popup charts
 - Runtime storage on internal LittleFS
 - Optional screenshot export to microSD from the web interface
 - Tile types currently include:
   - clock
   - counter
+  - energy
   - empty
   - key
   - navigate
@@ -143,7 +150,7 @@ When using the ESP Flash Download Tool:
 9. Open the web admin panel through that IP address.
 10. Enter your MQTT settings in the web interface.
 11. Set up the Home Assistant bridge/integration so the device receives entity data:
-     [ha-tab5-mqtt-bridge](https://github.com/GalusPeres/ha-tab5-mqtt-bridge)
+     [ESP32-P4 HomeAssistant Display Bridge](https://github.com/GalusPeres/ESP32-P4-HomeAssistant-Display-Bridge)
 12. Configure your tiles, folders, and layout.
 
 Optional:
@@ -154,9 +161,10 @@ Optional:
 
 This firmware expects the Home Assistant side to be provided by the MQTT bridge/integration:
 
-- [ha-tab5-mqtt-bridge](https://github.com/GalusPeres/ha-tab5-mqtt-bridge)
+- [ESP32-P4 HomeAssistant Display Bridge](https://github.com/GalusPeres/ESP32-P4-HomeAssistant-Display-Bridge)
 
 That integration handles the Home Assistant-side MQTT communication and entity bridge.
+For Energy tiles, Home Assistant energy statistics, live icon updates, and popup history, use the current bridge release.
 
 ## Repository Structure
 
@@ -170,7 +178,7 @@ That integration handles the Home Assistant-side MQTT communication and entity b
 ## Known Issues
 
 - Waveshare B4: software restart is currently unreliable. The display may remain black after a restart even though the firmware continues to run. Workaround: press the hardware reset button once.
-- Waveshare B4: tile edits can briefly flash blue after the move from SD-backed storage to LittleFS. This appears to be caused by writes to internal flash during live updates.
+- Waveshare B4: tile edits can briefly flash blue after the move from SD-backed storage to LittleFS. This appears to be caused by writes to internal flash during live updates. Runtime Home Assistant icon changes no longer write icon metadata to flash.
 - M5Stacks Tab5: Access Point mode is currently only reliable with a battery installed. Without a battery, keep brightness at the lowest available level; otherwise the device can crash.
 
 ## Notes

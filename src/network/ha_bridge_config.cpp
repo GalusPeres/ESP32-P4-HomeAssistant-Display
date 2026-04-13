@@ -1,5 +1,6 @@
 #include "src/network/ha_bridge_config.h"
 
+#include <ArduinoJson.h>
 #include <Preferences.h>
 #include <stdio.h>
 
@@ -23,6 +24,7 @@ static void parseEnergySection(const String& body,
 static bool extractStringField(const String& object, const char* key, String& out);
 static String lookupKeyValue(const String& text, const String& key);
 static void upsertKeyValueMap(String& text, const String& key, const String& value);
+static bool removeKeyValueMapEntry(String& text, const String& key);
 static String decodeJsonEscapes(const String& value);
 static void appendUtf8(String& out, uint32_t codepoint);
 static bool isHexDigit(char c);
@@ -47,7 +49,7 @@ bool HaBridgeConfig::load() {
   data.sensor_units_map = prefs.getString("ha_sens_units", "");
   data.sensor_names_map = prefs.getString("ha_sens_names", "");
   data.sensor_values_map = prefs.getString("ha_sens_vals", "");
-  data.entity_icons_map = prefs.getString("ha_ent_icons", "");
+  data.entity_icons_map = "";
   for (size_t i = 0; i < HA_SENSOR_SLOT_COUNT; ++i) {
     char key[12];
     snprintf(key, sizeof(key), "slot_s%u", static_cast<unsigned>(i));
@@ -86,8 +88,8 @@ bool HaBridgeConfig::save(const HaBridgeConfigData& incoming) {
   // prefs.putString("ha_sens_units", incoming.sensor_units_map);
   // prefs.putString("ha_sens_names", incoming.sensor_names_map);
   // prefs.putString("ha_sens_vals", incoming.sensor_values_map);
-  // Die Icon-Map bleibt klein genug und wird fuer korrekte Auto-Icons nach Neustart gebraucht.
-  prefs.putString("ha_ent_icons", incoming.entity_icons_map);
+  // HA-Auto-Icons are runtime metadata. Manual tile icons are stored with the
+  // tile config, but HA icon changes must not write to flash.
   for (size_t i = 0; i < HA_SENSOR_SLOT_COUNT; ++i) {
     char key[12];
     snprintf(key, sizeof(key), "slot_s%u", static_cast<unsigned>(i));
@@ -377,8 +379,7 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
     }
   }
 
-  bool icon_map_filled = (!data.entity_icons_map.length() && merged.entity_icons_map.length());
-  bool needs_reload = (!bridgeConfigEquals(merged, data) || icon_map_filled);
+  bool needs_reload = !bridgeConfigEquals(merged, data);
   if (needs_reload) {
     bool ok = save(merged);
     if (ok) {
@@ -399,6 +400,47 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
   // No structural change: keep the latest meta in memory without triggering a reload.
   data = merged;
   return true;
+}
+
+bool HaBridgeConfig::applyIconUpdate(const char* json_payload) {
+  if (!json_payload || !*json_payload) return false;
+
+  DynamicJsonDocument doc(8192);
+  DeserializationError err = deserializeJson(doc, json_payload);
+  if (err) return false;
+
+  JsonObject obj = doc.as<JsonObject>();
+  if (obj.isNull()) return false;
+
+  bool changed = false;
+  for (JsonPair kv : obj) {
+    const char* entity_key = kv.key().c_str();
+    if (!entity_key || !*entity_key) continue;
+
+    String entity_id(entity_key);
+    String next_icon;
+    if (!kv.value().isNull()) {
+      const char* icon = kv.value().as<const char*>();
+      if (icon) {
+        next_icon = icon;
+        next_icon.trim();
+      }
+    }
+
+    String current_icon = lookupKeyValue(data.entity_icons_map, entity_id);
+    if (!next_icon.length()) {
+      if (current_icon.length() && removeKeyValueMapEntry(data.entity_icons_map, entity_id)) {
+        changed = true;
+      }
+      continue;
+    }
+
+    if (!current_icon.equals(next_icon)) {
+      upsertKeyValueMap(data.entity_icons_map, entity_id, next_icon);
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 static void logList(const char* label, const String& text) {
@@ -934,6 +976,38 @@ static void upsertKeyValueMap(String& text, const String& key, const String& val
   }
 
   text = newMap;
+}
+
+static bool removeKeyValueMapEntry(String& text, const String& key) {
+  if (!key.length() || !text.length()) return false;
+
+  String newMap = "";
+  bool removed = false;
+
+  int start = 0;
+  while (start < text.length()) {
+    int end = text.indexOf('\n', start);
+    if (end < 0) end = text.length();
+
+    String line = text.substring(start, end);
+    int eq = line.indexOf('=');
+    String entity = eq > 0 ? line.substring(0, eq) : line;
+    entity.trim();
+
+    if (entity.equalsIgnoreCase(key)) {
+      removed = true;
+    } else if (line.length() > 0) {
+      if (newMap.length()) newMap += '\n';
+      newMap += line;
+    }
+
+    start = end + 1;
+  }
+
+  if (removed) {
+    text = newMap;
+  }
+  return removed;
 }
 
 void HaBridgeConfig::registerSensorMeta(const String& entity_id, const String& name, const String& unit) {

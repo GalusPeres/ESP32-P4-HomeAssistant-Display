@@ -159,6 +159,10 @@ void Tab5NetworkManager::connectMqtt() {
   energy_response_topic_ += did;
   energy_response_topic_ += "/energy/response";
 
+  bridge_icons_topic_ = "tab5_lvgl/config/";
+  bridge_icons_topic_ += did;
+  bridge_icons_topic_ += "/bridge/icons";
+
   Serial.printf("MQTT: Verbinde mit %s:%u als %s\n", cfg.mqtt_host, cfg.mqtt_port, client_id);
 
   const char* stat_topic = mqttTopics.topic(TopicKey::STAT_CONN);
@@ -196,6 +200,10 @@ void Tab5NetworkManager::connectMqtt() {
   if (!energy_response_topic_.isEmpty()) {
     mqtt_client.subscribe(energy_response_topic_.c_str());
     Serial.printf("[MQTT] Listening for energy responses on %s\n", energy_response_topic_.c_str());
+  }
+  if (!bridge_icons_topic_.isEmpty()) {
+    mqtt_client.subscribe(bridge_icons_topic_.c_str());
+    Serial.printf("[MQTT] Listening for icon updates on %s\n", bridge_icons_topic_.c_str());
   }
   mqttPublishDiscovery();
   mqttPublishDeviceSettings();
@@ -285,6 +293,10 @@ const char* Tab5NetworkManager::getEnergyRequestTopic() const {
 
 const char* Tab5NetworkManager::getEnergyResponseTopic() const {
   return energy_response_topic_.length() ? energy_response_topic_.c_str() : nullptr;
+}
+
+const char* Tab5NetworkManager::getBridgeIconsTopic() const {
+  return bridge_icons_topic_.length() ? bridge_icons_topic_.c_str() : nullptr;
 }
 
 // ========== Update-Schleife ==========

@@ -191,8 +191,9 @@ void DeviceM5StacksTab5::displaySleep() {
   }
 
   M5.Display.waitDMA();
+  // Keep the Tab5 panel/touch controller awake. Full display sleep stops
+  // touch wake on this device, so sleep mode only blanks the backlight.
   M5.Display.setBrightness(0);
-  M5.Display.sleep();
 }
 
 void DeviceM5StacksTab5::displayWake() {
@@ -210,14 +211,9 @@ void DeviceM5StacksTab5::displayPowerSaveOn() {
   }
 
   M5.Display.waitDMA();
+  // Tab5 touch wake only works while the display controller stays awake.
+  // Power save therefore means backlight off, not panel sleep/powerSaveOn.
   M5.Display.setBrightness(0);
-  M5.Display.waitDMA();
-  delay(30);
-  M5.Display.powerSaveOn();
-  M5.Display.waitDMA();
-  delay(30);
-  M5.Display.sleep();
-  delay(60);
   M5.Display.waitDMA();
 }
 
@@ -226,12 +222,7 @@ void DeviceM5StacksTab5::displayPowerSaveOff() {
     return;
   }
 
-  M5.Display.setBrightness(0);
   M5.Display.waitDMA();
-  M5.Display.wakeup();
-  M5.Display.powerSaveOff();
-  M5.Display.waitDMA();
-  delay(30);
   M5.Display.setBrightness(g_brightness);
 }
 

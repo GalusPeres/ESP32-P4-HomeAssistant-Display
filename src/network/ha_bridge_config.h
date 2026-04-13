@@ -46,6 +46,7 @@ public:
   void updateSensorValue(const String& entity_id, const String& value);
   void registerSensorMeta(const String& entity_id, const String& name, const String& unit);
   void updateEntityMeta(const String& entity_id, const String& name, const String& unit, const String& icon);
+  bool applyIconUpdate(const char* json_payload);
 
   String buildJsonPayload(const char* device_id,
                           const char* base_topic,

@@ -133,6 +133,10 @@ bool tiles_get_cached_entity_payload(const char* entity_id, String& out) {
   return get_cached_entity_payload(entity_id, out);
 }
 
+void tiles_cache_entity_payload(const char* entity_id, const char* payload) {
+  cache_entity_payload(entity_id, payload);
+}
+
 static bool get_cached_or_initial_payload(const Tile& tile, String& out) {
   if (!tile.sensor_entity.length()) return false;
   if (get_cached_entity_payload(tile.sensor_entity.c_str(), out)) return true;

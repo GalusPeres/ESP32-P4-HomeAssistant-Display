@@ -389,11 +389,11 @@ void apply_entry_to_chart(EnergyPopupContext* ctx, const EnergyEntryData& entry)
   update_header_value(ctx, entry);
 
   const uint8_t slot_count = slot_count_for_entry(entry);
-  const uint8_t available_count = entry.value_count < slot_count ? entry.value_count : slot_count;
-  if (slot_count == 0 || available_count == 0) {
+  if (slot_count == 0) {
     clear_chart(ctx);
     return;
   }
+  const uint8_t available_count = entry.value_count < slot_count ? entry.value_count : slot_count;
 
   float data_max = 0.0f;
   float data_min = 0.0f;
@@ -415,8 +415,8 @@ void apply_entry_to_chart(EnergyPopupContext* ctx, const EnergyEntryData& entry)
   }
 
   if (!any) {
-    clear_chart(ctx);
-    return;
+    data_max = 1.0f;
+    data_min = 0.0f;
   }
 
   float max_v, min_v;
@@ -627,12 +627,24 @@ void apply_entry_to_chart(EnergyPopupContext* ctx, const EnergyEntryData& entry)
   update_x_axis(ctx, entry, slot_count, plot_left, plot_w);
 }
 
+void show_empty_chart(EnergyPopupContext* ctx) {
+  if (!ctx) return;
+
+  EnergyEntryData entry;
+  entry.id = ctx->entity_id;
+  entry.name = ctx->title;
+  entry.unit = ctx->unit;
+  entry.period = ctx->period;
+  entry.total = 0.0f;
+  apply_entry_to_chart(ctx, entry);
+  update_loading_header(ctx);
+}
+
 void refresh_from_cache(EnergyPopupContext* ctx) {
   if (!ctx || !popup_visible(ctx)) return;
   EnergyEntryData entry;
   if (!energy_find_entry(ctx->entity_id, ctx->period.c_str(), entry)) {
-    update_loading_header(ctx);
-    clear_chart(ctx);
+    show_empty_chart(ctx);
     return;
   }
   apply_entry_to_chart(ctx, entry);

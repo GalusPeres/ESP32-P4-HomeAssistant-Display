@@ -8,6 +8,7 @@
 #include "src/core/power_manager.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/network/mqtt_handlers.h"
+#include "src/network/network_manager.h"
 #include "src/tiles/tile_config.h"
 #include "src/tiles/tile_renderer.h"
 #include "src/ui/energy_popup.h"
@@ -84,11 +85,13 @@ const char* icon_for_energy(const EnergyEntryData& entry) {
 void queue_energy_tile_update_for_entry(const EnergyEntryData& entry) {
   if (!entry.id.length()) return;
 
+  String raw_value = format_energy_total(entry.total, entry.is_cost);
+  tiles_cache_entity_payload(entry.id.c_str(), raw_value.c_str());
+
   if (powerManager.isInSleep()) return;
   if (!tiles_is_loaded(GridType::TAB0)) return;
 
   const TileGridConfig& grid = tileConfig.getActiveGrid();
-  String raw_value = format_energy_total(entry.total, entry.is_cost);
   for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
     const Tile& tile = grid.tiles[i];
     if (tile.type != TILE_ENERGY) continue;
@@ -212,29 +215,34 @@ void process_energy_response_queue() {
   parse_energy_response(payload.c_str());
 }
 
-void energy_request_period(const char* period, bool force) {
+bool energy_request_period(const char* period, bool force) {
   const char* p = normalize_period(period);
   uint32_t& last = last_request_slot(p);
   const uint32_t now = millis();
   if (!force && last != 0 && (uint32_t)(now - last) < 10000UL) {
-    return;
+    return true;
   }
-  mqttPublishEnergyRequest(p);
+  if (!mqttPublishEnergyRequest(p)) {
+    return false;
+  }
   last = now;
+  return true;
 }
 
-void energy_request_day_for_tiles(bool force) {
-  if (!active_grid_has_energy_tile()) return;
-  energy_request_period("day", force);
+bool energy_request_day_for_tiles(bool force) {
+  if (!active_grid_has_energy_tile()) return true;
+  return energy_request_period("day", force);
 }
 
 void energy_service_periodic() {
+  if (!networkManager.isMqttConnected()) return;
   const uint32_t now = millis();
   if (g_last_periodic_ms != 0 && (uint32_t)(now - g_last_periodic_ms) < 5UL * 60UL * 1000UL) {
     return;
   }
-  g_last_periodic_ms = now;
-  energy_request_day_for_tiles(false);
+  if (energy_request_day_for_tiles(false)) {
+    g_last_periodic_ms = now;
+  }
 }
 
 bool energy_find_entry(const String& id, const char* period, EnergyEntryData& out) {

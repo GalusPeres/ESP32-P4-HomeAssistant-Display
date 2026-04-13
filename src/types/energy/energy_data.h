@@ -25,7 +25,7 @@ struct EnergyEntryData {
 
 void queue_energy_response(const char* payload, size_t len);
 void process_energy_response_queue();
-void energy_request_period(const char* period, bool force = false);
-void energy_request_day_for_tiles(bool force = false);
+bool energy_request_period(const char* period, bool force = false);
+bool energy_request_day_for_tiles(bool force = false);
 void energy_service_periodic();
 bool energy_find_entry(const String& id, const char* period, EnergyEntryData& out);

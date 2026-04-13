@@ -1220,6 +1220,17 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
     return;
   }
 
+  const char* icons_topic = networkManager.getBridgeIconsTopic();
+  if (icons_topic && strcmp(topic, icons_topic) == 0) {
+    size_t copy_len = length < sizeof(large_buf) - 1 ? length : sizeof(large_buf) - 1;
+    memcpy(large_buf, payload, copy_len);
+    large_buf[copy_len] = '\0';
+    if (haBridgeConfig.applyIconUpdate(large_buf)) {
+      tiles_request_icon_refresh();
+    }
+    return;
+  }
+
   bool processed_static = false;
   for (const auto& route : kRoutes) {
     const char* expected = mqttTopics.topic(route.key);
@@ -1534,7 +1545,7 @@ void mqttPublishWeatherRequest(const char* entity_id) {
   Serial.printf("Weather request -> MQTT '%s' (%s)\n", weather_topic, ok ? "ok" : "fail");
 }
 
-void mqttPublishEnergyRequest(const char* period) {
+bool mqttPublishEnergyRequest(const char* period) {
   const char* p = (period && *period) ? period : "day";
   if (strcmp(p, "week") != 0 && strcmp(p, "month") != 0) {
     p = "day";
@@ -1543,13 +1554,13 @@ void mqttPublishEnergyRequest(const char* period) {
   PubSubClient& mqtt = networkManager.getMqttClient();
   if (!mqtt.connected()) {
     Serial.printf("Energy request skipped (MQTT offline): %s\n", p);
-    return;
+    return false;
   }
 
   const char* energy_topic = networkManager.getEnergyRequestTopic();
   if (!energy_topic || !*energy_topic) {
     Serial.printf("Energy request skipped (no topic): %s\n", p);
-    return;
+    return false;
   }
 
   String payload = "{\"period\":\"";
@@ -1561,6 +1572,7 @@ void mqttPublishEnergyRequest(const char* period) {
                 energy_topic,
                 p,
                 ok ? "ok" : "fail");
+  return ok;
 }
 
 // ========== Home Assistant MQTT Discovery ==========
