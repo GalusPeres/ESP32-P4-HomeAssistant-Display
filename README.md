@@ -24,14 +24,11 @@ The project currently supports multiple ESP32-P4 display devices and combines:
 - Home Assistant bridge/integration:
   [ESP32-P4 HomeAssistant Display Bridge](https://github.com/GalusPeres/ESP32-P4-HomeAssistant-Display-Bridge)
 
-## New In v0.1.6
+## New In v0.1.7
 
-- new Energy tile backed by Home Assistant energy statistics
-- Energy popup with 24h and 7d bar-chart views for kWh and cost values
-- positive and negative energy/cost bars with clearer axis labels and zero handling
-- Energy tile values refresh from MQTT statistics without needing to open the popup first
-- Home Assistant icon changes now update live without persisting runtime icon metadata to flash
-- M5Stacks Tab5 display sleep now keeps touch wake available by blanking the backlight instead of sleeping the panel
+- Web admin now includes a microSD file manager for upload, download, rename, delete, and folder creation
+- File manager uses breadcrumb navigation, selectable rows, and a clear microSD availability indicator
+- LittleFS access is intentionally blocked in the file manager to avoid accidental changes to runtime data
 
 Popup examples from the Waveshare B4:
 
