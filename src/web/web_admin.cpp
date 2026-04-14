@@ -42,6 +42,14 @@ bool WebAdminServer::start() {
   server.on("/api/upload_icon", HTTP_POST,
     [this]() { this->handleUploadIconDone(); },
     [this]() { this->handleUploadIcon(); });
+  server.on("/api/files/list", HTTP_GET, [this]() { this->handleFileManagerList(); });
+  server.on("/api/files/download", HTTP_GET, [this]() { this->handleFileManagerDownload(); });
+  server.on("/api/files/delete", HTTP_POST, [this]() { this->handleFileManagerDelete(); });
+  server.on("/api/files/rename", HTTP_POST, [this]() { this->handleFileManagerRename(); });
+  server.on("/api/files/mkdir", HTTP_POST, [this]() { this->handleFileManagerMkdir(); });
+  server.on("/api/files/upload", HTTP_POST,
+    [this]() { this->handleFileManagerUploadDone(); },
+    [this]() { this->handleFileManagerUpload(); });
 
   server.begin();
   running = true;
@@ -66,5 +74,5 @@ void WebAdminServer::handle() {
 void WebAdminServer::handleRoot() {
   server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   server.sendHeader("Pragma", "no-cache");
-  server.send(200, "text/html", getAdminPage());
+  server.send(200, "text/html; charset=utf-8", getAdminPage());
 }

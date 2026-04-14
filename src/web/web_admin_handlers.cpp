@@ -31,6 +31,8 @@
 
 namespace {
 
+void appendJsonEscaped(String& out, const String& value);
+
 bool endsWithIgnoreCase(const String& value, const char* suffix) {
   if (!suffix) return false;
   String v = value;
@@ -60,6 +62,219 @@ bool sdReady() {
 
 fs::FS& sdFS() {
   return Device::sdFS();
+}
+
+String normalizeFileManagerPath(const String& raw) {
+  String path = raw;
+  path.trim();
+  path.replace("\\", "/");
+  const int query = path.indexOf('?');
+  if (query >= 0) path = path.substring(0, query);
+  const int hash = path.indexOf('#');
+  if (hash >= 0) path = path.substring(0, hash);
+  if (!path.length()) path = "/";
+  if (!path.startsWith("/")) path = "/" + path;
+  while (path.indexOf("//") >= 0) {
+    path.replace("//", "/");
+  }
+  while (path.length() > 1 && path.endsWith("/")) {
+    path.remove(path.length() - 1);
+  }
+  return path;
+}
+
+bool isSafeFileManagerName(const String& name) {
+  if (!name.length() || name.length() > 96) return false;
+  if (name == "." || name == "..") return false;
+  for (size_t i = 0; i < name.length(); ++i) {
+    const char c = name.charAt(i);
+    if (c == '/' || c == '\\' || static_cast<uint8_t>(c) < 32) return false;
+  }
+  return true;
+}
+
+bool isSafeFileManagerPath(const String& path) {
+  if (!path.length() || path.charAt(0) != '/' || path.length() > 192) return false;
+  if (path == "/") return true;
+
+  int start = 1;
+  while (start < static_cast<int>(path.length())) {
+    int slash = path.indexOf('/', start);
+    if (slash < 0) slash = path.length();
+    const String part = path.substring(start, slash);
+    if (!isSafeFileManagerName(part)) return false;
+    start = slash + 1;
+  }
+  return true;
+}
+
+String fileManagerBaseName(const String& path) {
+  String normalized = normalizeFileManagerPath(path);
+  if (normalized == "/") return "";
+  const int slash = normalized.lastIndexOf('/');
+  return slash >= 0 ? normalized.substring(slash + 1) : normalized;
+}
+
+String fileManagerParentPath(const String& path) {
+  String normalized = normalizeFileManagerPath(path);
+  if (normalized == "/") return "/";
+  const int slash = normalized.lastIndexOf('/');
+  if (slash <= 0) return "/";
+  return normalized.substring(0, slash);
+}
+
+String fileManagerEntryName(const char* raw_name) {
+  String name = raw_name ? String(raw_name) : String();
+  name.replace("\\", "/");
+  while (name.endsWith("/") && name.length() > 1) {
+    name.remove(name.length() - 1);
+  }
+  const int slash = name.lastIndexOf('/');
+  if (slash >= 0) {
+    name = name.substring(slash + 1);
+  }
+  name.trim();
+  return name;
+}
+
+String sanitizeFileManagerUploadName(const String& raw_name) {
+  String name = fileManagerEntryName(raw_name.c_str());
+  if (!name.length() || name == "." || name == "..") {
+    return "";
+  }
+  for (size_t i = 0; i < name.length(); ++i) {
+    const char c = name.charAt(i);
+    if (c == '/' || c == '\\' || static_cast<uint8_t>(c) < 32) {
+      name.setCharAt(i, '_');
+    }
+  }
+  if (name.length() > 96) {
+    name = name.substring(0, 96);
+  }
+  return isSafeFileManagerName(name) ? name : "";
+}
+
+bool resolveFileManagerFsByKey(const String& raw_key, fs::FS*& out_fs, String& out_key, String& error) {
+  String key = raw_key;
+  key.trim();
+  key.toLowerCase();
+  if (!key.length()) key = "sd";
+
+  if (key == "sd" || key == "sdcard") {
+    if (!sdReady()) {
+      error = "microSD card is not available";
+      return false;
+    }
+    out_fs = &sdFS();
+    out_key = "sd";
+    return true;
+  }
+  error = "Only microSD is available in the file manager";
+  return false;
+}
+
+bool resolveFileManagerFsFromRequest(WebServer& server, fs::FS*& out_fs, String& out_key, String& error) {
+  return resolveFileManagerFsByKey(server.hasArg("fs") ? server.arg("fs") : String("sd"),
+                                   out_fs,
+                                   out_key,
+                                   error);
+}
+
+void sendJsonError(WebServer& server, int code, const String& error) {
+  String json = "{\"success\":false,\"error\":\"";
+  appendJsonEscaped(json, error);
+  json += "\"}";
+  server.send(code, "application/json", json);
+}
+
+void sendJsonOk(WebServer& server) {
+  server.send(200, "application/json", "{\"success\":true}");
+}
+
+String fileManagerContentType(const String& path) {
+  String lowered = path;
+  lowered.toLowerCase();
+  if (lowered.endsWith(".gif")) return "image/gif";
+  if (lowered.endsWith(".png")) return "image/png";
+  if (lowered.endsWith(".jpg") || lowered.endsWith(".jpeg")) return "image/jpeg";
+  if (lowered.endsWith(".bmp")) return "image/bmp";
+  if (lowered.endsWith(".json")) return "application/json";
+  if (lowered.endsWith(".txt") || lowered.endsWith(".log") || lowered.endsWith(".url")) return "text/plain";
+  if (lowered.endsWith(".html") || lowered.endsWith(".htm")) return "text/html";
+  if (lowered.endsWith(".css")) return "text/css";
+  if (lowered.endsWith(".js")) return "application/javascript";
+  return "application/octet-stream";
+}
+
+bool removeFileManagerPathRecursive(fs::FS& fs, const String& path, String& error) {
+  if (path == "/") {
+    error = "Root folder cannot be deleted";
+    return false;
+  }
+
+  File entry = fs.open(path, FILE_READ);
+  if (!entry) {
+    error = "Path not found";
+    return false;
+  }
+
+  if (!entry.isDirectory()) {
+    entry.close();
+    if (fs.remove(path)) {
+      return true;
+    }
+    error = "Could not delete file";
+    return false;
+  }
+
+  File child = entry.openNextFile();
+  while (child) {
+    const String child_name = fileManagerEntryName(child.name());
+    child.close();
+    if (child_name.length()) {
+      const String child_path = joinPath(path, child_name);
+      if (!removeFileManagerPathRecursive(fs, child_path, error)) {
+        entry.close();
+        return false;
+      }
+    }
+    child = entry.openNextFile();
+  }
+  entry.close();
+
+  if (fs.rmdir(path)) {
+    return true;
+  }
+  error = "Could not delete folder";
+  return false;
+}
+
+struct FileManagerEntry {
+  String name;
+  String path;
+  bool directory = false;
+  size_t size = 0;
+  uint32_t modified = 0;
+};
+
+File g_file_manager_upload_file;
+String g_file_manager_upload_fs_key;
+String g_file_manager_upload_path;
+String g_file_manager_upload_error;
+bool g_file_manager_upload_started = false;
+bool g_file_manager_upload_finished = false;
+size_t g_file_manager_upload_bytes = 0;
+
+void resetFileManagerUploadState() {
+  if (g_file_manager_upload_file) {
+    g_file_manager_upload_file.close();
+  }
+  g_file_manager_upload_fs_key = "";
+  g_file_manager_upload_path = "";
+  g_file_manager_upload_error = "";
+  g_file_manager_upload_started = false;
+  g_file_manager_upload_finished = false;
+  g_file_manager_upload_bytes = 0;
 }
 
 constexpr const char* kScreenshotPath = "/ui_screenshot.bmp";
@@ -1570,6 +1785,368 @@ void WebAdminServer::handleUploadIconDone() {
   String json = "{\"ok\":true,\"path\":\"";
   appendJsonEscaped(json, path);
   json += "\"}";
+  server.send(200, "application/json", json);
+}
+
+void WebAdminServer::handleFileManagerList() {
+  fs::FS* fs = nullptr;
+  String fs_key;
+  String error;
+  if (!resolveFileManagerFsFromRequest(server, fs, fs_key, error)) {
+    sendJsonError(server, 503, error);
+    return;
+  }
+
+  const String path = normalizeFileManagerPath(server.hasArg("path") ? server.arg("path") : String("/"));
+  if (!isSafeFileManagerPath(path)) {
+    sendJsonError(server, 400, "Invalid path");
+    return;
+  }
+
+  File dir = fs->open(path, FILE_READ);
+  if (!dir) {
+    sendJsonError(server, 404, "Folder not found");
+    return;
+  }
+  if (!dir.isDirectory()) {
+    dir.close();
+    sendJsonError(server, 400, "Path is not a folder");
+    return;
+  }
+
+  std::vector<FileManagerEntry> entries;
+  entries.reserve(32);
+  File child = dir.openNextFile();
+  while (child && entries.size() < 250) {
+    FileManagerEntry info;
+    info.name = fileManagerEntryName(child.name());
+    info.directory = child.isDirectory();
+    info.size = info.directory ? 0 : static_cast<size_t>(child.size());
+    info.modified = static_cast<uint32_t>(child.getLastWrite());
+    child.close();
+    if (isSafeFileManagerName(info.name)) {
+      info.path = joinPath(path, info.name);
+      entries.push_back(info);
+    }
+    child = dir.openNextFile();
+  }
+  dir.close();
+
+  std::sort(entries.begin(), entries.end(), [](const FileManagerEntry& a, const FileManagerEntry& b) {
+    if (a.directory != b.directory) return a.directory && !b.directory;
+    String an = a.name;
+    String bn = b.name;
+    an.toLowerCase();
+    bn.toLowerCase();
+    return an.compareTo(bn) < 0;
+  });
+
+  String json = "{\"success\":true,\"fs\":\"";
+  appendJsonEscaped(json, fs_key);
+  json += "\",\"path\":\"";
+  appendJsonEscaped(json, path);
+  json += "\",\"parent\":\"";
+  appendJsonEscaped(json, fileManagerParentPath(path));
+  json += "\",\"entries\":[";
+  for (size_t i = 0; i < entries.size(); ++i) {
+    if (i > 0) json += ",";
+    json += "{\"name\":\"";
+    appendJsonEscaped(json, entries[i].name);
+    json += "\",\"path\":\"";
+    appendJsonEscaped(json, entries[i].path);
+    json += "\",\"dir\":";
+    json += entries[i].directory ? "true" : "false";
+    json += ",\"size\":";
+    json += String(static_cast<unsigned long>(entries[i].size));
+    json += ",\"modified\":";
+    json += String(static_cast<unsigned long>(entries[i].modified));
+    json += "}";
+  }
+  json += "]}";
+  server.send(200, "application/json", json);
+}
+
+void WebAdminServer::handleFileManagerDownload() {
+  fs::FS* fs = nullptr;
+  String fs_key;
+  String error;
+  if (!resolveFileManagerFsFromRequest(server, fs, fs_key, error)) {
+    server.send(503, "text/plain", error);
+    return;
+  }
+
+  const String path = normalizeFileManagerPath(server.hasArg("path") ? server.arg("path") : String());
+  if (!isSafeFileManagerPath(path) || path == "/") {
+    server.send(400, "text/plain", "Invalid path");
+    return;
+  }
+  if (!fs->exists(path)) {
+    server.send(404, "text/plain", "File not found");
+    return;
+  }
+
+  File file = fs->open(path, FILE_READ);
+  if (!file) {
+    server.send(500, "text/plain", "Could not open file");
+    return;
+  }
+  if (file.isDirectory()) {
+    file.close();
+    server.send(400, "text/plain", "Folders cannot be downloaded");
+    return;
+  }
+
+  String filename = fileManagerBaseName(path);
+  filename.replace("\"", "_");
+  server.sendHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+  server.sendHeader("Cache-Control", "no-store");
+  server.streamFile(file, fileManagerContentType(path));
+  file.close();
+}
+
+void WebAdminServer::handleFileManagerDelete() {
+  fs::FS* fs = nullptr;
+  String fs_key;
+  String error;
+  if (!resolveFileManagerFsFromRequest(server, fs, fs_key, error)) {
+    sendJsonError(server, 503, error);
+    return;
+  }
+
+  const String path = normalizeFileManagerPath(server.hasArg("path") ? server.arg("path") : String());
+  if (!isSafeFileManagerPath(path) || path == "/") {
+    sendJsonError(server, 400, "Invalid path");
+    return;
+  }
+
+  if (!fs->exists(path)) {
+    sendJsonError(server, 404, "Path not found");
+    return;
+  }
+
+  if (!removeFileManagerPathRecursive(*fs, path, error)) {
+    sendJsonError(server, 500, error.length() ? error : String("Delete failed"));
+    return;
+  }
+  sendJsonOk(server);
+}
+
+void WebAdminServer::handleFileManagerRename() {
+  fs::FS* fs = nullptr;
+  String fs_key;
+  String error;
+  if (!resolveFileManagerFsFromRequest(server, fs, fs_key, error)) {
+    sendJsonError(server, 503, error);
+    return;
+  }
+
+  const String path = normalizeFileManagerPath(server.hasArg("path") ? server.arg("path") : String());
+  String new_name = server.hasArg("name") ? server.arg("name") : String();
+  new_name.trim();
+  if (!isSafeFileManagerPath(path) || path == "/" || !isSafeFileManagerName(new_name)) {
+    sendJsonError(server, 400, "Invalid name or path");
+    return;
+  }
+  if (!fs->exists(path)) {
+    sendJsonError(server, 404, "Path not found");
+    return;
+  }
+
+  const String target = joinPath(fileManagerParentPath(path), new_name);
+  if (!isSafeFileManagerPath(target)) {
+    sendJsonError(server, 400, "Invalid target path");
+    return;
+  }
+  if (fs->exists(target)) {
+    sendJsonError(server, 409, "Target already exists");
+    return;
+  }
+  if (!fs->rename(path, target)) {
+    sendJsonError(server, 500, "Rename failed");
+    return;
+  }
+
+  String json = "{\"success\":true,\"path\":\"";
+  appendJsonEscaped(json, target);
+  json += "\"}";
+  server.send(200, "application/json", json);
+}
+
+void WebAdminServer::handleFileManagerMkdir() {
+  fs::FS* fs = nullptr;
+  String fs_key;
+  String error;
+  if (!resolveFileManagerFsFromRequest(server, fs, fs_key, error)) {
+    sendJsonError(server, 503, error);
+    return;
+  }
+
+  const String path = normalizeFileManagerPath(server.hasArg("path") ? server.arg("path") : String("/"));
+  String name = server.hasArg("name") ? server.arg("name") : String();
+  name.trim();
+  if (!isSafeFileManagerPath(path) || !isSafeFileManagerName(name)) {
+    sendJsonError(server, 400, "Invalid name or path");
+    return;
+  }
+
+  File dir = fs->open(path, FILE_READ);
+  if (!dir || !dir.isDirectory()) {
+    if (dir) dir.close();
+    sendJsonError(server, 404, "Folder not found");
+    return;
+  }
+  dir.close();
+
+  const String target = joinPath(path, name);
+  if (!isSafeFileManagerPath(target)) {
+    sendJsonError(server, 400, "Invalid target path");
+    return;
+  }
+  if (fs->exists(target)) {
+    sendJsonError(server, 409, "Folder already exists");
+    return;
+  }
+  if (!fs->mkdir(target)) {
+    sendJsonError(server, 500, "Could not create folder");
+    return;
+  }
+  sendJsonOk(server);
+}
+
+void WebAdminServer::handleFileManagerUpload() {
+  HTTPUpload& upload = server.upload();
+
+  if (upload.status == UPLOAD_FILE_START) {
+    resetFileManagerUploadState();
+    g_file_manager_upload_started = true;
+
+    fs::FS* fs = nullptr;
+    String fs_key;
+    String error;
+    if (!resolveFileManagerFsFromRequest(server, fs, fs_key, error)) {
+      g_file_manager_upload_error = error;
+      return;
+    }
+
+    const String dir_path = normalizeFileManagerPath(server.hasArg("path") ? server.arg("path") : String("/"));
+    const String filename = sanitizeFileManagerUploadName(upload.filename);
+    if (!isSafeFileManagerPath(dir_path) || !filename.length()) {
+      g_file_manager_upload_error = "Invalid upload path or filename";
+      return;
+    }
+
+    File dir = fs->open(dir_path, FILE_READ);
+    if (!dir || !dir.isDirectory()) {
+      if (dir) dir.close();
+      g_file_manager_upload_error = "Upload folder not found";
+      return;
+    }
+    dir.close();
+
+    const String target = joinPath(dir_path, filename);
+    if (!isSafeFileManagerPath(target)) {
+      g_file_manager_upload_error = "Invalid target path";
+      return;
+    }
+
+    if (fs->exists(target)) {
+      File existing = fs->open(target, FILE_READ);
+      const bool existing_is_dir = existing && existing.isDirectory();
+      if (existing) existing.close();
+      if (existing_is_dir || !fs->remove(target)) {
+        g_file_manager_upload_error = "Could not replace existing file";
+        return;
+      }
+    }
+
+    g_file_manager_upload_file = fs->open(target, FILE_WRITE);
+    if (!g_file_manager_upload_file) {
+      g_file_manager_upload_error = "Could not open target file";
+      return;
+    }
+
+    g_file_manager_upload_fs_key = fs_key;
+    g_file_manager_upload_path = target;
+    g_file_manager_upload_bytes = 0;
+    Serial.printf("[FileManager] Upload started: %s:%s\n", fs_key.c_str(), target.c_str());
+    return;
+  }
+
+  if (g_file_manager_upload_error.length() > 0 || !g_file_manager_upload_started) {
+    return;
+  }
+
+  if (upload.status == UPLOAD_FILE_WRITE) {
+    if (!g_file_manager_upload_file) {
+      g_file_manager_upload_error = "Upload file is not open";
+      return;
+    }
+    const size_t written = g_file_manager_upload_file.write(upload.buf, upload.currentSize);
+    if (written != upload.currentSize) {
+      g_file_manager_upload_error = "Could not write upload chunk";
+      g_file_manager_upload_file.close();
+      fs::FS* fs = nullptr;
+      String fs_key;
+      String error;
+      if (resolveFileManagerFsByKey(g_file_manager_upload_fs_key, fs, fs_key, error)) {
+        fs->remove(g_file_manager_upload_path);
+      }
+      return;
+    }
+    g_file_manager_upload_bytes += written;
+    return;
+  }
+
+  if (upload.status == UPLOAD_FILE_ABORTED) {
+    g_file_manager_upload_error = "Upload aborted";
+    if (g_file_manager_upload_file) {
+      g_file_manager_upload_file.close();
+    }
+    fs::FS* fs = nullptr;
+    String fs_key;
+    String error;
+    if (resolveFileManagerFsByKey(g_file_manager_upload_fs_key, fs, fs_key, error)) {
+      fs->remove(g_file_manager_upload_path);
+    }
+    return;
+  }
+
+  if (upload.status == UPLOAD_FILE_END) {
+    if (g_file_manager_upload_file) {
+      g_file_manager_upload_file.close();
+    }
+    g_file_manager_upload_finished = true;
+    Serial.printf("[FileManager] Uploaded %s (%u bytes)\n",
+                  g_file_manager_upload_path.c_str(),
+                  static_cast<unsigned>(g_file_manager_upload_bytes));
+  }
+}
+
+void WebAdminServer::handleFileManagerUploadDone() {
+  if (!g_file_manager_upload_started) {
+    sendJsonError(server, 400, "No upload started");
+    return;
+  }
+
+  if (g_file_manager_upload_error.length() > 0) {
+    String error = g_file_manager_upload_error;
+    resetFileManagerUploadState();
+    sendJsonError(server, 500, error);
+    return;
+  }
+
+  if (!g_file_manager_upload_finished) {
+    resetFileManagerUploadState();
+    sendJsonError(server, 500, "Upload did not finish");
+    return;
+  }
+
+  String json = "{\"success\":true,\"path\":\"";
+  appendJsonEscaped(json, g_file_manager_upload_path);
+  json += "\",\"size\":";
+  json += String(static_cast<unsigned long>(g_file_manager_upload_bytes));
+  json += "}";
+  resetFileManagerUploadState();
   server.send(200, "application/json", json);
 }
 

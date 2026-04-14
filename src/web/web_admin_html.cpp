@@ -776,7 +776,7 @@ String WebAdminServer::getAdminPage() {
           </div>
         </div>
 
-        <form action="/mqtt" method="POST">
+        <form id="admin_settings_form" action="/mqtt" method="POST">
           <div class="settings-section">
             <div class="section-title">)html";
   html += tr.admin_settings_wifi;
@@ -1001,6 +1001,83 @@ String WebAdminServer::getAdminPage() {
 
           <div class="settings-section">
             <div class="section-title">)html";
+  html += is_german ? "Dateimanager" : "File Manager";
+  html += R"html(</div>
+            <div class="settings-grid file-manager">
+              <div class="settings-full">
+                <div class="file-manager-topbar">
+                  <span id="file_manager_sd_state" class="file-manager-storage-state">)html";
+  html += is_german ? "Pr&uuml;fe..." : "Checking...";
+  html += R"html(</span>
+                  <div class="file-manager-toolbar-group">
+                    <button class="btn btn-secondary file-manager-toolbar-btn" type="button" onclick="loadFileManager()">)html";
+  html += is_german ? "Aktualisieren" : "Refresh";
+  html += R"html(</button>
+                    <button class="btn btn-secondary file-manager-toolbar-btn file-manager-requires-sd" type="button" onclick="createFileManagerFolder()" disabled>)html";
+  html += is_german ? "Neuer Ordner" : "New folder";
+  html += R"html(</button>
+                  </div>
+                </div>
+                <div class="file-manager-upload-row">
+                  <button class="btn btn-secondary file-manager-toolbar-btn file-manager-requires-sd" type="button" onclick="document.getElementById('file_manager_upload').click()" disabled>)html";
+  html += is_german ? "Datei w&auml;hlen" : "Choose file";
+  html += R"html(</button>
+                  <button class="btn btn-secondary file-manager-toolbar-btn file-manager-requires-sd" type="button" onclick="uploadFileManagerFile()" disabled>)html";
+  html += is_german ? "Hochladen" : "Upload";
+  html += R"html(</button>
+                  <span id="file_manager_upload_name" class="file-picker-name">)html";
+  html += is_german ? "Keine Datei ausgew&auml;hlt" : "No file selected";
+  html += R"html(</span>
+                </div>
+                <input type="file" id="file_manager_upload" style="display:none" onchange="updateFileManagerUploadName(this)">
+                <div class="file-manager-selection-bar">
+                  <div id="file_manager_selection" class="file-manager-selection-info">)html";
+  html += is_german ? "Keine Auswahl" : "No selection";
+  html += R"html(</div>
+                  <div class="file-manager-selection-actions">
+                    <button class="btn btn-secondary file-manager-selection-btn" id="file_manager_primary_btn" type="button" onclick="openSelectedFileManagerEntry()" disabled>)html";
+  html += is_german ? "&Ouml;ffnen" : "Open";
+  html += R"html(</button>
+                    <button class="btn btn-secondary file-manager-selection-btn" id="file_manager_rename_btn" type="button" onclick="renameSelectedFileManagerEntry()" disabled>)html";
+  html += is_german ? "Umbenennen" : "Rename";
+  html += R"html(</button>
+                    <button class="btn btn-danger file-manager-selection-btn" id="file_manager_delete_btn" type="button" onclick="deleteSelectedFileManagerEntry()" disabled>)html";
+  html += is_german ? "L&ouml;schen" : "Delete";
+  html += R"html(</button>
+                  </div>
+                </div>
+              </div>
+              <div class="settings-full">
+                <div id="file_manager_breadcrumb" class="file-manager-breadcrumb"></div>
+                <div class="file-manager-table-wrap">
+                  <table class="file-manager-table">
+                    <thead>
+                      <tr>
+                        <th>)html";
+  html += is_german ? "Name" : "Name";
+  html += R"html(</th>
+                        <th>)html";
+  html += is_german ? "Ge&auml;ndert" : "Modified";
+  html += R"html(</th>
+                        <th>)html";
+  html += is_german ? "Gr&ouml;&szlig;e" : "Size";
+  html += R"html(</th>
+                      </tr>
+                    </thead>
+                    <tbody id="file_manager_entries">
+                      <tr><td colspan="3">)html";
+  html += is_german ? "Noch nicht geladen." : "Not loaded yet.";
+  html += R"html(</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div id="file_manager_status" class="settings-note file-manager-status"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <div class="section-title">)html";
   html += tr.admin_settings_ota;
   html += R"html(</div>
             <div class="settings-grid">
@@ -1035,15 +1112,14 @@ String WebAdminServer::getAdminPage() {
               </div>
             </div>
           </div>
-
-          <button class="btn" type="submit">Speichern</button>
         </form>
-      </div>
 
-      <!-- Restart button at bottom (always visible) -->
-      <form action="/restart" method="POST" onsubmit="return confirm('Geraet wirklich neu starten?');" style="margin-top:32px;">
-        <button class="btn btn-secondary" type="submit">Geraet neu starten</button>
-      </form>
+        <form id="admin_restart_form" action="/restart" method="POST" onsubmit="return confirm('Geraet wirklich neu starten?');" class="admin-hidden-form"></form>
+        <div class="admin-footer-actions">
+          <button class="btn admin-footer-btn" type="submit" form="admin_settings_form">Speichern</button>
+          <button class="btn btn-secondary admin-footer-btn" type="submit" form="admin_restart_form">Geraet neu starten</button>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -56,6 +56,13 @@ public:
   void handleGetOtaStatus();
   void handleUploadIcon();
   void handleUploadIconDone();
+  void handleFileManagerList();
+  void handleFileManagerDownload();
+  void handleFileManagerDelete();
+  void handleFileManagerRename();
+  void handleFileManagerMkdir();
+  void handleFileManagerUpload();
+  void handleFileManagerUploadDone();
 
   // HTML-Seiten (implemented in web_admin_html.cpp)
   String getAdminPage();
