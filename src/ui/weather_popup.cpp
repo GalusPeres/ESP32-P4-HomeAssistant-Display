@@ -64,9 +64,24 @@ constexpr int kForecastLastCenter =
     kForecastSidePad + ((kCols - 1) * (kForecastPlotColW + kForecastColGap)) + (kForecastPlotColW / 2);
 constexpr int kDetailRowTop = kForecastRowTop;
 constexpr int kDetailTitleTop = kDetailHeaderSubrowTop + 6;
-constexpr int kDetailNavButtonSize = 58;
-constexpr int kDetailNavButtonEdgeOffset = 6;
-constexpr int kDetailNavButtonOffsetY = 6;
+constexpr int kFooterButtonHeight = 74;
+constexpr int kFooterActionButtonWidth = 96;
+constexpr int kFooterButtonRadius = 16;
+constexpr int kFooterButtonGap = 8;
+constexpr int kFooterInsetX = 6;
+constexpr int kFooterOffsetY = -6;
+constexpr int kDetailNavButtonSize = kFooterButtonHeight;
+constexpr int kFooterNextButtonX = -kFooterInsetX;
+constexpr int kFooterPrevButtonX = -(kFooterInsetX + kDetailNavButtonSize + kFooterButtonGap);
+constexpr int kFooterWeekButtonX =
+    -(kFooterInsetX + (kDetailNavButtonSize * 2) + (kFooterButtonGap * 2));
+constexpr int kFooterTodayButtonX =
+    -(kFooterInsetX + (kDetailNavButtonSize * 2) + (kFooterButtonGap * 3) +
+      kFooterActionButtonWidth);
+constexpr int kFooterContentWidth = kCardWidth - (kCardPad * 2);
+constexpr int kFooterDatePillWidth =
+    kFooterContentWidth + kFooterTodayButtonX - kFooterActionButtonWidth -
+    kFooterButtonGap - kFooterInsetX;
 constexpr float kDetailNowCollisionHours = 3.0f;
 constexpr int kDetailNowGuideWidth = 1;
 constexpr int kDetailNowGuideOpa = LV_OPA_30;
@@ -194,6 +209,7 @@ struct WeatherPopupContext {
   lv_obj_t* condition_label = nullptr;
   lv_obj_t* condition_sep_label = nullptr;
   lv_obj_t* temp_label = nullptr;
+  lv_obj_t* week_range_pill = nullptr;
   lv_obj_t* week_range_label = nullptr;
   lv_obj_t* mode_row = nullptr;
   lv_obj_t* mode_week_btn = nullptr;
@@ -209,6 +225,7 @@ struct WeatherPopupContext {
   int forecast_temp_min = 0;
   int forecast_temp_max = 100;
   lv_obj_t* detail_wrap = nullptr;
+  lv_obj_t* detail_title_pill = nullptr;
   lv_obj_t* detail_title_label = nullptr;
   lv_obj_t* detail_prev_btn = nullptr;
   lv_obj_t* detail_next_btn = nullptr;
@@ -1210,10 +1227,11 @@ static void update_week_range_label(WeatherPopupContext* ctx) {
   if (!ctx || !ctx->week_range_label) return;
   String text = format_forecast_range_title(ctx);
   lv_label_set_text(ctx->week_range_label, text.c_str());
+  lv_obj_t* pill = ctx->week_range_pill ? ctx->week_range_pill : ctx->week_range_label;
   if (text.length()) {
-    lv_obj_clear_flag(ctx->week_range_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(pill, LV_OBJ_FLAG_HIDDEN);
   } else {
-    lv_obj_add_flag(ctx->week_range_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(pill, LV_OBJ_FLAG_HIDDEN);
   }
 }
 
@@ -1370,9 +1388,14 @@ static void update_mode_buttons(WeatherPopupContext* ctx) {
       return;
     }
     lv_obj_clear_flag(btn, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_border_color(btn, enabled ? lv_color_white() : nav_inactive_color, 0);
+    lv_obj_set_style_border_opa(btn, enabled ? LV_OPA_COVER : LV_OPA_60, 0);
+    lv_obj_set_style_border_color(btn, enabled ? lv_color_white() : nav_inactive_color, LV_STATE_PRESSED);
+    lv_obj_set_style_border_opa(btn, enabled ? LV_OPA_COVER : LV_OPA_60, LV_STATE_PRESSED);
     lv_obj_t* icon = lv_obj_get_child(btn, 0);
     if (icon) {
       lv_obj_set_style_text_color(icon, enabled ? lv_color_white() : nav_inactive_color, 0);
+      lv_obj_set_style_text_color(icon, enabled ? lv_color_white() : nav_inactive_color, LV_STATE_PRESSED);
     }
     if (enabled) {
       lv_obj_add_flag(btn, LV_OBJ_FLAG_CLICKABLE);
@@ -1463,19 +1486,23 @@ static void set_popup_view_mode(WeatherPopupContext* ctx, WeatherPopupViewMode m
     if (mode == WeatherPopupViewMode::Week) {
       update_week_range_label(ctx);
     } else {
-      lv_obj_add_flag(ctx->week_range_label, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(ctx->week_range_pill ? ctx->week_range_pill : ctx->week_range_label,
+                      LV_OBJ_FLAG_HIDDEN);
     }
   }
   if (ctx->detail_title_label) {
     if (mode == WeatherPopupViewMode::Day) {
       const char* title_text = lv_label_get_text(ctx->detail_title_label);
       if (title_text && title_text[0] != '\0') {
-        lv_obj_clear_flag(ctx->detail_title_label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(ctx->detail_title_pill ? ctx->detail_title_pill : ctx->detail_title_label,
+                          LV_OBJ_FLAG_HIDDEN);
       } else {
-        lv_obj_add_flag(ctx->detail_title_label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(ctx->detail_title_pill ? ctx->detail_title_pill : ctx->detail_title_label,
+                        LV_OBJ_FLAG_HIDDEN);
       }
     } else {
-      lv_obj_add_flag(ctx->detail_title_label, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(ctx->detail_title_pill ? ctx->detail_title_pill : ctx->detail_title_label,
+                      LV_OBJ_FLAG_HIDDEN);
     }
   }
   ctx->view_mode = mode;
@@ -1487,11 +1514,13 @@ static void clear_detail_view(WeatherPopupContext* ctx) {
 
   if (ctx->detail_title_label) {
     lv_label_set_text(ctx->detail_title_label, "");
-    lv_obj_add_flag(ctx->detail_title_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ctx->detail_title_pill ? ctx->detail_title_pill : ctx->detail_title_label,
+                    LV_OBJ_FLAG_HIDDEN);
   }
   if (ctx->week_range_label) {
     lv_label_set_text(ctx->week_range_label, "");
-    lv_obj_add_flag(ctx->week_range_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ctx->week_range_pill ? ctx->week_range_pill : ctx->week_range_label,
+                    LV_OBJ_FLAG_HIDDEN);
   }
 
   if (ctx->detail_temp_chart && ctx->detail_temp_series) {
@@ -2886,7 +2915,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   auto make_header_action_button = [&](const char* text, int x_ofs, const lv_font_t* font) -> lv_obj_t* {
     lv_obj_t* btn = lv_button_create(card);
-    lv_obj_set_size(btn, 96, 58);
+    lv_obj_set_size(btn, kFooterActionButtonWidth, kFooterButtonHeight);
     lv_obj_set_style_bg_color(btn, lv_color_white(), 0);
     lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, 0);
     lv_obj_set_style_bg_color(btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
@@ -2896,7 +2925,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_set_style_border_opa(btn, LV_OPA_COVER, 0);
     lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, 0);
     lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_radius(btn, 16, 0);
+    lv_obj_set_style_radius(btn, kFooterButtonRadius, 0);
     lv_obj_set_style_pad_all(btn, 0, 0);
     lv_obj_set_style_anim_time(btn, 0, 0);
     lv_obj_set_style_anim_time(btn, 0, LV_STATE_PRESSED);
@@ -2906,7 +2935,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_set_style_transform_height(btn, 0, LV_STATE_PRESSED);
     lv_obj_set_style_translate_y(btn, 0, 0);
     lv_obj_set_style_translate_y(btn, 0, LV_STATE_PRESSED);
-    lv_obj_align(btn, LV_ALIGN_BOTTOM_RIGHT, x_ofs, 6);
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_RIGHT, x_ofs, kFooterOffsetY);
     lv_obj_set_ext_click_area(btn, 12);
     lv_obj_add_flag(btn, LV_OBJ_FLAG_PRESS_LOCK);
     lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
@@ -2939,8 +2968,9 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   lv_label_set_text(close_label, getMdiChar("window-close").c_str());
   lv_obj_center(close_label);
 
-  ctx->header_week_btn = make_header_action_button("7D", -164, FONT_UNIT);
-  ctx->header_today_btn = make_header_action_button(weather_today_button_text(), -268, FONT_UNIT);
+  ctx->header_week_btn = make_header_action_button("7D", kFooterWeekButtonX, FONT_UNIT);
+  ctx->header_today_btn =
+      make_header_action_button(weather_today_button_text(), kFooterTodayButtonX, FONT_UNIT);
 
   lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 8, 0);
 
@@ -3017,18 +3047,25 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   lv_label_set_text(temp_label, "--");
   lv_obj_align(value_row, LV_ALIGN_TOP_MID, 0, kSummaryRowTop);
 
-  lv_obj_t* week_range_label = lv_label_create(card);
+  lv_obj_t* week_range_pill = lv_obj_create(card);
+  ctx->week_range_pill = week_range_pill;
+  lv_obj_remove_style_all(week_range_pill);
+  lv_obj_set_size(week_range_pill, kFooterDatePillWidth, kFooterButtonHeight);
+  lv_obj_set_style_bg_color(week_range_pill, lv_color_white(), 0);
+  lv_obj_set_style_bg_opa(week_range_pill, LV_OPA_COVER, 0);
+  lv_obj_set_style_radius(week_range_pill, kFooterButtonRadius, 0);
+  lv_obj_set_style_pad_all(week_range_pill, 0, 0);
+  lv_obj_clear_flag(week_range_pill, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_align(week_range_pill, LV_ALIGN_BOTTOM_LEFT, kFooterInsetX, kFooterOffsetY);
+  lv_obj_add_flag(week_range_pill, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_t* week_range_label = lv_label_create(week_range_pill);
   ctx->week_range_label = week_range_label;
-  set_label_style(week_range_label, lv_color_hex(popup_tile_bg_color), &ui_font_24);
-  lv_obj_set_style_bg_color(week_range_label, lv_color_white(), 0);
-  lv_obj_set_style_bg_opa(week_range_label, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(week_range_label, 16, 0);
-  lv_obj_set_style_pad_hor(week_range_label, 18, 0);
-  lv_obj_set_style_pad_ver(week_range_label, 10, 0);
+  set_label_style(week_range_label, lv_color_hex(popup_tile_bg_color), FONT_UNIT);
+  lv_label_set_long_mode(week_range_label, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(week_range_label, kFooterDatePillWidth - 24);
   lv_obj_set_style_text_align(week_range_label, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_text(week_range_label, "");
-  lv_obj_align(week_range_label, LV_ALIGN_BOTTOM_LEFT, 6, 1);
-  lv_obj_add_flag(week_range_label, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_center(week_range_label);
 
   const lv_coord_t forecast_total_w = kCardWidth - (kCardPad * 2);
   const lv_coord_t forecast_plot_left = kForecastChartSideInset;
@@ -3258,32 +3295,39 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   lv_obj_set_pos(detail_wrap, 0, kDetailRowTop);
   lv_obj_add_flag(detail_wrap, LV_OBJ_FLAG_HIDDEN);
 
-  lv_obj_t* detail_title = lv_label_create(card);
+  lv_obj_t* detail_title_pill = lv_obj_create(card);
+  ctx->detail_title_pill = detail_title_pill;
+  lv_obj_remove_style_all(detail_title_pill);
+  lv_obj_set_size(detail_title_pill, kFooterDatePillWidth, kFooterButtonHeight);
+  lv_obj_set_style_bg_color(detail_title_pill, lv_color_white(), 0);
+  lv_obj_set_style_bg_opa(detail_title_pill, LV_OPA_COVER, 0);
+  lv_obj_set_style_radius(detail_title_pill, kFooterButtonRadius, 0);
+  lv_obj_set_style_pad_all(detail_title_pill, 0, 0);
+  lv_obj_clear_flag(detail_title_pill, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_align(detail_title_pill, LV_ALIGN_BOTTOM_LEFT, kFooterInsetX, kFooterOffsetY);
+  lv_obj_add_flag(detail_title_pill, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_t* detail_title = lv_label_create(detail_title_pill);
   ctx->detail_title_label = detail_title;
-  set_label_style(detail_title, lv_color_hex(popup_tile_bg_color), &ui_font_24);
-  lv_obj_set_style_bg_color(detail_title, lv_color_white(), 0);
-  lv_obj_set_style_bg_opa(detail_title, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(detail_title, 16, 0);
-  lv_obj_set_style_pad_hor(detail_title, 18, 0);
-  lv_obj_set_style_pad_ver(detail_title, 10, 0);
+  set_label_style(detail_title, lv_color_hex(popup_tile_bg_color), FONT_UNIT);
+  lv_label_set_long_mode(detail_title, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(detail_title, kFooterDatePillWidth - 24);
   lv_obj_set_style_text_align(detail_title, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_text(detail_title, "");
-  lv_obj_align(detail_title, LV_ALIGN_BOTTOM_LEFT, 6, 1);
-  lv_obj_add_flag(detail_title, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_center(detail_title);
 
   auto make_detail_nav_button = [&](const char* mdi_icon, lv_align_t align) -> lv_obj_t* {
     lv_obj_t* btn = lv_button_create(card);
     lv_obj_set_size(btn, kDetailNavButtonSize, kDetailNavButtonSize);
-    lv_obj_set_style_radius(btn, 22, 0);
+    lv_obj_set_style_radius(btn, kFooterButtonRadius, 0);
     lv_obj_set_style_bg_color(btn, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, 0);
     lv_obj_set_style_bg_color(btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(btn, LV_OPA_20, LV_STATE_PRESSED);
     lv_obj_set_style_border_color(btn, lv_color_white(), 0);
-    lv_obj_set_style_border_width(btn, 0, 0);
-    lv_obj_set_style_border_width(btn, 0, LV_STATE_PRESSED);
-    lv_obj_set_style_border_opa(btn, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_opa(btn, LV_OPA_TRANSP, LV_STATE_PRESSED);
+    lv_obj_set_style_border_width(btn, 2, 0);
+    lv_obj_set_style_border_width(btn, 2, LV_STATE_PRESSED);
+    lv_obj_set_style_border_opa(btn, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_opa(btn, LV_OPA_COVER, LV_STATE_PRESSED);
     lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, 0);
     lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, 0);
     lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, LV_STATE_PRESSED);
@@ -3298,10 +3342,9 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_set_style_pad_all(btn, 0, 0);
     lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(btn, LV_OBJ_FLAG_PRESS_LOCK);
-    const int x_ofs = (align == LV_ALIGN_TOP_LEFT)
-                          ? -(kDetailNavButtonSize + 8 - kDetailNavButtonEdgeOffset)
-                          : kDetailNavButtonEdgeOffset;
-    lv_obj_align(btn, LV_ALIGN_BOTTOM_RIGHT, x_ofs, kDetailNavButtonOffsetY);
+    const int x_ofs = (align == LV_ALIGN_TOP_LEFT) ? kFooterPrevButtonX : kFooterNextButtonX;
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_RIGHT, x_ofs, kFooterOffsetY);
+    lv_obj_set_ext_click_area(btn, 12);
     lv_obj_add_flag(btn, LV_OBJ_FLAG_HIDDEN);
     lv_obj_t* label = lv_label_create(btn);
     set_label_style(label, lv_color_white(), FONT_MDI_ICONS);
@@ -3739,10 +3782,10 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   lv_obj_move_foreground(location);
   lv_obj_move_foreground(mode_row);
   lv_obj_move_foreground(value_row);
-  if (ctx->week_range_label) lv_obj_move_foreground(ctx->week_range_label);
+  if (ctx->week_range_pill) lv_obj_move_foreground(ctx->week_range_pill);
   if (ctx->header_today_btn) lv_obj_move_foreground(ctx->header_today_btn);
   if (ctx->header_week_btn) lv_obj_move_foreground(ctx->header_week_btn);
-  lv_obj_move_foreground(detail_title);
+  if (ctx->detail_title_pill) lv_obj_move_foreground(ctx->detail_title_pill);
   if (ctx->detail_prev_btn) lv_obj_move_foreground(ctx->detail_prev_btn);
   if (ctx->detail_next_btn) lv_obj_move_foreground(ctx->detail_next_btn);
   lv_obj_move_foreground(close_btn);
