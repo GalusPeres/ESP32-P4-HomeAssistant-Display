@@ -36,7 +36,7 @@ constexpr int kModeButtonHeight = 54;
 constexpr int kModeButtonGap = 12;
 constexpr int kSummaryRowTop = 108;
 constexpr int kDetailHeaderSubrowTop = 170;
-constexpr int kForecastRowTop = 238;
+constexpr int kForecastRowTop = 170;
 constexpr int kForecastRowHeight = kCardHeight - kForecastRowTop - kCardPad - 10;
 constexpr int kForecastSidePad = 4;
 constexpr int kForecastColGap = 4;
@@ -44,13 +44,13 @@ constexpr int kForecastDayTop = 2;
 constexpr int kForecastDayIconGap = 6;
 constexpr int kForecastIconTop = 30;
 constexpr int kForecastTempChartTop = 102;
-constexpr int kForecastTempChartHeight = 164;
+constexpr int kForecastTempChartHeight = 150;
 constexpr int kForecastHighLabelGap = 6;
 constexpr int kForecastLowLabelGap = 8;
-constexpr int kForecastPrecipChartTop = 302;
-constexpr int kForecastPrecipChartHeight = 46;
-constexpr int kForecastAmountTop = 368;
-constexpr int kForecastProbabilityTop = 400;
+constexpr int kForecastPrecipChartTop = 288;
+constexpr int kForecastPrecipChartHeight = 15;
+constexpr int kForecastAmountTop = 323;
+constexpr int kForecastProbabilityTop = 355;
 constexpr int kForecastBarWidth = 10;
 constexpr int kForecastBarSideInset = 5;
 constexpr int kForecastChartSideInset = 8;
@@ -64,9 +64,9 @@ constexpr int kForecastLastCenter =
     kForecastSidePad + ((kCols - 1) * (kForecastPlotColW + kForecastColGap)) + (kForecastPlotColW / 2);
 constexpr int kDetailRowTop = kForecastRowTop;
 constexpr int kDetailTitleTop = kDetailHeaderSubrowTop + 6;
-constexpr int kDetailNavButtonSize = 86;
+constexpr int kDetailNavButtonSize = 58;
 constexpr int kDetailNavButtonEdgeOffset = 6;
-constexpr int kDetailNavButtonOffsetY = kDetailHeaderSubrowTop - 22;
+constexpr int kDetailNavButtonOffsetY = 6;
 constexpr float kDetailNowCollisionHours = 3.0f;
 constexpr int kDetailNowGuideWidth = 1;
 constexpr int kDetailNowGuideOpa = LV_OPA_30;
@@ -1407,20 +1407,28 @@ static void update_mode_buttons(WeatherPopupContext* ctx) {
   const bool show_detail_nav = ctx->view_mode == WeatherPopupViewMode::Day;
   const int prev_day = find_prev_active_day_index(ctx, ctx->selected_day_index);
   const int next_day = find_next_active_day_index(ctx, ctx->selected_day_index);
-  if (ctx->detail_prev_btn) {
-    if (show_detail_nav && prev_day >= 0) {
-      lv_obj_clear_flag(ctx->detail_prev_btn, LV_OBJ_FLAG_HIDDEN);
-    } else {
-      lv_obj_add_flag(ctx->detail_prev_btn, LV_OBJ_FLAG_HIDDEN);
+  const lv_color_t nav_bg_color =
+      ctx->card ? lv_obj_get_style_bg_color(ctx->card, LV_PART_MAIN) : lv_color_hex(ctx->bg_color);
+  const lv_color_t nav_inactive_color = lv_color_mix(lv_color_white(), nav_bg_color, 96);
+  auto set_nav_state = [&](lv_obj_t* btn, bool visible, bool enabled) {
+    if (!btn) return;
+    if (!visible) {
+      lv_obj_add_flag(btn, LV_OBJ_FLAG_HIDDEN);
+      return;
     }
-  }
-  if (ctx->detail_next_btn) {
-    if (show_detail_nav && next_day >= 0) {
-      lv_obj_clear_flag(ctx->detail_next_btn, LV_OBJ_FLAG_HIDDEN);
-    } else {
-      lv_obj_add_flag(ctx->detail_next_btn, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(btn, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_t* icon = lv_obj_get_child(btn, 0);
+    if (icon) {
+      lv_obj_set_style_text_color(icon, enabled ? lv_color_white() : nav_inactive_color, 0);
     }
-  }
+    if (enabled) {
+      lv_obj_add_flag(btn, LV_OBJ_FLAG_CLICKABLE);
+    } else {
+      lv_obj_clear_flag(btn, LV_OBJ_FLAG_CLICKABLE);
+    }
+  };
+  set_nav_state(ctx->detail_prev_btn, true, show_detail_nav && prev_day >= 0);
+  set_nav_state(ctx->detail_next_btn, true, show_detail_nav && next_day >= 0);
 }
 
 static void clear_hourly(WeatherPopupContext* ctx) {
@@ -2945,7 +2953,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_set_style_transform_height(btn, 0, LV_STATE_PRESSED);
     lv_obj_set_style_translate_y(btn, 0, 0);
     lv_obj_set_style_translate_y(btn, 0, LV_STATE_PRESSED);
-    lv_obj_align(btn, LV_ALIGN_TOP_RIGHT, x_ofs, 13);
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_RIGHT, x_ofs, 6);
     lv_obj_set_ext_click_area(btn, 12);
     lv_obj_add_flag(btn, LV_OBJ_FLAG_PRESS_LOCK);
     lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
@@ -2978,8 +2986,8 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   lv_label_set_text(close_label, getMdiChar("window-close").c_str());
   lv_obj_center(close_label);
 
-  ctx->header_week_btn = make_header_action_button("7D", -106, FONT_UNIT);
-  ctx->header_today_btn = make_header_action_button(weather_today_button_text(), -214, FONT_UNIT);
+  ctx->header_week_btn = make_header_action_button("7D", -164, FONT_UNIT);
+  ctx->header_today_btn = make_header_action_button(weather_today_button_text(), -268, FONT_UNIT);
 
   lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 8, 0);
 
@@ -3066,7 +3074,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   lv_obj_set_style_pad_ver(week_range_label, 10, 0);
   lv_obj_set_style_text_align(week_range_label, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_text(week_range_label, "");
-  lv_obj_align(week_range_label, LV_ALIGN_TOP_MID, 0, kDetailTitleTop - 8);
+  lv_obj_align(week_range_label, LV_ALIGN_BOTTOM_LEFT, 6, 1);
   lv_obj_add_flag(week_range_label, LV_OBJ_FLAG_HIDDEN);
 
   const lv_coord_t forecast_total_w = kCardWidth - (kCardPad * 2);
@@ -3307,7 +3315,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   lv_obj_set_style_pad_ver(detail_title, 10, 0);
   lv_obj_set_style_text_align(detail_title, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_text(detail_title, "");
-  lv_obj_align(detail_title, LV_ALIGN_TOP_MID, 0, kDetailTitleTop - 8);
+  lv_obj_align(detail_title, LV_ALIGN_BOTTOM_LEFT, 6, 1);
   lv_obj_add_flag(detail_title, LV_OBJ_FLAG_HIDDEN);
 
   auto make_detail_nav_button = [&](const char* mdi_icon, lv_align_t align) -> lv_obj_t* {
@@ -3337,8 +3345,10 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_set_style_pad_all(btn, 0, 0);
     lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(btn, LV_OBJ_FLAG_PRESS_LOCK);
-    const int x_ofs = (align == LV_ALIGN_TOP_LEFT) ? -kDetailNavButtonEdgeOffset : kDetailNavButtonEdgeOffset;
-    lv_obj_align(btn, align, x_ofs, kDetailNavButtonOffsetY);
+    const int x_ofs = (align == LV_ALIGN_TOP_LEFT)
+                          ? -(kDetailNavButtonSize + 8 - kDetailNavButtonEdgeOffset)
+                          : kDetailNavButtonEdgeOffset;
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_RIGHT, x_ofs, kDetailNavButtonOffsetY);
     lv_obj_add_flag(btn, LV_OBJ_FLAG_HIDDEN);
     lv_obj_t* label = lv_label_create(btn);
     set_label_style(label, lv_color_white(), FONT_MDI_ICONS);
