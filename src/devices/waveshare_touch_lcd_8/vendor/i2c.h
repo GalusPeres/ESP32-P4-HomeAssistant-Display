@@ -26,7 +26,8 @@
 // Define the I2C frequency (400 kHz)
 #define EXAMPLE_I2C_MASTER_FREQUENCY (400 * 1000)  // I2C speed
 
-// Define the I2C master port number (I2C_NUM_0 in this case)
+// Waveshare's ESP-IDF example for the ESP32-P4-WIFI6-Touch-LCD-X uses I2C0
+// on GPIO7/GPIO8.
 #define EXAMPLE_I2C_MASTER_NUM I2C_NUM_0
 
 
@@ -55,7 +56,8 @@ DEV_I2C_Port DEV_I2C_Init();
  * @param dev_handle The handle to the I2C device.
  * @param Addr The new I2C address to set for the device.
  */
-void DEV_I2C_Set_Slave_Addr(i2c_master_dev_handle_t *dev_handle, uint8_t Addr);
+esp_err_t DEV_I2C_Set_Slave_Addr(i2c_master_dev_handle_t *dev_handle, uint8_t Addr,
+                                  uint32_t scl_speed_hz = EXAMPLE_I2C_MASTER_FREQUENCY);
 
 /**
  * @brief Write a single byte to the I2C device.
@@ -66,7 +68,7 @@ void DEV_I2C_Set_Slave_Addr(i2c_master_dev_handle_t *dev_handle, uint8_t Addr);
  * @param Cmd The command byte to send to the device.
  * @param value The value byte to send to the device.
  */
-void DEV_I2C_Write_Byte(i2c_master_dev_handle_t dev_handle, uint8_t Cmd, uint8_t value);
+esp_err_t DEV_I2C_Write_Byte(i2c_master_dev_handle_t dev_handle, uint8_t Cmd, uint8_t value);
 
 /**
  * @brief Read a single byte from the I2C device.

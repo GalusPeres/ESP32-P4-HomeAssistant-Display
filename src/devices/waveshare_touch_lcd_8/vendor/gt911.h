@@ -26,8 +26,8 @@
 #define ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS          (0x5D)   // Default I2C address
 #define ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP   (0x14)   // Backup I2C address when interrupt GPIO is high
 
-#define EXAMPLE_PIN_NUM_TOUCH_RST       (GPIO_NUM_23)            // Reset pin for the touch controller (set to -1 if not used)
-#define EXAMPLE_PIN_NUM_TOUCH_INT       (GPIO_NUM_NC)    // Interrupt pin for the touch controller
+#define EXAMPLE_PIN_NUM_TOUCH_RST       (GPIO_NUM_NC)
+#define EXAMPLE_PIN_NUM_TOUCH_INT       (GPIO_NUM_NC)
 
 
 /**

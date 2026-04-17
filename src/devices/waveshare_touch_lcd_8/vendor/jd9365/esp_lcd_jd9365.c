@@ -18,7 +18,12 @@
 #include "freertos/task.h"
 #include "driver/gpio.h"
 #include "esp_lcd_jd9365.h"
-#include "i2c_bus.h"
+// NOTE: i2c_bus.h (esp-iot-solution) is NOT used in this fork; PMIC init
+// at I2C addr 0x45 is performed by device_waveshare_touch_lcd_8.cpp.
+
+#ifndef CONFIG_BSP_LCD_TYPE_800_1280_8_INCH_A
+#define CONFIG_BSP_LCD_TYPE_800_1280_8_INCH_A 1
+#endif
 
 #define JD9365_CMD_PAGE (0xE0)
 #define JD9365_PAGE_USER (0x00)
@@ -118,32 +123,9 @@ esp_err_t esp_lcd_new_panel_jd9365(const esp_lcd_panel_io_handle_t io, const esp
     jd9365->reset_gpio_num = panel_dev_config->reset_gpio_num;
     jd9365->flags.reset_level = panel_dev_config->flags.reset_active_high;
 
-    i2c_config_t conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = 7,
-        // .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_io_num = 8,
-        // .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 100000,
-    };
-
-    i2c_bus_handle_t i2c0_bus = i2c_bus_create(I2C_NUM_1, &conf);
-    i2c_bus_device_handle_t i2c0_device1 = i2c_bus_device_create(i2c0_bus, 0x45, 0);
-
-    uint8_t data = 0x11;
-    i2c_bus_write_bytes(i2c0_device1, 0x95, 1, &data);
-    data = 0x17;
-    i2c_bus_write_bytes(i2c0_device1, 0x95, 1, &data);
-    data = 0x00;
-    i2c_bus_write_bytes(i2c0_device1, 0x96, 1, &data);
-    vTaskDelay(pdMS_TO_TICKS(100));
-    data = 0xFF;
-    i2c_bus_write_bytes(i2c0_device1, 0x96, 1, &data);
-
-    i2c_bus_device_delete(&i2c0_device1);
-    // i2c_bus_delete(&i2c0_bus);
-
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    // PMIC init (I2C addr 0x45) is performed externally by the board driver
+    // before esp_lcd_new_panel_jd9365() is called. See
+    // src/devices/waveshare_touch_lcd_8/device_waveshare_touch_lcd_8.cpp.
 
     // Create MIPI DPI panel
     esp_lcd_panel_handle_t panel_handle = NULL;

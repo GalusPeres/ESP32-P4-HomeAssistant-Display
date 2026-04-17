@@ -32,6 +32,10 @@ DEV_I2C_Port handle;
  */
 DEV_I2C_Port DEV_I2C_Init()
 {
+    if (handle.bus) {
+        return handle;
+    }
+
     // Define I2C bus configuration parameters
     i2c_master_bus_config_t i2c_bus_config = {
         .i2c_port = EXAMPLE_I2C_MASTER_NUM,     // I2C master port number
@@ -39,21 +43,21 @@ DEV_I2C_Port DEV_I2C_Init()
         .scl_io_num = EXAMPLE_I2C_MASTER_SCL,   // I2C SCL (clock) pin
         .clk_source = I2C_CLK_SRC_DEFAULT,       // Default clock source for I2C
         .glitch_ignore_cnt = 7,                  // Ignore glitches in the I2C signal
+        .flags = {
+            .enable_internal_pullup = 0,
+        },
     };
 
     // Create a new I2C master bus with the above configuration
-    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_config, &handle.bus));
-    
-    // Configure the device's I2C parameters
-    i2c_device_config_t i2c_dev_conf = {
-        .scl_speed_hz = EXAMPLE_I2C_MASTER_FREQUENCY,  // Set I2C communication speed
-    };
-    
-    // Add the I2C device to the bus
-    // i2c_master_dev_handle_t dev_handle = NULL;
-    if (i2c_master_bus_add_device(handle.bus, &i2c_dev_conf, &handle.dev) != ESP_OK) {
-        ESP_LOGE(TAG, "I2C device creation failed");  // Log error if device creation fails
+    esp_err_t err = i2c_new_master_bus(&i2c_bus_config, &handle.bus);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "I2C master bus init failed: %d", err);
+        handle.bus = NULL;
+        handle.dev = NULL;
+        return handle;
     }
+
+    handle.dev = NULL;
 
     return handle;  // Return the device handle if successful
 }
@@ -66,18 +70,26 @@ DEV_I2C_Port DEV_I2C_Init()
  * @param dev_handle The handle to the I2C device.
  * @param Addr The new I2C address for the device.
  */
-void DEV_I2C_Set_Slave_Addr(i2c_master_dev_handle_t *dev_handle, uint8_t Addr)
+esp_err_t DEV_I2C_Set_Slave_Addr(i2c_master_dev_handle_t *dev_handle, uint8_t Addr, uint32_t scl_speed_hz)
 {
+    if (!handle.bus || !dev_handle) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    *dev_handle = NULL;
+
     // Configure the new device address
-    i2c_device_config_t i2c_dev_conf = { 
+    i2c_device_config_t i2c_dev_conf = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address = Addr,                        // Set new device address
-        .scl_speed_hz = EXAMPLE_I2C_MASTER_FREQUENCY,  // I2C frequency
+        .scl_speed_hz = scl_speed_hz,                   // I2C frequency
     };
     
     // Update the device with the new address
-    if (i2c_master_bus_add_device(handle.bus, &i2c_dev_conf, dev_handle) != ESP_OK) {
-        ESP_LOGE(TAG, "I2C address modification failed");  // Log error if address modification fails
+    esp_err_t err = i2c_master_bus_add_device(handle.bus, &i2c_dev_conf, dev_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "I2C device add failed addr=0x%02X err=%d", Addr, err);
     }
+    return err;
 }
 
 /**
@@ -89,10 +101,17 @@ void DEV_I2C_Set_Slave_Addr(i2c_master_dev_handle_t *dev_handle, uint8_t Addr)
  * @param Cmd The command byte to send.
  * @param value The value byte to send.
  */
-void DEV_I2C_Write_Byte(i2c_master_dev_handle_t dev_handle, uint8_t Cmd, uint8_t value)
+esp_err_t DEV_I2C_Write_Byte(i2c_master_dev_handle_t dev_handle, uint8_t Cmd, uint8_t value)
 {
+    if (!dev_handle) {
+        return ESP_ERR_INVALID_ARG;
+    }
     uint8_t data[2] = {Cmd, value};  // Create an array with command and value
-    ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, data, sizeof(data), 100));  // Send the data to the device
+    esp_err_t err = i2c_master_transmit(dev_handle, data, sizeof(data), 100);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "I2C write failed reg=0x%02X val=0x%02X err=%d", Cmd, value, err);
+    }
+    return err;
 }
 
 /**
@@ -105,8 +124,15 @@ void DEV_I2C_Write_Byte(i2c_master_dev_handle_t dev_handle, uint8_t Cmd, uint8_t
  */
 uint8_t DEV_I2C_Read_Byte(i2c_master_dev_handle_t dev_handle)
 {
+    if (!dev_handle) {
+        return 0;
+    }
     uint8_t data[1] = {0};  // Create a buffer to store the received byte
-    ESP_ERROR_CHECK(i2c_master_receive(dev_handle, data, 1, 100));  // Read a byte from the device
+    esp_err_t err = i2c_master_receive(dev_handle, data, 1, 100);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "I2C read byte failed err=%d", err);
+        return 0;
+    }
     return data[0];  // Return the received byte
 }
 
@@ -122,8 +148,15 @@ uint8_t DEV_I2C_Read_Byte(i2c_master_dev_handle_t dev_handle)
  */
 uint16_t DEV_I2C_Read_Word(i2c_master_dev_handle_t dev_handle, uint8_t Cmd)
 {
+    if (!dev_handle) {
+        return 0;
+    }
     uint8_t data[2] = {Cmd};  // Create an array with the command byte
-    ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, data, 1, data, 2, 100));  // Send command and receive two bytes
+    esp_err_t err = i2c_master_transmit_receive(dev_handle, data, 1, data, 2, 100);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "I2C read word failed reg=0x%02X err=%d", Cmd, err);
+        return 0;
+    }
     return data[1] << 8 | data[0];  // Combine the two bytes into a word (16-bit)
 }
 
@@ -138,7 +171,13 @@ uint16_t DEV_I2C_Read_Word(i2c_master_dev_handle_t dev_handle, uint8_t Cmd)
  */
 void DEV_I2C_Write_Nbyte(i2c_master_dev_handle_t dev_handle, uint8_t *pdata, uint8_t len)
 {
-    ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, pdata, len, 100));  // Transmit the data block
+    if (!dev_handle || !pdata || len == 0) {
+        return;
+    }
+    esp_err_t err = i2c_master_transmit(dev_handle, pdata, len, 100);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "I2C write block failed len=%u err=%d", len, err);
+    }
 }
 
 /**
@@ -154,7 +193,13 @@ void DEV_I2C_Write_Nbyte(i2c_master_dev_handle_t dev_handle, uint8_t *pdata, uin
  */
 void DEV_I2C_Read_Nbyte(i2c_master_dev_handle_t dev_handle, uint8_t Cmd, uint8_t *pdata, uint8_t len)
 {
-    ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, &Cmd, 1, pdata, len, 100));  // Send command and receive data
+    if (!dev_handle || !pdata || len == 0) {
+        return;
+    }
+    esp_err_t err = i2c_master_transmit_receive(dev_handle, &Cmd, 1, pdata, len, 100);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "I2C read block failed reg=0x%02X len=%u err=%d", Cmd, len, err);
+    }
 }
 
 #endif  // defined(DEVICE_WAVESHARE_TOUCH_LCD_8)

@@ -123,9 +123,11 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   preload_light_popup();
   preload_sensor_popup();
   preload_weather_popup();
+#if !defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
   // Warm settings buffer once to reduce the first-open hitch.
   switchToTab(3);
   switchToTab(0);
+#endif
 
   mqttPublishDeviceSettings();
 
