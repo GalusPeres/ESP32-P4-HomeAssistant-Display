@@ -1325,6 +1325,7 @@ void WebAdminServer::handleBridgeRefresh() {
 }
 
 void WebAdminServer::handleStatus() {
+  webAdminMarkActivity();
   server.send(200, "application/json", getStatusJSON());
 }
 
@@ -1339,6 +1340,7 @@ void WebAdminServer::handleRestart() {
 
 void WebAdminServer::handleGetTiles() {
   // GET /api/tiles?folder=<id>[&index=0-23]
+  webAdminMarkActivity();
   if (!server.hasArg("tab") && !server.hasArg("folder") && !server.hasArg("folder_id")) {
     server.send(400, "application/json", "{\"error\":\"Missing folder parameter\"}");
     return;
@@ -1677,6 +1679,7 @@ void WebAdminServer::handleReorderTiles() {
 }
 
 void WebAdminServer::handleGetSensorValues() {
+  webAdminMarkActivity();
   const HaBridgeConfigData& ha = haBridgeConfig.get();
 
 

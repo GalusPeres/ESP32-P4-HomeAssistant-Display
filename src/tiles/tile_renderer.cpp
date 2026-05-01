@@ -12,6 +12,7 @@
 #include "src/tiles/tile_renderer_shared.h"
 #include "src/core/config_manager.h"
 #include "src/core/i18n.h"
+#include "src/web/web_admin.h"
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
@@ -1848,7 +1849,7 @@ static lv_image_dsc_t* decode_media_cover_jpeg(const uint8_t* data, size_t len) 
   uint8_t scale = 0;
   uint16_t out_w = jd.width;
   uint16_t out_h = jd.height;
-  constexpr uint16_t kMaxCoverSide = 180;
+  constexpr uint16_t kMaxCoverSide = 96;
   while ((out_w > kMaxCoverSide || out_h > kMaxCoverSide) && scale < 3) {
     ++scale;
     out_w = static_cast<uint16_t>((jd.width + ((1U << scale) - 1U)) >> scale);
@@ -1902,13 +1903,29 @@ static uint8_t* alloc_media_cover_download_buffer(size_t bytes) {
   return static_cast<uint8_t*>(alloc_media_cover_memory(bytes, true));
 }
 
-static lv_image_dsc_t* download_media_cover_jpeg(const String& url) {
-  if (!url.startsWith("http://") && !url.startsWith("https://")) return nullptr;
+static bool media_cover_network_budget_ok() {
+  constexpr size_t kMinInternalFree = 96U * 1024U;
+  constexpr size_t kMinInternalLargest = 24U * 1024U;
+  const size_t free_internal = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  const size_t largest_internal = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  return free_internal >= kMinInternalFree && largest_internal >= kMinInternalLargest;
+}
 
-  constexpr size_t kMaxDownloadBytes = 384U * 1024U;
+static lv_image_dsc_t* download_media_cover_jpeg(const String& url, bool* deferred) {
+  if (deferred) *deferred = false;
+  if (!url.startsWith("http://") && !url.startsWith("https://")) return nullptr;
+  if (webAdminRecentlyActive(3500) || !media_cover_network_budget_ok()) {
+    if (deferred) *deferred = true;
+    return nullptr;
+  }
+
+  constexpr size_t kMaxDownloadBytes = 96U * 1024U;
+  constexpr size_t kReadChunkBytes = 512U;
   Serial.printf("[MediaCover] lade: %s\n", url.c_str());
   HTTPClient http;
-  http.setTimeout(2500);
+  http.setTimeout(1200);
+  http.setReuse(false);
+  http.useHTTP10(true);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
   WiFiClient plain_client;
@@ -1921,11 +1938,14 @@ static lv_image_dsc_t* download_media_cover_jpeg(const String& url) {
     ok_begin = http.begin(plain_client, url);
   }
   if (!ok_begin) return nullptr;
+  http.addHeader("Connection", "close");
 
   int code = http.GET();
   if (code != HTTP_CODE_OK) {
     Serial.printf("[MediaCover] HTTP %d fuer Cover\n", code);
     http.end();
+    plain_client.stop();
+    secure_client.stop();
     return nullptr;
   }
 
@@ -1933,6 +1953,8 @@ static lv_image_dsc_t* download_media_cover_jpeg(const String& url) {
   if (content_len > 0 && static_cast<size_t>(content_len) > kMaxDownloadBytes) {
     Serial.printf("[MediaCover] Cover zu gross: %d Bytes\n", content_len);
     http.end();
+    plain_client.stop();
+    secure_client.stop();
     return nullptr;
   }
 
@@ -1942,13 +1964,24 @@ static lv_image_dsc_t* download_media_cover_jpeg(const String& url) {
   if (!data) {
     Serial.println("[MediaCover] Download-Puffer fehlt");
     http.end();
+    plain_client.stop();
+    secure_client.stop();
     return nullptr;
   }
 
   WiFiClient* stream = http.getStreamPtr();
   size_t total = 0;
-  uint32_t deadline = millis() + 3500;
+  uint32_t deadline = millis() + 2200;
   while (http.connected() && millis() < deadline) {
+    if (webAdminRecentlyActive(1000)) {
+      if (deferred) *deferred = true;
+      free(data);
+      http.end();
+      plain_client.stop();
+      secure_client.stop();
+      delay(20);
+      return nullptr;
+    }
     int available = stream ? stream->available() : 0;
     if (available > 0) {
       size_t room = buffer_cap - total;
@@ -1956,22 +1989,30 @@ static lv_image_dsc_t* download_media_cover_jpeg(const String& url) {
         Serial.println("[MediaCover] Cover Download-Limit erreicht");
         free(data);
         http.end();
+        plain_client.stop();
+        secure_client.stop();
         return nullptr;
       }
       size_t to_read = static_cast<size_t>(available);
       if (to_read > room) to_read = room;
+      if (to_read > kReadChunkBytes) to_read = kReadChunkBytes;
       int read_bytes = stream->readBytes(data + total, to_read);
       if (read_bytes > 0) {
         total += static_cast<size_t>(read_bytes);
-        deadline = millis() + 1500;
+        deadline = millis() + 900;
+        delay(2);
+        yield();
       }
     } else {
       if (content_len >= 0 && total >= static_cast<size_t>(content_len)) break;
-      delay(1);
+      delay(5);
       yield();
     }
   }
   http.end();
+  plain_client.stop();
+  secure_client.stop();
+  delay(20);
 
   if (total < 32) {
     Serial.printf("[MediaCover] zu wenig Daten: %u Bytes\n", static_cast<unsigned>(total));
@@ -2038,6 +2079,7 @@ struct MediaCoverResult {
   uint32_t url_hash = 0;
   lv_image_dsc_t* dsc = nullptr;
   bool ok = false;
+  bool deferred = false;
 };
 
 static QueueHandle_t g_media_cover_request_queue = nullptr;
@@ -2045,6 +2087,8 @@ static QueueHandle_t g_media_cover_result_queue = nullptr;
 static TaskHandle_t g_media_cover_task = nullptr;
 static uint32_t g_media_cover_request_full_count = 0;
 static uint32_t g_media_cover_result_full_count = 0;
+static uint32_t g_media_cover_last_download_ms = 0;
+static constexpr bool kMediaCoverDownloadsEnabled = true;
 
 static void media_cover_worker_task(void*) {
   for (;;) {
@@ -2057,8 +2101,19 @@ static void media_cover_worker_task(void*) {
     result.grid_type = req.grid_type;
     result.grid_index = req.grid_index;
     result.url_hash = req.url_hash;
-    result.dsc = download_media_cover_jpeg(String(req.url));
+    while (webAdminRecentlyActive(3500)) {
+      vTaskDelay(pdMS_TO_TICKS(250));
+    }
+    const uint32_t now = millis();
+    if (g_media_cover_last_download_ms != 0 &&
+        static_cast<uint32_t>(now - g_media_cover_last_download_ms) < 1500) {
+      vTaskDelay(pdMS_TO_TICKS(1500 - static_cast<uint32_t>(now - g_media_cover_last_download_ms)));
+    }
+    bool deferred = false;
+    result.dsc = download_media_cover_jpeg(String(req.url), &deferred);
     result.ok = result.dsc != nullptr;
+    result.deferred = deferred;
+    g_media_cover_last_download_ms = millis();
 
     if (!g_media_cover_result_queue ||
         xQueueSend(g_media_cover_result_queue, &result, 0) != pdTRUE) {
@@ -2072,10 +2127,10 @@ static void media_cover_worker_task(void*) {
 
 static bool ensure_media_cover_worker() {
   if (!g_media_cover_request_queue) {
-    g_media_cover_request_queue = xQueueCreate(4, sizeof(MediaCoverRequest));
+    g_media_cover_request_queue = xQueueCreate(1, sizeof(MediaCoverRequest));
   }
   if (!g_media_cover_result_queue) {
-    g_media_cover_result_queue = xQueueCreate(4, sizeof(MediaCoverResult));
+    g_media_cover_result_queue = xQueueCreate(1, sizeof(MediaCoverResult));
   }
   if (!g_media_cover_request_queue || !g_media_cover_result_queue) {
     return false;
@@ -2146,6 +2201,10 @@ static void process_media_cover_results() {
     }
 
     ref->requested_url_hash = 0;
+    if (result.deferred) {
+      free_media_cover_dsc(result.dsc);
+      continue;
+    }
     if (!result.ok || !result.dsc) {
       ref->failed_url_hash = result.url_hash;
       if (ref->url_hash != result.url_hash) {
@@ -2189,6 +2248,15 @@ static void update_media_cover(GridType grid_type,
 
   uint32_t hash = fnv1a_hash(url.c_str());
   MediaCoverRef* ref = widgets.cover_ref;
+
+  if (!kMediaCoverDownloadsEnabled) {
+    ref->requested_url_hash = 0;
+    lv_obj_add_flag(widgets.cover_image, LV_OBJ_FLAG_HIDDEN);
+    if (widgets.icon_label) lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
+    set_media_cover_text_layout(widgets, false);
+    return;
+  }
+
   if (ref->url_hash == hash && ref->dsc) {
     ref->requested_url_hash = 0;
     lv_obj_clear_flag(widgets.cover_image, LV_OBJ_FLAG_HIDDEN);

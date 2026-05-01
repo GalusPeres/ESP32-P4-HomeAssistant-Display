@@ -81,5 +81,7 @@ private:
 extern WebAdminServer webAdminServer;
 bool webAdminOtaInProgress();
 void webAdminServiceOta();
+void webAdminMarkActivity();
+bool webAdminRecentlyActive(uint32_t quiet_ms = 3000);
 
 #endif // WEB_ADMIN_H

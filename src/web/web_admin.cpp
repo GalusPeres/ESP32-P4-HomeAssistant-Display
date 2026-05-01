@@ -2,8 +2,19 @@
 #include <WiFi.h>
 
 WebAdminServer webAdminServer;
+static volatile uint32_t g_web_admin_last_activity_ms = 0;
 
 WebAdminServer::WebAdminServer() : server(80), running(false) {}
+
+void webAdminMarkActivity() {
+  g_web_admin_last_activity_ms = millis();
+}
+
+bool webAdminRecentlyActive(uint32_t quiet_ms) {
+  const uint32_t last = g_web_admin_last_activity_ms;
+  if (last == 0) return false;
+  return static_cast<uint32_t>(millis() - last) < quiet_ms;
+}
 
 bool WebAdminServer::start() {
   if (running) {
@@ -72,7 +83,9 @@ void WebAdminServer::handle() {
 }
 
 void WebAdminServer::handleRoot() {
+  webAdminMarkActivity();
   server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   server.sendHeader("Pragma", "no-cache");
   server.send(200, "text/html; charset=utf-8", getAdminPage());
+  webAdminMarkActivity();
 }
