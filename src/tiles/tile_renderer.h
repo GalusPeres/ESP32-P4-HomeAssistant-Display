@@ -66,6 +66,25 @@ struct WeatherTileWidgets {
   uint32_t last_payload_hash = 0;
 };
 
+struct MediaCoverRef {
+  lv_image_dsc_t* dsc = nullptr;
+  uint32_t url_hash = 0;
+  uint32_t requested_url_hash = 0;
+  uint32_t failed_url_hash = 0;
+};
+
+struct MediaTileWidgets {
+  lv_obj_t* cover_image = nullptr;
+  MediaCoverRef* cover_ref = nullptr;
+  lv_obj_t* icon_label = nullptr;
+  lv_obj_t* title_label = nullptr;
+  lv_obj_t* media_title_label = nullptr;
+  lv_obj_t* media_subtitle_label = nullptr;
+  lv_obj_t* state_label = nullptr;
+  uint32_t last_payload_hash = 0;
+  bool dynamic_icon = true;
+};
+
 struct SwitchState {
   bool has_state = false;
   bool is_on = false;
@@ -92,6 +111,7 @@ struct TileWidgetCache {
   SwitchTileWidgets switches[TILES_PER_GRID];
   SwitchState switch_states[TILES_PER_GRID];
   WeatherTileWidgets weather[TILES_PER_GRID];
+  MediaTileWidgets media[TILES_PER_GRID];
 };
 
 // Rendert ein komplettes Tile-Grid (4x4)
@@ -111,6 +131,7 @@ lv_obj_t* render_clock_tile(lv_obj_t* parent, int col, int row, const Tile& tile
 lv_obj_t* render_text_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index);
 lv_obj_t* render_counter_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type);
 lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type);
+lv_obj_t* render_media_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type);
 lv_obj_t* render_empty_tile(lv_obj_t* parent, int col, int row);
 
 // Update-Funktionen (für Sensoren)
@@ -134,6 +155,11 @@ void reset_weather_widget(GridType grid_type, uint8_t grid_index);
 void reset_weather_widgets(GridType grid_type);
 void queue_weather_tile_update(GridType grid_type, uint8_t grid_index, const char* payload);
 void process_weather_update_queue();  // Im Main Loop VOR lv_timer_handler() aufrufen!
+
+void reset_media_widget(GridType grid_type, uint8_t grid_index);
+void reset_media_widgets(GridType grid_type);
+void queue_media_tile_update(GridType grid_type, uint8_t grid_index, const char* payload);
+void process_media_update_queue();  // Im Main Loop VOR lv_timer_handler() aufrufen!
 
 // THREAD-SAFE: Queue fuer Tile-Graph-History (MQTT Callback -> Main Loop)
 void queue_tile_graph_history(const char* entity_id, const char* payload, size_t len);

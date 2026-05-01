@@ -15,6 +15,7 @@
 #include "src/types/counter/renderer.h"
 #include "src/types/energy/renderer.h"
 #include "src/types/weather/renderer.h"
+#include "src/types/media/renderer.h"
 
 #include "src/types/clock/web_handler.h"
 #include "src/types/key/web_handler.h"
@@ -26,6 +27,7 @@
 #include "src/types/counter/web_handler.h"
 #include "src/types/energy/web_handler.h"
 #include "src/types/weather/web_handler.h"
+#include "src/types/media/web_handler.h"
 
 #include "src/types/clock/web_html.h"
 #include "src/types/key/web_html.h"
@@ -37,6 +39,7 @@
 #include "src/types/counter/web_html.h"
 #include "src/types/energy/web_html.h"
 #include "src/types/weather/web_html.h"
+#include "src/types/media/web_html.h"
 
 #include "src/types/clock/web_scripts.h"
 #include "src/types/key/web_scripts.h"
@@ -48,6 +51,7 @@
 #include "src/types/counter/web_scripts.h"
 #include "src/types/energy/web_scripts.h"
 #include "src/types/weather/web_scripts.h"
+#include "src/types/media/web_scripts.h"
 
 #include "src/types/clock/web_styles.h"
 #include "src/types/key/web_styles.h"
@@ -59,6 +63,7 @@
 #include "src/types/counter/web_styles.h"
 #include "src/types/energy/web_styles.h"
 #include "src/types/weather/web_styles.h"
+#include "src/types/media/web_styles.h"
 
 #include "src/core/config_manager.h"
 #include "src/core/i18n.h"
@@ -182,6 +187,16 @@ lv_obj_t* render_energy_wrapper(lv_obj_t* parent,
   return render_energy_tile(parent, col, row, tile, index, grid_type);
 }
 
+lv_obj_t* render_media_wrapper(lv_obj_t* parent,
+                               int col,
+                               int row,
+                               const Tile& tile,
+                               uint8_t index,
+                               GridType grid_type,
+                               scene_publish_cb_t) {
+  return render_media_tile(parent, col, row, tile, index, grid_type);
+}
+
 lv_obj_t* render_empty_wrapper(lv_obj_t* parent,
                                int col,
                                int row,
@@ -241,6 +256,11 @@ bool apply_weather_wrapper(WebServer& server, Tile& tile, const TileTypeApplyCon
 
 bool apply_energy_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
   apply_energy_fields_from_request(server, tile);
+  return true;
+}
+
+bool apply_media_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
+  apply_media_fields_from_request(server, tile);
   return true;
 }
 
@@ -307,6 +327,10 @@ void append_weather_fields_wrapper(String& html, const TileTypeWebContext& ctx) 
 
 void append_energy_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
   append_energy_fields_html(html, safeString(ctx.tab_id), safeStrings(ctx.energy_options));
+}
+
+void append_media_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
+  append_media_fields_html(html, safeString(ctx.tab_id), safeStrings(ctx.media_options));
 }
 
 const TileTypeDescriptor kTileTypes[] = {
@@ -453,6 +477,24 @@ const TileTypeDescriptor kTileTypes[] = {
     append_switch_fields_wrapper,
     append_switch_styles,
     append_switch_scripts
+  },
+  {
+    TILE_MEDIA,
+    "Media",
+    "media",
+    "media",
+    "media",
+    nullptr,
+    "loadMediaFields",
+    "saveMediaFields",
+    "resetMediaFields",
+    0x2A2A2A,
+    false,
+    render_media_wrapper,
+    apply_media_wrapper,
+    append_media_fields_wrapper,
+    append_media_styles,
+    append_media_scripts
   },
   {
     TILE_CLOCK,
@@ -612,6 +654,7 @@ void append_tile_type_select_options(String& html) {
       case TILE_KEY: label = tr.tile_type_key; break;
       case TILE_FOLDER: label = tr.tile_type_folder; break;
       case TILE_SWITCH: label = tr.tile_type_switch; break;
+      case TILE_MEDIA: label = tr.tile_type_media; break;
       case TILE_CLOCK: label = tr.tile_type_clock; break;
       case TILE_TEXT: label = tr.tile_type_text; break;
       case TILE_COUNTER: label = tr.tile_type_counter; break;
@@ -641,6 +684,7 @@ void append_tile_type_registry_js(String& html) {
       case TILE_KEY: label = tr.tile_type_key; break;
       case TILE_FOLDER: label = tr.tile_type_folder; break;
       case TILE_SWITCH: label = tr.tile_type_switch; break;
+      case TILE_MEDIA: label = tr.tile_type_media; break;
       case TILE_CLOCK: label = tr.tile_type_clock; break;
       case TILE_TEXT: label = tr.tile_type_text; break;
       case TILE_COUNTER: label = tr.tile_type_counter; break;

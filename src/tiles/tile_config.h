@@ -30,7 +30,8 @@ enum TileType : uint8_t {
   TILE_COUNTER = 11,
   TILE_WEATHER = 12,
   TILE_RADAR = 13,
-  TILE_ENERGY = 14
+  TILE_ENERGY = 14,
+  TILE_MEDIA = 15
 };
 
 enum TilePopupOpenMode : uint8_t {

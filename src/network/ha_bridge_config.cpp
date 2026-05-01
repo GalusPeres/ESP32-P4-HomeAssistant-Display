@@ -15,6 +15,7 @@ static bool listEqualsIgnoringOrder(const String& a, const String& b);
 static bool mapEqualsIgnoringOrder(const String& a, const String& b);
 static bool bridgeConfigEquals(const HaBridgeConfigData& a, const HaBridgeConfigData& b);
 static void parseSensorMetaSection(const String& body, String& units, String& names, String& values);
+static void parseEntityNameSection(const String& body, const char* key, String& names);
 static void parseIconMetaSections(const String& body, String& icons);
 static void parseEnergySection(const String& body,
                                String& energy,
@@ -46,6 +47,7 @@ bool HaBridgeConfig::load() {
   data.weathers_text = "";
   data.lights_text = "";
   data.switches_text = "";
+  data.media_players_text = "";
   data.scene_alias_text = "";
   data.sensor_units_map = "";
   data.sensor_names_map = "";
@@ -128,6 +130,7 @@ bool HaBridgeConfig::hasData() const {
          data.weathers_text.length() > 0 ||
          data.lights_text.length() > 0 ||
          data.switches_text.length() > 0 ||
+         data.media_players_text.length() > 0 ||
          data.scene_alias_text.length() > 0;
 }
 
@@ -383,6 +386,13 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
     parseArraySection(json.substring(switches_idx), merged.switches_text);
   }
 
+  int media_players_idx = json.indexOf("\"media_players\"");
+  if (media_players_idx >= 0) {
+    parseArraySection(json.substring(media_players_idx), merged.media_players_text);
+  } else {
+    merged.media_players_text = "";
+  }
+
   int scene_idx = json.indexOf("\"scene_map\"");
   if (scene_idx >= 0) {
     parseObjectSection(json.substring(scene_idx), merged.scene_alias_text);
@@ -390,6 +400,7 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
 
   const String prev_icons = data.entity_icons_map;
   parseSensorMetaSection(json, merged.sensor_units_map, merged.sensor_names_map, merged.sensor_values_map);
+  parseEntityNameSection(json, "media_player_meta", merged.sensor_names_map);
   parseIconMetaSections(json, merged.entity_icons_map);
   if (!merged.entity_icons_map.length() && prev_icons.length()) {
     merged.entity_icons_map = prev_icons;
@@ -432,6 +443,7 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
       logList("Wetter", data.weathers_text);
       logList("Lichter", data.lights_text);
       logList("Schalter", data.switches_text);
+      logList("Media Player", data.media_players_text);
       logList("Szenen", data.scene_alias_text);
       if (out_reload) {
         *out_reload = true;
@@ -676,6 +688,7 @@ static bool bridgeConfigEquals(const HaBridgeConfigData& a, const HaBridgeConfig
   if (!listEqualsIgnoringOrder(a.weathers_text, b.weathers_text)) return false;
   if (!listEqualsIgnoringOrder(a.lights_text, b.lights_text)) return false;
   if (!listEqualsIgnoringOrder(a.switches_text, b.switches_text)) return false;
+  if (!listEqualsIgnoringOrder(a.media_players_text, b.media_players_text)) return false;
   if (!mapEqualsIgnoringOrder(a.scene_alias_text, b.scene_alias_text)) return false;
 
   for (size_t i = 0; i < HA_SENSOR_SLOT_COUNT; ++i) {
@@ -916,6 +929,31 @@ static void parseSensorMetaSection(const String& body, String& units, String& na
   }
 }
 
+static void parseEntityNameSection(const String& body, const char* key, String& names) {
+  if (!key || !*key) return;
+  String pattern = String("\"") + key + "\"";
+  int meta_idx = body.indexOf(pattern);
+  if (meta_idx < 0) return;
+  int array_start = body.indexOf('[', meta_idx);
+  int array_end = body.indexOf(']', array_start);
+  if (array_start < 0 || array_end < array_start) return;
+
+  String segment = body.substring(array_start + 1, array_end);
+  int obj_start = segment.indexOf('{');
+  while (obj_start >= 0) {
+    int obj_end = segment.indexOf('}', obj_start);
+    if (obj_end < 0) break;
+    String object = segment.substring(obj_start, obj_end + 1);
+    String entity;
+    String name;
+    if (extractStringField(object, "entity_id", entity) &&
+        extractStringField(object, "name", name)) {
+      upsertKeyValueMap(names, entity, name);
+    }
+    obj_start = segment.indexOf('{', obj_end + 1);
+  }
+}
+
 static void parseEntityIconSection(const String& body, const char* key, String& icons) {
   if (!key || !*key) return;
   String pattern = String("\"") + key + "\"";
@@ -955,6 +993,7 @@ static void parseIconMetaSections(const String& body, String& icons) {
   parseEntityIconSection(body, "light_meta", icons);
   parseEntityIconSection(body, "switch_meta", icons);
   parseEntityIconSection(body, "scene_meta", icons);
+  parseEntityIconSection(body, "media_player_meta", icons);
 }
 
 static String lookupKeyValue(const String& text, const String& key) {

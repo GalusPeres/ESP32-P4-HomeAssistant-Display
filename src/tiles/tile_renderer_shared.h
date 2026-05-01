@@ -18,6 +18,10 @@ extern WeatherTileWidgets g_tab0_weather[];
 extern WeatherTileWidgets g_tab1_weather[];
 extern WeatherTileWidgets g_tab2_weather[];
 
+extern MediaTileWidgets g_tab0_media[];
+extern MediaTileWidgets g_tab1_media[];
+extern MediaTileWidgets g_tab2_media[];
+
 extern SwitchState g_tab0_switch_states[];
 extern SwitchState g_tab1_switch_states[];
 extern SwitchState g_tab2_switch_states[];
@@ -28,10 +32,12 @@ void set_tile_grid_cell(lv_obj_t* obj, uint8_t col, uint8_t row, uint8_t span_w,
 SensorTileWidgets* tile_renderer_get_sensor_widgets(GridType grid_type);
 SwitchTileWidgets* tile_renderer_get_switch_widgets(GridType grid_type);
 WeatherTileWidgets* tile_renderer_get_weather_widgets(GridType grid_type);
+MediaTileWidgets* tile_renderer_get_media_widgets(GridType grid_type);
 SwitchState* tile_renderer_get_switch_states(GridType grid_type);
 
 bool is_light_entity_id(const String& entity_id);
 void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char* payload);
+void update_media_tile_state(GridType grid_type, uint8_t grid_index, const char* payload);
 
 static inline uint32_t brighten_rgb_color(uint32_t color, uint8_t delta) {
   const uint16_t r = ((color >> 16) & 0xFFu) + delta;

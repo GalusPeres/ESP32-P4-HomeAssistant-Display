@@ -13,7 +13,15 @@
 #include "src/core/config_manager.h"
 #include "src/core/i18n.h"
 #include <Arduino.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <cstring>
+#include <esp_heap_caps.h>
+#include <ctype.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <freertos/task.h>
+#include <libs/tjpgd/tjpgd.h>
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>
@@ -33,6 +41,10 @@ SwitchTileWidgets g_tab2_switches[TILES_PER_GRID];
 WeatherTileWidgets g_tab0_weather[TILES_PER_GRID];
 WeatherTileWidgets g_tab1_weather[TILES_PER_GRID];
 WeatherTileWidgets g_tab2_weather[TILES_PER_GRID];
+
+MediaTileWidgets g_tab0_media[TILES_PER_GRID];
+MediaTileWidgets g_tab1_media[TILES_PER_GRID];
+MediaTileWidgets g_tab2_media[TILES_PER_GRID];
 
 SwitchState g_tab0_switch_states[TILES_PER_GRID];
 SwitchState g_tab1_switch_states[TILES_PER_GRID];
@@ -54,6 +66,12 @@ WeatherTileWidgets* tile_renderer_get_weather_widgets(GridType grid_type) {
   if (grid_type == GridType::TAB1) return g_tab1_weather;
   if (grid_type == GridType::TAB2) return g_tab2_weather;
   return g_tab0_weather;
+}
+
+MediaTileWidgets* tile_renderer_get_media_widgets(GridType grid_type) {
+  if (grid_type == GridType::TAB1) return g_tab1_media;
+  if (grid_type == GridType::TAB2) return g_tab2_media;
+  return g_tab0_media;
 }
 
 SwitchState* tile_renderer_get_switch_states(GridType grid_type) {
@@ -150,12 +168,34 @@ void reset_weather_widgets(GridType grid_type) {
   clear_weather_widgets(grid_type);
 }
 
+static void clear_media_widgets(GridType grid_type) {
+  MediaTileWidgets* target = g_tab0_media;
+  if (grid_type == GridType::TAB1) target = g_tab1_media;
+  else if (grid_type == GridType::TAB2) target = g_tab2_media;
+  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+    target[i] = {};
+  }
+}
+
+void reset_media_widget(GridType grid_type, uint8_t grid_index) {
+  if (grid_index >= TILES_PER_GRID) return;
+  MediaTileWidgets* target = g_tab0_media;
+  if (grid_type == GridType::TAB1) target = g_tab1_media;
+  else if (grid_type == GridType::TAB2) target = g_tab2_media;
+  target[grid_index] = {};
+}
+
+void reset_media_widgets(GridType grid_type) {
+  clear_media_widgets(grid_type);
+}
+
 void tile_renderer_snapshot_tab0(TileWidgetCache* out) {
   if (!out) return;
   memcpy(out->sensors, g_tab0_sensors, sizeof(g_tab0_sensors));
   memcpy(out->switches, g_tab0_switches, sizeof(g_tab0_switches));
   memcpy(out->switch_states, g_tab0_switch_states, sizeof(g_tab0_switch_states));
   memcpy(out->weather, g_tab0_weather, sizeof(g_tab0_weather));
+  memcpy(out->media, g_tab0_media, sizeof(g_tab0_media));
 }
 
 void tile_renderer_restore_tab0(const TileWidgetCache* in) {
@@ -164,6 +204,7 @@ void tile_renderer_restore_tab0(const TileWidgetCache* in) {
   memcpy(g_tab0_switches, in->switches, sizeof(g_tab0_switches));
   memcpy(g_tab0_switch_states, in->switch_states, sizeof(g_tab0_switch_states));
   memcpy(g_tab0_weather, in->weather, sizeof(g_tab0_weather));
+  memcpy(g_tab0_media, in->media, sizeof(g_tab0_media));
 }
 
 /* === Thread-Safe Update Queue (MQTT ��� Main Loop) === */
@@ -1648,6 +1689,653 @@ void process_weather_update_queue() {
   }
 }
 
+/* === Thread-Safe Queue fuer Media Updates (MQTT -> Main Loop) === */
+struct MediaUpdate {
+  GridType grid_type;
+  uint8_t grid_index;
+  String payload;
+  bool valid = false;
+};
+
+static const uint8_t MEDIA_QUEUE_SIZE = 24;
+static MediaUpdate g_media_queue[MEDIA_QUEUE_SIZE];
+static volatile uint8_t g_media_head = 0;
+static volatile uint8_t g_media_tail = 0;
+static uint32_t g_media_overflow_count = 0;
+
+static String media_first_non_empty(const String& a,
+                                    const String& b,
+                                    const String& c = String(),
+                                    const String& d = String()) {
+  if (a.length()) return a;
+  if (b.length()) return b;
+  if (c.length()) return c;
+  return d;
+}
+
+static String media_state_label(String state) {
+  state.trim();
+  state.toLowerCase();
+  if (state == "playing") return "Playing";
+  if (state == "paused") return "Paused";
+  if (state == "idle") return "Idle";
+  if (state == "standby") return "Standby";
+  if (state == "off") return "Off";
+  if (state == "unavailable" || state == "unknown") return "--";
+  if (!state.length()) return "--";
+  state.setCharAt(0, static_cast<char>(toupper(static_cast<unsigned char>(state.charAt(0)))));
+  return state;
+}
+
+static String media_icon_for_state(const String& state) {
+  String lower = state;
+  lower.trim();
+  lower.toLowerCase();
+  if (lower == "playing") return "pause-circle";
+  if (lower == "paused" || lower == "idle") return "play-circle";
+  if (lower == "off" || lower == "standby") return "television";
+  return "music";
+}
+
+struct MediaCoverDecodeCtx {
+  const uint8_t* data = nullptr;
+  size_t len = 0;
+  size_t pos = 0;
+  uint16_t* pixels = nullptr;
+  uint16_t w = 0;
+  uint16_t h = 0;
+};
+
+static size_t media_cover_jpeg_input(JDEC* jd, uint8_t* buff, size_t ndata) {
+  MediaCoverDecodeCtx* ctx = static_cast<MediaCoverDecodeCtx*>(jd->device);
+  if (!ctx || !ctx->data || ctx->pos >= ctx->len) return 0;
+  size_t remain = ctx->len - ctx->pos;
+  size_t take = (ndata < remain) ? ndata : remain;
+  if (buff && take) {
+    memcpy(buff, ctx->data + ctx->pos, take);
+  }
+  ctx->pos += take;
+  return take;
+}
+
+static int media_cover_jpeg_output(JDEC* jd, void* bitmap, JRECT* rect) {
+  MediaCoverDecodeCtx* ctx = static_cast<MediaCoverDecodeCtx*>(jd->device);
+  if (!ctx || !ctx->pixels || !bitmap || !rect) return 0;
+  const uint8_t* src = static_cast<const uint8_t*>(bitmap);
+  const uint16_t rw = rect->right - rect->left + 1;
+  for (uint16_t y = rect->top; y <= rect->bottom && y < ctx->h; ++y) {
+    for (uint16_t x = rect->left; x <= rect->right && x < ctx->w; ++x) {
+      size_t si = (static_cast<size_t>(y - rect->top) * rw + (x - rect->left)) * 3;
+      uint8_t r = src[si];
+      uint8_t g = src[si + 1];
+      uint8_t b = src[si + 2];
+      uint16_t c = static_cast<uint16_t>(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+      ctx->pixels[static_cast<size_t>(y) * ctx->w + x] =
+          static_cast<uint16_t>((c >> 8) | (c << 8));
+    }
+  }
+  return 1;
+}
+
+static void* alloc_media_cover_memory(size_t bytes, bool prefer_psram = false) {
+  if (!bytes) return nullptr;
+  void* data = nullptr;
+  if (prefer_psram) {
+    data = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  }
+  if (!data) {
+    data = heap_caps_malloc(bytes, MALLOC_CAP_8BIT);
+  }
+  return data;
+}
+
+static void free_media_cover_dsc(lv_image_dsc_t*& dsc) {
+  if (!dsc) return;
+  if (dsc->data) {
+    free(const_cast<uint8_t*>(dsc->data));
+  }
+  free(dsc);
+  dsc = nullptr;
+}
+
+static bool is_media_cover_jpeg(const uint8_t* data, size_t len) {
+  return data && len >= 2 && data[0] == 0xFF && data[1] == 0xD8;
+}
+
+static bool is_media_cover_png(const uint8_t* data, size_t len) {
+  return data && len >= 8 &&
+         data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47 &&
+         data[4] == 0x0D && data[5] == 0x0A && data[6] == 0x1A && data[7] == 0x0A;
+}
+
+static lv_image_dsc_t* make_media_cover_rgb565_dsc(uint16_t w, uint16_t h, uint16_t* pixels) {
+  if (!w || !h || !pixels) return nullptr;
+  lv_image_dsc_t* dsc = static_cast<lv_image_dsc_t*>(alloc_media_cover_memory(sizeof(lv_image_dsc_t)));
+  if (!dsc) {
+    free(pixels);
+    return nullptr;
+  }
+  memset(dsc, 0, sizeof(*dsc));
+  dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
+  dsc->header.cf = LV_COLOR_FORMAT_RGB565_SWAPPED;
+  dsc->header.w = w;
+  dsc->header.h = h;
+  dsc->header.stride = w * 2;
+  dsc->data_size = static_cast<size_t>(w) * h * 2;
+  dsc->data = reinterpret_cast<const uint8_t*>(pixels);
+  return dsc;
+}
+
+static lv_image_dsc_t* decode_media_cover_jpeg(const uint8_t* data, size_t len) {
+  if (!data || len < 32) return nullptr;
+  if (!is_media_cover_jpeg(data, len)) return nullptr;
+
+  uint8_t* work = static_cast<uint8_t*>(alloc_media_cover_memory(4096));
+  if (!work) return nullptr;
+
+  MediaCoverDecodeCtx ctx{};
+  ctx.data = data;
+  ctx.len = len;
+
+  JDEC jd;
+  JRESULT rc = jd_prepare(&jd, media_cover_jpeg_input, work, 4096, &ctx);
+  if (rc != JDR_OK) {
+    Serial.printf("[MediaCover] JPEG prepare fehlgeschlagen: %d\n", static_cast<int>(rc));
+    free(work);
+    return nullptr;
+  }
+
+  uint8_t scale = 0;
+  uint16_t out_w = jd.width;
+  uint16_t out_h = jd.height;
+  constexpr uint16_t kMaxCoverSide = 180;
+  while ((out_w > kMaxCoverSide || out_h > kMaxCoverSide) && scale < 3) {
+    ++scale;
+    out_w = static_cast<uint16_t>((jd.width + ((1U << scale) - 1U)) >> scale);
+    out_h = static_cast<uint16_t>((jd.height + ((1U << scale) - 1U)) >> scale);
+  }
+  if (out_w == 0) out_w = 1;
+  if (out_h == 0) out_h = 1;
+
+  const size_t pixel_bytes = static_cast<size_t>(out_w) * out_h * 2;
+  ctx.pixels = static_cast<uint16_t*>(alloc_media_cover_memory(pixel_bytes, true));
+  if (!ctx.pixels) {
+    free(work);
+    return nullptr;
+  }
+  memset(ctx.pixels, 0, pixel_bytes);
+  ctx.w = out_w;
+  ctx.h = out_h;
+
+  rc = jd_decomp(&jd, media_cover_jpeg_output, scale);
+  free(work);
+  if (rc != JDR_OK) {
+    Serial.printf("[MediaCover] JPEG decode fehlgeschlagen: %d\n", static_cast<int>(rc));
+    free(ctx.pixels);
+    return nullptr;
+  }
+
+  return make_media_cover_rgb565_dsc(out_w, out_h, ctx.pixels);
+}
+
+static lv_image_dsc_t* make_media_cover_raw_dsc(const uint8_t* data, size_t len) {
+  if (!data || len < 32) return nullptr;
+
+  uint8_t* copy = static_cast<uint8_t*>(alloc_media_cover_memory(len, true));
+  if (!copy) return nullptr;
+  memcpy(copy, data, len);
+
+  lv_image_dsc_t* dsc = static_cast<lv_image_dsc_t*>(alloc_media_cover_memory(sizeof(lv_image_dsc_t)));
+  if (!dsc) {
+    free(copy);
+    return nullptr;
+  }
+  memset(dsc, 0, sizeof(*dsc));
+  dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
+  dsc->header.cf = LV_COLOR_FORMAT_RAW;
+  dsc->data_size = len;
+  dsc->data = copy;
+  return dsc;
+}
+
+static uint8_t* alloc_media_cover_download_buffer(size_t bytes) {
+  return static_cast<uint8_t*>(alloc_media_cover_memory(bytes, true));
+}
+
+static lv_image_dsc_t* download_media_cover_jpeg(const String& url) {
+  if (!url.startsWith("http://") && !url.startsWith("https://")) return nullptr;
+
+  constexpr size_t kMaxDownloadBytes = 384U * 1024U;
+  Serial.printf("[MediaCover] lade: %s\n", url.c_str());
+  HTTPClient http;
+  http.setTimeout(2500);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
+  WiFiClient plain_client;
+  WiFiClientSecure secure_client;
+  bool ok_begin = false;
+  if (url.startsWith("https://")) {
+    secure_client.setInsecure();
+    ok_begin = http.begin(secure_client, url);
+  } else {
+    ok_begin = http.begin(plain_client, url);
+  }
+  if (!ok_begin) return nullptr;
+
+  int code = http.GET();
+  if (code != HTTP_CODE_OK) {
+    Serial.printf("[MediaCover] HTTP %d fuer Cover\n", code);
+    http.end();
+    return nullptr;
+  }
+
+  int content_len = http.getSize();
+  if (content_len > 0 && static_cast<size_t>(content_len) > kMaxDownloadBytes) {
+    Serial.printf("[MediaCover] Cover zu gross: %d Bytes\n", content_len);
+    http.end();
+    return nullptr;
+  }
+
+  size_t buffer_cap = (content_len > 0) ? static_cast<size_t>(content_len) : kMaxDownloadBytes;
+  if (buffer_cap < 1024) buffer_cap = 1024;
+  uint8_t* data = alloc_media_cover_download_buffer(buffer_cap);
+  if (!data) {
+    Serial.println("[MediaCover] Download-Puffer fehlt");
+    http.end();
+    return nullptr;
+  }
+
+  WiFiClient* stream = http.getStreamPtr();
+  size_t total = 0;
+  uint32_t deadline = millis() + 3500;
+  while (http.connected() && millis() < deadline) {
+    int available = stream ? stream->available() : 0;
+    if (available > 0) {
+      size_t room = buffer_cap - total;
+      if (!room) {
+        Serial.println("[MediaCover] Cover Download-Limit erreicht");
+        free(data);
+        http.end();
+        return nullptr;
+      }
+      size_t to_read = static_cast<size_t>(available);
+      if (to_read > room) to_read = room;
+      int read_bytes = stream->readBytes(data + total, to_read);
+      if (read_bytes > 0) {
+        total += static_cast<size_t>(read_bytes);
+        deadline = millis() + 1500;
+      }
+    } else {
+      if (content_len >= 0 && total >= static_cast<size_t>(content_len)) break;
+      delay(1);
+      yield();
+    }
+  }
+  http.end();
+
+  if (total < 32) {
+    Serial.printf("[MediaCover] zu wenig Daten: %u Bytes\n", static_cast<unsigned>(total));
+    free(data);
+    return nullptr;
+  }
+
+  lv_image_dsc_t* dsc = nullptr;
+  if (is_media_cover_jpeg(data, total)) {
+    dsc = decode_media_cover_jpeg(data, total);
+  } else if (is_media_cover_png(data, total)) {
+    dsc = make_media_cover_raw_dsc(data, total);
+    if (dsc) {
+      Serial.println("[MediaCover] PNG an LVGL-Decoder uebergeben");
+    }
+  } else {
+    Serial.printf("[MediaCover] unbekanntes Bildformat: %02X %02X %02X %02X\n",
+                  data[0], data[1], data[2], data[3]);
+  }
+  if (dsc) {
+    if (dsc->header.w && dsc->header.h) {
+      Serial.printf("[MediaCover] OK: %ux%u, %u Bytes\n",
+                    static_cast<unsigned>(dsc->header.w),
+                    static_cast<unsigned>(dsc->header.h),
+                    static_cast<unsigned>(total));
+    } else {
+      Serial.printf("[MediaCover] OK: RAW, %u Bytes\n", static_cast<unsigned>(total));
+    }
+  }
+  free(data);
+  return dsc;
+}
+
+static bool media_cover_has_hidden_ancestor(lv_obj_t* obj) {
+  obj = obj ? lv_obj_get_parent(obj) : nullptr;
+  while (obj) {
+    if (lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) return true;
+    obj = lv_obj_get_parent(obj);
+  }
+  return false;
+}
+
+static void set_media_cover_text_layout(MediaTileWidgets& widgets, bool cover_visible) {
+  if (widgets.media_title_label) {
+    lv_obj_set_width(widgets.media_title_label, cover_visible ? LV_PCT(58) : LV_PCT(100));
+    lv_obj_align(widgets.media_title_label, LV_ALIGN_CENTER, cover_visible ? 46 : 0, 8);
+  }
+  if (widgets.media_subtitle_label) {
+    lv_obj_set_width(widgets.media_subtitle_label, cover_visible ? LV_PCT(58) : LV_PCT(92));
+    lv_obj_align(widgets.media_subtitle_label, LV_ALIGN_CENTER, cover_visible ? 46 : 0, 50);
+  }
+}
+
+struct MediaCoverRequest {
+  GridType grid_type;
+  uint8_t grid_index = 0;
+  uint32_t url_hash = 0;
+  char url[512] = {};
+};
+
+struct MediaCoverResult {
+  GridType grid_type;
+  uint8_t grid_index = 0;
+  uint32_t url_hash = 0;
+  lv_image_dsc_t* dsc = nullptr;
+  bool ok = false;
+};
+
+static QueueHandle_t g_media_cover_request_queue = nullptr;
+static QueueHandle_t g_media_cover_result_queue = nullptr;
+static TaskHandle_t g_media_cover_task = nullptr;
+static uint32_t g_media_cover_request_full_count = 0;
+static uint32_t g_media_cover_result_full_count = 0;
+
+static void media_cover_worker_task(void*) {
+  for (;;) {
+    MediaCoverRequest req{};
+    if (xQueueReceive(g_media_cover_request_queue, &req, portMAX_DELAY) != pdTRUE) {
+      continue;
+    }
+
+    MediaCoverResult result{};
+    result.grid_type = req.grid_type;
+    result.grid_index = req.grid_index;
+    result.url_hash = req.url_hash;
+    result.dsc = download_media_cover_jpeg(String(req.url));
+    result.ok = result.dsc != nullptr;
+
+    if (!g_media_cover_result_queue ||
+        xQueueSend(g_media_cover_result_queue, &result, 0) != pdTRUE) {
+      if ((g_media_cover_result_full_count++ % 5) == 0) {
+        Serial.println("[MediaCover] Ergebnis-Queue voll, Cover verworfen");
+      }
+      free_media_cover_dsc(result.dsc);
+    }
+  }
+}
+
+static bool ensure_media_cover_worker() {
+  if (!g_media_cover_request_queue) {
+    g_media_cover_request_queue = xQueueCreate(4, sizeof(MediaCoverRequest));
+  }
+  if (!g_media_cover_result_queue) {
+    g_media_cover_result_queue = xQueueCreate(4, sizeof(MediaCoverResult));
+  }
+  if (!g_media_cover_request_queue || !g_media_cover_result_queue) {
+    return false;
+  }
+  if (!g_media_cover_task) {
+    BaseType_t ok = xTaskCreate(
+        media_cover_worker_task,
+        "media_cover",
+        16384,
+        nullptr,
+        1,
+        &g_media_cover_task);
+    if (ok != pdPASS) {
+      g_media_cover_task = nullptr;
+      return false;
+    }
+  }
+  return true;
+}
+
+static void queue_media_cover_request(GridType grid_type,
+                                      uint8_t grid_index,
+                                      MediaCoverRef* ref,
+                                      const String& url,
+                                      uint32_t hash) {
+  if (!ref || !url.length()) return;
+  if (ref->requested_url_hash == hash) return;
+  if (!ensure_media_cover_worker()) {
+    if ((g_media_cover_request_full_count++ % 5) == 0) {
+      Serial.println("[MediaCover] Worker konnte nicht gestartet werden");
+    }
+    return;
+  }
+
+  MediaCoverRequest req{};
+  req.grid_type = grid_type;
+  req.grid_index = grid_index;
+  req.url_hash = hash;
+  strncpy(req.url, url.c_str(), sizeof(req.url) - 1);
+  req.url[sizeof(req.url) - 1] = '\0';
+
+  if (xQueueSend(g_media_cover_request_queue, &req, 0) != pdTRUE) {
+    if ((g_media_cover_request_full_count++ % 5) == 0) {
+      Serial.println("[MediaCover] Request-Queue voll, Cover wird spaeter erneut versucht");
+    }
+    return;
+  }
+
+  ref->requested_url_hash = hash;
+}
+
+static void process_media_cover_results() {
+  if (!g_media_cover_result_queue) return;
+
+  MediaCoverResult result{};
+  while (xQueueReceive(g_media_cover_result_queue, &result, 0) == pdTRUE) {
+    MediaTileWidgets* target = tile_renderer_get_media_widgets(result.grid_type);
+    if (!target || result.grid_index >= TILES_PER_GRID) {
+      free_media_cover_dsc(result.dsc);
+      continue;
+    }
+
+    MediaTileWidgets& widgets = target[result.grid_index];
+    MediaCoverRef* ref = widgets.cover_ref;
+    if (!widgets.cover_image || !ref || ref->requested_url_hash != result.url_hash) {
+      free_media_cover_dsc(result.dsc);
+      continue;
+    }
+
+    ref->requested_url_hash = 0;
+    if (!result.ok || !result.dsc) {
+      ref->failed_url_hash = result.url_hash;
+      if (ref->url_hash != result.url_hash) {
+        lv_obj_add_flag(widgets.cover_image, LV_OBJ_FLAG_HIDDEN);
+        if (widgets.icon_label) lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
+        set_media_cover_text_layout(widgets, false);
+      }
+      free_media_cover_dsc(result.dsc);
+      continue;
+    }
+
+    lv_image_dsc_t* old = ref->dsc;
+    lv_image_set_src(widgets.cover_image, result.dsc);
+    lv_obj_clear_flag(widgets.cover_image, LV_OBJ_FLAG_HIDDEN);
+    if (widgets.icon_label) lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
+    set_media_cover_text_layout(widgets, true);
+
+    ref->dsc = result.dsc;
+    ref->url_hash = result.url_hash;
+    ref->failed_url_hash = 0;
+    result.dsc = nullptr;
+    free_media_cover_dsc(old);
+  }
+}
+
+static void update_media_cover(GridType grid_type,
+                               uint8_t grid_index,
+                               MediaTileWidgets& widgets,
+                               const String& raw_url) {
+  String url = raw_url;
+  url.trim();
+  if (!widgets.cover_image || !widgets.cover_ref) return;
+
+  if (!url.length()) {
+    widgets.cover_ref->requested_url_hash = 0;
+    lv_obj_add_flag(widgets.cover_image, LV_OBJ_FLAG_HIDDEN);
+    if (widgets.icon_label) lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
+    set_media_cover_text_layout(widgets, false);
+    return;
+  }
+
+  uint32_t hash = fnv1a_hash(url.c_str());
+  MediaCoverRef* ref = widgets.cover_ref;
+  if (ref->url_hash == hash && ref->dsc) {
+    ref->requested_url_hash = 0;
+    lv_obj_clear_flag(widgets.cover_image, LV_OBJ_FLAG_HIDDEN);
+    if (widgets.icon_label) lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
+    set_media_cover_text_layout(widgets, true);
+    return;
+  }
+  if (ref->failed_url_hash == hash) return;
+  if (media_cover_has_hidden_ancestor(widgets.cover_image)) return;
+
+  queue_media_cover_request(grid_type, grid_index, ref, url, hash);
+}
+
+void update_media_tile_state(GridType grid_type, uint8_t grid_index, const char* payload) {
+  if (grid_index >= TILES_PER_GRID || !payload) return;
+  MediaTileWidgets* target = g_tab0_media;
+  if (grid_type == GridType::TAB1) target = g_tab1_media;
+  else if (grid_type == GridType::TAB2) target = g_tab2_media;
+
+  MediaTileWidgets& widgets = target[grid_index];
+  if (!widgets.icon_label && !widgets.media_title_label &&
+      !widgets.media_subtitle_label && !widgets.state_label) {
+    return;
+  }
+
+  uint32_t payload_hash = fnv1a_hash(payload);
+  if (widgets.last_payload_hash == payload_hash) return;
+  widgets.last_payload_hash = payload_hash;
+
+  String text = payload;
+  text.trim();
+  if (!text.length()) return;
+
+  String state;
+  String title;
+  String artist;
+  String album;
+  String app;
+  String source;
+  String channel;
+  String cover_url;
+  float volume = -1.0f;
+
+  if (text.startsWith("{")) {
+    extract_json_string_field(text, "state", state);
+    extract_json_string_field(text, "media_title", title);
+    extract_json_string_field(text, "media_artist", artist);
+    extract_json_string_field(text, "media_album_name", album);
+    extract_json_string_field(text, "app_name", app);
+    extract_json_string_field(text, "source", source);
+    extract_json_string_field(text, "media_channel", channel);
+    if (!extract_json_string_field(text, "entity_picture", cover_url)) {
+      extract_json_string_field(text, "media_image_url", cover_url);
+    }
+    extract_json_number_or_string_field(text, "volume_level", volume);
+  } else {
+    state = text;
+  }
+
+  decode_basic_json_escapes(state);
+  decode_basic_json_escapes(title);
+  decode_basic_json_escapes(artist);
+  decode_basic_json_escapes(album);
+  decode_basic_json_escapes(app);
+  decode_basic_json_escapes(source);
+  decode_basic_json_escapes(channel);
+  decode_basic_json_escapes(cover_url);
+
+  update_media_cover(grid_type, grid_index, widgets, cover_url);
+  if (!cover_url.length()) {
+    Serial.println("[MediaCover] keine Cover-URL im Media-Payload");
+  }
+
+  String main_text = media_first_non_empty(title, channel, media_state_label(state), "--");
+  String subtitle = media_first_non_empty(artist, album, app, source);
+  if (!subtitle.length()) subtitle = "--";
+
+  String status = media_state_label(state);
+  if (volume >= 0.0f) {
+    int pct = static_cast<int>(roundf(volume * 100.0f));
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    if (status.length() && status != "--") status += "  ";
+    status += String(pct);
+    status += "%";
+  }
+
+  if (widgets.icon_label && widgets.dynamic_icon) {
+    String icon = getMdiChar(media_icon_for_state(state));
+    if (icon.length()) {
+      lv_label_set_text(widgets.icon_label, icon.c_str());
+      lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+  if (widgets.media_title_label) {
+    lv_label_set_text(widgets.media_title_label, main_text.c_str());
+  }
+  if (widgets.media_subtitle_label) {
+    lv_label_set_text(widgets.media_subtitle_label, subtitle.c_str());
+  }
+  if (widgets.state_label) {
+    lv_label_set_text(widgets.state_label, status.c_str());
+  }
+}
+
+void queue_media_tile_update(GridType grid_type, uint8_t grid_index, const char* payload) {
+  if (grid_index >= TILES_PER_GRID || !payload) return;
+
+  uint8_t idx = g_media_tail;
+  while (idx != g_media_head) {
+    MediaUpdate& pending = g_media_queue[idx];
+    if (pending.valid &&
+        pending.grid_type == grid_type &&
+        pending.grid_index == grid_index) {
+      pending.payload = String(payload);
+      return;
+    }
+    idx = (idx + 1) % MEDIA_QUEUE_SIZE;
+  }
+
+  uint8_t next_head = (g_media_head + 1) % MEDIA_QUEUE_SIZE;
+  if (next_head == g_media_tail) {
+    if ((g_media_overflow_count++ % 10) == 0) {
+      Serial.println("[Queue] VOLL! Aeltestes Media-Update wird ueberschrieben");
+    }
+    g_media_tail = (g_media_tail + 1) % MEDIA_QUEUE_SIZE;
+  }
+
+  g_media_queue[g_media_head].grid_type = grid_type;
+  g_media_queue[g_media_head].grid_index = grid_index;
+  g_media_queue[g_media_head].payload = String(payload);
+  g_media_queue[g_media_head].valid = true;
+  g_media_head = next_head;
+}
+
+void process_media_update_queue() {
+  while (g_media_tail != g_media_head) {
+    MediaUpdate& upd = g_media_queue[g_media_tail];
+    if (upd.valid) {
+      update_media_tile_state(upd.grid_type, upd.grid_index, upd.payload.c_str());
+      upd.valid = false;
+    }
+    g_media_tail = (g_media_tail + 1) % MEDIA_QUEUE_SIZE;
+  }
+  process_media_cover_results();
+}
+
 /* === Thread-Safe Queue fuer Tile Graph History (MQTT -> Main Loop) === */
 struct TileGraphHistoryUpdate {
   String entity_id;
@@ -1898,6 +2586,7 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
   clear_sensor_widgets(grid_type);
   clear_switch_widgets(grid_type);
   clear_weather_widgets(grid_type);
+  clear_media_widgets(grid_type);
 
   if (parent == nullptr) {
     Serial.println("[TileRenderer] ERROR: Parent ist NULL!");

@@ -1557,6 +1557,7 @@ void appendAdminScripts(String& html) {
     const switchSelect = document.getElementById(prefix + '_switch_entity');
     const switchStyleSelect = document.getElementById(prefix + '_switch_style');
     const switchPopupModeSelect = document.getElementById(prefix + '_switch_popup_open_mode');
+    const mediaSelect = document.getElementById(prefix + '_media_entity');
     const clockTimeCheck = document.getElementById(prefix + '_clock_show_time');
     const clockDateCheck = document.getElementById(prefix + '_clock_show_date');
     const clockTimeFontSelect = document.getElementById(prefix + '_clock_time_font');
@@ -1604,6 +1605,7 @@ void appendAdminScripts(String& html) {
     bindLive(switchSelect, 'change', 'switchEntity', () => { maybeFillTitleFromSwitch(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(switchStyleSelect, 'change', 'switchStyle', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(switchPopupModeSelect, 'change', 'switchPopupMode', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(mediaSelect, 'change', 'mediaEntity', () => { maybeFillTitleFromMedia(tab); updateTilePreview(tab); updateMediaValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(clockTimeCheck, 'change', 'clockShowTime', () => {
       ensureClockSelection(prefix);
       updateTilePreview(tab);
@@ -1693,11 +1695,14 @@ void appendAdminScripts(String& html) {
     const energyEntity = document.getElementById(prefix + '_energy_entity')?.value || '';
     const weatherEntity = document.getElementById(prefix + '_weather_entity')?.value || '';
     const switchEntity = document.getElementById(prefix + '_switch_entity')?.value || '';
+    const mediaEntity = document.getElementById(prefix + '_media_entity')?.value || '';
     const iconEntity = (previewKind === 'sensor')
       ? (isEnergyType ? energyEntity : sensorEntity)
       : (previewKind === 'switch'
         ? switchEntity
-        : (previewKind === 'weather' ? weatherEntity : ''));
+        : (previewKind === 'weather'
+          ? weatherEntity
+          : (previewKind === 'media' ? mediaEntity : '')));
     const iconName = resolveIconName(iconInput ? iconInput.value : '', iconEntity, sensorMetaCache.icons);
 
     tileElem.className = 'tile';
@@ -1751,6 +1756,12 @@ void appendAdminScripts(String& html) {
       }
     }
 
+    if (previewKind === 'media') {
+      html += '<div class="tile-media-title">--</div>';
+      html += '<div class="tile-media-subtitle">--</div>';
+      html += '<div class="tile-media-state">--</div>';
+    }
+
     if (previewKind === 'clock') {
       const flags = getClockFlagsFromInputs(prefix);
       const clockTimeFont = document.getElementById(prefix + '_clock_time_font')?.value || '40';
@@ -1788,6 +1799,7 @@ void appendAdminScripts(String& html) {
       document.getElementById(settingsId)?.classList.remove('hidden');
     }
     if (type === '5') updateSwitchValuePreview(tab);
+    if (type === '15') updateMediaValuePreview(tab);
     updateLayoutFromInputs(tab);
   }
 
@@ -2451,7 +2463,8 @@ void appendAdminScripts(String& html) {
     if (typeValue === '0') { el.innerHTML = ''; }
     else {
       const previewKind = meta.preview || 'none';
-      const iconEntity = (previewKind === 'sensor' || previewKind === 'switch' || previewKind === 'weather')
+      const iconEntity = (previewKind === 'sensor' || previewKind === 'switch' ||
+                          previewKind === 'weather' || previewKind === 'media')
         ? (tile.sensor_entity || '')
         : '';
       const iconName = resolveIconName(tile.icon_name || '', iconEntity, metaIcons);
@@ -2471,6 +2484,14 @@ void appendAdminScripts(String& html) {
         if (tile.sensor_entity) value = formatSensorValue(metaValues[tile.sensor_entity] ?? '--', tile.sensor_decimals);
         const unit = resolveUnitValue(tile.sensor_unit || '', tile.sensor_entity || '', metaUnits);
         html += '<div class="tile-value ' + sensorValueClass + '" id="' + tab + '-tile-' + index + '-value">' + value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '') + '</div>';
+      }
+      if (previewKind === 'media') {
+        const parsed = (typeof parseMediaPreviewPayload === 'function')
+          ? parseMediaPreviewPayload(tile.sensor_entity ? (metaValues[tile.sensor_entity] ?? '') : '')
+          : { title: '--', subtitle: '--', state: '--' };
+        html += '<div class="tile-media-title">' + (parsed.title || '--') + '</div>';
+        html += '<div class="tile-media-subtitle">' + (parsed.subtitle || '--') + '</div>';
+        html += '<div class="tile-media-state">' + (parsed.state || '--') + '</div>';
       }
       if (previewKind === 'clock') {
         const flags = normalizeClockFlags(tile.sensor_decimals);

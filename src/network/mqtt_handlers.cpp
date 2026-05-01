@@ -1103,7 +1103,8 @@ static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
   auto add_grid_entities = [&](const TileGridConfig& grid) {
     for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
       const Tile& tile = grid.tiles[i];
-      if ((tile.type == TILE_SENSOR || tile.type == TILE_SWITCH) && tile.sensor_entity.length()) {
+      if ((tile.type == TILE_SENSOR || tile.type == TILE_SWITCH || tile.type == TILE_MEDIA) &&
+          tile.sensor_entity.length()) {
         add_route(tile.sensor_entity, -1);
       }
     }
@@ -1405,6 +1406,28 @@ void mqttPublishSwitchCommand(const char* entity_id, const char* state) {
   snprintf(payload, sizeof(payload), "{\"entity_id\":\"%s\",\"state\":\"%s\"}", entity_id, action);
   bool ok = mqtt.publish(topic, payload, false);
   Serial.printf("Switch command -> MQTT '%s' (%s)\n", topic, ok ? "ok" : "fail");
+}
+
+void mqttPublishMediaCommand(const char* entity_id, const char* command) {
+  if (!entity_id || !*entity_id) return;
+
+  PubSubClient& mqtt = networkManager.getMqttClient();
+  if (!mqtt.connected()) {
+    Serial.printf("Media command skipped (MQTT offline): %s\n", entity_id);
+    return;
+  }
+
+  const char* topic = mqttTopics.topic(TopicKey::MEDIA_CMND);
+  if (!topic || !*topic) {
+    Serial.printf("Media command skipped (no topic): %s\n", entity_id);
+    return;
+  }
+
+  const char* action = (command && *command) ? command : "play_pause";
+  char payload[256];
+  snprintf(payload, sizeof(payload), "{\"entity_id\":\"%s\",\"command\":\"%s\"}", entity_id, action);
+  bool ok = mqtt.publish(topic, payload, false);
+  Serial.printf("Media command -> MQTT '%s' (%s)\n", topic, ok ? "ok" : "fail");
 }
 
 void mqttPublishLightCommand(const char* entity_id,

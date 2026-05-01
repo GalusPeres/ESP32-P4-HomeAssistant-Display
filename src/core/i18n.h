@@ -136,6 +136,7 @@ struct Strings {
   const char* tile_type_key;
   const char* tile_type_folder;
   const char* tile_type_switch;
+  const char* tile_type_media;
   const char* tile_type_clock;
   const char* tile_type_text;
   const char* tile_type_counter;
@@ -167,6 +168,7 @@ struct Strings {
   const char* switch_display;
   const char* switch_icon_button;
   const char* switch_lvgl_switch;
+  const char* media_entity;
   const char* show_time;
   const char* show_date;
   const char* time_font_size;

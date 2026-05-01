@@ -470,7 +470,8 @@ static bool readImagePathSd(uint16_t folder_id, size_t index, String& out) {
 }
 
 static bool entityTileStoresSensorEntity(TileType type) {
-  return type == TILE_SENSOR || type == TILE_SWITCH || type == TILE_WEATHER || type == TILE_ENERGY;
+  return type == TILE_SENSOR || type == TILE_SWITCH || type == TILE_WEATHER ||
+         type == TILE_ENERGY || type == TILE_MEDIA;
 }
 
 static bool writeLongEntityIdSd(uint16_t folder_id, size_t index, const String& entity) {
