@@ -85,7 +85,10 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
 
   lv_obj_t* cover_clip = nullptr;
   lv_obj_t* cover_img = nullptr;
-  const lv_coord_t cover_size = (tile.span_w > 1 || tile.span_h > 1) ? 96 : 78;
+  // Match the bridge's MEDIA_COVER_THUMBNAIL_SIZE (144) so the JPEG is shown
+  // 1:1 without LV_IMAGE_ALIGN_COVER cropping right/bottom edges. On a 1x1
+  // tile (168x145) we still cap to 96 because there isn't room for 144.
+  const lv_coord_t cover_size = (tile.span_w > 1 || tile.span_h > 1) ? 144 : 96;
   cover_clip = lv_obj_create(card);
   if (cover_clip) {
     lv_obj_set_size(cover_clip, cover_size, cover_size);
