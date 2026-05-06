@@ -22,7 +22,7 @@ constexpr int kCardWidth =
         : (SCREEN_WIDTH - (kCardMargin * 2));
 constexpr int kCardHeight = SCREEN_HEIGHT - (kCardMargin * 2);
 constexpr int kCardPad = 20;
-constexpr int kContentPadTop = 94;
+constexpr int kContentPadTop = 80;
 constexpr int kHeaderIconOffsetX = 0;
 constexpr int kHeaderIconOffsetY = 0;
 constexpr int kTopValueHeight = 74;

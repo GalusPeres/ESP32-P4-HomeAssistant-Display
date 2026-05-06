@@ -1,6 +1,7 @@
 ﻿#include "src/ui/media_popup.h"
 
 #include <esp_heap_caps.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -27,15 +28,27 @@ constexpr int kCardPad = 20;
 constexpr int kHeaderIconOffsetX = 0;
 constexpr int kHeaderIconOffsetY = 0;
 constexpr int kCoverSize = 120;
-constexpr int kCoverTop = 124;
-constexpr int kTitleTop = kCoverTop + kCoverSize + 28;
-constexpr int kVolumeBottom = 38;
-constexpr int kControlsBottom = kVolumeBottom + 68;
+constexpr int kVolumeBottom = 82;
+constexpr int kControlsBottom = kVolumeBottom + 66;
 constexpr int kControlButtonSize = 78;
 constexpr int kControlSideOffset = 116;
+constexpr int kControlsTop = kCardHeight - kControlsBottom - kControlButtonSize;
+constexpr int kHeaderContentBottom = 96;
+constexpr int kCoverTextGap = 48;
+constexpr int kTitleBlockHeight = 84;
+constexpr int kCoverTextGroupHeight = kCoverSize + kCoverTextGap + kTitleBlockHeight;
+constexpr int kCoverTopAuto =
+    kHeaderContentBottom + ((kControlsTop - kHeaderContentBottom - kCoverTextGroupHeight) / 3);
+constexpr int kCoverTop = kCoverTopAuto < 112 ? 112 : kCoverTopAuto;
+constexpr int kTitleTop = kCoverTop + kCoverSize + kCoverTextGap;
 constexpr int kVolumeWidth = (kCardWidth >= 760) ? 410 : 330;
-constexpr int kVolumeIconOffset = (kVolumeWidth / 2) + 36;
-constexpr int kVolumePercentOffset = (kVolumeWidth / 2) + 58;
+constexpr int kVolumeSliderHeight = 16;
+constexpr int kVolumeSliderKnobSize = 36;
+constexpr int kVolumeSliderClickPad = 20;
+constexpr int kVolumeCenterBottom = kVolumeBottom + (kVolumeSliderHeight / 2);
+constexpr int kVolumeSideOffset = (kVolumeWidth / 2) + 70;
+constexpr int kVolumeButtonBottom = kVolumeCenterBottom - (kControlButtonSize / 2);
+constexpr int kVolumePercentBottom = kVolumeCenterBottom - 13;
 
 struct MediaCommandData {
   String entity_id;
@@ -64,6 +77,9 @@ struct MediaPopupContext {
   uint32_t bg_color = 0x2A2A2A;
   bool has_volume = false;
   bool is_muted = false;
+  int32_t last_volume_pct = 35;
+  int32_t shown_volume_pct = -1;
+  uint8_t shown_volume_icon = 255;
 };
 
 static MediaPopupContext* g_media_popup_ctx = nullptr;
@@ -178,10 +194,47 @@ static void set_popup_label(lv_obj_t* label, const String& text) {
   lv_label_set_text(label, text.c_str());
 }
 
+static uint8_t volume_icon_bucket_for_percent(int32_t pct, bool muted) {
+  if (muted || pct <= 0) return 0;
+  if (pct < 35) return 1;
+  if (pct < 70) return 2;
+  return 3;
+}
+
+static const char* volume_icon_for_bucket(uint8_t bucket) {
+  switch (bucket) {
+    case 1: return "volume-low";
+    case 2: return "volume-medium";
+    case 3: return "volume-high";
+    default: return "volume-off";
+  }
+}
+
+static void set_volume_widgets(MediaPopupContext* ctx, int32_t pct, bool muted, bool update_slider = true) {
+  if (!ctx) return;
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  ctx->is_muted = muted || pct == 0;
+  if (pct > 0) ctx->last_volume_pct = pct;
+  if (update_slider && ctx->volume_slider) lv_slider_set_value(ctx->volume_slider, pct, LV_ANIM_OFF);
+  if (ctx->volume_icon_label) {
+    const uint8_t bucket = volume_icon_bucket_for_percent(pct, ctx->is_muted);
+    if (ctx->shown_volume_icon != bucket) {
+      ctx->shown_volume_icon = bucket;
+      lv_label_set_text(ctx->volume_icon_label, getMdiChar(volume_icon_for_bucket(bucket)).c_str());
+    }
+  }
+  if (ctx->volume_label && ctx->shown_volume_pct != pct) {
+    ctx->shown_volume_pct = pct;
+    char text[8];
+    snprintf(text, sizeof(text), "%ld%%", static_cast<long>(pct));
+    lv_label_set_text(ctx->volume_label, text);
+  }
+}
+
 static void update_volume(MediaPopupContext* ctx, const MediaPopupInit& init) {
   if (!ctx || !ctx->volume_slider) return;
   ctx->has_volume = init.has_volume;
-  ctx->is_muted = init.is_muted;
 
   float volume = init.volume_level;
   if (volume < 0.0f) volume = 0.0f;
@@ -190,21 +243,13 @@ static void update_volume(MediaPopupContext* ctx, const MediaPopupInit& init) {
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;
 
-  lv_slider_set_value(ctx->volume_slider, pct, LV_ANIM_OFF);
   if (init.has_volume) {
     lv_obj_clear_state(ctx->volume_slider, LV_STATE_DISABLED);
   } else {
     lv_obj_add_state(ctx->volume_slider, LV_STATE_DISABLED);
   }
 
-  if (ctx->volume_icon_label) {
-    lv_label_set_text(ctx->volume_icon_label, getMdiChar((ctx->is_muted || pct == 0) ? "volume-off" : "volume-high").c_str());
-  }
-  if (ctx->volume_label) {
-    String text = String(pct);
-    text += "%";
-    lv_label_set_text(ctx->volume_label, text.c_str());
-  }
+  set_volume_widgets(ctx, pct, init.is_muted);
 }
 
 static void apply_init_to_context(MediaPopupContext* ctx, const MediaPopupInit& init) {
@@ -305,14 +350,7 @@ static void on_volume_slider_event(lv_event_t* e) {
   int32_t raw = lv_slider_get_value(ctx->volume_slider);
   if (raw < 0) raw = 0;
   if (raw > 100) raw = 100;
-  if (ctx->volume_icon_label) {
-    lv_label_set_text(ctx->volume_icon_label, getMdiChar(raw == 0 ? "volume-off" : "volume-high").c_str());
-  }
-  if (ctx->volume_label) {
-    String text = String(raw);
-    text += "%";
-    lv_label_set_text(ctx->volume_label, text.c_str());
-  }
+  set_volume_widgets(ctx, raw, raw == 0, false);
   if (code == LV_EVENT_RELEASED) {
     mqttPublishMediaVolume(ctx->entity_id.c_str(), static_cast<float>(raw) / 100.0f);
   }
@@ -321,12 +359,16 @@ static void on_volume_slider_event(lv_event_t* e) {
 static void on_volume_mute_click(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   MediaPopupContext* ctx = static_cast<MediaPopupContext*>(lv_event_get_user_data(e));
-  if (!ctx || !ctx->entity_id.length()) return;
-  ctx->is_muted = !ctx->is_muted;
-  if (ctx->volume_icon_label) {
-    lv_label_set_text(ctx->volume_icon_label, getMdiChar(ctx->is_muted ? "volume-off" : "volume-high").c_str());
+  if (!ctx || !ctx->entity_id.length() || !ctx->volume_slider) return;
+  int32_t current = lv_slider_get_value(ctx->volume_slider);
+  if (current < 0) current = 0;
+  if (current > 100) current = 100;
+  int32_t next = 0;
+  if (current <= 0 || ctx->is_muted) {
+    next = ctx->last_volume_pct > 0 ? ctx->last_volume_pct : 35;
   }
-  mqttPublishMediaMute(ctx->entity_id.c_str(), ctx->is_muted);
+  set_volume_widgets(ctx, next, next == 0);
+  mqttPublishMediaVolume(ctx->entity_id.c_str(), static_cast<float>(next) / 100.0f);
 }
 static lv_obj_t* create_control_button(lv_obj_t* parent,
                                        const String& entity_id,
@@ -478,12 +520,12 @@ void show_media_popup(const MediaPopupInit& init) {
   lv_obj_align_to(ctx->media_subtitle_label, ctx->media_title_label, LV_ALIGN_OUT_BOTTOM_MID, 0, 12);
 
   lv_obj_t* volume_btn = lv_button_create(card);
-  lv_obj_set_size(volume_btn, 44, 44);
-  lv_obj_align(volume_btn, LV_ALIGN_BOTTOM_MID, -kVolumeIconOffset, -(kVolumeBottom - 10));
+  lv_obj_set_size(volume_btn, kControlButtonSize, kControlButtonSize);
+  lv_obj_align(volume_btn, LV_ALIGN_BOTTOM_MID, -kVolumeSideOffset, -kVolumeButtonBottom);
   lv_obj_set_style_bg_color(volume_btn, lv_color_black(), LV_PART_MAIN | LV_STATE_DEFAULT);
   lv_obj_set_style_bg_opa(volume_btn, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
   lv_obj_set_style_bg_color(volume_btn, lv_color_white(), LV_PART_MAIN | LV_STATE_PRESSED);
-  lv_obj_set_style_bg_opa(volume_btn, LV_OPA_20, LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(volume_btn, LV_OPA_30, LV_PART_MAIN | LV_STATE_PRESSED);
   lv_obj_set_style_radius(volume_btn, LV_RADIUS_CIRCLE, 0);
   lv_obj_set_style_border_width(volume_btn, 0, 0);
   lv_obj_set_style_shadow_width(volume_btn, 0, 0);
@@ -499,10 +541,13 @@ void show_media_popup(const MediaPopupInit& init) {
   lv_obj_clear_flag(ctx->volume_icon_label, LV_OBJ_FLAG_CLICKABLE);
 
   ctx->volume_slider = lv_slider_create(card);
-  lv_obj_set_size(ctx->volume_slider, kVolumeWidth, 16);
+  lv_obj_set_size(ctx->volume_slider, kVolumeWidth, kVolumeSliderHeight);
   lv_obj_align(ctx->volume_slider, LV_ALIGN_BOTTOM_MID, 0, -kVolumeBottom);
   lv_slider_set_range(ctx->volume_slider, 0, 100);
   lv_slider_set_value(ctx->volume_slider, 0, LV_ANIM_OFF);
+  lv_obj_set_style_width(ctx->volume_slider, kVolumeSliderKnobSize, LV_PART_KNOB);
+  lv_obj_set_style_height(ctx->volume_slider, kVolumeSliderKnobSize, LV_PART_KNOB);
+  lv_obj_set_ext_click_area(ctx->volume_slider, kVolumeSliderClickPad);
   lv_obj_set_style_bg_color(ctx->volume_slider, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(ctx->volume_slider, LV_OPA_20, LV_PART_MAIN);
   lv_obj_set_style_radius(ctx->volume_slider, LV_RADIUS_CIRCLE, LV_PART_MAIN);
@@ -512,17 +557,16 @@ void show_media_popup(const MediaPopupInit& init) {
   lv_obj_set_style_bg_color(ctx->volume_slider, lv_color_white(), LV_PART_KNOB);
   lv_obj_set_style_bg_opa(ctx->volume_slider, LV_OPA_COVER, LV_PART_KNOB);
   lv_obj_set_style_radius(ctx->volume_slider, LV_RADIUS_CIRCLE, LV_PART_KNOB);
-  lv_obj_set_style_pad_all(ctx->volume_slider, 6, LV_PART_KNOB);
   lv_obj_clear_flag(ctx->volume_slider, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_event_cb(ctx->volume_slider, on_volume_slider_event, LV_EVENT_VALUE_CHANGED, ctx);
   lv_obj_add_event_cb(ctx->volume_slider, on_volume_slider_event, LV_EVENT_RELEASED, ctx);
 
   ctx->volume_label = lv_label_create(card);
-  set_label_style(ctx->volume_label, lv_color_hex(0xD8DEE9), &ui_font_16);
+  set_label_style(ctx->volume_label, lv_color_hex(0xD8DEE9), &ui_font_20);
   lv_label_set_text(ctx->volume_label, "0%");
-  lv_obj_set_width(ctx->volume_label, 58);
-  lv_obj_set_style_text_align(ctx->volume_label, LV_TEXT_ALIGN_LEFT, 0);
-  lv_obj_align(ctx->volume_label, LV_ALIGN_BOTTOM_MID, kVolumePercentOffset, -(kVolumeBottom - 7));
+  lv_obj_set_width(ctx->volume_label, kControlButtonSize);
+  lv_obj_set_style_text_align(ctx->volume_label, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_align(ctx->volume_label, LV_ALIGN_BOTTOM_MID, kVolumeSideOffset, -kVolumePercentBottom);
 
   ctx->previous_label = create_control_button(card,
                                               init.entity_id,
