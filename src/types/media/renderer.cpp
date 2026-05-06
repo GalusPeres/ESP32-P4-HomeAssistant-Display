@@ -14,13 +14,15 @@
 namespace {
 
 #if defined(DEVICE_WAVESHARE_4B)
-static constexpr lv_coord_t kMediaControlButtonSize = 72;
+static constexpr lv_coord_t kMediaControlButtonSize = 76;
 static constexpr lv_coord_t kMediaControlSideOffset = 96;
 static constexpr lv_coord_t kMediaControlBottomOffset = -8;
+static constexpr lv_coord_t kMediaContentYOffset = 8;
 #else
 static constexpr lv_coord_t kMediaControlButtonSize = 56;
 static constexpr lv_coord_t kMediaControlSideOffset = 76;
 static constexpr lv_coord_t kMediaControlBottomOffset = 0;
+static constexpr lv_coord_t kMediaContentYOffset = 0;
 #endif
 
 struct MediaEventData {
@@ -221,7 +223,7 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
     lv_obj_align(cover_clip,
                  LV_ALIGN_TOP_LEFT,
                  -2,
-                 (tile.span_w > 1 || tile.span_h > 1) ? 58 : 42);
+                 ((tile.span_w > 1 || tile.span_h > 1) ? 58 : 42) + kMediaContentYOffset);
     lv_obj_set_style_bg_opa(cover_clip, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(cover_clip, 0, 0);
     lv_obj_set_style_shadow_width(cover_clip, 0, 0);
@@ -318,7 +320,7 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
     lv_obj_set_width(media_title, LV_PCT(82));
     lv_obj_set_style_text_align(media_title, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(media_title, "Keine Wiedergabe");
-    lv_obj_align(media_title, LV_ALIGN_TOP_LEFT, 20, 108);
+    lv_obj_align(media_title, LV_ALIGN_TOP_LEFT, 20, 108 + kMediaContentYOffset);
     enable_event_bubble(media_title);
   }
 
@@ -330,7 +332,7 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
     lv_obj_set_width(subtitle, LV_PCT(82));
     lv_obj_set_style_text_align(subtitle, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(subtitle, "");
-    lv_obj_align(subtitle, LV_ALIGN_LEFT_MID, 20, 34);
+    lv_obj_align(subtitle, LV_ALIGN_LEFT_MID, 20, 34 + kMediaContentYOffset);
     lv_obj_add_flag(subtitle, LV_OBJ_FLAG_HIDDEN);
     enable_event_bubble(subtitle);
   }
