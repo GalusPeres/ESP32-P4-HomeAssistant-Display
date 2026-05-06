@@ -1878,6 +1878,12 @@ static String media_first_non_empty(const String& a,
   return d;
 }
 
+static bool media_text_same(String a, String b) {
+  a.trim();
+  b.trim();
+  return a.length() && b.length() && a.equalsIgnoreCase(b);
+}
+
 static String media_empty_title_label(String state) {
   state.trim();
   state.toLowerCase();
@@ -1972,12 +1978,11 @@ static String media_friendly_name_from_entity_id(const String& entity_id) {
 }
 
 static String media_popup_title_for_tile(const Tile& tile) {
-  String title;
-  if (tile.sensor_entity.length()) {
+  String title = tile.title;
+  title.trim();
+  if (!title.length() && tile.sensor_entity.length()) {
     title = haBridgeConfig.findSensorName(tile.sensor_entity);
   }
-  if (!title.length()) title = tile.title;
-  title.trim();
   if (!title.length() && tile.sensor_entity.length()) {
     title = media_friendly_name_from_entity_id(tile.sensor_entity);
   }
@@ -1985,17 +1990,9 @@ static String media_popup_title_for_tile(const Tile& tile) {
 }
 
 static String media_popup_icon_for_tile(const Tile& tile) {
-  String icon_name;
-  if (tile.sensor_entity.length()) {
+  String icon_name = normalizeMdiIconName(tile.icon_name);
+  if (!icon_name.length() && tile.sensor_entity.length()) {
     icon_name = normalizeMdiIconName(haBridgeConfig.findEntityIcon(tile.sensor_entity));
-  }
-  if (!icon_name.length()) {
-    String custom_icon = tile.icon_name;
-    bool custom_icon_disabled = isMdiIconDisabled(custom_icon);
-    custom_icon = normalizeMdiIconName(custom_icon);
-    if (!custom_icon_disabled && custom_icon.length()) {
-      icon_name = custom_icon;
-    }
   }
   if (!icon_name.length()) icon_name = "television";
   return icon_name;
@@ -2024,6 +2021,7 @@ static void update_media_popup_from_widgets(GridType grid_type,
   init.entity_id = tile.sensor_entity;
   init.title = media_popup_title_for_tile(tile);
   init.icon_name = media_popup_icon_for_tile(tile);
+  init.icon_char = media_label_text(widgets.icon_label);
   init.bg_color = tile.bg_color != 0 ? tile.bg_color : 0x2A2A2A;
   init.media_title = media_label_text(widgets.media_title_label);
   init.media_subtitle = media_label_text(widgets.media_subtitle_label);
@@ -2430,7 +2428,7 @@ static void set_media_cover_text_layout(MediaTileWidgets& widgets, bool cover_vi
   }
 
   lv_coord_t center_y = parent_h / 2;
-  if (cover_visible && widgets.cover_clip) {
+  if (widgets.cover_clip) {
     lv_obj_update_layout(widgets.cover_clip);
     center_y = lv_obj_get_y(widgets.cover_clip) + (lv_obj_get_height(widgets.cover_clip) / 2);
   }
@@ -2908,6 +2906,9 @@ void update_media_tile_state(GridType grid_type, uint8_t grid_index, const char*
     main_text = media_empty_title_label(state);
   }
   String subtitle = media_first_non_empty(artist, album, app, source);
+  if (media_text_same(subtitle, main_text)) {
+    subtitle = "";
+  }
   String media_text_key = main_text;
   media_text_key += '\x1f';
   media_text_key += subtitle;

@@ -194,6 +194,12 @@ static void set_popup_label(lv_obj_t* label, const String& text) {
   lv_label_set_text(label, text.c_str());
 }
 
+static bool popup_text_same(String a, String b) {
+  a.trim();
+  b.trim();
+  return a.length() && b.length() && a.equalsIgnoreCase(b);
+}
+
 static uint8_t volume_icon_bucket_for_percent(int32_t pct, bool muted) {
   if (muted || pct <= 0) return 0;
   if (pct < 35) return 1;
@@ -268,11 +274,15 @@ static void apply_init_to_context(MediaPopupContext* ctx, const MediaPopupInit& 
     lv_label_set_text(ctx->title_label, title.c_str());
   }
 
-  String icon_name = init.icon_name;
-  icon_name.trim();
-  if (!icon_name.length()) icon_name = "television";
-  String icon_char = getMdiChar(icon_name);
-  if (!icon_char.length()) icon_char = getMdiChar("television");
+  String icon_char = init.icon_char;
+  icon_char.trim();
+  if (!icon_char.length()) {
+    String icon_name = init.icon_name;
+    icon_name.trim();
+    if (!icon_name.length()) icon_name = "television";
+    icon_char = getMdiChar(icon_name);
+    if (!icon_char.length()) icon_char = getMdiChar("television");
+  }
   if (ctx->icon_label) lv_label_set_text(ctx->icon_label, icon_char.c_str());
   if (ctx->fallback_icon) lv_label_set_text(ctx->fallback_icon, icon_char.c_str());
   align_header_row(ctx->card, ctx->title_label, ctx->icon_label);
@@ -284,6 +294,9 @@ static void apply_init_to_context(MediaPopupContext* ctx, const MediaPopupInit& 
 
   String subtitle = init.media_subtitle;
   subtitle.trim();
+  if (popup_text_same(subtitle, media_title)) {
+    subtitle = "";
+  }
   if (ctx->media_subtitle_label) {
     if (subtitle.length()) {
       lv_label_set_text(ctx->media_subtitle_label, subtitle.c_str());

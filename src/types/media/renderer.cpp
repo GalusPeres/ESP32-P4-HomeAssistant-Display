@@ -123,6 +123,7 @@ static void show_media_popup_event_cb(lv_event_t* e) {
   init.entity_id = data->entity_id;
   init.title = data->title;
   init.icon_name = data->icon_name;
+  init.icon_char = media_label_text(widgets.icon_label);
   init.bg_color = data->bg_color;
   init.media_title = media_label_text(widgets.media_title_label);
   init.media_subtitle = media_label_text(widgets.media_subtitle_label);
@@ -315,17 +316,9 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
   lv_obj_t* play_pause_label = nullptr;
   lv_obj_t* next_label = nullptr;
 
-  String icon_name;
-  if (tile.sensor_entity.length()) {
+  String icon_name = normalizeMdiIconName(tile.icon_name);
+  if (!icon_name.length() && tile.sensor_entity.length()) {
     icon_name = normalizeMdiIconName(haBridgeConfig.findEntityIcon(tile.sensor_entity));
-  }
-  if (!icon_name.length()) {
-    String custom_icon = tile.icon_name;
-    bool custom_icon_disabled = isMdiIconDisabled(custom_icon);
-    custom_icon = normalizeMdiIconName(custom_icon);
-    if (!custom_icon_disabled && custom_icon.length()) {
-      icon_name = custom_icon;
-    }
   }
   if (!icon_name.length()) icon_name = "television";
 
@@ -344,11 +337,11 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
     enable_event_bubble(icon_label);
   }
 
-  String title_text;
-  if (tile.sensor_entity.length()) {
+  String title_text = tile.title;
+  title_text.trim();
+  if (!title_text.length() && tile.sensor_entity.length()) {
     title_text = haBridgeConfig.findSensorName(tile.sensor_entity);
   }
-  if (!title_text.length()) title_text = tile.title;
   if (!title_text.length() && tile.sensor_entity.length()) {
     title_text = media_friendly_name_from_entity(tile.sensor_entity);
   }

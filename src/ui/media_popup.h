@@ -7,6 +7,7 @@ struct MediaPopupInit {
   String entity_id;
   String title;
   String icon_name;
+  String icon_char;
   String media_title;
   String media_subtitle;
   bool is_playing = false;
