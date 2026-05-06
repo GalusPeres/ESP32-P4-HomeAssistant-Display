@@ -466,6 +466,34 @@ static bool extract_json_string_field(const String& src, const char* key, String
   return out.length() > 0;
 }
 
+static bool extract_json_string_field_cstr(const char* src, const char* key, String& out) {
+  if (!src || !key || !*key) return false;
+  String pattern = String("\"") + key + "\"";
+  const char* idx = strstr(src, pattern.c_str());
+  if (!idx) return false;
+  const char* colon = strchr(idx + pattern.length(), ':');
+  if (!colon) return false;
+  const char* q1 = strchr(colon, '"');
+  if (!q1) return false;
+  const char* q2 = q1 + 1;
+  bool escaped = false;
+  while (*q2) {
+    if (*q2 == '"' && !escaped) break;
+    escaped = (*q2 == '\\' && !escaped);
+    if (*q2 != '\\') escaped = false;
+    ++q2;
+  }
+  if (*q2 != '"') return false;
+
+  out = "";
+  out.reserve(q2 - q1 - 1);
+  for (const char* p = q1 + 1; p < q2; ++p) {
+    out += *p;
+  }
+  out.trim();
+  return out.length() > 0;
+}
+
 static bool extract_json_array_field(const String& src, const char* key, String& out) {
   if (!key || !*key) return false;
   String pattern = String("\"") + key + "\"";
@@ -590,11 +618,94 @@ static void position_tile_value_unit_centered(
 
 static void decode_basic_json_escapes(String& text) {
   if (!text.length()) return;
-  text.replace("\\u00b0", "\xC2\xB0");
-  text.replace("\\u00B0", "\xC2\xB0");
-  text.replace("\\/", "/");
-  text.replace("\\\"", "\"");
-  text.replace("\\\\", "\\");
+  auto is_hex_digit = [](char c) -> bool {
+    return (c >= '0' && c <= '9') ||
+           (c >= 'a' && c <= 'f') ||
+           (c >= 'A' && c <= 'F');
+  };
+  auto hex_value = [](char c) -> uint8_t {
+    if (c >= '0' && c <= '9') return static_cast<uint8_t>(c - '0');
+    if (c >= 'a' && c <= 'f') return static_cast<uint8_t>(10 + (c - 'a'));
+    if (c >= 'A' && c <= 'F') return static_cast<uint8_t>(10 + (c - 'A'));
+    return 0;
+  };
+  auto append_utf8 = [](String& out, uint32_t codepoint) {
+    if (codepoint <= 0x7F) {
+      out += static_cast<char>(codepoint);
+    } else if (codepoint <= 0x7FF) {
+      out += static_cast<char>(0xC0 | (codepoint >> 6));
+      out += static_cast<char>(0x80 | (codepoint & 0x3F));
+    } else if (codepoint <= 0xFFFF) {
+      out += static_cast<char>(0xE0 | (codepoint >> 12));
+      out += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+      out += static_cast<char>(0x80 | (codepoint & 0x3F));
+    } else {
+      out += static_cast<char>(0xF0 | (codepoint >> 18));
+      out += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
+      out += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+      out += static_cast<char>(0x80 | (codepoint & 0x3F));
+    }
+  };
+
+  String out;
+  out.reserve(text.length());
+  for (size_t i = 0; i < text.length(); ++i) {
+    char c = text.charAt(i);
+    if (c != '\\' || i + 1 >= text.length()) {
+      out += c;
+      continue;
+    }
+
+    char esc = text.charAt(i + 1);
+    if (esc == 'u' && i + 5 < text.length() &&
+        is_hex_digit(text.charAt(i + 2)) &&
+        is_hex_digit(text.charAt(i + 3)) &&
+        is_hex_digit(text.charAt(i + 4)) &&
+        is_hex_digit(text.charAt(i + 5))) {
+      uint16_t code = (static_cast<uint16_t>(hex_value(text.charAt(i + 2))) << 12) |
+                      (static_cast<uint16_t>(hex_value(text.charAt(i + 3))) << 8) |
+                      (static_cast<uint16_t>(hex_value(text.charAt(i + 4))) << 4) |
+                      static_cast<uint16_t>(hex_value(text.charAt(i + 5)));
+      i += 5;
+
+      if (code >= 0xD800 && code <= 0xDBFF &&
+          i + 6 < text.length() &&
+          text.charAt(i + 1) == '\\' &&
+          text.charAt(i + 2) == 'u' &&
+          is_hex_digit(text.charAt(i + 3)) &&
+          is_hex_digit(text.charAt(i + 4)) &&
+          is_hex_digit(text.charAt(i + 5)) &&
+          is_hex_digit(text.charAt(i + 6))) {
+        uint16_t low = (static_cast<uint16_t>(hex_value(text.charAt(i + 3))) << 12) |
+                       (static_cast<uint16_t>(hex_value(text.charAt(i + 4))) << 8) |
+                       (static_cast<uint16_t>(hex_value(text.charAt(i + 5))) << 4) |
+                       static_cast<uint16_t>(hex_value(text.charAt(i + 6)));
+        if (low >= 0xDC00 && low <= 0xDFFF) {
+          uint32_t codepoint = 0x10000 + (((code - 0xD800) << 10) | (low - 0xDC00));
+          append_utf8(out, codepoint);
+          i += 6;
+          continue;
+        }
+      }
+
+      append_utf8(out, code);
+      continue;
+    }
+
+    switch (esc) {
+      case '"': out += '"'; break;
+      case '\\': out += '\\'; break;
+      case '/': out += '/'; break;
+      case 'b': out += '\b'; break;
+      case 'f': out += '\f'; break;
+      case 'n': out += '\n'; break;
+      case 'r': out += '\r'; break;
+      case 't': out += '\t'; break;
+      default: out += esc; break;
+    }
+    ++i;
+  }
+  text = out;
 }
 
 static String weather_icon_from_condition(const String& condition) {
@@ -1715,28 +1826,61 @@ static String media_first_non_empty(const String& a,
   return d;
 }
 
-static String media_state_label(String state) {
+static String media_empty_title_label(String state) {
   state.trim();
   state.toLowerCase();
-  if (state == "playing") return "Playing";
-  if (state == "paused") return "Paused";
-  if (state == "idle") return "Idle";
+  if (state == "playing") return "Wiedergabe";
+  if (state == "paused") return "Pausiert";
+  if (state == "idle") return "Bereit";
   if (state == "standby") return "Standby";
-  if (state == "off") return "Off";
-  if (state == "unavailable" || state == "unknown") return "--";
-  if (!state.length()) return "--";
-  state.setCharAt(0, static_cast<char>(toupper(static_cast<unsigned char>(state.charAt(0)))));
-  return state;
+  if (state == "off") return "Aus";
+  return "Keine Wiedergabe";
+}
+
+static void sanitize_media_display_text(String& text) {
+  text.replace("`", "'");
+  text.replace("\r", " ");
+  text.replace("\n", " ");
+  text.trim();
+}
+
+static bool set_label_text_if_changed(lv_obj_t* label, const char* text) {
+  if (!label) return false;
+  if (!text) text = "";
+  const char* current = lv_label_get_text(label);
+  if (!current || strcmp(current, text) != 0) {
+    lv_label_set_text(label, text);
+    return true;
+  }
+  return false;
+}
+
+static bool set_label_text_if_changed(lv_obj_t* label, const String& text) {
+  return set_label_text_if_changed(label, text.c_str());
+}
+
+static bool set_label_long_mode_if_changed(lv_obj_t* label, lv_label_long_mode_t mode) {
+  if (!label) return false;
+  if (lv_label_get_long_mode(label) != mode) {
+    lv_label_set_long_mode(label, mode);
+    return true;
+  }
+  return false;
+}
+
+static void restart_visible_media_text_scroll(lv_obj_t* label) {
+  if (!label || lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN)) return;
+  if (lv_label_get_long_mode(label) != LV_LABEL_LONG_SCROLL) return;
+  lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
+  lv_label_set_long_mode(label, LV_LABEL_LONG_SCROLL);
 }
 
 static String media_icon_for_state(const String& state) {
   String lower = state;
   lower.trim();
   lower.toLowerCase();
-  if (lower == "playing") return "pause-circle";
-  if (lower == "paused" || lower == "idle") return "play-circle";
-  if (lower == "off" || lower == "standby") return "television";
-  return "music";
+  if (lower == "playing") return "pause";
+  return "play";
 }
 
 struct MediaCoverDecodeCtx {
@@ -2090,25 +2234,94 @@ static bool media_cover_has_hidden_ancestor(lv_obj_t* obj) {
 }
 
 static void set_media_cover_text_layout(MediaTileWidgets& widgets, bool cover_visible) {
+  const bool has_subtitle = widgets.media_subtitle_label &&
+                            !lv_obj_has_flag(widgets.media_subtitle_label, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_t* text_parent = widgets.media_title_label ? lv_obj_get_parent(widgets.media_title_label) : nullptr;
+  if (text_parent) {
+    lv_obj_update_layout(text_parent);
+  }
+  const lv_coord_t parent_w = text_parent ? lv_obj_get_width(text_parent) : 720;
+  const lv_coord_t parent_h = text_parent ? lv_obj_get_height(text_parent) : 240;
+  const bool large_cover = widgets.cover_clip && lv_obj_get_width(widgets.cover_clip) >= 120;
+  const lv_coord_t text_x = cover_visible ? (large_cover ? 138 : 112) : 20;
+  const lv_coord_t text_right_margin = cover_visible ? 42 : 28;
+  lv_coord_t text_w = parent_w - text_x - text_right_margin;
+  if (text_w < 120) {
+    text_w = parent_w > 40 ? parent_w - 40 : parent_w;
+  }
+
+  lv_coord_t title_h = 32;
+  lv_coord_t subtitle_h = 0;
   if (widgets.media_title_label) {
-    lv_obj_set_width(widgets.media_title_label, cover_visible ? LV_PCT(58) : LV_PCT(100));
-    lv_obj_align(widgets.media_title_label, LV_ALIGN_CENTER, cover_visible ? 46 : 0, 8);
+    lv_obj_set_width(widgets.media_title_label, text_w);
+    lv_obj_set_style_text_align(widgets.media_title_label, LV_TEXT_ALIGN_LEFT, 0);
+    lv_obj_update_layout(widgets.media_title_label);
+    title_h = lv_obj_get_height(widgets.media_title_label);
+    if (title_h < 1) title_h = 32;
   }
   if (widgets.media_subtitle_label) {
-    lv_obj_set_width(widgets.media_subtitle_label, cover_visible ? LV_PCT(58) : LV_PCT(92));
-    lv_obj_align(widgets.media_subtitle_label, LV_ALIGN_CENTER, cover_visible ? 46 : 0, 50);
+    lv_obj_set_width(widgets.media_subtitle_label, text_w);
+    lv_obj_set_style_text_align(widgets.media_subtitle_label, LV_TEXT_ALIGN_LEFT, 0);
+    if (has_subtitle) {
+      lv_obj_update_layout(widgets.media_subtitle_label);
+      subtitle_h = lv_obj_get_height(widgets.media_subtitle_label);
+      if (subtitle_h < 1) subtitle_h = 20;
+    }
+  }
+
+  lv_coord_t center_y = parent_h / 2;
+  if (cover_visible && widgets.cover_clip) {
+    lv_obj_update_layout(widgets.cover_clip);
+    center_y = lv_obj_get_y(widgets.cover_clip) + (lv_obj_get_height(widgets.cover_clip) / 2);
+  }
+
+  const lv_coord_t subtitle_gap = has_subtitle ? 6 : 0;
+  const lv_coord_t block_h = title_h + subtitle_gap + subtitle_h;
+  lv_coord_t title_y = center_y - (block_h / 2);
+  const lv_coord_t min_title_y = cover_visible ? (large_cover ? 58 : 42) : 76;
+  const lv_coord_t max_title_y = parent_h - block_h - 68;
+  if (title_y < min_title_y) title_y = min_title_y;
+  if (max_title_y > min_title_y && title_y > max_title_y) title_y = max_title_y;
+
+  if (widgets.media_title_label) {
+    lv_obj_align(widgets.media_title_label, LV_ALIGN_TOP_LEFT, text_x, title_y);
+  }
+  if (widgets.media_subtitle_label) {
+    if (widgets.media_title_label && has_subtitle) {
+      lv_obj_align_to(widgets.media_subtitle_label,
+                      widgets.media_title_label,
+                      LV_ALIGN_OUT_BOTTOM_LEFT,
+                      0,
+                      subtitle_gap);
+    } else {
+      lv_obj_align(widgets.media_subtitle_label, LV_ALIGN_TOP_LEFT, text_x, title_y + title_h);
+    }
   }
 }
 
-static void set_media_cover_visible(MediaTileWidgets& widgets, bool visible) {
+static bool set_media_cover_visible(MediaTileWidgets& widgets, bool visible) {
+  bool changed = false;
   if (widgets.cover_clip) {
-    if (visible) lv_obj_clear_flag(widgets.cover_clip, LV_OBJ_FLAG_HIDDEN);
-    else lv_obj_add_flag(widgets.cover_clip, LV_OBJ_FLAG_HIDDEN);
+    const bool hidden = lv_obj_has_flag(widgets.cover_clip, LV_OBJ_FLAG_HIDDEN);
+    if (visible && hidden) {
+      lv_obj_clear_flag(widgets.cover_clip, LV_OBJ_FLAG_HIDDEN);
+      changed = true;
+    } else if (!visible && !hidden) {
+      lv_obj_add_flag(widgets.cover_clip, LV_OBJ_FLAG_HIDDEN);
+      changed = true;
+    }
   }
   if (widgets.cover_image) {
-    if (visible) lv_obj_clear_flag(widgets.cover_image, LV_OBJ_FLAG_HIDDEN);
-    else lv_obj_add_flag(widgets.cover_image, LV_OBJ_FLAG_HIDDEN);
+    const bool hidden = lv_obj_has_flag(widgets.cover_image, LV_OBJ_FLAG_HIDDEN);
+    if (visible && hidden) {
+      lv_obj_clear_flag(widgets.cover_image, LV_OBJ_FLAG_HIDDEN);
+      changed = true;
+    } else if (!visible && !hidden) {
+      lv_obj_add_flag(widgets.cover_image, LV_OBJ_FLAG_HIDDEN);
+      changed = true;
+    }
   }
+  return changed;
 }
 
 struct MediaCoverRequest {
@@ -2261,9 +2474,11 @@ static void process_media_cover_results() {
       ref->failed_url_hash = result.url_hash;
       ref->failed_at_ms = millis();
       if (ref->url_hash != result.url_hash) {
-        set_media_cover_visible(widgets, false);
+        const bool cover_visibility_changed = set_media_cover_visible(widgets, false);
         if (widgets.icon_label) lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
-        set_media_cover_text_layout(widgets, false);
+        if (cover_visibility_changed) {
+          set_media_cover_text_layout(widgets, false);
+        }
       }
       free_media_cover_dsc(result.dsc);
       continue;
@@ -2271,9 +2486,11 @@ static void process_media_cover_results() {
 
     lv_image_dsc_t* old = ref->dsc;
     lv_image_set_src(widgets.cover_image, result.dsc);
-    set_media_cover_visible(widgets, true);
+    const bool cover_visibility_changed = set_media_cover_visible(widgets, true);
     if (widgets.icon_label) lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
-    set_media_cover_text_layout(widgets, true);
+    if (cover_visibility_changed) {
+      set_media_cover_text_layout(widgets, true);
+    }
 
     ref->dsc = result.dsc;
     ref->url_hash = result.url_hash;
@@ -2298,9 +2515,11 @@ static void update_media_cover(GridType grid_type,
     ref->requested_url_hash = 0;
     ref->failed_url_hash = 0;
     ref->failed_at_ms = 0;
-    set_media_cover_visible(widgets, false);
+    const bool cover_visibility_changed = set_media_cover_visible(widgets, false);
     if (widgets.icon_label) lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
-    set_media_cover_text_layout(widgets, false);
+    if (cover_visibility_changed) {
+      set_media_cover_text_layout(widgets, false);
+    }
     return;
   }
 
@@ -2313,26 +2532,32 @@ static void update_media_cover(GridType grid_type,
 
   if (!kMediaCoverDownloadsEnabled) {
     ref->requested_url_hash = 0;
-    set_media_cover_visible(widgets, false);
+    const bool cover_visibility_changed = set_media_cover_visible(widgets, false);
     if (widgets.icon_label) lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
-    set_media_cover_text_layout(widgets, false);
+    if (cover_visibility_changed) {
+      set_media_cover_text_layout(widgets, false);
+    }
     return;
   }
 
   if (ref->url_hash == hash && ref->dsc) {
     ref->requested_url_hash = 0;
-    set_media_cover_visible(widgets, true);
+    const bool cover_visibility_changed = set_media_cover_visible(widgets, true);
     if (widgets.icon_label) lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
-    set_media_cover_text_layout(widgets, true);
+    if (cover_visibility_changed) {
+      set_media_cover_text_layout(widgets, true);
+    }
     return;
   }
   if (!media_cover_download_allowed(url)) {
     ref->requested_url_hash = 0;
     ref->failed_url_hash = 0;
     ref->failed_at_ms = 0;
-    set_media_cover_visible(widgets, false);
+    const bool cover_visibility_changed = set_media_cover_visible(widgets, false);
     if (widgets.icon_label) lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
-    set_media_cover_text_layout(widgets, false);
+    if (cover_visibility_changed) {
+      set_media_cover_text_layout(widgets, false);
+    }
     log_media_cover_download_blocked();
     return;
   }
@@ -2356,9 +2581,11 @@ static bool update_media_cover_from_base64(MediaTileWidgets& widgets, const Stri
   const uint32_t hash = fnv1a_hash(encoded.c_str());
   if (ref->url_hash == hash && ref->dsc) {
     ref->requested_url_hash = 0;
-    set_media_cover_visible(widgets, true);
+    const bool cover_visibility_changed = set_media_cover_visible(widgets, true);
     if (widgets.icon_label) lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
-    set_media_cover_text_layout(widgets, true);
+    if (cover_visibility_changed) {
+      set_media_cover_text_layout(widgets, true);
+    }
     return true;
   }
 
@@ -2370,9 +2597,11 @@ static bool update_media_cover_from_base64(MediaTileWidgets& widgets, const Stri
 
   lv_image_dsc_t* old = ref->dsc;
   lv_image_set_src(widgets.cover_image, dsc);
-  set_media_cover_visible(widgets, true);
+  const bool cover_visibility_changed = set_media_cover_visible(widgets, true);
   if (widgets.icon_label) lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
-  set_media_cover_text_layout(widgets, true);
+  if (cover_visibility_changed) {
+    set_media_cover_text_layout(widgets, true);
+  }
 
   ref->dsc = dsc;
   ref->source_url = "mqtt";
@@ -2428,13 +2657,21 @@ void update_media_tile_state(GridType grid_type, uint8_t grid_index, const char*
     return;
   }
 
-  uint32_t payload_hash = fnv1a_hash(payload);
-  if (widgets.last_payload_hash == payload_hash) return;
-  widgets.last_payload_hash = payload_hash;
+  const char* payload_start = payload;
+  while (*payload_start == ' ' || *payload_start == '\t' ||
+         *payload_start == '\r' || *payload_start == '\n') {
+    ++payload_start;
+  }
+  if (!*payload_start) return;
 
-  String text = payload;
-  text.trim();
-  if (!text.length()) return;
+  const size_t payload_len = strlen(payload_start);
+  if (payload_len < 4096) {
+    uint32_t payload_hash = fnv1a_hash(payload_start);
+    if (widgets.last_payload_hash == payload_hash) return;
+    widgets.last_payload_hash = payload_hash;
+  } else {
+    widgets.last_payload_hash = 0;
+  }
 
   String state;
   String title;
@@ -2443,25 +2680,19 @@ void update_media_tile_state(GridType grid_type, uint8_t grid_index, const char*
   String app;
   String source;
   String channel;
-  String cover_url;
-  String cover_data;
-  float volume = -1.0f;
 
-  if (text.startsWith("{")) {
-    extract_json_string_field(text, "state", state);
-    extract_json_string_field(text, "media_title", title);
-    extract_json_string_field(text, "media_artist", artist);
-    extract_json_string_field(text, "media_album_name", album);
-    extract_json_string_field(text, "app_name", app);
-    extract_json_string_field(text, "source", source);
-    extract_json_string_field(text, "media_channel", channel);
-    if (!extract_json_string_field(text, "entity_picture", cover_url)) {
-      extract_json_string_field(text, "media_image_url", cover_url);
-    }
-    extract_json_string_field(text, "entity_picture_data", cover_data);
-    extract_json_number_or_string_field(text, "volume_level", volume);
+  const bool is_json_payload = *payload_start == '{';
+  if (is_json_payload) {
+    extract_json_string_field_cstr(payload_start, "state", state);
+    extract_json_string_field_cstr(payload_start, "media_title", title);
+    extract_json_string_field_cstr(payload_start, "media_artist", artist);
+    extract_json_string_field_cstr(payload_start, "media_album_name", album);
+    extract_json_string_field_cstr(payload_start, "app_name", app);
+    extract_json_string_field_cstr(payload_start, "source", source);
+    extract_json_string_field_cstr(payload_start, "media_channel", channel);
   } else {
-    state = text;
+    state = payload_start;
+    state.trim();
   }
 
   decode_basic_json_escapes(state);
@@ -2471,47 +2702,91 @@ void update_media_tile_state(GridType grid_type, uint8_t grid_index, const char*
   decode_basic_json_escapes(app);
   decode_basic_json_escapes(source);
   decode_basic_json_escapes(channel);
-  decode_basic_json_escapes(cover_url);
-  decode_basic_json_escapes(cover_data);
+  sanitize_media_display_text(title);
+  sanitize_media_display_text(artist);
+  sanitize_media_display_text(album);
+  sanitize_media_display_text(app);
+  sanitize_media_display_text(source);
+  sanitize_media_display_text(channel);
 
-  if (cover_data.length()) {
-    update_media_cover_from_base64(widgets, cover_data);
-  } else {
-    update_media_cover(grid_type, grid_index, widgets, cover_url);
+  String main_text = media_first_non_empty(title, channel);
+  const bool has_real_media_title = main_text.length() > 0;
+  if (!main_text.length()) {
+    main_text = media_empty_title_label(state);
   }
-  if (!cover_url.length() && !cover_data.length()) {
-    Serial.println("[MediaCover] keine Cover-URL im Media-Payload");
-  }
-
-  String main_text = media_first_non_empty(title, channel, media_state_label(state), "--");
   String subtitle = media_first_non_empty(artist, album, app, source);
-  if (!subtitle.length()) subtitle = "--";
+  String media_text_key = main_text;
+  media_text_key += '\x1f';
+  media_text_key += subtitle;
+  const uint32_t media_text_hash = fnv1a_hash(media_text_key.c_str());
+  const bool media_text_changed = widgets.last_media_text_hash != media_text_hash;
+  widgets.last_media_text_hash = media_text_hash;
 
-  String status = media_state_label(state);
-  if (volume >= 0.0f) {
-    int pct = static_cast<int>(roundf(volume * 100.0f));
-    if (pct < 0) pct = 0;
-    if (pct > 100) pct = 100;
-    if (status.length() && status != "--") status += "  ";
-    status += String(pct);
-    status += "%";
-  }
+  MediaCoverRef* cover_ref = widgets.cover_ref;
+  const bool cover_ready_or_pending = cover_ref &&
+                                      (cover_ref->dsc || cover_ref->requested_url_hash != 0);
+  const bool should_update_cover = is_json_payload &&
+                                   (media_text_changed || !cover_ready_or_pending);
 
-  if (widgets.icon_label && widgets.dynamic_icon) {
+  if (widgets.play_pause_label) {
     String icon = getMdiChar(media_icon_for_state(state));
     if (icon.length()) {
-      lv_label_set_text(widgets.icon_label, icon.c_str());
-      lv_obj_clear_flag(widgets.icon_label, LV_OBJ_FLAG_HIDDEN);
+      set_label_text_if_changed(widgets.play_pause_label, icon);
+      lv_obj_clear_flag(widgets.play_pause_label, LV_OBJ_FLAG_HIDDEN);
     }
   }
+
+  bool text_layout_dirty = false;
+  bool title_text_changed = false;
+  bool subtitle_text_changed = false;
   if (widgets.media_title_label) {
-    lv_label_set_text(widgets.media_title_label, main_text.c_str());
+    text_layout_dirty |= set_label_long_mode_if_changed(widgets.media_title_label,
+                                                        has_real_media_title ? LV_LABEL_LONG_SCROLL : LV_LABEL_LONG_DOT);
+    title_text_changed = set_label_text_if_changed(widgets.media_title_label, main_text);
+    text_layout_dirty |= title_text_changed;
   }
   if (widgets.media_subtitle_label) {
-    lv_label_set_text(widgets.media_subtitle_label, subtitle.c_str());
+    const bool was_hidden = lv_obj_has_flag(widgets.media_subtitle_label, LV_OBJ_FLAG_HIDDEN);
+    if (subtitle.length()) {
+      text_layout_dirty |= set_label_long_mode_if_changed(widgets.media_subtitle_label, LV_LABEL_LONG_SCROLL);
+      subtitle_text_changed = set_label_text_if_changed(widgets.media_subtitle_label, subtitle);
+      text_layout_dirty |= subtitle_text_changed;
+      lv_obj_clear_flag(widgets.media_subtitle_label, LV_OBJ_FLAG_HIDDEN);
+      if (was_hidden) text_layout_dirty = true;
+    } else {
+      text_layout_dirty |= set_label_text_if_changed(widgets.media_subtitle_label, "");
+      lv_obj_add_flag(widgets.media_subtitle_label, LV_OBJ_FLAG_HIDDEN);
+      if (!was_hidden) text_layout_dirty = true;
+    }
+    if (text_layout_dirty) {
+      set_media_cover_text_layout(widgets, widgets.cover_clip && !lv_obj_has_flag(widgets.cover_clip, LV_OBJ_FLAG_HIDDEN));
+    }
   }
+  if (title_text_changed) restart_visible_media_text_scroll(widgets.media_title_label);
+  if (subtitle_text_changed) restart_visible_media_text_scroll(widgets.media_subtitle_label);
   if (widgets.state_label) {
-    lv_label_set_text(widgets.state_label, status.c_str());
+    set_label_text_if_changed(widgets.state_label, "");
+    lv_obj_add_flag(widgets.state_label, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  if (should_update_cover) {
+    String cover_url;
+    String cover_data;
+    if (!extract_json_string_field_cstr(payload_start, "entity_picture", cover_url)) {
+      extract_json_string_field_cstr(payload_start, "media_image_url", cover_url);
+    }
+    extract_json_string_field_cstr(payload_start, "entity_picture_data", cover_data);
+    decode_basic_json_escapes(cover_url);
+    decode_basic_json_escapes(cover_data);
+
+    if (cover_data.length()) {
+      update_media_cover_from_base64(widgets, cover_data);
+    } else {
+      update_media_cover(grid_type, grid_index, widgets, cover_url);
+    }
+    if (!cover_url.length() && !cover_data.length()) {
+      Serial.println("[MediaCover] keine Cover-URL im Media-Payload");
+    }
   }
 }
 

@@ -163,6 +163,33 @@ static bool init_nvs() {
   return true;
 }
 
+static constexpr uint32_t BACKGROUND_STATE_REFRESH_MS = 60UL * 1000UL;
+static uint32_t g_last_bridge_state_refresh_ms = 0;
+static bool g_bridge_state_refresh_pending = false;
+
+static void mark_background_state_refresh_sent() {
+  g_last_bridge_state_refresh_ms = millis();
+  g_bridge_state_refresh_pending = false;
+}
+
+static void service_background_state_refresh(bool allow_now) {
+  if (!configManager.isConfigured()) return;
+  if (!networkManager.isMqttConnected()) return;
+
+  const uint32_t now = millis();
+  if (g_last_bridge_state_refresh_ms == 0) {
+    g_last_bridge_state_refresh_ms = now;
+    return;
+  }
+  if ((uint32_t)(now - g_last_bridge_state_refresh_ms) >= BACKGROUND_STATE_REFRESH_MS) {
+    g_bridge_state_refresh_pending = true;
+  }
+  if (!g_bridge_state_refresh_pending || !allow_now) return;
+
+  networkManager.publishBridgeRequest();
+  mark_background_state_refresh_sent();
+}
+
 void setup() {
   Serial.begin(115200);
   delay(2000);
@@ -316,6 +343,9 @@ void setup() {
 void loop() {
   static bool first_run = true;
   static bool was_asleep = false;
+  static bool wake_cache_refresh_pending = false;
+  static bool wake_bridge_request_pending = false;
+  static uint32_t wake_bridge_request_until_ms = 0;
   if (first_run) {
     Serial.println("[Loop] ERSTE ITERATION!");
     Serial.flush();
@@ -414,12 +444,21 @@ void loop() {
       Serial.println("[Loop] SLEEP MODE AKTIV!");
       was_asleep = true;
     }
-    if (configManager.isConfigured()) networkManager.update();
+    if (configManager.isConfigured()) {
+      networkManager.update();
+      tiles_process_bridge_cache_refresh(true);
+      service_background_state_refresh(true);
+      process_energy_response_queue();
+      energy_service_periodic();
+    }
     // Touch-Wake: abfragen ob Touch aktiv
     BoardHAL::TouchPoint tp;
     if (BoardHAL::getTouch(&tp)) {
       powerManager.wakeFromDisplaySleep();
       was_asleep = false;
+      wake_cache_refresh_pending = true;
+      wake_bridge_request_pending = true;
+      wake_bridge_request_until_ms = millis() + 15000;
       return;
     }
     delay(150);
@@ -427,6 +466,25 @@ void loop() {
   }
   // Zurück im aktiven Modus
   was_asleep = false;
+
+  if (wake_cache_refresh_pending) {
+    wake_cache_refresh_pending = false;
+    tiles_refresh_visible_from_cache();
+  }
+  if (wake_bridge_request_pending) {
+    if (networkManager.isMqttConnected()) {
+      networkManager.publishBridgeRequest();
+      mark_background_state_refresh_sent();
+      energy_request_day_for_tiles(true);
+      wake_bridge_request_pending = false;
+    } else if ((int32_t)(millis() - wake_bridge_request_until_ms) >= 0) {
+      wake_bridge_request_pending = false;
+    }
+  }
+  const bool ui_idle_for_background_refresh = !powerManager.isHighPerformance();
+  service_background_state_refresh(ui_idle_for_background_refresh);
+  tiles_process_bridge_cache_refresh(ui_idle_for_background_refresh);
+  tiles_process_visible_cache_refresh(ui_idle_for_background_refresh);
 
   // --- ACTIVE ---
   // Lokale Sensoren (z. B. externer OneWire-Temperatursensor)
@@ -449,7 +507,7 @@ void loop() {
       process_weather_update_queue();
       process_media_update_queue();
       process_tile_graph_queue();
-      energy_service_periodic();
+      if (idle) energy_service_periodic();
       last_queue_ms = millis();
     }
   }

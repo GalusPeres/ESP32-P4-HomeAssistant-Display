@@ -110,15 +110,6 @@ void queue_energy_tile_update_for_entry(const EnergyEntryData& entry) {
   }
 }
 
-bool active_grid_has_energy_tile() {
-  const TileGridConfig& grid = tileConfig.getActiveGrid();
-  for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
-    const Tile& tile = grid.tiles[i];
-    if (tile.type == TILE_ENERGY && tile.sensor_entity.length()) return true;
-  }
-  return false;
-}
-
 void parse_energy_response(const char* payload) {
   DynamicJsonDocument doc(32768);
   DeserializationError err = deserializeJson(doc, payload);
@@ -213,6 +204,9 @@ void process_energy_response_queue() {
   g_pending_energy.valid = false;
   g_pending_energy.payload = "";
   parse_energy_response(payload.c_str());
+  if (!powerManager.isInSleep()) {
+    process_sensor_update_queue();
+  }
 }
 
 bool energy_request_period(const char* period, bool force) {
@@ -230,14 +224,13 @@ bool energy_request_period(const char* period, bool force) {
 }
 
 bool energy_request_day_for_tiles(bool force) {
-  if (!active_grid_has_energy_tile()) return true;
   return energy_request_period("day", force);
 }
 
 void energy_service_periodic() {
   if (!networkManager.isMqttConnected()) return;
   const uint32_t now = millis();
-  if (g_last_periodic_ms != 0 && (uint32_t)(now - g_last_periodic_ms) < 5UL * 60UL * 1000UL) {
+  if (g_last_periodic_ms != 0 && (uint32_t)(now - g_last_periodic_ms) < 60UL * 1000UL) {
     return;
   }
   if (energy_request_day_for_tiles(false)) {

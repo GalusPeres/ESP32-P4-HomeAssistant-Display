@@ -80,11 +80,15 @@ struct MediaTileWidgets {
   lv_obj_t* cover_image = nullptr;
   MediaCoverRef* cover_ref = nullptr;
   lv_obj_t* icon_label = nullptr;
+  lv_obj_t* previous_label = nullptr;
+  lv_obj_t* play_pause_label = nullptr;
+  lv_obj_t* next_label = nullptr;
   lv_obj_t* title_label = nullptr;
   lv_obj_t* media_title_label = nullptr;
   lv_obj_t* media_subtitle_label = nullptr;
   lv_obj_t* state_label = nullptr;
   uint32_t last_payload_hash = 0;
+  uint32_t last_media_text_hash = 0;
   bool dynamic_icon = true;
 };
 

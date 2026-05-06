@@ -158,8 +158,8 @@ void PowerManager::enterDisplaySleep() {
   delay(20);
 
   displayManager.setInputEnabled(true);  // Touch bleibt aktiv fuer Wake
-  networkManager.setSleepWifiProfile(true);
-  networkManager.setWifiPowerSaving(true);
+  networkManager.setSleepWifiProfile(false);
+  networkManager.setWifiPowerSaving(false);
   is_display_sleeping = true;
   is_high_performance = false;
   mqttPublishDeviceSettings();

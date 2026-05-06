@@ -14,6 +14,10 @@ namespace {
 
 struct MediaEventData {
   String entity_id;
+  const char* command = "play_pause";
+  lv_obj_t* media_title_label = nullptr;
+  lv_obj_t* media_subtitle_label = nullptr;
+  bool reset_text_scroll = false;
 };
 
 static void free_cover_dsc(MediaCoverRef* ref) {
@@ -41,6 +45,117 @@ void enable_event_bubble(lv_obj_t* obj) {
   if (!obj) return;
   lv_obj_add_flag(obj, LV_OBJ_FLAG_EVENT_BUBBLE);
   lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+}
+
+static void reset_media_label_scroll(lv_obj_t* label) {
+  if (!label || lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN)) return;
+  const char* current = lv_label_get_text(label);
+  if (!current || !current[0]) return;
+  if (lv_label_get_long_mode(label) != LV_LABEL_LONG_SCROLL) return;
+  lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
+  lv_label_set_long_mode(label, LV_LABEL_LONG_SCROLL);
+}
+
+static void media_command_event_cb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_SHORT_CLICKED) return;
+  MediaEventData* data = static_cast<MediaEventData*>(lv_event_get_user_data(e));
+  if (!data || !data->entity_id.length()) return;
+  if (data->reset_text_scroll) {
+    reset_media_label_scroll(data->media_title_label);
+    reset_media_label_scroll(data->media_subtitle_label);
+  }
+  mqttPublishMediaCommand(data->entity_id.c_str(), data->command ? data->command : "play_pause");
+}
+
+static void media_event_data_delete_cb(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
+  MediaEventData* data = static_cast<MediaEventData*>(lv_event_get_user_data(e));
+  delete data;
+}
+
+static const lv_anim_t* media_text_scroll_anim() {
+  static lv_anim_t anim;
+  static bool initialized = false;
+  if (!initialized) {
+    lv_anim_init(&anim);
+    lv_anim_set_delay(&anim, 2000);
+    lv_anim_set_repeat_count(&anim, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_set_repeat_delay(&anim, 2000);
+    lv_anim_set_reverse_delay(&anim, 2000);
+    lv_anim_set_path_cb(&anim, lv_anim_path_linear);
+    initialized = true;
+  }
+  return &anim;
+}
+
+static void apply_media_text_scroll_style(lv_obj_t* label) {
+  if (!label) return;
+  lv_obj_set_style_anim(label, media_text_scroll_anim(), LV_PART_MAIN);
+  lv_obj_set_style_anim_duration(label, lv_anim_speed_clamped(18, 300, 10000), LV_PART_MAIN);
+}
+
+static lv_obj_t* create_media_control_button(lv_obj_t* parent,
+                                             const String& entity_id,
+                                             const char* command,
+                                             const char* icon_name,
+                                             lv_coord_t x_ofs,
+                                             uint32_t tile_bg_color,
+                                             bool primary = false,
+                                             lv_obj_t* media_title_label = nullptr,
+                                             lv_obj_t* media_subtitle_label = nullptr,
+                                             bool reset_text_scroll = false) {
+  if (!parent || !entity_id.length() || !command || !icon_name) return nullptr;
+
+  lv_obj_t* btn = lv_button_create(parent);
+  if (!btn) return nullptr;
+  lv_obj_set_size(btn, 56, 56);
+  lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, x_ofs, 0);
+  lv_obj_set_style_bg_color(btn, primary ? lv_color_white() : lv_color_black(), LV_PART_MAIN | LV_STATE_DEFAULT);
+  lv_obj_set_style_bg_opa(btn, primary ? LV_OPA_COVER : LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
+  lv_obj_set_style_bg_color(btn, primary ? lv_color_hex(0xD8D8D8) : lv_color_white(), LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(btn, primary ? LV_OPA_COVER : LV_OPA_30, LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_border_width(btn, 0, 0);
+  lv_obj_set_style_shadow_width(btn, 0, 0);
+  lv_obj_set_style_pad_all(btn, 0, 0);
+  lv_obj_remove_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(btn, LV_OBJ_FLAG_IGNORE_LAYOUT);
+  disable_pressed_button_animation(btn);
+
+  lv_obj_t* label = lv_label_create(btn);
+  if (label) {
+    set_label_style(label, primary ? lv_color_hex(tile_bg_color) : lv_color_white(), FONT_MDI_ICONS);
+    String icon_char = getMdiChar(icon_name);
+    lv_label_set_text(label, icon_char.length() ? icon_char.c_str() : "");
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, primary ? 0 : 0);
+    lv_obj_clear_flag(label, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(label, LV_OBJ_FLAG_EVENT_BUBBLE);
+  }
+
+  MediaEventData* data = new MediaEventData{entity_id,
+                                            command,
+                                            media_title_label,
+                                            media_subtitle_label,
+                                            reset_text_scroll};
+  lv_obj_add_event_cb(btn, media_command_event_cb, LV_EVENT_SHORT_CLICKED, data);
+  lv_obj_add_event_cb(btn, media_event_data_delete_cb, LV_EVENT_DELETE, data);
+  return label;
+}
+
+static String media_friendly_name_from_entity(const String& entity_id) {
+  int dot = entity_id.indexOf('.');
+  String name = dot >= 0 ? entity_id.substring(dot + 1) : entity_id;
+  name.replace('_', ' ');
+  name.trim();
+  bool capitalize_next = true;
+  for (size_t i = 0; i < name.length(); ++i) {
+    char c = name.charAt(i);
+    if (capitalize_next && c >= 'a' && c <= 'z') {
+      name.setCharAt(i, static_cast<char>(c - 32));
+    }
+    capitalize_next = (c == ' ');
+  }
+  return name;
 }
 
 }  // namespace
@@ -85,14 +200,17 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
 
   lv_obj_t* cover_clip = nullptr;
   lv_obj_t* cover_img = nullptr;
-  // Match the bridge's MEDIA_COVER_THUMBNAIL_SIZE (144) so the JPEG is shown
+  // Match the bridge's MEDIA_COVER_THUMBNAIL_SIZE (120) so the JPEG is shown
   // 1:1 without LV_IMAGE_ALIGN_COVER cropping right/bottom edges. On a 1x1
-  // tile (168x145) we still cap to 96 because there isn't room for 144.
-  const lv_coord_t cover_size = (tile.span_w > 1 || tile.span_h > 1) ? 144 : 96;
+  // tile (168x145) we still cap to 96 because there isn't room for 120.
+  const lv_coord_t cover_size = (tile.span_w > 1 || tile.span_h > 1) ? 120 : 96;
   cover_clip = lv_obj_create(card);
   if (cover_clip) {
     lv_obj_set_size(cover_clip, cover_size, cover_size);
-    lv_obj_align(cover_clip, LV_ALIGN_LEFT_MID, -2, 8);
+    lv_obj_align(cover_clip,
+                 LV_ALIGN_TOP_LEFT,
+                 -2,
+                 (tile.span_w > 1 || tile.span_h > 1) ? 58 : 42);
     lv_obj_set_style_bg_opa(cover_clip, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(cover_clip, 0, 0);
     lv_obj_set_style_shadow_width(cover_clip, 0, 0);
@@ -119,21 +237,28 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
     lv_obj_add_flag(cover_img, LV_OBJ_FLAG_IGNORE_LAYOUT);
   }
 
-  String icon_name = tile.icon_name;
-  bool icon_disabled = isMdiIconDisabled(icon_name);
-  const bool custom_icon = tile.icon_name.length() && !icon_disabled;
-  icon_name = normalizeMdiIconName(icon_name);
-  if (!icon_disabled && !icon_name.length() && tile.sensor_entity.length()) {
+  lv_obj_t* previous_label = nullptr;
+  lv_obj_t* play_pause_label = nullptr;
+  lv_obj_t* next_label = nullptr;
+
+  String icon_name;
+  if (tile.sensor_entity.length()) {
     icon_name = normalizeMdiIconName(haBridgeConfig.findEntityIcon(tile.sensor_entity));
   }
-  if (!icon_disabled && !icon_name.length()) {
-    icon_name = "music";
+  if (!icon_name.length()) {
+    String custom_icon = tile.icon_name;
+    bool custom_icon_disabled = isMdiIconDisabled(custom_icon);
+    custom_icon = normalizeMdiIconName(custom_icon);
+    if (!custom_icon_disabled && custom_icon.length()) {
+      icon_name = custom_icon;
+    }
   }
+  if (!icon_name.length()) icon_name = "television";
 
   lv_obj_t* icon_label = lv_label_create(card);
   if (icon_label) {
     set_label_style(icon_label, lv_color_white(), FONT_MDI_ICONS);
-    String icon_char = (!icon_disabled && icon_name.length()) ? getMdiChar(icon_name) : "";
+    String icon_char = icon_name.length() ? getMdiChar(icon_name) : "";
     if (icon_char.length()) {
       lv_label_set_text(icon_label, icon_char.c_str());
       lv_obj_clear_flag(icon_label, LV_OBJ_FLAG_HIDDEN);
@@ -145,11 +270,14 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
     enable_event_bubble(icon_label);
   }
 
-  String title_text = tile.title;
-  if (!title_text.length() && tile.sensor_entity.length()) {
+  String title_text;
+  if (tile.sensor_entity.length()) {
     title_text = haBridgeConfig.findSensorName(tile.sensor_entity);
   }
-  if (!title_text.length()) title_text = tile.sensor_entity;
+  if (!title_text.length()) title_text = tile.title;
+  if (!title_text.length() && tile.sensor_entity.length()) {
+    title_text = media_friendly_name_from_entity(tile.sensor_entity);
+  }
   if (!title_text.length()) title_text = "Media";
 
   lv_obj_t* title_label = lv_label_create(card);
@@ -163,27 +291,30 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
     enable_event_bubble(title_label);
   }
 
-  const lv_font_t* media_font = (tile.span_w > 1 || tile.span_h > 1) ? FONT_VALUE : &ui_font_24;
+  const lv_font_t* media_font = (tile.span_w > 1 || tile.span_h > 1) ? &ui_font_24 : &ui_font_20;
 
   lv_obj_t* media_title = lv_label_create(card);
   if (media_title) {
     set_label_style(media_title, lv_color_white(), media_font);
-    lv_label_set_long_mode(media_title, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(media_title, LV_PCT(100));
-    lv_obj_set_style_text_align(media_title, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(media_title, "--");
-    lv_obj_align(media_title, LV_ALIGN_CENTER, 0, 8);
+    lv_label_set_long_mode(media_title, LV_LABEL_LONG_SCROLL);
+    apply_media_text_scroll_style(media_title);
+    lv_obj_set_width(media_title, LV_PCT(82));
+    lv_obj_set_style_text_align(media_title, LV_TEXT_ALIGN_LEFT, 0);
+    lv_label_set_text(media_title, "Keine Wiedergabe");
+    lv_obj_align(media_title, LV_ALIGN_TOP_LEFT, 20, 108);
     enable_event_bubble(media_title);
   }
 
   lv_obj_t* subtitle = lv_label_create(card);
   if (subtitle) {
     set_label_style(subtitle, lv_color_hex(0xD8DEE9), FONT_SMALL);
-    lv_label_set_long_mode(subtitle, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(subtitle, LV_PCT(92));
-    lv_obj_set_style_text_align(subtitle, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(subtitle, "--");
-    lv_obj_align(subtitle, LV_ALIGN_CENTER, 0, 50);
+    lv_label_set_long_mode(subtitle, LV_LABEL_LONG_SCROLL);
+    apply_media_text_scroll_style(subtitle);
+    lv_obj_set_width(subtitle, LV_PCT(82));
+    lv_obj_set_style_text_align(subtitle, LV_TEXT_ALIGN_LEFT, 0);
+    lv_label_set_text(subtitle, "");
+    lv_obj_align(subtitle, LV_ALIGN_LEFT_MID, 20, 34);
+    lv_obj_add_flag(subtitle, LV_OBJ_FLAG_HIDDEN);
     enable_event_bubble(subtitle);
   }
 
@@ -193,9 +324,34 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
     lv_label_set_long_mode(state_label, LV_LABEL_LONG_DOT);
     lv_obj_set_width(state_label, LV_PCT(72));
     lv_obj_set_style_text_align(state_label, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_label_set_text(state_label, "--");
+    lv_label_set_text(state_label, "");
     lv_obj_align(state_label, LV_ALIGN_BOTTOM_RIGHT, 4, 4);
+    lv_obj_add_flag(state_label, LV_OBJ_FLAG_HIDDEN);
     enable_event_bubble(state_label);
+  }
+
+  if (tile.sensor_entity.length()) {
+    previous_label = create_media_control_button(card,
+                                                 tile.sensor_entity,
+                                                 "previous",
+                                                 "skip-previous",
+                                                 -76,
+                                                 card_color,
+                                                 false,
+                                                 media_title,
+                                                 subtitle,
+                                                 false);
+    play_pause_label = create_media_control_button(card, tile.sensor_entity, "play_pause", "play", 0, card_color, true);
+    next_label = create_media_control_button(card,
+                                             tile.sensor_entity,
+                                             "next",
+                                             "skip-next",
+                                             76,
+                                             card_color,
+                                             false,
+                                             media_title,
+                                             subtitle,
+                                             false);
   }
 
   MediaTileWidgets* target = tile_renderer_get_media_widgets(grid_type);
@@ -204,12 +360,15 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
     target[index].cover_image = cover_img;
     target[index].cover_ref = cover_ref;
     target[index].icon_label = icon_label;
+    target[index].previous_label = previous_label;
+    target[index].play_pause_label = play_pause_label;
+    target[index].next_label = next_label;
     target[index].title_label = title_label;
     target[index].media_title_label = media_title;
     target[index].media_subtitle_label = subtitle;
     target[index].state_label = state_label;
     target[index].last_payload_hash = 0;
-    target[index].dynamic_icon = !custom_icon;
+    target[index].dynamic_icon = false;
   }
 
   if (tile.sensor_entity.length()) {
@@ -218,27 +377,6 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
       update_media_tile_state(grid_type, index, initial.c_str());
     }
 
-    MediaEventData* data = new MediaEventData{tile.sensor_entity};
-    lv_obj_add_event_cb(
-        card,
-        [](lv_event_t* e) {
-          if (lv_event_get_code(e) != LV_EVENT_SHORT_CLICKED) return;
-          MediaEventData* data = static_cast<MediaEventData*>(lv_event_get_user_data(e));
-          if (!data || !data->entity_id.length()) return;
-          mqttPublishMediaCommand(data->entity_id.c_str(), "play_pause");
-        },
-        LV_EVENT_SHORT_CLICKED,
-        data);
-
-    lv_obj_add_event_cb(
-        card,
-        [](lv_event_t* e) {
-          if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
-          MediaEventData* data = static_cast<MediaEventData*>(lv_event_get_user_data(e));
-          delete data;
-        },
-        LV_EVENT_DELETE,
-        data);
   }
 
   return card;

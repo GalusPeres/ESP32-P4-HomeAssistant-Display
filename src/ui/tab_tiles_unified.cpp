@@ -48,6 +48,9 @@ static FolderCacheEntry* g_active_cache = nullptr;
 static TileWidgetCache g_cache_build_saved_widgets;
 static bool g_folder_switch_pending = false;
 static uint16_t g_pending_folder_id = kInvalidFolderId;
+static bool g_visible_cache_refresh_requested = false;
+static bool g_bridge_cache_refresh_requested = false;
+static uint32_t g_bridge_cache_refresh_snapshot_ms = 0;
 static constexpr uint32_t kFolderPreloadMinHeapBytes = 384UL * 1024UL;
 static constexpr uint32_t kFolderPreloadMinPsramBytes = 4UL * 1024UL * 1024UL;
 
@@ -85,6 +88,7 @@ static void build_grid_track_descriptors(lv_coord_t* dsc, uint8_t count, lv_coor
 struct EntityCacheEntry {
   String entity_id;
   String payload;
+  uint32_t updated_ms = 0;
   bool valid = false;
 };
 
@@ -92,13 +96,18 @@ static constexpr size_t kEntityCacheSize = TILES_PER_GRID * 8;
 static EntityCacheEntry g_entity_cache[kEntityCacheSize];
 static size_t g_entity_cache_cursor = 0;
 
-static void cache_entity_payload(const char* entity_id, const char* payload) {
+static void cache_entity_payload_at(const char* entity_id, const char* payload, uint32_t updated_ms, bool keep_newer) {
   if (!entity_id || !payload || entity_id[0] == '\0') return;
+  if (updated_ms == 0) updated_ms = millis();
 
   for (size_t i = 0; i < kEntityCacheSize; ++i) {
     EntityCacheEntry& entry = g_entity_cache[i];
     if (entry.valid && entry.entity_id.equalsIgnoreCase(entity_id)) {
+      if (keep_newer && entry.updated_ms != 0 && (int32_t)(entry.updated_ms - updated_ms) > 0) {
+        return;
+      }
       entry.payload = payload;
+      entry.updated_ms = updated_ms;
       return;
     }
   }
@@ -107,6 +116,7 @@ static void cache_entity_payload(const char* entity_id, const char* payload) {
     if (!g_entity_cache[i].valid) {
       g_entity_cache[i].entity_id = entity_id;
       g_entity_cache[i].payload = payload;
+      g_entity_cache[i].updated_ms = updated_ms;
       g_entity_cache[i].valid = true;
       return;
     }
@@ -115,7 +125,16 @@ static void cache_entity_payload(const char* entity_id, const char* payload) {
   size_t idx = g_entity_cache_cursor++ % kEntityCacheSize;
   g_entity_cache[idx].entity_id = entity_id;
   g_entity_cache[idx].payload = payload;
+  g_entity_cache[idx].updated_ms = updated_ms;
   g_entity_cache[idx].valid = true;
+}
+
+static void cache_entity_payload(const char* entity_id, const char* payload) {
+  cache_entity_payload_at(entity_id, payload, millis(), false);
+}
+
+static void cache_entity_payload_from_bridge(const char* entity_id, const char* payload, uint32_t snapshot_ms) {
+  cache_entity_payload_at(entity_id, payload, snapshot_ms, true);
 }
 
 static bool get_cached_entity_payload(const char* entity_id, String& out) {
@@ -202,7 +221,7 @@ static lv_obj_t* find_mdi_label_child(lv_obj_t* parent) {
 }
 
 static lv_obj_t* create_tiles_grid(lv_obj_t* parent);
-static void apply_cached_states(GridType grid_type, const TileGridConfig& config);
+static void apply_cached_states(GridType grid_type, const TileGridConfig& config, bool include_media = true);
 
 /* === Deferred image preview loading === */
 static lv_timer_t* g_preview_timer = nullptr;
@@ -442,12 +461,13 @@ static lv_obj_t* create_tiles_grid(lv_obj_t* parent) {
   return grid;
 }
 
-static void apply_cached_states(GridType grid_type, const TileGridConfig& config) {
+static void apply_cached_states(GridType grid_type, const TileGridConfig& config, bool include_media) {
   for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
     const Tile& tile = config.tiles[i];
     if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH &&
         tile.type != TILE_WEATHER && tile.type != TILE_ENERGY &&
         tile.type != TILE_MEDIA) continue;
+    if (!include_media && tile.type == TILE_MEDIA) continue;
     if (tile.sensor_entity.length() == 0) continue;
 
     String payload;
@@ -470,6 +490,74 @@ static void apply_cached_states(GridType grid_type, const TileGridConfig& config
       queue_media_tile_update(grid_type, i, payload.c_str());
     }
   }
+}
+
+void tiles_refresh_visible_from_cache() {
+  g_visible_cache_refresh_requested = false;
+  const GridType grid_type = GridType::TAB0;
+  const uint8_t idx = static_cast<uint8_t>(grid_type);
+  if (idx >= 3 || !g_tiles_grids[idx] || !g_tiles_loaded[idx]) return;
+
+  const TileGridConfig& config = getGridConfig(grid_type);
+  apply_cached_states(grid_type, config, false);
+  process_sensor_update_queue();
+  process_switch_update_queue();
+  process_weather_update_queue();
+
+  lv_display_t* disp = lv_obj_get_display(g_tiles_grids[idx]);
+  if (disp) {
+    lv_obj_invalidate(g_tiles_grids[idx]);
+    lv_refr_now(disp);
+  }
+}
+
+void tiles_request_visible_cache_refresh() {
+  g_visible_cache_refresh_requested = true;
+}
+
+void tiles_process_visible_cache_refresh(bool allow_now) {
+  if (!g_visible_cache_refresh_requested || !allow_now) return;
+  tiles_refresh_visible_from_cache();
+}
+
+static void refresh_cache_from_grid_config(const TileGridConfig& config, uint32_t snapshot_ms) {
+  for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
+    const Tile& tile = config.tiles[i];
+    if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH &&
+        tile.type != TILE_WEATHER && tile.type != TILE_ENERGY &&
+        tile.type != TILE_MEDIA) continue;
+    if (!tile.sensor_entity.length()) continue;
+
+    String payload = haBridgeConfig.findSensorInitialValue(tile.sensor_entity);
+    if (!payload.length()) continue;
+    cache_entity_payload_from_bridge(tile.sensor_entity.c_str(), payload.c_str(), snapshot_ms);
+  }
+}
+
+void tiles_refresh_cache_from_bridge_values() {
+  const uint32_t snapshot_ms = g_bridge_cache_refresh_snapshot_ms ? g_bridge_cache_refresh_snapshot_ms : millis();
+  refresh_cache_from_grid_config(tileConfig.getActiveGrid(), snapshot_ms);
+
+  TileGridConfig folder_config;
+  for (const auto& folder : tileConfig.getFolders()) {
+    if (folder.id == tileConfig.getActiveFolderId()) continue;
+    if (!tileConfig.loadFolderGrid(folder.id, folder_config)) continue;
+    refresh_cache_from_grid_config(folder_config, snapshot_ms);
+    yield();
+  }
+}
+
+void tiles_request_bridge_cache_refresh() {
+  g_bridge_cache_refresh_requested = true;
+  g_bridge_cache_refresh_snapshot_ms = millis();
+}
+
+void tiles_process_bridge_cache_refresh(bool allow_now) {
+  if (!g_bridge_cache_refresh_requested || !allow_now) return;
+  g_bridge_cache_refresh_requested = false;
+  tiles_refresh_cache_from_bridge_values();
+  g_bridge_cache_refresh_snapshot_ms = 0;
+  tiles_request_visible_cache_refresh();
 }
 
 static void apply_cached_state_for_index(GridType grid_type, const TileGridConfig& config, uint8_t index) {

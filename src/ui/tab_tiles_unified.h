@@ -18,6 +18,12 @@ void tiles_refresh_image_previews_for_key(GridType grid_type, const String& raw_
 void tiles_request_release(GridType grid_type);
 void tiles_request_release_all();
 void tiles_process_reload_requests();
+void tiles_refresh_visible_from_cache();
+void tiles_request_visible_cache_refresh();
+void tiles_process_visible_cache_refresh(bool allow_now);
+void tiles_refresh_cache_from_bridge_values();
+void tiles_request_bridge_cache_refresh();
+void tiles_process_bridge_cache_refresh(bool allow_now);
 void tiles_update_tile(GridType grid_type, uint8_t index);
 void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, const char* value);
 void tiles_update_weather_by_entity(GridType grid_type, const char* entity_id, const char* payload);

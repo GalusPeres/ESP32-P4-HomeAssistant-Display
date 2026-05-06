@@ -1205,6 +1205,7 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
     bool icons_changed = false;
     if (haBridgeConfig.applyJson(cfg_buf, &reload, &icons_changed)) {
       Serial.println("[Bridge] Konfiguration von HA empfangen");
+      tiles_request_bridge_cache_refresh();
       if (reload) {
         yield();  // Nach JSON Parse
         networkManager.publishBridgeConfig();
