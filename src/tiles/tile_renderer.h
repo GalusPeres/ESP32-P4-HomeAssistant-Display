@@ -151,7 +151,7 @@ void reset_sensor_widgets(GridType grid_type);
 
 // THREAD-SAFE: Queue für Sensor-Updates (MQTT Callback → Main Loop)
 void queue_sensor_tile_update(GridType grid_type, uint8_t grid_index, const char* value, const char* unit = nullptr);
-void process_sensor_update_queue();  // Im Main Loop VOR lv_timer_handler() aufrufen!
+void process_sensor_update_queue(uint8_t max_updates = 0);  // 0 = Queue komplett leeren
 
 // Update-Funktionen (fuer Switches)
 void reset_switch_widget(GridType grid_type, uint8_t grid_index);
@@ -159,17 +159,17 @@ void reset_switch_widgets(GridType grid_type);
 
 // THREAD-SAFE: Queue fuer Switch-Updates (MQTT Callback -> Main Loop)
 void queue_switch_tile_update(GridType grid_type, uint8_t grid_index, const char* payload);
-void process_switch_update_queue();  // Im Main Loop VOR lv_timer_handler() aufrufen!
+void process_switch_update_queue(uint8_t max_updates = 0);  // 0 = Queue komplett leeren
 
 void reset_weather_widget(GridType grid_type, uint8_t grid_index);
 void reset_weather_widgets(GridType grid_type);
 void queue_weather_tile_update(GridType grid_type, uint8_t grid_index, const char* payload);
-void process_weather_update_queue();  // Im Main Loop VOR lv_timer_handler() aufrufen!
+void process_weather_update_queue(uint8_t max_updates = 0);  // 0 = Queue komplett leeren
 
 void reset_media_widget(GridType grid_type, uint8_t grid_index);
 void reset_media_widgets(GridType grid_type);
 void queue_media_tile_update(GridType grid_type, uint8_t grid_index, const char* payload);
-void process_media_update_queue();  // Im Main Loop VOR lv_timer_handler() aufrufen!
+void process_media_update_queue(uint8_t max_updates = 0);  // 0 = Queue komplett leeren
 
 // THREAD-SAFE: Queue fuer Tile-Graph-History (MQTT Callback -> Main Loop)
 void queue_tile_graph_history(const char* entity_id, const char* payload, size_t len);

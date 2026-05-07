@@ -20,6 +20,7 @@ struct MediaPopupInit {
 };
 
 void show_media_popup(const MediaPopupInit& init);
+void preload_media_popup();
 void update_media_popup(const MediaPopupInit& init);
 void update_media_popup_cover(const char* entity_id, const lv_image_dsc_t* cover_dsc, uint32_t cover_hash);
 void hide_media_popup();

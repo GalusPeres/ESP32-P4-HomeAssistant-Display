@@ -50,8 +50,10 @@ constexpr int kVolumeSideOffset = (kVolumeWidth / 2) + 70;
 constexpr int kVolumeButtonBottom = kVolumeCenterBottom - (kControlButtonSize / 2);
 constexpr int kVolumePercentBottom = kVolumeCenterBottom - 13;
 
+struct MediaPopupContext;
+
 struct MediaCommandData {
-  String entity_id;
+  MediaPopupContext* ctx = nullptr;
   const char* command = "play_pause";
 };
 
@@ -344,8 +346,8 @@ static void on_overlay_delete(lv_event_t* e) {
 static void on_media_command(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   MediaCommandData* data = static_cast<MediaCommandData*>(lv_event_get_user_data(e));
-  if (!data || !data->entity_id.length()) return;
-  mqttPublishMediaCommand(data->entity_id.c_str(), data->command ? data->command : "play_pause");
+  if (!data || !data->ctx || !data->ctx->entity_id.length()) return;
+  mqttPublishMediaCommand(data->ctx->entity_id.c_str(), data->command ? data->command : "play_pause");
 }
 
 static void on_media_command_delete(lv_event_t* e) {
@@ -384,7 +386,7 @@ static void on_volume_mute_click(lv_event_t* e) {
   mqttPublishMediaVolume(ctx->entity_id.c_str(), static_cast<float>(next) / 100.0f);
 }
 static lv_obj_t* create_control_button(lv_obj_t* parent,
-                                       const String& entity_id,
+                                       MediaPopupContext* ctx,
                                        const char* command,
                                        const char* icon_name,
                                        lv_coord_t x_ofs,
@@ -410,7 +412,7 @@ static lv_obj_t* create_control_button(lv_obj_t* parent,
   lv_obj_center(label);
   lv_obj_clear_flag(label, LV_OBJ_FLAG_CLICKABLE);
 
-  MediaCommandData* data = new MediaCommandData{entity_id, command};
+  MediaCommandData* data = new MediaCommandData{ctx, command};
   lv_obj_add_event_cb(btn, on_media_command, LV_EVENT_CLICKED, data);
   lv_obj_add_event_cb(btn, on_media_command_delete, LV_EVENT_DELETE, data);
   return label;
@@ -582,21 +584,21 @@ void show_media_popup(const MediaPopupInit& init) {
   lv_obj_align(ctx->volume_label, LV_ALIGN_BOTTOM_MID, kVolumeSideOffset, -kVolumePercentBottom);
 
   ctx->previous_label = create_control_button(card,
-                                              init.entity_id,
+                                              ctx,
                                               "previous",
                                               "skip-previous",
                                               -kControlSideOffset,
                                               init.bg_color != 0 ? init.bg_color : 0x2A2A2A,
                                               false);
   ctx->play_pause_label = create_control_button(card,
-                                                init.entity_id,
+                                                ctx,
                                                 "play_pause",
                                                 "play",
                                                 0,
                                                 init.bg_color != 0 ? init.bg_color : 0x2A2A2A,
                                                 true);
   ctx->next_label = create_control_button(card,
-                                          init.entity_id,
+                                          ctx,
                                           "next",
                                           "skip-next",
                                           kControlSideOffset,
@@ -610,6 +612,22 @@ void show_media_popup(const MediaPopupInit& init) {
   apply_init_to_context(ctx, init);
   lv_obj_add_event_cb(overlay, on_overlay_click, LV_EVENT_CLICKED, ctx);
   lv_obj_add_event_cb(overlay, on_overlay_delete, LV_EVENT_DELETE, ctx);
+}
+
+void preload_media_popup() {
+  if (g_media_popup_ctx && g_media_popup_ctx->overlay && g_media_popup_ctx->card) return;
+  MediaPopupInit init;
+  init.entity_id = "__preload__";
+  init.title = "";
+  init.icon_name = "television";
+  init.media_title = "";
+  init.media_subtitle = "";
+  init.bg_color = 0x2A2A2A;
+  show_media_popup(init);
+  if (g_media_popup_ctx && g_media_popup_ctx->card && g_media_popup_ctx->overlay) {
+    lv_obj_add_flag(g_media_popup_ctx->card, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(g_media_popup_ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
+  }
 }
 
 void update_media_popup(const MediaPopupInit& init) {

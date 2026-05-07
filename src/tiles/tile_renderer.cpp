@@ -335,14 +335,16 @@ void queue_sensor_tile_update(GridType grid_type, uint8_t grid_index, const char
 }
 
 // Main Loop ruft das VOR lv_timer_handler() auf!
-void process_sensor_update_queue() {
-  while (g_queue_tail != g_queue_head) {
+void process_sensor_update_queue(uint8_t max_updates) {
+  uint8_t processed = 0;
+  while (g_queue_tail != g_queue_head && (max_updates == 0 || processed < max_updates)) {
     SensorUpdate& upd = g_update_queue[g_queue_tail];
 
     if (upd.valid) {
       update_sensor_tile_value(upd.grid_type, upd.grid_index, upd.value.c_str(),
                               upd.unit.length() > 0 ? upd.unit.c_str() : nullptr);
       upd.valid = false;
+      ++processed;
     }
 
     g_queue_tail = (g_queue_tail + 1) % QUEUE_SIZE;
@@ -1476,12 +1478,14 @@ void queue_switch_tile_update(GridType grid_type, uint8_t grid_index, const char
   g_switch_head = next_head;
 }
 
-void process_switch_update_queue() {
-  while (g_switch_tail != g_switch_head) {
+void process_switch_update_queue(uint8_t max_updates) {
+  uint8_t processed = 0;
+  while (g_switch_tail != g_switch_head && (max_updates == 0 || processed < max_updates)) {
     SwitchUpdate& upd = g_switch_queue[g_switch_tail];
     if (upd.valid) {
       update_switch_tile_state(upd.grid_type, upd.grid_index, upd.payload.c_str());
       upd.valid = false;
+      ++processed;
     }
     g_switch_tail = (g_switch_tail + 1) % SWITCH_QUEUE_SIZE;
   }
@@ -1843,12 +1847,14 @@ void queue_weather_tile_update(GridType grid_type, uint8_t grid_index, const cha
   g_weather_head = next_head;
 }
 
-void process_weather_update_queue() {
-  while (g_weather_tail != g_weather_head) {
+void process_weather_update_queue(uint8_t max_updates) {
+  uint8_t processed = 0;
+  while (g_weather_tail != g_weather_head && (max_updates == 0 || processed < max_updates)) {
     WeatherUpdate& upd = g_weather_queue[g_weather_tail];
     if (upd.valid) {
       update_weather_tile_state(upd.grid_type, upd.grid_index, upd.payload.c_str());
       upd.valid = false;
+      ++processed;
     }
     g_weather_tail = (g_weather_tail + 1) % WEATHER_QUEUE_SIZE;
   }
@@ -2832,14 +2838,9 @@ void update_media_tile_state(GridType grid_type, uint8_t grid_index, const char*
   }
   if (!*payload_start) return;
 
-  const size_t payload_len = strlen(payload_start);
-  if (payload_len < 4096) {
-    uint32_t payload_hash = fnv1a_hash(payload_start);
-    if (widgets.last_payload_hash == payload_hash) return;
-    widgets.last_payload_hash = payload_hash;
-  } else {
-    widgets.last_payload_hash = 0;
-  }
+  const uint32_t payload_hash = fnv1a_hash(payload_start);
+  if (widgets.last_payload_hash == payload_hash) return;
+  widgets.last_payload_hash = payload_hash;
 
   String state;
   String title;
@@ -2995,6 +2996,7 @@ void queue_media_tile_update(GridType grid_type, uint8_t grid_index, const char*
     if (pending.valid &&
         pending.grid_type == grid_type &&
         pending.grid_index == grid_index) {
+      if (pending.payload.equals(payload)) return;
       pending.payload = String(payload);
       return;
     }
@@ -3016,12 +3018,14 @@ void queue_media_tile_update(GridType grid_type, uint8_t grid_index, const char*
   g_media_head = next_head;
 }
 
-void process_media_update_queue() {
-  while (g_media_tail != g_media_head) {
+void process_media_update_queue(uint8_t max_updates) {
+  uint8_t processed = 0;
+  while (g_media_tail != g_media_head && (max_updates == 0 || processed < max_updates)) {
     MediaUpdate& upd = g_media_queue[g_media_tail];
     if (upd.valid) {
       update_media_tile_state(upd.grid_type, upd.grid_index, upd.payload.c_str());
       upd.valid = false;
+      ++processed;
     }
     g_media_tail = (g_media_tail + 1) % MEDIA_QUEUE_SIZE;
   }

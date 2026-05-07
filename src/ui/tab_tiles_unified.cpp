@@ -106,6 +106,10 @@ static void cache_entity_payload_at(const char* entity_id, const char* payload, 
       if (keep_newer && entry.updated_ms != 0 && (int32_t)(entry.updated_ms - updated_ms) > 0) {
         return;
       }
+      if (entry.payload.equals(payload)) {
+        entry.updated_ms = updated_ms;
+        return;
+      }
       entry.payload = payload;
       entry.updated_ms = updated_ms;
       return;
@@ -417,13 +421,12 @@ static void build_folder_cache_entry(FolderCacheEntry& entry, GridType grid_type
 
   render_tile_grid(entry.grid, config, grid_type, g_tiles_scene_cbs[idx], entry.tile_objs);
 
-  // Warm hidden folder caches with the latest known entity states so the
-  // first visible folder switch behaves much closer to a second open.
-  apply_cached_states(grid_type, config);
+  // Warm hidden folder caches with lightweight states only. Media payloads can
+  // include cover data and are applied when the folder becomes visible.
+  apply_cached_states(grid_type, config, false);
   process_sensor_update_queue();
   process_switch_update_queue();
   process_weather_update_queue();
-  process_media_update_queue();
   lv_obj_update_layout(entry.grid);
 
   tile_renderer_snapshot_tab0(&entry.widgets);

@@ -194,7 +194,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   lv_obj_set_size(stack, LV_PCT(100), LV_PCT(100));
   lv_obj_set_flex_flow(stack, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(stack, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_gap(stack, 12, 0);
+  lv_obj_set_style_pad_gap(stack, 6, 0);
   lv_obj_set_style_bg_opa(stack, LV_OPA_TRANSP, 0);
   lv_obj_remove_flag(stack, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_align(stack, LV_ALIGN_CENTER, 0, has_header ? 18 : 0);

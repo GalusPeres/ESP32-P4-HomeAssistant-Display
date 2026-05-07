@@ -6,6 +6,7 @@
 #include "src/ui/sensor_popup.h"
 #include "src/ui/weather_popup.h"
 #include "src/ui/energy_popup.h"
+#include "src/ui/media_popup.h"
 #include "src/core/display_manager.h"
 #include "src/core/config_manager.h"
 #include "src/tiles/mdi_icons.h"
@@ -125,10 +126,7 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   preload_sensor_popup();
   preload_weather_popup();
   preload_energy_popup();
-  // Warm settings buffer once to reduce the first-open hitch.
-  switchToTab(3);
-  switchToTab(0);
-
+  preload_media_popup();
   mqttPublishDeviceSettings();
 
   Serial.println("[UI] UI aufgebaut");
