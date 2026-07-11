@@ -15,6 +15,7 @@
   "license": "MIT",
   "dependencies": {
     "electron-store": "^8.1.0",
+    "fast-uri": "^3.1.1",
     "keysender": "2.4.0",
     "sharp": "0.34.5",
     "systeminformation": "^5.24.8",
@@ -43,7 +44,9 @@
       "**/bridge/**"
     ],
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -54,10 +57,14 @@
       "include": "build/installer.nsh"
     },
     "mac": {
-      "target": ["dmg"]
+      "target": [
+        "dmg"
+      ]
     },
     "linux": {
-      "target": ["AppImage"]
+      "target": [
+        "AppImage"
+      ]
     }
   }
 }
