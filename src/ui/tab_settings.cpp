@@ -706,70 +706,31 @@ static void style_settings_slider(lv_obj_t *slider) {
   lv_obj_clear_flag(slider, LV_OBJ_FLAG_SCROLLABLE);
 }
 
-struct SettingsTimezoneOption {
-  const char* code;
-  const char* label_en;
-  const char* label_de;
-};
-
-static const SettingsTimezoneOption kSettingsTimezoneOptions[] = {
-    {"utc", "UTC+0 - UTC", "UTC+0 - UTC"},
-    {"london", "UTC+0 / UTC+1 - London", "UTC+0 / UTC+1 - London"},
-    {"berlin", "UTC+1 / UTC+2 - Berlin", "UTC+1 / UTC+2 - Berlin"},
-    {"athens", "UTC+2 / UTC+3 - Athens", "UTC+2 / UTC+3 - Athen"},
-    {"istanbul", "UTC+3 - Istanbul", "UTC+3 - Istanbul"},
-    {"moscow", "UTC+3 - Moscow", "UTC+3 - Moskau"},
-    {"honolulu", "UTC-10 - Honolulu", "UTC-10 - Honolulu"},
-    {"los_angeles", "UTC-8 / UTC-7 - Los Angeles", "UTC-8 / UTC-7 - Los Angeles"},
-    {"phoenix", "UTC-7 - Phoenix", "UTC-7 - Phoenix"},
-    {"denver", "UTC-7 / UTC-6 - Denver", "UTC-7 / UTC-6 - Denver"},
-    {"chicago", "UTC-6 / UTC-5 - Chicago", "UTC-6 / UTC-5 - Chicago"},
-    {"new_york", "UTC-5 / UTC-4 - New York", "UTC-5 / UTC-4 - New York"},
-    {"buenos_aires", "UTC-3 - Buenos Aires", "UTC-3 - Buenos Aires"},
-    {"sao_paulo", "UTC-3 - Sao Paulo", "UTC-3 - Sao Paulo"},
-    {"johannesburg", "UTC+2 - Johannesburg", "UTC+2 - Johannesburg"},
-    {"nairobi", "UTC+3 - Nairobi", "UTC+3 - Nairobi"},
-    {"dubai", "UTC+4 - Dubai", "UTC+4 - Dubai"},
-    {"karachi", "UTC+5 - Karachi", "UTC+5 - Karatschi"},
-    {"kolkata", "UTC+5:30 - Kolkata", "UTC+5:30 - Kolkata"},
-    {"dhaka", "UTC+6 - Dhaka", "UTC+6 - Dhaka"},
-    {"bangkok", "UTC+7 - Bangkok", "UTC+7 - Bangkok"},
-    {"singapore", "UTC+8 - Singapore", "UTC+8 - Singapur"},
-    {"perth", "UTC+8 - Perth", "UTC+8 - Perth"},
-    {"tokyo", "UTC+9 - Tokyo", "UTC+9 - Tokio"},
-    {"darwin", "UTC+9:30 - Darwin", "UTC+9:30 - Darwin"},
-    {"sydney", "UTC+10 / UTC+11 - Sydney", "UTC+10 / UTC+11 - Sydney"},
-    {"auckland", "UTC+12 / UTC+13 - Auckland", "UTC+12 / UTC+13 - Auckland"},
-};
-
+// Zeitzonen-Codes und Anzeigenamen kommen aus dem i18n-Katalog
+// (i18n::timezone_option + LocaleProfile::timezone_labels), damit Geraet und
+// Web-Admin dieselbe Liste zeigen.
 static String settings_timezone_options_text;
-
-static bool settings_language_is_german() {
-  return tr().code && tr().code[0] == 'd';
-}
 
 static uint32_t settings_timezone_index(const char* code) {
   const char* selected = (code && code[0]) ? code : "berlin";
-  for (uint32_t i = 0; i < sizeof(kSettingsTimezoneOptions) / sizeof(kSettingsTimezoneOptions[0]); ++i) {
-    if (strcmp(kSettingsTimezoneOptions[i].code, selected) == 0) return i;
+  for (uint32_t i = 0; i < i18n::kTimezoneOptionCount; ++i) {
+    if (strcmp(i18n::timezone_option(i).code, selected) == 0) return i;
   }
   return 2;  // berlin
 }
 
-static const SettingsTimezoneOption& selected_timezone_option(uint32_t index) {
-  const uint32_t count = sizeof(kSettingsTimezoneOptions) / sizeof(kSettingsTimezoneOptions[0]);
-  if (index >= count) index = 2;
-  return kSettingsTimezoneOptions[index];
+static const char* selected_timezone_code(uint32_t index) {
+  if (index >= i18n::kTimezoneOptionCount) index = 2;  // berlin
+  return i18n::timezone_option(index).code;
 }
 
 static void build_timezone_dropdown_options() {
   settings_timezone_options_text = "";
   settings_timezone_options_text.reserve(900);
-  const bool is_de = settings_language_is_german();
-  for (uint32_t i = 0; i < sizeof(kSettingsTimezoneOptions) / sizeof(kSettingsTimezoneOptions[0]); ++i) {
+  const auto& profile = i18n::locale(configManager.getConfig().language);
+  for (uint32_t i = 0; i < i18n::kTimezoneOptionCount; ++i) {
     if (i > 0) settings_timezone_options_text += '\n';
-    settings_timezone_options_text += is_de ? kSettingsTimezoneOptions[i].label_de
-                                            : kSettingsTimezoneOptions[i].label_en;
+    settings_timezone_options_text += profile.timezone_labels[i];
   }
 }
 
@@ -1680,13 +1641,11 @@ static void save_wifi_popup() {
 static void save_localization_popup() {
   DeviceConfig cfg = configManager.getConfig();
   const uint32_t language_index = locale_language_dd ? lv_dropdown_get_selected(locale_language_dd) : 0;
-  const char* language = (language_index == 1) ? "de" : "en";
-  strncpy(cfg.language, i18n::normalize_language_code(language), sizeof(cfg.language) - 1);
+  strncpy(cfg.language, i18n::language_code_at(language_index), sizeof(cfg.language) - 1);
   cfg.language[sizeof(cfg.language) - 1] = '\0';
 
   const uint32_t timezone_index = locale_timezone_dd ? lv_dropdown_get_selected(locale_timezone_dd) : 2;
-  const SettingsTimezoneOption& tz = selected_timezone_option(timezone_index);
-  strncpy(cfg.timezone, tz.code, sizeof(cfg.timezone) - 1);
+  strncpy(cfg.timezone, selected_timezone_code(timezone_index), sizeof(cfg.timezone) - 1);
   cfg.timezone[sizeof(cfg.timezone) - 1] = '\0';
 
   cfg.global_time_format = clock_tile::normalize_time_format(
@@ -2378,14 +2337,15 @@ static void build_localization_popup(lv_obj_t* parent) {
   lv_obj_set_style_pad_row(form, 14, 0);
 
   build_timezone_dropdown_options();
-  const bool language_is_de = i18n::normalize_language_code(cfg.language)[0] == 'd';
+  const String language_options = i18n::build_language_dropdown_options();
   const String time_options = format_options_text(true);
   const String date_options = format_options_text(false);
   const String keyboard_options =
       String(tr().format_auto_language) + "\nDeutsch (QWERTZ)\nEnglish (QWERTY)";
 
   locale_language_dd = create_locale_dropdown_row(form, tr().language_label,
-                                                  "English\nDeutsch", language_is_de ? 1 : 0);
+                                                  language_options.c_str(),
+                                                  i18n::language_index(cfg.language));
   locale_timezone_dd = create_locale_dropdown_row(form, tr().timezone_label,
                                                   settings_timezone_options_text.c_str(),
                                                   settings_timezone_index(cfg.timezone));
@@ -2507,8 +2467,7 @@ static void on_system_reboot_clicked(lv_event_t*) {
   system_show_qr(false);
   system_install_running = true;
   system_set_buttons_enabled(false);
-  system_show_status(settings_language_is_german() ? "Neustart..." : "Restarting...",
-                     0xC8C8C8);
+  system_show_status(tr().system_restarting, 0xC8C8C8);
   g_system_reboot_callback();
 }
 

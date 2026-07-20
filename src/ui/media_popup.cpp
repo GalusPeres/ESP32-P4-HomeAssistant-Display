@@ -5,7 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "src/core/config_manager.h"
 #include "src/core/display_manager.h"
+#include "src/core/i18n.h"
 #include "src/fonts/ui_fonts.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/tiles/mdi_icons.h"
@@ -395,7 +397,9 @@ static void apply_init_to_context(MediaPopupContext* ctx, const MediaPopupInit& 
 
   String media_title = init.media_title;
   media_title.trim();
-  if (!media_title.length()) media_title = "Keine Wiedergabe";
+  if (!media_title.length()) {
+    media_title = i18n::strings(configManager.getConfig().language).media_no_playback;
+  }
   set_popup_label(ctx->media_title_label, media_title);
 
   String subtitle = init.media_subtitle;

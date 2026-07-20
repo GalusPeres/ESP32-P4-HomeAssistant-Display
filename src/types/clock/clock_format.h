@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "src/core/i18n.h"
+
 namespace clock_tile {
 
 enum TimeFormat : uint8_t {
@@ -16,11 +18,6 @@ enum DateFormat : uint8_t {
   DATE_FORMAT_MDY = 2,
   DATE_FORMAT_YMD = 3,
 };
-
-inline bool language_prefers_german_locale(const char* language_code) {
-  return language_code &&
-         (language_code[0] == 'd' || language_code[0] == 'D');
-}
 
 inline uint8_t normalize_time_format(int raw) {
   switch (raw) {
@@ -44,11 +41,11 @@ inline uint8_t normalize_date_format(int raw) {
 }
 
 inline uint8_t default_time_format_for_language(const char* language_code) {
-  return language_prefers_german_locale(language_code) ? TIME_FORMAT_24H : TIME_FORMAT_12H;
+  return i18n::locale(language_code).default_time_format;
 }
 
 inline uint8_t default_date_format_for_language(const char* language_code) {
-  return language_prefers_german_locale(language_code) ? DATE_FORMAT_DMY : DATE_FORMAT_MDY;
+  return i18n::locale(language_code).default_date_format;
 }
 
 inline uint8_t resolve_time_format(int preferred_raw, int global_raw, const char* language_code) {
@@ -68,17 +65,10 @@ inline uint8_t resolve_date_format(int preferred_raw, int global_raw, const char
 }
 
 // Wochentagsname zu tm_wday (0 = Sonntag). Die Geraete-Locale ist immer "C",
-// strftime %A waere daher immer englisch - deshalb eigene Tabellen.
+// strftime %A waere daher immer englisch - deshalb die i18n-Tabellen.
 inline const char* weekday_name(int tm_wday, const char* language_code) {
-  static const char* const kWeekdaysDe[7] = {
-      "Sonntag", "Montag", "Dienstag", "Mittwoch",
-      "Donnerstag", "Freitag", "Samstag"};
-  static const char* const kWeekdaysEn[7] = {
-      "Sunday", "Monday", "Tuesday", "Wednesday",
-      "Thursday", "Friday", "Saturday"};
   if (tm_wday < 0 || tm_wday > 6) return "";
-  return language_prefers_german_locale(language_code) ? kWeekdaysDe[tm_wday]
-                                                       : kWeekdaysEn[tm_wday];
+  return i18n::locale(language_code).weekday_names[tm_wday];
 }
 
 }  // namespace clock_tile

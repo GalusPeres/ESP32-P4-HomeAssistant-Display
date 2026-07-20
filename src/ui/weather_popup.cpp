@@ -1019,32 +1019,8 @@ static void resolve_weather_visual_fields(const String& json,
   }
 }
 
-static String weather_condition_to_german(const String& condition) {
+static String weather_condition_display_label(const String& condition) {
   return i18n::weather_condition_label(configManager.getConfig().language, condition);
-  String key = condition;
-  key.trim();
-  key.toLowerCase();
-  if (!key.length()) return "--";
-  if (key == "clear-night") return "Klare Nacht";
-  if (key == "cloudy") return "Bew\xC3\xB6lkt";
-  if (key == "exceptional") return "Ausnahme";
-  if (key == "fog") return "Nebel";
-  if (key == "hail") return "Hagel";
-  if (key == "lightning") return "Gewitter";
-  if (key == "lightning-rainy") return "Gewitterregen";
-  if (key == "partlycloudy") return "Teilw. bew\xC3\xB6lkt";
-  if (key == "pouring") return "Starkregen";
-  if (key == "rainy") return "Regen";
-  if (key == "snowy") return "Schnee";
-  if (key == "snowy-rainy") return "Schneeregen";
-  if (key == "sunny") return "Sonnig";
-  if (key == "windy") return "Windig";
-  if (key == "windy-variant") return "B\xC3\xB6ig";
-  String text = condition;
-  text.replace("-", " ");
-  text.replace("_", " ");
-  text.trim();
-  return text.length() ? text : "--";
 }
 
 static bool parse_iso_date(const String& iso, int& y, int& m, int& d) {
@@ -1145,15 +1121,11 @@ static String format_weather_popup_date_from_iso(const String& iso) {
   int y = 0, m = 0, d = 0;
   if (!parse_iso_date(iso, y, m, d)) return format_localized_short_date_from_iso(iso);
 
-  const bool is_de = configManager.getConfig().language[0] == 'd';
   const char* month =
       i18n::weather_month_short(configManager.getConfig().language, m);
   if (!month || !*month) return format_localized_short_date_from_iso(iso);
 
-  if (is_de) {
-    return String(d) + ". " + month;
-  }
-  return String(month) + " " + d;
+  return i18n::format_short_date(configManager.getConfig().language, d, month);
 }
 
 static const char* weather_today_button_text() {
@@ -2513,7 +2485,7 @@ static void apply_weather_header(WeatherPopupContext* ctx, const String& json) {
     }
   }
 
-  String condition_text = weather_condition_to_german(condition);
+  String condition_text = weather_condition_display_label(condition);
   bool show_condition = (condition_text.length() && condition_text != "--");
 
   if (ctx->temp_label) {

@@ -813,8 +813,7 @@ void rebuild_global_clock(ScreensaverState* st) {
   widget_config.show_time = config.show_time;
   widget_config.show_date = config.show_date;
   widget_config.show_weekday = config.show_weekday;
-  widget_config.weekday_german = clock_tile::language_prefers_german_locale(
-      configManager.getConfig().language);
+  widget_config.weekday_language = configManager.getConfig().language;
   widget_config.fill_parent = false;
   widget_config.text_shadow = config.clock_shadow;
   widget_config.time_font_size = config.time_font_size;

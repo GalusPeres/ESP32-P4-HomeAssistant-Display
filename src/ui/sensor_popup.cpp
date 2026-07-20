@@ -327,11 +327,7 @@ static String format_time_axis_label(int hour24) {
   const uint8_t time_format =
       clock_tile::resolve_time_format(clock_tile::TIME_FORMAT_AUTO, cfg.global_time_format, cfg.language);
   if (time_format == clock_tile::TIME_FORMAT_24H) {
-    const bool is_de = clock_tile::language_prefers_german_locale(cfg.language);
-    if (is_de) {
-      return String(normalized) + " Uhr";
-    }
-    return String(normalized) + ":00";
+    return String(normalized) + i18n::locale(cfg.language).hour_axis_suffix;
   }
 
   int hour12 = normalized % 12;

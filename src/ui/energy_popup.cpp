@@ -82,16 +82,12 @@ struct PendingPopupRefresh {
 EnergyPopupContext* g_energy_popup_ctx = nullptr;
 PendingPopupRefresh g_pending_refresh;
 
-bool is_german() {
-  return strcmp(configManager.getConfig().language, "de") == 0;
-}
-
 const char* today_label() {
   return i18n::weather_today_label(configManager.getConfig().language);
 }
 
 const char* loading_label() {
-  return is_german() ? "Lade..." : "Loading...";
+  return i18n::strings(configManager.getConfig().language).loading;
 }
 
 String format_number(float value, uint8_t decimals) {
@@ -262,10 +258,9 @@ String day_marker_label(uint8_t hour) {
     unsigned hour12 = h % 12;
     if (hour12 == 0) hour12 = 12;
     snprintf(buf, sizeof(buf), "%u %s", hour12, (h < 12) ? "AM" : "PM");
-  } else if (is_german()) {
-    snprintf(buf, sizeof(buf), "%u Uhr", h);
   } else {
-    snprintf(buf, sizeof(buf), "%u:00", h);
+    snprintf(buf, sizeof(buf), "%u%s", h,
+             i18n::locale(cfg.language).hour_axis_suffix);
   }
   return String(buf);
 }

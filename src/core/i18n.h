@@ -16,8 +16,6 @@ struct Strings {
   const char* format_auto_localization;
   const char* format_24_hour;
   const char* format_12_hour;
-  const char* language_option_english;
-  const char* language_option_german;
 
   const char* home;
   const char* folder_prefix;
@@ -312,6 +310,59 @@ struct Strings {
   const char* admin_ip_static_note;
   const char* admin_ip_invalid;
 
+  // Web-Admin: Titelzeile ("<Geraet> Admin-Panel") und Diashow-Editor
+  const char* admin_panel_word;
+  const char* admin_slideshow;
+
+  // Web-Admin: Netzwerk-Sektion auf Geraeten mit Ethernet-Unterstuetzung
+  const char* admin_network_section;
+  const char* admin_connection_type;
+  const char* admin_connection_type_note;
+  const char* admin_ip_use_static;
+
+  // Web-Admin: Passwort-Sichtbarkeits-Umschalter (WLAN- und MQTT-Passwort)
+  const char* password_show;
+  const char* password_hide;
+
+  // Web-Admin: Crash-Log-Download + Core-Dump-Verwaltung
+  const char* crash_log_download;
+  const char* coredump_stored;
+  const char* coredump_download;
+  const char* coredump_delete;
+  const char* coredump_decode_note;
+
+  // Web-Admin: Dateimanager (microSD)
+  const char* file_manager_title;
+  const char* file_manager_checking;
+  const char* file_manager_refresh;
+  const char* file_manager_new_folder;
+  const char* file_manager_choose_files;
+  const char* file_manager_upload;
+  const char* file_manager_no_selection;
+  const char* file_manager_open;
+  const char* file_manager_rename;
+  const char* file_manager_name;
+  const char* file_manager_modified;
+  const char* file_manager_size;
+  const char* file_manager_not_loaded;
+
+  // System-Popup: Statuszeile beim manuellen Neustart
+  const char* system_restarting;
+
+  // Geraete-Popups: Licht-Schalter-Zustand und Lade-Platzhalter
+  const char* light_on;
+  const char* light_off;
+  const char* loading;
+
+  // Media-Tile/-Popup: Zustandstexte ohne laufenden Titel; Begriffe folgen
+  // den offiziellen HA-Uebersetzungen (idle = "Leerlauf"/"Idle")
+  const char* media_state_playing;
+  const char* media_state_paused;
+  const char* media_state_idle;
+  const char* media_state_standby;
+  const char* media_state_off;
+  const char* media_no_playback;
+
 };
 
 // Sprachabhaengige Darstellungsregeln und kurze Laufzeittexte, die sowohl
@@ -339,13 +390,53 @@ struct LocaleProfile {
   const char* climate_control_labels[5];
   const char* climate_option_labels[26];
   const char* climate_mini_labels[7];
+
+  // Anzeigeformat-Defaults fuer "Auto (Sprache)": Werte entsprechen den
+  // clock_tile::TimeFormat/DateFormat-Enums (Zeit: 1 = 24h, 2 = 12h;
+  // Datum: 1 = DMY, 2 = MDY, 3 = YMD)
+  uint8_t default_time_format;
+  uint8_t default_date_format;
+
+  // Suffix fuer volle Stunden auf Diagramm-Achsen ("8 Uhr" bzw. "8:00")
+  const char* hour_axis_suffix;
+
+  // Kurzdatum mit Monatsname: {d} = Tag, {m} = Monatskuerzel
+  // ("15. Jul." bzw. "Jul 15"), siehe i18n::format_short_date
+  const char* short_date_pattern;
+
+  // Volle Wochentagsnamen, Index = tm_wday (0 = Sonntag)
+  const char* weekday_names[7];
+
+  // Zeitzonen-Auswahl (Web-Admin + Geraete-Settings): Eintraege parallel zu
+  // i18n::timezone_option(), Gruppen-Index siehe TimezoneOptionInfo::group
+  const char* timezone_group_labels[6];
+  const char* timezone_labels[27];
 };
+
+// Sprachunabhaengiger Zeitzonen-Katalog (Codes + Gruppenzuordnung); die
+// Anzeigenamen dazu liefert LocaleProfile::timezone_labels in gleicher
+// Reihenfolge.
+constexpr size_t kTimezoneOptionCount = 27;
+constexpr size_t kTimezoneGroupCount = 6;
+struct TimezoneOptionInfo {
+  uint8_t group;  // Index in LocaleProfile::timezone_group_labels
+  const char* code;
+};
+const TimezoneOptionInfo& timezone_option(size_t index);
+
+// Registrierte Sprachen fuer Auswahllisten; Reihenfolge = Dropdown-Index.
+size_t language_count();
+const char* language_code_at(size_t index);
+const char* language_native_name_at(size_t index);
+size_t language_index(const char* language_code);
+String build_language_dropdown_options();  // native Namen, mit \n getrennt
 
 const Strings& strings(const char* language_code);
 const LocaleProfile& locale(const char* language_code);
 const char* normalize_language_code(const char* language_code);
 String build_language_options_html(const char* selected_code);
 String localize_numeric_text(const char* language_code, const String& numeric_text);
+String format_short_date(const char* language_code, int day, const char* month_short);
 String format_number(const char* language_code,
                      float value,
                      uint8_t decimals,

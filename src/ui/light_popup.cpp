@@ -193,17 +193,12 @@ static bool get_init_hs(const LightPopupInit& init, uint16_t& h, uint8_t& s) {
   return false;
 }
 
-static bool is_german_language() {
-  const auto& tr = i18n::strings(configManager.getConfig().language);
-  return tr.code && strncmp(tr.code, "de", 2) == 0;
-}
-
 static const char* get_off_text() {
-  return is_german_language() ? "Aus" : "Off";
+  return i18n::strings(configManager.getConfig().language).light_off;
 }
 
 static const char* get_on_text() {
-  return is_german_language() ? "An" : "On";
+  return i18n::strings(configManager.getConfig().language).light_on;
 }
 
 static uint16_t normalize_hue(int value) {

@@ -28,69 +28,19 @@
 
 namespace {
 
-struct TimezoneOption {
-  uint8_t group;
-  const char* code;
-  const char* label_en;
-  const char* label_de;
-};
-
-static String buildTimezoneOptionsHtml(const char* selected_code, bool is_german) {
-  static const TimezoneOption kOptions[] = {
-      {0, "utc", "UTC+0 - UTC", "UTC+0 - UTC"},
-      {1, "london", "UTC+0 / UTC+1 - London", "UTC+0 / UTC+1 - London"},
-      {1, "berlin", "UTC+1 / UTC+2 - Berlin", "UTC+1 / UTC+2 - Berlin"},
-      {1, "athens", "UTC+2 / UTC+3 - Athens", "UTC+2 / UTC+3 - Athen"},
-      {1, "istanbul", "UTC+3 - Istanbul", "UTC+3 - Istanbul"},
-      {1, "moscow", "UTC+3 - Moscow", "UTC+3 - Moskau"},
-      {2, "honolulu", "UTC-10 - Honolulu", "UTC-10 - Honolulu"},
-      {2, "los_angeles", "UTC-8 / UTC-7 - Los Angeles", "UTC-8 / UTC-7 - Los Angeles"},
-      {2, "phoenix", "UTC-7 - Phoenix", "UTC-7 - Phoenix"},
-      {2, "denver", "UTC-7 / UTC-6 - Denver", "UTC-7 / UTC-6 - Denver"},
-      {2, "chicago", "UTC-6 / UTC-5 - Chicago", "UTC-6 / UTC-5 - Chicago"},
-      {2, "new_york", "UTC-5 / UTC-4 - New York", "UTC-5 / UTC-4 - New York"},
-      {2, "buenos_aires", "UTC-3 - Buenos Aires", "UTC-3 - Buenos Aires"},
-      {2, "sao_paulo", "UTC-3 - Sao Paulo", "UTC-3 - Sao Paulo"},
-      {3, "johannesburg", "UTC+2 - Johannesburg", "UTC+2 - Johannesburg"},
-      {3, "nairobi", "UTC+3 - Nairobi", "UTC+3 - Nairobi"},
-      {3, "dubai", "UTC+4 - Dubai", "UTC+4 - Dubai"},
-      {4, "karachi", "UTC+5 - Karachi", "UTC+5 - Karatschi"},
-      {4, "kolkata", "UTC+5:30 - Kolkata", "UTC+5:30 - Kolkata"},
-      {4, "dhaka", "UTC+6 - Dhaka", "UTC+6 - Dhaka"},
-      {4, "bangkok", "UTC+7 - Bangkok", "UTC+7 - Bangkok"},
-      {4, "singapore", "UTC+8 - Singapore", "UTC+8 - Singapur"},
-      {4, "perth", "UTC+8 - Perth", "UTC+8 - Perth"},
-      {4, "tokyo", "UTC+9 - Tokyo", "UTC+9 - Tokio"},
-      {5, "darwin", "UTC+9:30 - Darwin", "UTC+9:30 - Darwin"},
-      {5, "sydney", "UTC+10 / UTC+11 - Sydney", "UTC+10 / UTC+11 - Sydney"},
-      {5, "auckland", "UTC+12 / UTC+13 - Auckland", "UTC+12 / UTC+13 - Auckland"},
-  };
-  static const char* kGroupLabelsEn[] = {
-      "Global",
-      "Europe",
-      "Americas",
-      "Africa & Middle East",
-      "Asia",
-      "Oceania",
-  };
-  static const char* kGroupLabelsDe[] = {
-      "Global",
-      "Europa",
-      "Amerika",
-      "Afrika & Naher Osten",
-      "Asien",
-      "Ozeanien",
-  };
+static String buildTimezoneOptionsHtml(const char* selected_code,
+                                       const i18n::LocaleProfile& profile) {
   const char* selected = (selected_code && selected_code[0]) ? selected_code : "berlin";
   String html;
   html.reserve(2048);
   uint8_t current_group = 255;
-  for (const auto& option : kOptions) {
+  for (size_t i = 0; i < i18n::kTimezoneOptionCount; ++i) {
+    const i18n::TimezoneOptionInfo& option = i18n::timezone_option(i);
     if (option.group != current_group) {
       if (current_group != 255) html += "</optgroup>";
       current_group = option.group;
       html += "<optgroup label=\"";
-      html += is_german ? kGroupLabelsDe[current_group] : kGroupLabelsEn[current_group];
+      html += profile.timezone_group_labels[current_group];
       html += "\">";
     }
     html += "<option value=\"";
@@ -98,7 +48,7 @@ static String buildTimezoneOptionsHtml(const char* selected_code, bool is_german
     html += "\"";
     if (strcmp(selected, option.code) == 0) html += " selected";
     html += ">";
-    html += is_german ? option.label_de : option.label_en;
+    html += profile.timezone_labels[i];
     html += "</option>";
   }
   if (current_group != 255) html += "</optgroup>";
@@ -426,13 +376,13 @@ static void appendTileTabHTML(
   if (screensaver_mode) {
     html += R"html(            <div id="screensaverBackgroundSettings" class="screensaver-background-settings">
               <div class="tile-settings-head"><h3 style="margin-top:0;">)html";
-    html += strcmp(tr.html_lang, "de") == 0 ? "Diashow" : "Slideshow";
+    html += tr.admin_slideshow;
     html += R"html(</h3></div>
               <div class="tile-settings-body">
                 <div class="screensaver-fixed-type"><label>)html";
     html += tr.admin_type;
     html += R"html(</label><input value=")html";
-    html += strcmp(tr.html_lang, "de") == 0 ? "Diashow" : "Slideshow";
+    html += tr.admin_slideshow;
     html += R"html(" disabled></div>
                 <label class="inline-checkbox"><input id="screensaverUseWallpapers" type="checkbox"> )html";
     html += tr.screensaver_use_wallpapers;
@@ -822,13 +772,12 @@ bool buildAdminFolderTabFragments(uint16_t folder_id, String& button_html, Strin
 String WebAdminServer::getAdminPage() {
   const DeviceConfig& cfg = configManager.getConfig();
   const auto& tr = i18n::strings(cfg.language);
-  const bool is_german = strcmp(tr.html_lang, "de") == 0;
   const bool supports_ethernet =
       NetworkTransportManager::deviceSupportsEthernet();
   const bool use_static = cfg.wifi_static_enabled;
   const String admin_panel_title =
-      String(Device::displayName()) + (is_german ? " Admin-Panel" : " Admin Panel");
-  const String admin_heading_title = is_german ? "HomeTiles Admin-Panel" : "HomeTiles Admin Panel";
+      String(Device::displayName()) + " " + tr.admin_panel_word;
+  const String admin_heading_title = String("HomeTiles ") + tr.admin_panel_word;
   const String admin_heading_subtitle =
       String(FW_VERSION) + "  \xC2\xB7  " + Device::displayName();
   const String current_firmware_name =
@@ -1014,109 +963,6 @@ String WebAdminServer::getAdminPage() {
                     switchOptions, mediaOptions, climateOptions, formatSensorValue,
                     navigateOptionsHtml, true);
 
-#if 0  // Alte separate Slot-Vorschau; ersetzt durch den normalen Tile-Editor oben.
-  html += R"html(
-      <div id="tab-screensaver" class="tab-content screensaver-tab">
-        <div class="screensaver-editor">
-          <div class="screensaver-editor-main">
-            <div class="screensaver-preview-scroll">
-              <div id="screensaverPreview" class="screensaver-preview selected-background">
-                <img id="screensaverPreviewImage" alt="" draggable="false">
-                <div id="screensaverClock" class="screensaver-clock">
-                  <div id="screensaverClockTime">--:--</div>
-                  <div id="screensaverClockDate">--.--.----</div>
-                </div>
-                <div id="screensaverSlots" class="screensaver-slots"></div>
-              </div>
-            </div>
-            <div class="screensaver-help">)html";
-  html += is_german
-              ? "Hintergrund oder Uhr anklicken und ziehen. Leere Slots sind nur im Editor sichtbar."
-              : "Click and drag the background or clock. Empty slots are only visible in the editor.";
-  html += R"html(</div>
-          </div>
-
-          <aside class="tile-settings screensaver-settings" id="screensaverSettings">
-            <h2 id="screensaverSettingsTitle">Screensaver</h2>
-            <div id="screensaverBackgroundSettings">
-              <div class="screensaver-fixed-type"><label>Typ</label><input value="Screensaver" disabled></div>
-              <label class="inline-checkbox"><input id="screensaverUseWallpapers" type="checkbox"> )html";
-  html += is_german ? "Bilder verwenden" : "Use wallpapers";
-  html += R"html(</label>
-              <label class="inline-checkbox"><input id="screensaverShuffle" type="checkbox"> )html";
-  html += is_german ? "Zuf&auml;llige Reihenfolge" : "Shuffle";
-  html += R"html(</label>
-              <div class="screensaver-wallpaper-heading">Wallpapers</div>
-              <div id="screensaverWallpaperList" class="screensaver-wallpaper-list"></div>
-              <div id="screensaverWallpaperControls" class="screensaver-wallpaper-controls">
-                <label>)html";
-  html += is_german ? "Anzeigedauer (Sekunden)" : "Duration (seconds)";
-  html += R"html(</label><input id="screensaverWallpaperDuration" type="number" min="3" max="3600" value="15">
-                <label>Zoom</label><input id="screensaverWallpaperZoom" type="range" min="1000" max="3000" step="25" value="1000">
-                <div class="screensaver-focus-grid">
-                  <label>Fokus X<input id="screensaverFocusX" type="range" min="0" max="1000" value="500"></label>
-                  <label>Fokus Y<input id="screensaverFocusY" type="range" min="0" max="1000" value="500"></label>
-                </div>
-              </div>
-              <div class="screensaver-clock-settings">
-                <div class="screensaver-wallpaper-heading">Uhrzeit</div>
-                <div class="clock-toggle-row">
-                  <label class="inline-checkbox"><input id="screensaverShowTime" type="checkbox"> )html";
-  html += is_german ? "Uhrzeit" : "Time";
-  html += R"html(</label>
-                  <label class="inline-checkbox"><input id="screensaverShowDate" type="checkbox"> )html";
-  html += is_german ? "Datum" : "Date";
-  html += R"html(</label>
-                </div>
-                <div class="screensaver-two-fields">
-                  <label>)html";
-  html += is_german ? "Zeit-Schrift" : "Time font";
-  html += R"html(<select id="screensaverTimeFont"><option>20</option><option>24</option><option>28</option><option>32</option><option>40</option><option selected>48</option></select></label>
-                  <label>)html";
-  html += is_german ? "Datum-Schrift" : "Date font";
-  html += R"html(<select id="screensaverDateFont"><option>20</option><option>24</option><option selected>28</option><option>32</option><option>40</option><option>48</option></select></label>
-                  <label>)html";
-  html += is_german ? "Zeitformat" : "Time format";
-  html += R"html(<select id="screensaverTimeFormat"><option value="0">Auto</option><option value="1">24 h</option><option value="2">12 h</option></select></label>
-                  <label>)html";
-  html += is_german ? "Datumsformat" : "Date format";
-  html += R"html(<select id="screensaverDateFormat"><option value="0">Auto</option><option value="1">DD.MM.YYYY</option><option value="2">MM/DD/YYYY</option><option value="3">YYYY/MM/DD</option></select></label>
-                </div>
-              </div>
-            </div>
-
-            <div id="screensaverSlotSettings" hidden>
-              <label>Typ</label>
-              <select id="screensaverSlotType"><option value="0">Empty</option><option value="1">Sensor</option><option value="2">Scene</option><option value="5">Switch</option></select>
-              <label>)html";
-  html += is_german ? "Titel" : "Title";
-  html += R"html(</label><input id="screensaverSlotTitle" type="text">
-              <label>Icon (MDI)</label><input id="screensaverSlotIcon" type="text" placeholder="thermometer, lightbulb">
-              <label>)html";
-  html += is_german ? "Farbe" : "Color";
-  html += R"html(</label><input id="screensaverSlotColor" type="color" value="#353535">
-              <label>)html";
-  html += is_german ? "Hintergrund-Deckkraft" : "Background opacity";
-  html += R"html(</label><input id="screensaverSlotOpacity" type="range" min="0" max="255" value="0">
-              <div id="screensaverSlotEntityWrap"><label id="screensaverSlotEntityLabel">Entity</label><select id="screensaverSlotEntity"><option value=""></option></select></div>
-              <div id="screensaverSensorFields" class="screensaver-two-fields">
-                <label>)html";
-  html += is_german ? "Einheit" : "Unit";
-  html += R"html(<input id="screensaverSlotUnit" type="text"></label>
-                <label>)html";
-  html += is_german ? "Nachkommastellen" : "Decimals";
-  html += R"html(<input id="screensaverSlotDecimals" type="number" min="-1" max="6" value="-1"></label>
-              </div>
-              <label id="screensaverPopupModeLabel">Popup</label><select id="screensaverPopupMode"><option value="0">Long press</option><option value="1">Short press</option></select>
-              <label id="screensaverSwitchStyleLabel">Switch style</label><select id="screensaverSwitchStyle"><option value="0">Icon</option><option value="1">Toggle</option></select>
-            </div>
-            <div id="screensaverSaveState" class="screensaver-save-state"></div>
-          </aside>
-        </div>
-      </div>
-)html";
-#endif
-
   html += R"html(
       <!-- Tab 3: Settings (Network/MQTT Configuration) -->
       <div id="tab-network" class="tab-content">
@@ -1125,7 +971,7 @@ String WebAdminServer::getAdminPage() {
             <div class="section-title-row">
               <div class="section-title">)html";
   html += supports_ethernet
-              ? (is_german ? "Netzwerk" : "Network")
+              ? tr.admin_network_section
               : tr.admin_settings_wifi;
   html += R"html(</div>
               <div class="wifi-inline-status"><span class="wifi-inline-dot)html";
@@ -1151,7 +997,7 @@ String WebAdminServer::getAdminPage() {
     html += R"html(
               <div class="settings-full">
                 <label for="network_mode">)html";
-    html += is_german ? "Verbindungsart" : "Connection type";
+    html += tr.admin_connection_type;
     html += R"html(:</label>
                 <select id="network_mode" name="network_mode" onchange="toggleNetworkSettings()">
                   <option value="wifi")html";
@@ -1166,9 +1012,7 @@ String WebAdminServer::getAdminPage() {
     html += R"html(>Ethernet</option>
                 </select>
                 <div class="settings-note">)html";
-    html += is_german
-                ? "Die Verbindungsart wird nach dem Neustart verwendet."
-                : "The connection type is used after restart.";
+    html += tr.admin_connection_type_note;
     html += R"html(</div>
               </div>)html";
   }
@@ -1201,11 +1045,11 @@ String WebAdminServer::getAdminPage() {
   html += cfg.wifi_pass;
   html += R"html(">
                   <button type="button" class="password-toggle" data-label-show=")html";
-  html += is_german ? "Anzeigen" : "Show";
+  html += tr.password_show;
   html += R"html(" data-label-hide=")html";
-  html += is_german ? "Verbergen" : "Hide";
+  html += tr.password_hide;
   html += R"html(" onclick="togglePasswordVisibility('wifi_pass', this)">)html";
-  html += is_german ? "Anzeigen" : "Show";
+  html += tr.password_show;
   html += R"html(</button>
                 </div>
                   </div>
@@ -1214,14 +1058,14 @@ String WebAdminServer::getAdminPage() {
 
               <div id="network_ip_settings" class="network-settings-group settings-full">
                 <div class="network-settings-heading">)html";
-  html += is_german ? "IP-Konfiguration" : "IP configuration";
+  html += tr.admin_ip_configuration;
   html += R"html(</div>
                 <label class="settings-checkbox">
                   <input type="checkbox" id="network_use_static" name="network_use_static" onchange="toggleStaticNetworkFields()")html";
   if (use_static) html += " checked";
   html += R"html(>
                   <span>)html";
-  html += is_german ? "Statische IP verwenden" : "Use static IP address";
+  html += tr.admin_ip_use_static;
   html += R"html(</span>
                 </label>
                 <div id="network_ip_mode_note" class="settings-note"
@@ -1313,11 +1157,11 @@ String WebAdminServer::getAdminPage() {
   html += cfg.mqtt_pass;
   html += R"html(">
                   <button type="button" class="password-toggle" data-label-show=")html";
-  html += is_german ? "Anzeigen" : "Show";
+  html += tr.password_show;
   html += R"html(" data-label-hide=")html";
-  html += is_german ? "Verbergen" : "Hide";
+  html += tr.password_hide;
   html += R"html(" onclick="togglePasswordVisibility('mqtt_pass', this)">)html";
-  html += is_german ? "Anzeigen" : "Show";
+  html += tr.password_show;
   html += R"html(</button>
                 </div>
               </div>
@@ -1371,7 +1215,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.timezone_label;
   html += R"html(</label>
                 <select id="timezone" name="timezone">)html";
-  html += buildTimezoneOptionsHtml(cfg.timezone, is_german);
+  html += buildTimezoneOptionsHtml(cfg.timezone, i18n::locale(cfg.language));
   html += R"html(</select>
               </div>
               <div>
@@ -1404,7 +1248,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.screenshot_create_download;
   html += R"html(</button>
                   <button class="btn btn-secondary" type="button" onclick="downloadCrashLog()">)html";
-  html += is_german ? "Crash-Log herunterladen" : "Download crash log";
+  html += tr.crash_log_download;
   html += R"html(</button>
                 </div>
                 <div class="settings-note">)html";
@@ -1419,7 +1263,7 @@ String WebAdminServer::getAdminPage() {
     const String summary = CrashLog::coreDumpSummaryLine();
     html += R"html(
                 <div class="settings-note"><strong>)html";
-    html += is_german ? "Gespeicherter Core-Dump" : "Stored core dump";
+    html += tr.coredump_stored;
     html += R"html(:</strong></div>)html";
     if (summary.length()) {
       html += R"html(
@@ -1430,16 +1274,14 @@ String WebAdminServer::getAdminPage() {
     html += R"html(
                 <div class="settings-actions" id="coredump_actions">
                   <button class="btn btn-secondary" type="button" onclick="window.location.href='/api/coredump'">)html";
-    html += is_german ? "Core-Dump herunterladen" : "Download core dump";
+    html += tr.coredump_download;
     html += R"html(</button>
                   <button class="btn btn-secondary" type="button" onclick="eraseCoreDump()">)html";
-    html += is_german ? "Core-Dump l&ouml;schen" : "Delete core dump";
+    html += tr.coredump_delete;
     html += R"html(</button>
                 </div>
                 <div class="settings-note">)html";
-    html += is_german
-        ? "Der Core-Dump l&auml;sst sich am PC mit esp-coredump und dem Build-ELF zu einem vollst&auml;ndigen Stacktrace aufl&ouml;sen."
-        : "Decode the core dump on a PC with esp-coredump and the build ELF to get a full stack trace.";
+    html += tr.coredump_decode_note;
     html += R"html(</div>)html";
   }
 
@@ -1450,48 +1292,48 @@ String WebAdminServer::getAdminPage() {
 
           <div class="settings-section">
             <div class="section-title">)html";
-  html += is_german ? "Dateimanager" : "File Manager";
+  html += tr.file_manager_title;
   html += R"html(</div>
             <div class="settings-grid file-manager">
               <div class="settings-full">
                 <div class="file-manager-topbar">
                   <span id="file_manager_sd_state" class="file-manager-storage-state">)html";
-  html += is_german ? "Pr&uuml;fe..." : "Checking...";
+  html += tr.file_manager_checking;
   html += R"html(</span>
                   <div class="file-manager-toolbar-group">
                     <button class="btn btn-secondary file-manager-toolbar-btn" type="button" onclick="loadFileManager()">)html";
-  html += is_german ? "Aktualisieren" : "Refresh";
+  html += tr.file_manager_refresh;
   html += R"html(</button>
                     <button class="btn btn-secondary file-manager-toolbar-btn file-manager-requires-sd" type="button" onclick="createFileManagerFolder()" disabled>)html";
-  html += is_german ? "Neuer Ordner" : "New folder";
+  html += tr.file_manager_new_folder;
   html += R"html(</button>
                   </div>
                 </div>
                 <div class="file-manager-upload-row">
                   <button class="btn btn-secondary file-manager-toolbar-btn file-manager-requires-sd" type="button" onclick="document.getElementById('file_manager_upload').click()" disabled>)html";
-  html += is_german ? "Dateien w&auml;hlen" : "Choose files";
+  html += tr.file_manager_choose_files;
   html += R"html(</button>
                   <button class="btn btn-secondary file-manager-toolbar-btn file-manager-requires-sd" type="button" onclick="uploadFileManagerFile()" disabled>)html";
-  html += is_german ? "Hochladen" : "Upload";
+  html += tr.file_manager_upload;
   html += R"html(</button>
                   <span id="file_manager_upload_name" class="file-picker-name">)html";
-  html += is_german ? "Keine Datei ausgew&auml;hlt" : "No file selected";
+  html += tr.ota_no_file_selected;
   html += R"html(</span>
                 </div>
                 <input type="file" id="file_manager_upload" multiple style="display:none" onchange="updateFileManagerUploadName(this)">
                 <div class="file-manager-selection-bar">
                   <div id="file_manager_selection" class="file-manager-selection-info">)html";
-  html += is_german ? "Keine Auswahl" : "No selection";
+  html += tr.file_manager_no_selection;
   html += R"html(</div>
                   <div class="file-manager-selection-actions">
                     <button class="btn btn-secondary file-manager-selection-btn" id="file_manager_primary_btn" type="button" onclick="openSelectedFileManagerEntry()" disabled>)html";
-  html += is_german ? "&Ouml;ffnen" : "Open";
+  html += tr.file_manager_open;
   html += R"html(</button>
                     <button class="btn btn-secondary file-manager-selection-btn" id="file_manager_rename_btn" type="button" onclick="renameSelectedFileManagerEntry()" disabled>)html";
-  html += is_german ? "Umbenennen" : "Rename";
+  html += tr.file_manager_rename;
   html += R"html(</button>
                     <button class="btn btn-danger file-manager-selection-btn" id="file_manager_delete_btn" type="button" onclick="deleteSelectedFileManagerEntry()" disabled>)html";
-  html += is_german ? "L&ouml;schen" : "Delete";
+  html += tr.admin_delete;
   html += R"html(</button>
                   </div>
                 </div>
@@ -1503,19 +1345,19 @@ String WebAdminServer::getAdminPage() {
                     <thead>
                       <tr>
                         <th>)html";
-  html += is_german ? "Name" : "Name";
+  html += tr.file_manager_name;
   html += R"html(</th>
                         <th>)html";
-  html += is_german ? "Ge&auml;ndert" : "Modified";
+  html += tr.file_manager_modified;
   html += R"html(</th>
                         <th>)html";
-  html += is_german ? "Gr&ouml;&szlig;e" : "Size";
+  html += tr.file_manager_size;
   html += R"html(</th>
                       </tr>
                     </thead>
                     <tbody id="file_manager_entries">
                       <tr><td colspan="3">)html";
-  html += is_german ? "Noch nicht geladen." : "Not loaded yet.";
+  html += tr.file_manager_not_loaded;
   html += R"html(</td></tr>
                     </tbody>
                   </table>

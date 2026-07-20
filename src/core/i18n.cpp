@@ -18,8 +18,6 @@ static const Strings kStringsDe = {
     "Auto (Lokalisierung)",
     "24 Stunden",
     "12 Stunden",
-    "English",
-    "Deutsch",
 
     "Home",
     "Ordner ",
@@ -302,7 +300,51 @@ static const Strings kStringsDe = {
     "Statische IP",
     "DHCP ist ausgewählt. Die Adresse wird nach Speichern und Neustart automatisch bezogen.",
     "Erforderlich: Statische IP, Gateway und Subnetzmaske. DNS ist optional. Fehlt eine Angabe oder ist sie ungültig, wird DHCP verwendet. Gilt nach Speichern und Neustart.",
-    "Die statische IP-Konfiguration ist unvollständig oder ungültig."};
+    "Die statische IP-Konfiguration ist unvollständig oder ungültig.",
+
+    "Admin-Panel",
+    "Diashow",
+
+    "Netzwerk",
+    "Verbindungsart",
+    "Die Verbindungsart wird nach dem Neustart verwendet.",
+    "Statische IP verwenden",
+
+    "Anzeigen",
+    "Verbergen",
+
+    "Crash-Log herunterladen",
+    "Gespeicherter Core-Dump",
+    "Core-Dump herunterladen",
+    "Core-Dump löschen",
+    "Der Core-Dump lässt sich am PC mit esp-coredump und dem Build-ELF zu einem vollständigen Stacktrace auflösen.",
+
+    "Dateimanager",
+    "Prüfe...",
+    "Aktualisieren",
+    "Neuer Ordner",
+    "Dateien wählen",
+    "Hochladen",
+    "Keine Auswahl",
+    "Öffnen",
+    "Umbenennen",
+    "Name",
+    "Geändert",
+    "Größe",
+    "Noch nicht geladen.",
+
+    "Neustart...",
+
+    "An",
+    "Aus",
+    "Lade...",
+
+    "Wiedergabe",
+    "Pausiert",
+    "Leerlauf",
+    "Standby",
+    "Aus",
+    "Keine Wiedergabe"};
 
 static const Strings kStringsEn = {
     "en",
@@ -315,8 +357,6 @@ static const Strings kStringsEn = {
     "Auto (localization)",
     "24-hour",
     "12-hour",
-    "English",
-    "Deutsch",
 
     "Home",
     "Folder ",
@@ -599,7 +639,390 @@ static const Strings kStringsEn = {
     "Static IP",
     "DHCP is selected. The address is assigned automatically after Save and Restart.",
     "Required: Static IP, gateway and subnet mask. DNS is optional. If a value is missing or invalid, DHCP is used. Applies after Save and Restart.",
-    "The static IP configuration is incomplete or invalid."};
+    "The static IP configuration is incomplete or invalid.",
+
+    "Admin Panel",
+    "Slideshow",
+
+    "Network",
+    "Connection type",
+    "The connection type is used after restart.",
+    "Use static IP address",
+
+    "Show",
+    "Hide",
+
+    "Download crash log",
+    "Stored core dump",
+    "Download core dump",
+    "Delete core dump",
+    "Decode the core dump on a PC with esp-coredump and the build ELF to get a full stack trace.",
+
+    "File Manager",
+    "Checking...",
+    "Refresh",
+    "New folder",
+    "Choose files",
+    "Upload",
+    "No selection",
+    "Open",
+    "Rename",
+    "Name",
+    "Modified",
+    "Size",
+    "Not loaded yet.",
+
+    "Restarting...",
+
+    "On",
+    "Off",
+    "Loading...",
+
+    "Playing",
+    "Paused",
+    "Idle",
+    "Standby",
+    "Off",
+    "Nothing playing"};
+
+static const Strings kStringsFr = {
+    "fr",
+    "fr",
+    "Langue :",
+    "Fuseau horaire :",
+    "Format de l'heure :",
+    "Format de date :",
+    "Auto (langue)",
+    "Auto (localisation)",
+    "24 heures",
+    "12 heures",
+
+    "Accueil",
+    "Dossier ",
+
+    "Waveshare Admin",
+    "Panneau d'admin Waveshare",
+    "Configuration & aperçu",
+    "Clique sur une tuile pour la modifier. Les tuiles se déplacent par glisser-déposer et se redimensionnent par la poignée d'angle. Choisis le type (capteur/météo/scène/touche/dossier/réglages/interrupteur/média/image/horloge/texte) et ajuste les réglages.",
+    "Supprimer le dossier / l'onglet",
+    "Réglages de la tuile",
+    "Type",
+    "Type verrouillé : le dossier contient encore des tuiles. Vide-le d'abord – la suppression de la tuile reste possible.",
+    "Titre",
+    "Titre de la tuile",
+    "Icône (MDI)",
+    "p. ex. home, thermometer, lightbulb",
+    "Afficher la liste des icônes",
+    "Couleur",
+    "Colonne",
+    "Ligne",
+    "Largeur",
+    "Hauteur",
+    "Les modifications sont enregistrées automatiquement.",
+    "Copier",
+    "Coller",
+    "Supprimer",
+    "Import / export (tous les dossiers & tuiles)",
+    "Export",
+    "Import",
+    "L'import remplace les dossiers/tuiles contenus et, le cas échéant, l'écran de veille.",
+    "WiFi",
+    "MQTT",
+    "Localisation",
+    "Capture d'écran & diagnostic",
+    "Mise à jour du firmware",
+    "Créer & télécharger une capture d'écran",
+    "Enregistre /ui_screenshot.jpg sur la carte microSD. Le fichier existant est remplacé.",
+    "Fichier du firmware",
+    "Firmware actuel",
+    "Mise à jour",
+    "Téléverser uniquement le fichier update.bin ici. Le fichier factory.bin ne sert qu'au premier flash.",
+    "Choisir un fichier",
+    "Aucun fichier sélectionné",
+
+    "État WiFi",
+    "Connecté",
+    "Déconnecté",
+    "Hors ligne",
+    "AP actif",
+    "WiFi",
+    "SSID",
+    "IP",
+    "Mot de passe",
+    "IP statique",
+    "Passerelle",
+    "Masque de sous-réseau",
+    "Serveur DNS",
+    "Laisser vide pour DHCP",
+    "MQTT non configuré",
+    "Activer l'AP",
+    "Arrêter l'AP",
+    "Oui",
+    "Non",
+
+    "Hôte MQTT / IP",
+    "Port",
+    "Nom d'utilisateur",
+    "Mot de passe",
+    "MQTT Client ID",
+    "vide = automatique",
+    "Laisser vide = générer automatiquement depuis l'adresse MAC.",
+    "Topic de base de l'appareil",
+    "Préfixe Home Assistant",
+    "Taille de police de l'heure",
+    "Taille de police de la date",
+    "Enregistrer",
+    "Vraiment redémarrer l'appareil ?",
+    "Redémarrer",
+    "Configuration MQTT enregistrée",
+    "L'appareil se reconnecte ...",
+    "Configuration du bridge enregistrée",
+    "Les données ont été transmises via MQTT.",
+    "Échec de l'enregistrement",
+
+    "Configuration WiFi Waveshare",
+    "Configuration WiFi",
+    "Étape 1 : se connecter au WiFi",
+    "Connexion WiFi",
+    "SSID (nom du réseau)",
+    "Mon WiFi",
+    "Mot de passe",
+    "Mot de passe",
+    "Laisser vide pour un réseau ouvert",
+    "Remarque :",
+    "Une fois la connexion WiFi établie, tu peux configurer les réglages MQTT via l'interface web sur le réseau normal.",
+    "Enregistrer & connecter",
+    "Enregistré avec succès !",
+    "La configuration a été enregistrée.<br>L'appareil redémarre maintenant et essaie de se connecter au WiFi.",
+    "Tu seras redirigé automatiquement dans 10 secondes.<br>Si la connexion échoue, réactive le mode hotspot depuis les réglages.",
+    "Erreur : le SSID WiFi est requis !",
+
+    "Écran",
+    "Luminosité :",
+    "Teinte",
+    "Saturation",
+    "Veille :",
+    "dans",
+    "Jamais",
+    "Écran de veille :",
+    "Tactile",
+    "GT911 / pas d'IMU",
+
+    "Vide",
+    "Capteur",
+    "Énergie",
+    "Météo",
+    "Scène",
+    "Key",
+    "Dossier",
+    "Interrupteur",
+    "Média",
+    "Horloge",
+    "Texte",
+    "Compteur",
+    "Réglages",
+    "Retour",
+
+    "Aucune sélection",
+    "Entité capteur",
+    "Unité",
+    "Décimales (vide = valeur brute)",
+    "Taille de la valeur",
+    "Mode d'affichage",
+    "Aucun",
+    "Jauge",
+    "Graphique",
+    "Jauge min",
+    "Jauge max",
+    "Degré d'arc (90-359)",
+    "Taille de la jauge (100-800 px)",
+    "Décalage Y (-100 à 200)",
+    "Hauteur du graphique (20-200 px)",
+    "Ouvrir le popup",
+    "Appui court",
+    "Appui long",
+    "Décalage Y de la valeur (-100 à 200)",
+    "Entité météo",
+    "Source d'énergie",
+    "Interrupteur/lumière",
+    "Affichage",
+    "Bouton icône",
+    "Interrupteur LVGL",
+    "Lecteur multimédia",
+    "Afficher l'heure",
+    "Afficher la date",
+    "Taille de police de l'heure",
+    "Taille de police de la date",
+    "Texte",
+    "Texte de la tuile",
+    "Taille du texte",
+    "31 caractères max enregistrés.",
+    "Dossier cible",
+    "Nouveau dossier",
+    "Scène",
+    "Macro",
+    "Exemples : g, ctrl+g, ctrl+shift+a",
+    "Valeur initiale",
+    "Tap : +1, appui long : remise à 0",
+
+    "Choisis d'abord une tuile",
+    "Tuile copiée",
+    "Aucune tuile copiée",
+    "Tuile collée",
+    "Tuile Réglages (fixe)",
+    "Tuile Retour (fixe)",
+    "Cette tuile ne peut pas être supprimée",
+    "Ce dossier ne peut pas être supprimé",
+    "Vraiment supprimer le dossier \"{name}\" ?\n\nToutes les tuiles de ce dossier seront supprimées et la tuile du dossier sera retirée du dossier parent.",
+    "Dossier supprimé",
+    "Erreur lors de la suppression",
+    "Dossier introuvable",
+    "Tuile enregistrée & écran actualisé !",
+    "Inconnu",
+    "Erreur réseau",
+    "Erreur réseau lors de l'enregistrement",
+    "Export créé !",
+    "Échec de l'export",
+    "JSON d'import invalide",
+    "Échec de l'import",
+    "Import en cours...",
+    "Import terminé !",
+    "La tuile ne rentre pas à cet endroit",
+    "Aucune disposition valable trouvée",
+    "Tuiles déplacées & enregistrées !",
+    "Erreur lors du déplacement",
+    "Erreur réseau lors du déplacement",
+    "Création de la capture d'écran...",
+    "Capture enregistrée & téléchargement lancé !",
+    "Échec de la capture d'écran",
+    "Choisis d'abord un fichier update.bin",
+    "Mise à jour du firmware...",
+    "Installation de la mise à jour...",
+    "En attente du redémarrage...",
+    "Mise à jour installée. L'appareil redémarre maintenant.",
+    "Échec de la mise à jour du firmware",
+
+    // Choix du WiFi directement sur l'appareil (popup réglages)
+    "Recherche de réseaux...",
+    "Aucun réseau trouvé",
+    "Rechercher à nouveau",
+    "Manuel",
+    "ouvert",
+    "Mot de passe pour %s",
+    "Retour",
+    "Se connecter",
+    "Enregistré – l'appareil redémarre...",
+    "Échec de l'enregistrement",
+
+    "Clavier :",
+
+    "Luminosité, veille & rotation",
+    "Réseau & point d'accès",
+    "Langue, fuseau horaire & clavier",
+    "%s",
+
+    "Pivoter",
+
+    "Appareil",
+    "Rechercher des mises à jour",
+    "Recherche de mises à jour...",
+    "Le firmware est à jour",
+    "Mise à jour %s disponible",
+    "2 redémarrages possibles. Vérifie ensuite la version.",
+    "Mettre à jour vers %s",
+    "Échec de la recherche",
+    "Téléchargement de la mise à jour...",
+    "Échec de la mise à jour",
+    "Installé ! Redémarrage...",
+
+    "Déconnecter",
+    "Appairer",
+    "Appairage : MQTT se reconnecte...",
+
+    "Utiliser des images",
+    "Ordre aléatoire",
+    "Images",
+    "Durée d'affichage (secondes)",
+    "Zoom",
+    "Focus X",
+    "Focus Y",
+    "Heure",
+    "Jour de la semaine",
+    "Ombre du texte",
+    "Alignement de l'heure",
+    "Alignement de la date",
+    "Gauche",
+    "Centré",
+    "Droite",
+    "Ombre des tuiles",
+    "Bordure des tuiles",
+    "Opacité",
+    "Clique sur l'arrière-plan ou l'horloge. Les tuiles des deux rangées du bas se déplacent et s'agrandissent comme d'habitude.",
+    "microSD requise : crée le dossier /images à la racine et places-y des images JPEG.",
+    "Aucun fichier JPEG dans /images - l'arrière-plan noir reste actif.",
+    "Écran de veille enregistré !",
+    "L'écran de veille n'a pas pu être enregistré",
+    "L'écran de veille n'a pas pu être chargé",
+
+    "Activer l'Ethernet",
+    "Activer le WiFi",
+    "Mode réseau modifié - appliqué après redémarrage",
+    "Ethernet au lieu du WiFi (appliqué après redémarrage)",
+
+    "Utiliser DHCP",
+    "Annuler DHCP",
+    "DHCP sélectionné - appliqué après redémarrage",
+    "IP statique sélectionnée - appliquée après redémarrage",
+    "Configuration IP",
+    "DHCP (automatique)",
+    "IP statique",
+    "DHCP est sélectionné. L'adresse sera attribuée automatiquement après enregistrement et redémarrage.",
+    "Requis : IP statique, passerelle et masque de sous-réseau. Le DNS est facultatif. Si une valeur manque ou est invalide, DHCP est utilisé. Appliqué après enregistrement et redémarrage.",
+    "La configuration IP statique est incomplète ou invalide.",
+
+    "Panneau d'admin",
+    "Diaporama",
+
+    "Réseau",
+    "Type de connexion",
+    "Le type de connexion est utilisé après le redémarrage.",
+    "Utiliser une IP statique",
+
+    "Afficher",
+    "Masquer",
+
+    "Télécharger le journal de crash",
+    "Core dump enregistré",
+    "Télécharger le core dump",
+    "Supprimer le core dump",
+    "Le core dump peut être résolu sur PC avec esp-coredump et l'ELF du build pour obtenir une stack trace complète.",
+
+    "Gestionnaire de fichiers",
+    "Vérification...",
+    "Actualiser",
+    "Nouveau dossier",
+    "Choisir des fichiers",
+    "Téléverser",
+    "Aucune sélection",
+    "Ouvrir",
+    "Renommer",
+    "Nom",
+    "Modifié",
+    "Taille",
+    "Pas encore chargé.",
+
+    "Redémarrage...",
+
+    "Allumé",
+    "Éteint",
+    "Chargement...",
+
+    "Lecture",
+    "En pause",
+    "Inactif",
+    "Veille",
+    "Éteint",
+    "Aucune lecture"};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -630,7 +1053,42 @@ static const LocaleProfile kLocaleDe = {
      "Oben", "Mitte", "Fokus", "Verteilt", "Vertikal", "Horizontal",
      "Beide", "Links", "Mitte", "Rechts", "Schwenken", "Breit"},
     {"Automatisch", "Leer", "Leer / entfernen", "Leeres Feld",
-     "Inhalt des ausgewählten Feldes", "Waagerecht", "Senkrecht"}};
+     "Inhalt des ausgewählten Feldes", "Waagerecht", "Senkrecht"},
+    1,  // 24 Stunden
+    1,  // Tag.Monat.Jahr
+    " Uhr",
+    "{d}. {m}",
+    {"Sonntag", "Montag", "Dienstag", "Mittwoch",
+     "Donnerstag", "Freitag", "Samstag"},
+    {"Global", "Europa", "Amerika", "Afrika & Naher Osten", "Asien",
+     "Ozeanien"},
+    {"UTC+0 - UTC",
+     "UTC+0 / UTC+1 - London",
+     "UTC+1 / UTC+2 - Berlin",
+     "UTC+2 / UTC+3 - Athen",
+     "UTC+3 - Istanbul",
+     "UTC+3 - Moskau",
+     "UTC-10 - Honolulu",
+     "UTC-8 / UTC-7 - Los Angeles",
+     "UTC-7 - Phoenix",
+     "UTC-7 / UTC-6 - Denver",
+     "UTC-6 / UTC-5 - Chicago",
+     "UTC-5 / UTC-4 - New York",
+     "UTC-3 - Buenos Aires",
+     "UTC-3 - Sao Paulo",
+     "UTC+2 - Johannesburg",
+     "UTC+3 - Nairobi",
+     "UTC+4 - Dubai",
+     "UTC+5 - Karatschi",
+     "UTC+5:30 - Kolkata",
+     "UTC+6 - Dhaka",
+     "UTC+7 - Bangkok",
+     "UTC+8 - Singapur",
+     "UTC+8 - Perth",
+     "UTC+9 - Tokio",
+     "UTC+9:30 - Darwin",
+     "UTC+10 / UTC+11 - Sydney",
+     "UTC+12 / UTC+13 - Auckland"}};
 
 static const LocaleProfile kLocaleEn = {
     "en",
@@ -661,7 +1119,146 @@ static const LocaleProfile kLocaleEn = {
      "Top", "Middle", "Focus", "Diffuse", "Vertical", "Horizontal",
      "Both", "Left", "Center", "Right", "Swing", "Wide"},
     {"Automatic", "Empty", "Empty / remove", "Empty field",
-     "Selected field content", "Horizontal", "Vertical"}};
+     "Selected field content", "Horizontal", "Vertical"},
+    2,  // 12-hour
+    2,  // month/day/year
+    ":00",
+    "{m} {d}",
+    {"Sunday", "Monday", "Tuesday", "Wednesday",
+     "Thursday", "Friday", "Saturday"},
+    {"Global", "Europe", "Americas", "Africa & Middle East", "Asia",
+     "Oceania"},
+    {"UTC+0 - UTC",
+     "UTC+0 / UTC+1 - London",
+     "UTC+1 / UTC+2 - Berlin",
+     "UTC+2 / UTC+3 - Athens",
+     "UTC+3 - Istanbul",
+     "UTC+3 - Moscow",
+     "UTC-10 - Honolulu",
+     "UTC-8 / UTC-7 - Los Angeles",
+     "UTC-7 - Phoenix",
+     "UTC-7 / UTC-6 - Denver",
+     "UTC-6 / UTC-5 - Chicago",
+     "UTC-5 / UTC-4 - New York",
+     "UTC-3 - Buenos Aires",
+     "UTC-3 - Sao Paulo",
+     "UTC+2 - Johannesburg",
+     "UTC+3 - Nairobi",
+     "UTC+4 - Dubai",
+     "UTC+5 - Karachi",
+     "UTC+5:30 - Kolkata",
+     "UTC+6 - Dhaka",
+     "UTC+7 - Bangkok",
+     "UTC+8 - Singapore",
+     "UTC+8 - Perth",
+     "UTC+9 - Tokyo",
+     "UTC+9:30 - Darwin",
+     "UTC+10 / UTC+11 - Sydney",
+     "UTC+12 / UTC+13 - Auckland"}};
+
+static const LocaleProfile kLocaleFr = {
+    "fr",
+    "Français",
+    ",",
+    "Aujourd'hui",
+    "Demain",
+    {"Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"},
+    {"janv.", "févr.", "mars", "avr.", "mai", "juin",
+     "juil.", "août", "sept.", "oct.", "nov.", "déc."},
+    {"Nuit claire", "Nuageux", "Exceptionnel", "Brouillard", "Grêle",
+     "Orage", "Orage pluvieux", "Partiellement nuageux", "Pluie forte",
+     "Pluie", "Neige", "Neige fondue", "Ensoleillé", "Venteux", "Rafales"},
+    "Climat",
+    "Entité climat",
+    "Température cible",
+    "Humidité cible",
+    "Consigne de chauffage",
+    "Consigne de refroidissement",
+    {"Chauffage", "Préchauffage", "Refroidissement", "Séchage", "Ventilation",
+     "Dégivrage", "Inactif", "Éteint", "Chauffer", "Refroidir",
+     "Chauffer/Refroidir", "Auto", "Déshumidifier", "Ventilateur seul",
+     "Climat"},
+    {"Actuel", "Température cible", "Humidité actuelle"},
+    {"Mode", "Préréglage", "Mode ventilation", "Mode d'oscillation",
+     "Mode d'oscillation horizontale"},
+    {"Aucun", "Éco", "Absent", "Boost", "Confort", "Maison", "Sommeil",
+     "Activité", "Auto", "Bas", "Moyen", "Élevé", "Allumé", "Éteint",
+     "Haut", "Milieu", "Focalisé", "Diffus", "Vertical", "Horizontal",
+     "Les deux", "Gauche", "Centre", "Droite", "Oscillation", "Large"},
+    {"Automatique", "Vide", "Vide / retirer", "Champ vide",
+     "Contenu du champ sélectionné", "Horizontal", "Vertical"},
+    1,  // 24 heures
+    1,  // jour/mois/année
+    " h",
+    "{d} {m}",
+    {"Dimanche", "Lundi", "Mardi", "Mercredi",
+     "Jeudi", "Vendredi", "Samedi"},
+    {"Global", "Europe", "Amériques", "Afrique & Moyen-Orient", "Asie",
+     "Océanie"},
+    {"UTC+0 - UTC",
+     "UTC+0 / UTC+1 - Londres",
+     "UTC+1 / UTC+2 - Berlin",
+     "UTC+2 / UTC+3 - Athènes",
+     "UTC+3 - Istanbul",
+     "UTC+3 - Moscou",
+     "UTC-10 - Honolulu",
+     "UTC-8 / UTC-7 - Los Angeles",
+     "UTC-7 - Phoenix",
+     "UTC-7 / UTC-6 - Denver",
+     "UTC-6 / UTC-5 - Chicago",
+     "UTC-5 / UTC-4 - New York",
+     "UTC-3 - Buenos Aires",
+     "UTC-3 - Sao Paulo",
+     "UTC+2 - Johannesburg",
+     "UTC+3 - Nairobi",
+     "UTC+4 - Dubaï",
+     "UTC+5 - Karachi",
+     "UTC+5:30 - Calcutta",
+     "UTC+6 - Dacca",
+     "UTC+7 - Bangkok",
+     "UTC+8 - Singapour",
+     "UTC+8 - Perth",
+     "UTC+9 - Tokyo",
+     "UTC+9:30 - Darwin",
+     "UTC+10 / UTC+11 - Sydney",
+     "UTC+12 / UTC+13 - Auckland"}};
+
+// Codes + Gruppenzuordnung passend zu LocaleProfile::timezone_labels bzw.
+// timezone_group_labels (siehe i18n.h)
+static const TimezoneOptionInfo kTimezoneOptions[kTimezoneOptionCount] = {
+    {0, "utc"},
+    {1, "london"},
+    {1, "berlin"},
+    {1, "athens"},
+    {1, "istanbul"},
+    {1, "moscow"},
+    {2, "honolulu"},
+    {2, "los_angeles"},
+    {2, "phoenix"},
+    {2, "denver"},
+    {2, "chicago"},
+    {2, "new_york"},
+    {2, "buenos_aires"},
+    {2, "sao_paulo"},
+    {3, "johannesburg"},
+    {3, "nairobi"},
+    {3, "dubai"},
+    {4, "karachi"},
+    {4, "kolkata"},
+    {4, "dhaka"},
+    {4, "bangkok"},
+    {4, "singapore"},
+    {4, "perth"},
+    {4, "tokyo"},
+    {5, "darwin"},
+    {5, "sydney"},
+    {5, "auckland"},
+};
+
+const TimezoneOptionInfo& timezone_option(size_t index) {
+  if (index >= kTimezoneOptionCount) index = 0;
+  return kTimezoneOptions[index];
+}
 
 struct LanguageEntry {
   const Strings* strings;
@@ -671,15 +1268,20 @@ struct LanguageEntry {
 static const LanguageEntry kLanguages[] = {
     {&kStringsEn, &kLocaleEn},
     {&kStringsDe, &kLocaleDe},
+    {&kStringsFr, &kLocaleFr},
 };
 
-static const LanguageEntry& find_language(const char* language_code) {
+static size_t find_language_index(const char* language_code) {
   String code = language_code ? String(language_code) : String();
   code.trim();
-  for (const LanguageEntry& language : kLanguages) {
-    if (code.equalsIgnoreCase(language.locale->code)) return language;
+  for (size_t i = 0; i < sizeof(kLanguages) / sizeof(kLanguages[0]); ++i) {
+    if (code.equalsIgnoreCase(kLanguages[i].locale->code)) return i;
   }
-  return kLanguages[0];
+  return 0;
+}
+
+static const LanguageEntry& find_language(const char* language_code) {
+  return kLanguages[find_language_index(language_code)];
 }
 
 const char* normalize_language_code(const char* language_code) {
@@ -692,6 +1294,34 @@ const Strings& strings(const char* language_code) {
 
 const LocaleProfile& locale(const char* language_code) {
   return *find_language(language_code).locale;
+}
+
+size_t language_count() {
+  return sizeof(kLanguages) / sizeof(kLanguages[0]);
+}
+
+const char* language_code_at(size_t index) {
+  if (index >= language_count()) index = 0;
+  return kLanguages[index].locale->code;
+}
+
+const char* language_native_name_at(size_t index) {
+  if (index >= language_count()) index = 0;
+  return kLanguages[index].locale->native_name;
+}
+
+size_t language_index(const char* language_code) {
+  return find_language_index(language_code);
+}
+
+String build_language_dropdown_options() {
+  String options;
+  options.reserve(64);
+  for (size_t i = 0; i < language_count(); ++i) {
+    if (i > 0) options += '\n';
+    options += kLanguages[i].locale->native_name;
+  }
+  return options;
 }
 
 String build_language_options_html(const char* selected_code) {
@@ -708,6 +1338,14 @@ String build_language_options_html(const char* selected_code) {
     html += "</option>";
   }
   return html;
+}
+
+String format_short_date(
+    const char* language_code, int day, const char* month_short) {
+  String out = locale(language_code).short_date_pattern;
+  out.replace("{d}", String(day));
+  out.replace("{m}", month_short ? month_short : "");
+  return out;
 }
 
 String localize_numeric_text(

@@ -124,7 +124,7 @@ struct ClockTileData {
   uint8_t flags = 1;
   bool show_date_text = true;
   bool show_weekday = false;
-  bool weekday_german = false;
+  const char* weekday_language = nullptr;
   bool fill_parent = false;
   lv_obj_t* stack = nullptr;
   lv_obj_t* time_label = nullptr;
@@ -195,7 +195,7 @@ static void update_clock_labels(ClockTileData* data) {
       const char* weekday =
           data->show_weekday
               ? clock_tile::weekday_name(timeinfo.tm_wday,
-                                         data->weekday_german ? "de" : "en")
+                                         data->weekday_language)
               : "";
       char buf[40];
       if (weekday[0] && date_buf[0]) {
@@ -357,7 +357,7 @@ lv_obj_t* create_clock_widget(lv_obj_t* parent,
   data->flags = (config.show_time ? 1 : 0) | (config.show_date ? 2 : 0);
   data->show_date_text = config.show_date;
   data->show_weekday = config.show_weekday;
-  data->weekday_german = config.weekday_german;
+  data->weekday_language = config.weekday_language;
   data->fill_parent = config.fill_parent;
   data->stack = stack;
   data->time_label = time_label;

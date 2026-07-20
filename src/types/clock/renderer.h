@@ -8,7 +8,8 @@ struct ClockWidgetConfig {
   // Wochentag als Praefix der Datumszeile ("Dienstag, 15.07.2026"); ohne
   // Datum steht der Wochentag allein in der Zeile.
   bool show_weekday = false;
-  bool weekday_german = false;
+  // Sprachcode fuer den Wochentagsnamen (nullptr = Englisch-Fallback)
+  const char* weekday_language = nullptr;
   bool fill_parent = false;
   // LVGL kennt keinen Glyphen-Schatten: hinter jede Zeile werden mehrere
   // leicht versetzte dunkle Duplikat-Labels gelegt (Fake-Blur). Wird nur vom

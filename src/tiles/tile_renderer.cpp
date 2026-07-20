@@ -938,32 +938,8 @@ static String weather_icon_from_condition(const String& condition) {
   return "";
 }
 
-static String weather_condition_to_german(const String& condition) {
+static String weather_condition_display_label(const String& condition) {
   return i18n::weather_condition_label(configManager.getConfig().language, condition);
-  String key = condition;
-  key.trim();
-  key.toLowerCase();
-  if (!key.length()) return "--";
-  if (key == "clear-night") return "Klare Nacht";
-  if (key == "cloudy") return "Bewölkt";
-  if (key == "exceptional") return "Ausnahme";
-  if (key == "fog") return "Nebel";
-  if (key == "hail") return "Hagel";
-  if (key == "lightning") return "Gewitter";
-  if (key == "lightning-rainy") return "Gewitterregen";
-  if (key == "partlycloudy") return "Teilw. bewölkt";
-  if (key == "pouring") return "Starkregen";
-  if (key == "rainy") return "Regen";
-  if (key == "snowy") return "Schnee";
-  if (key == "snowy-rainy") return "Schneeregen";
-  if (key == "sunny") return "Sonnig";
-  if (key == "windy") return "Windig";
-  if (key == "windy-variant") return "Böig";
-  String text = condition;
-  text.replace("-", " ");
-  text.replace("_", " ");
-  text.trim();
-  return text.length() ? text : "--";
 }
 
 static String short_date_from_iso(const String& iso) {
@@ -2230,7 +2206,7 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
     }
   }
 
-  String condition_text = weather_condition_to_german(condition);
+  String condition_text = weather_condition_display_label(condition);
 
   const TileGridConfig& grid = tileConfig.getActiveGrid();
   const Tile& tile = grid.tiles[grid_index];
@@ -2560,12 +2536,13 @@ static bool media_text_same(String a, String b) {
 static String media_empty_title_label(String state) {
   state.trim();
   state.toLowerCase();
-  if (state == "playing") return "Wiedergabe";
-  if (state == "paused") return "Pausiert";
-  if (state == "idle") return "Bereit";
-  if (state == "standby") return "Standby";
-  if (state == "off") return "Aus";
-  return "Keine Wiedergabe";
+  const auto& tr = i18n::strings(configManager.getConfig().language);
+  if (state == "playing") return tr.media_state_playing;
+  if (state == "paused") return tr.media_state_paused;
+  if (state == "idle") return tr.media_state_idle;
+  if (state == "standby") return tr.media_state_standby;
+  if (state == "off") return tr.media_state_off;
+  return tr.media_no_playback;
 }
 
 static void sanitize_media_display_text(String& text) {

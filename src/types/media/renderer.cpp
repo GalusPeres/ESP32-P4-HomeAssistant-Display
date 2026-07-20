@@ -2,6 +2,8 @@
 
 #include <Arduino.h>
 
+#include "src/core/config_manager.h"
+#include "src/core/i18n.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/devices/device_select.h"
@@ -413,7 +415,9 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
     apply_media_text_scroll_style(media_title);
     lv_obj_set_width(media_title, LV_PCT(82));
     lv_obj_set_style_text_align(media_title, LV_TEXT_ALIGN_LEFT, 0);
-    lv_label_set_text(media_title, "Keine Wiedergabe");
+    lv_label_set_text(
+        media_title,
+        i18n::strings(configManager.getConfig().language).media_no_playback);
     lv_obj_align(media_title, LV_ALIGN_TOP_LEFT, 20, 108 + kMediaContentYOffset);
     enable_event_bubble(media_title);
   }
