@@ -83,14 +83,25 @@ jobs:
             profile: tab5
             key: m5stacks_tab5
             define: DEVICE_M5STACKS_TAB5
+            publish: true
           - label: Waveshare 4B
             profile: waveshare_b4
             key: waveshare_4b
             define: DEVICE_WAVESHARE_4B
+            publish: true
           - label: Waveshare 8 inch
             profile: waveshare_8
             key: waveshare_touch_lcd_8
             define: DEVICE_WAVESHARE_TOUCH_LCD_8
+            publish: true
+          - label: Guition JC8012P4A1 (experimental)
+            profile: guition_jc8012p4a1
+            key: guition_jc8012p4a1
+            define: DEVICE_GUITION_JC8012P4A1
+            # Build and validate on every CI run, but do not publish a release
+            # artifact until the clean Apache-2.0 touch path has passed a
+            # real-device boot, touch, and OTA test.
+            publish: false
 
     steps:
       - name: Check out repository
@@ -231,7 +242,7 @@ jobs:
             --device-key "${{ matrix.key }}"
 
       - name: Archive private debug symbols
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && matrix.publish
         shell: bash
         env:
           SYMBOLS_DEPLOY_KEY: ${{ secrets.SYMBOLS_DEPLOY_KEY }}
@@ -282,6 +293,7 @@ jobs:
           exit 1
 
       - name: Upload firmware artifact
+        if: matrix.publish
         uses: actions/upload-artifact@v4
         with:
           name: firmware-${{ matrix.key }}

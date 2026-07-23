@@ -6,6 +6,9 @@
 #if defined(DEVICE_M5STACKS_TAB5)
 #define FW_META_TARGET_DEVICE_KEY "m5stacks_tab5"
 #define FW_META_TARGET_DISPLAY_NAME "M5Stacks Tab5"
+#elif defined(DEVICE_GUITION_JC8012P4A1)
+#define FW_META_TARGET_DEVICE_KEY "guition_jc8012p4a1"
+#define FW_META_TARGET_DISPLAY_NAME "Guition JC8012P4A1"
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
 #define FW_META_TARGET_DEVICE_KEY "waveshare_touch_lcd_8"
 #define FW_META_TARGET_DISPLAY_NAME "Waveshare Touch LCD 8"

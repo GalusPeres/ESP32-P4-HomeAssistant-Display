@@ -1268,7 +1268,11 @@ struct LanguageEntry {
 static const LanguageEntry kLanguages[] = {
     {&kStringsEn, &kLocaleEn},
     {&kStringsDe, &kLocaleDe},
+    // The French strings stay compiled and maintained, but are intentionally
+    // hidden until the language pass is complete. Define this flag to test it.
+#if defined(HOMETILES_ENABLE_FRENCH)
     {&kStringsFr, &kLocaleFr},
+#endif
 };
 
 static size_t find_language_index(const char* language_code) {

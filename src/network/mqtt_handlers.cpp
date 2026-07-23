@@ -1480,13 +1480,11 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
       tiles_request_bridge_cache_refresh();
       if (reload) {
         yield();  // Nach JSON Parse
-        uint32_t t_pub0 = millis();
-        networkManager.publishBridgeConfig();
-        Serial.printf("[Bridge] publishBridgeConfig: %u ms\n", (unsigned)(millis() - t_pub0));
-        yield();  // Nach Publish
-        // Nicht im selben RX-Sturm sofort alle Topics ab- und wieder
-        // anmelden. Der vorhandene Deferred-Service wartet auf ein ruhiges
-        // Fenster und fasst mehrere kurz aufeinanderfolgende Reloads zusammen.
+        // Nicht erneut die Geräteankündigung senden: HA beantwortet jede
+        // Ankündigung mit einem neuen bridge/apply. Eine Antwort an dieser
+        // Stelle erzeugt daher eine Apply/Announce-Rückkopplung.
+        // Die dynamischen Topics stattdessen nur nach einem ruhigen Fenster
+        // aktualisieren und mehrere Reloads zusammenfassen.
         mqttRequestDynamicSlotsReload();
         Serial.println("[Bridge] mqttReloadDynamicSlots nach Ruhefenster eingeplant");
       }
@@ -2260,4 +2258,9 @@ void mqttServicePostConnect() {
   mqttPublishDiscovery();
   mqttPublishDeviceSettings();
   mqttPublishHomeSnapshot();
+  // Announce the exact MAC-based Bridge topic after every connection. Without
+  // this retained message the HA integration cannot discover a new device or
+  // repair an entry that still points at an older device ID. The publish uses
+  // the large-buffer queue, which is held back until the startup storm ends.
+  networkManager.publishBridgeConfig();
 }

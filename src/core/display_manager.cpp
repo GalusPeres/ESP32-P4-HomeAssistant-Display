@@ -572,7 +572,9 @@ void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *
   if (BoardHAL::getTouch(&tp)) {
     int16_t mapped_x = tp.x;
     int16_t mapped_y = tp.y;
-#if !defined(DEVICE_M5STACKS_TAB5) && !defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if !defined(DEVICE_M5STACKS_TAB5) && \
+    !defined(DEVICE_WAVESHARE_TOUCH_LCD_8) && \
+    !defined(DEVICE_GUITION_JC8012P4A1)
     switch (rotation & 0x03) {
       case 1:
         mapped_x = tp.y;
@@ -610,7 +612,9 @@ bool DisplayManager::init() {
   // Waveshare: Display is already initialised by BoardHAL::init().
   // 720×720 square display – no rotation needed by default.
   BoardHAL::displayFillScreen(0x0000);  // black
-#if !defined(DEVICE_M5STACKS_TAB5) && !defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if !defined(DEVICE_M5STACKS_TAB5) && \
+    !defined(DEVICE_WAVESHARE_TOUCH_LCD_8) && \
+    !defined(DEVICE_GUITION_JC8012P4A1)
   BoardHAL::setBrightness(150);  // Wird spaeter vom Power Manager gesteuert
 #endif
   rotation = Device::kRotationDefault;
@@ -664,10 +668,10 @@ bool DisplayManager::init() {
   lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
   lv_indev_set_read_cb(indev, touch_cb);
   lv_indev_set_display(indev, disp);
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || defined(DEVICE_GUITION_JC8012P4A1)
   if (lv_timer_t* read_timer = lv_indev_get_read_timer(indev)) {
     lv_timer_set_period(read_timer, 8);
-    Serial.println("[Display] 8-inch touch poll period set to 8 ms");
+    Serial.println("[Display] Large-panel touch poll period set to 8 ms");
   }
 #endif
 

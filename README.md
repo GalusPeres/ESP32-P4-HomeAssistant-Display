@@ -192,6 +192,13 @@ Everything visible on the dashboard is tile-based and managed from the built-in 
 - [Waveshare ESP32-P4-WIFI6-Touch-LCD-4B](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm)
 - [Waveshare ESP32-P4-WIFI6-Touch-LCD-8 (8 inch)](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm)
 
+Experimental source-build target:
+
+- [Guition JC8012P4A1 10.1 inch](https://www.guition.com/esp32p4-display-module/hmi-display-panel)
+  as `guition_jc8012p4a1` (display, brightness control, GSL3680 touch, WiFi,
+  microSD and device-safe local OTA are integrated; hardware validation is
+  still pending)
+
 Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
 
 ## Screenshots

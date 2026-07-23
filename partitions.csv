@@ -1,6 +1,7 @@
-# Shared OTA-safe layout for both boards.
+# Shared OTA-safe layout for all HomeTiles targets with at least 16MB flash.
 # Keeps both app slots fully below 16MB so the same sketch-root file works for:
 # - M5Stacks Tab5 (16MB flash)
+# - Guition JC8012P4A1 (16MB flash)
 # - Waveshare B4 (32MB flash, upper flash remains unused)
 # Name,   Type, SubType, Offset,    Size,      Flags
 nvs,      data, nvs,     0x9000,    0x5000,

@@ -16,7 +16,8 @@
 //   aktuelle Asset-Name auf dem Release fehlt -- siehe install() in
 //   github_update.cpp. Neue Releases muessen den alten Namen NICHT mehr
 //   mitliefern, seit v0.3.1 keine Geraete mehr auf <= v0.2.9 unterwegs sind.)
-// Die Geraete-Keys sind: waveshare_touch_lcd_8, waveshare_4b, m5stacks_tab5.
+// Die Geraete-Keys sind: waveshare_touch_lcd_8, waveshare_4b,
+// m5stacks_tab5, jc8012p4a1.
 //
 // Repo wurde von ESP32-P4-HomeAssistant-Display auf HomeTiles umbenannt.
 // GitHub redirected die alte URL dauerhaft, d.h. Geraete mit einer aelteren

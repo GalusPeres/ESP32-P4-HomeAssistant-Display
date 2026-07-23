@@ -815,8 +815,13 @@ void HomeTilesNetworkManager::connectMqtt() {
         ip_topic, networkTransport.localIP().toString().c_str(), true);
   }
   if (!bridge_apply_topic_.isEmpty()) {
-    mqtt_client.subscribe(bridge_apply_topic_.c_str());
-    Serial.printf("[MQTT] Listening for bridge config on %s\n", bridge_apply_topic_.c_str());
+    if (mqtt_client.subscribe(bridge_apply_topic_.c_str())) {
+      Serial.printf("[MQTT] Listening for bridge config on %s\n",
+                    bridge_apply_topic_.c_str());
+    } else {
+      Serial.printf("[MQTT] ERROR subscribing to bridge config on %s\n",
+                    bridge_apply_topic_.c_str());
+    }
   }
   if (!history_response_topic_.isEmpty()) {
     mqtt_client.subscribe(history_response_topic_.c_str());
@@ -853,9 +858,9 @@ void HomeTilesNetworkManager::connectMqtt() {
   mqtt_post_connect_ready_at = mqtt_connected_at + kMqttPostConnectQuietMs;
   mqtt_post_connect_pending = true;
 
-  // Bridge refresh is handled by the background refresh after startup.
-  // Doing it here collides with retained media/weather payloads and forces
-  // the MQTT buffer to 32 KB during the tightest internal-RAM window.
+  // Bridge requests are handled by the background refresh. The retained
+  // device announcement is queued later by mqttServicePostConnect(); its
+  // large-buffer lane waits until the startup RAM storm has passed.
 }
 
 // ========== Single-Owner MQTT: Worker ==========
