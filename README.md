@@ -189,7 +189,9 @@ Everything visible on the dashboard is tile-based and managed from the built-in 
 - [Waveshare ESP32-P4-WIFI6-Touch-LCD-4B](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm)
 - [Waveshare ESP32-P4-86-Panel-ETH-2RO](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-4B)
   (uses the Waveshare 4B firmware; native Ethernet is supported)
+- [Waveshare ESP32-P4-WIFI6-Touch-LCD-7 (7 inch)](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm)
 - [Waveshare ESP32-P4-WIFI6-Touch-LCD-8 (8 inch)](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm)
+- [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 (10.1 inch)](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm)
 - [Guition JC8012P4A1C_I_W_Y (10.1 inch)](https://www.guition.com/esp32p4-display-module/hmi-display-panel)
 
 Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
@@ -285,7 +287,9 @@ Download the files matching your device from the [latest release](https://github
 | M5Stack Tab5 | `..._m5stacks_tab5_factory.bin` | `..._m5stacks_tab5.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B | `..._waveshare_4b_factory.bin` | `..._waveshare_4b.bin` |
 | Waveshare ESP32-P4-86-Panel-ETH-2RO | `..._waveshare_4b_factory.bin` | `..._waveshare_4b.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | `..._waveshare_touch_lcd_7_factory.bin` | `..._waveshare_touch_lcd_7.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-8 | `..._waveshare_touch_lcd_8_factory.bin` | `..._waveshare_touch_lcd_8.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | `..._waveshare_touch_lcd_10_1_factory.bin` | `..._waveshare_touch_lcd_10_1.bin` |
 | Guition JC8012P4A1C_I_W_Y | `..._guition_jc8012p4a1_factory.bin` | `..._guition_jc8012p4a1.bin` |
 
 Use:

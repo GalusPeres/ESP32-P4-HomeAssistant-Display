@@ -390,7 +390,7 @@
 #endif
 
 /** Draw using espressif PPA accelerator.
- *  MUSS AUS bleiben: Der Display-Treiber (device_waveshare_touch_lcd_8.cpp) nutzt
+ *  MUSS AUS bleiben: Die Waveshare Touch-LCD-Treiber nutzen
  *  die PPA bereits exklusiv fuer den Flush-Rotate (g_ppa_handle). LVGLs interner
  *  PPA-Draw-Unit waere ein ZWEITER Client auf derselben PPA-Engine -> beide im
  *  Blocking-Mode kollidieren beim Zeichnen eines (neuen) Bildes -> Deadlock/Freeze.

@@ -9,8 +9,8 @@
 #include "src/tiles/tile_renderer_shared.h"
 #include "src/tiles/tile_renderer_fonts.h"
 #include "src/devices/device.h"
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
-#include "src/devices/waveshare_touch_lcd_8/device_waveshare_touch_lcd_8.h"
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X)
+#include "src/devices/active_device.h"
 #endif
 
 // ---------------------------------------------------------------------------
@@ -68,13 +68,13 @@ void pixelanim_timer_cb(lv_timer_t* t) {
   uint32_t now_ms = millis();
   uint32_t gap_ms = s_last_tick_ms ? (now_ms - s_last_tick_ms) : 0;
   s_last_tick_ms = now_ms;
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X)
   // A media-tile update briefly forces every flush onto the slow CPU-rotate
   // path (see pausePpaFor in tile_renderer.cpp). Swapping our frame into that
   // window would visibly hitch and adds more work to an already-loaded
   // pipeline. Hold the current frame instead; it resumes smoothly once the
   // cooldown clears, which reads better than an uneven stutter.
-  if (DeviceWaveshareTouchLCD8::ppaCooldownActive()) {
+  if (DeviceImpl::ppaCooldownActive()) {
     if (gap_ms >= 150) {
       Serial.printf("[PixelAnim] tick HELD (ppa cooldown) gap=%ums\n", (unsigned)gap_ms);
     }

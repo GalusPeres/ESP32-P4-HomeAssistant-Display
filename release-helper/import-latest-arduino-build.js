@@ -31,7 +31,9 @@ function readDeviceInfo() {
   const lines = fs.readFileSync(deviceSelectPath, 'utf8').split(/\r?\n/);
   let hasTab5 = false;
   let hasB4 = false;
+  let hasTouch7 = false;
   let hasTouch8 = false;
+  let hasTouch10 = false;
 
   for (const line of lines) {
     if (/^\s*#if\b/.test(line)) {
@@ -43,18 +45,32 @@ function readDeviceInfo() {
     if (/^\s*#define\s+DEVICE_WAVESHARE_4B\b/.test(line)) {
       hasB4 = true;
     }
+    if (/^\s*#define\s+DEVICE_WAVESHARE_TOUCH_LCD_7\b/.test(line)) {
+      hasTouch7 = true;
+    }
     if (/^\s*#define\s+DEVICE_WAVESHARE_TOUCH_LCD_8\b/.test(line)) {
       hasTouch8 = true;
     }
+    if (/^\s*#define\s+DEVICE_WAVESHARE_TOUCH_LCD_10_1\b/.test(line)) {
+      hasTouch10 = true;
+    }
   }
 
-  const selected = [hasTab5, hasB4, hasTouch8].filter(Boolean).length;
+  const selected = [
+    hasTab5,
+    hasB4,
+    hasTouch7,
+    hasTouch8,
+    hasTouch10,
+  ].filter(Boolean).length;
   if (selected > 1) {
     throw new Error('Multiple device targets are enabled in src/devices/device_select.h');
   }
 
   if (hasTab5) return { key: 'm5stacks_tab5', slug: 'm5stacks-tab5' };
+  if (hasTouch7) return { key: 'waveshare_touch_lcd_7', slug: 'waveshare-touch-lcd-7' };
   if (hasTouch8) return { key: 'waveshare_touch_lcd_8', slug: 'waveshare-touch-lcd-8' };
+  if (hasTouch10) return { key: 'waveshare_touch_lcd_10_1', slug: 'waveshare-touch-lcd-10-1' };
   if (hasB4) return { key: 'waveshare_4b', slug: 'waveshare-b4' };
   return { key: 'waveshare_4b', slug: 'waveshare-b4' };
 }

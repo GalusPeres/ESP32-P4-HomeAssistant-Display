@@ -6,7 +6,9 @@
 //
 #if !defined(HOMETILES_CI_TARGET)
 #define DEVICE_WAVESHARE_4B
+// #define DEVICE_WAVESHARE_TOUCH_LCD_7
 // #define DEVICE_WAVESHARE_TOUCH_LCD_8
+// #define DEVICE_WAVESHARE_TOUCH_LCD_10_1
 // #define DEVICE_M5STACKS_TAB5
 // #define DEVICE_GUITION_JC8012P4A1
 #endif
@@ -22,14 +24,18 @@
 #endif
 
 #if (defined(DEVICE_WAVESHARE_4B) + \
+     defined(DEVICE_WAVESHARE_TOUCH_LCD_7) + \
      defined(DEVICE_WAVESHARE_TOUCH_LCD_8) + \
+     defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) + \
      defined(DEVICE_M5STACKS_TAB5) + \
      defined(DEVICE_GUITION_JC8012P4A1)) > 1
 #error "Select only one device target."
 #endif
 
 #if !defined(DEVICE_WAVESHARE_4B) && \
+    !defined(DEVICE_WAVESHARE_TOUCH_LCD_7) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_8) && \
+    !defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) && \
     !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_GUITION_JC8012P4A1) && \
     defined(HOMETILES_CI_TARGET)
@@ -37,9 +43,26 @@
 #endif
 
 #if !defined(DEVICE_WAVESHARE_4B) && \
+    !defined(DEVICE_WAVESHARE_TOUCH_LCD_7) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_8) && \
+    !defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) && \
     !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_GUITION_JC8012P4A1) && \
     !defined(HOMETILES_CI_TARGET)
 #define DEVICE_WAVESHARE_4B
+#endif
+
+// The 7", 8" and 10.1" products share the same ESP32-P4-WIFI6-Touch-LCD-X
+// base board, I2C/touch, backlight, SDMMC and ESP-Hosted wiring. Only the
+// panel controller/timing and logical layout differ.
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_7) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1)
+#define DEVICE_WAVESHARE_TOUCH_LCD_X
+#endif
+
+// The 8" and 10.1" panels share the 1280x800 HomeTiles layout.
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1)
+#define DEVICE_WAVESHARE_TOUCH_LCD_1280X800
 #endif

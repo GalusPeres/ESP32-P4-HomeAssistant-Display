@@ -9,9 +9,15 @@
 #elif defined(DEVICE_GUITION_JC8012P4A1)
 #define FW_META_TARGET_DEVICE_KEY "guition_jc8012p4a1"
 #define FW_META_TARGET_DISPLAY_NAME "Guition JC8012P4A1"
+#elif defined(DEVICE_WAVESHARE_TOUCH_LCD_7)
+#define FW_META_TARGET_DEVICE_KEY "waveshare_touch_lcd_7"
+#define FW_META_TARGET_DISPLAY_NAME "Waveshare Touch LCD 7"
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
 #define FW_META_TARGET_DEVICE_KEY "waveshare_touch_lcd_8"
 #define FW_META_TARGET_DISPLAY_NAME "Waveshare Touch LCD 8"
+#elif defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1)
+#define FW_META_TARGET_DEVICE_KEY "waveshare_touch_lcd_10_1"
+#define FW_META_TARGET_DISPLAY_NAME "Waveshare Touch LCD 10.1"
 #elif defined(DEVICE_WAVESHARE_4B)
 #define FW_META_TARGET_DEVICE_KEY "waveshare_4b"
 #define FW_META_TARGET_DISPLAY_NAME "Waveshare B4"

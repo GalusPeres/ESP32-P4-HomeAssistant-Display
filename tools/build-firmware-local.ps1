@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('tab5', 'waveshare_b4', 'waveshare_8', 'guition_jc8012p4a1')]
+    [ValidateSet('tab5', 'waveshare_b4', 'waveshare_7', 'waveshare_8', 'waveshare_10_1', 'guition_jc8012p4a1')]
     [string]$Profile,
 
     [string]$OutputDirectory
@@ -27,7 +27,9 @@ if (Test-Path -LiteralPath $hiddenSketchProfiles) {
 $defines = @{
     tab5 = 'DEVICE_M5STACKS_TAB5'
     waveshare_b4 = 'DEVICE_WAVESHARE_4B'
+    waveshare_7 = 'DEVICE_WAVESHARE_TOUCH_LCD_7'
     waveshare_8 = 'DEVICE_WAVESHARE_TOUCH_LCD_8'
+    waveshare_10_1 = 'DEVICE_WAVESHARE_TOUCH_LCD_10_1'
     guition_jc8012p4a1 = 'DEVICE_GUITION_JC8012P4A1'
 }
 
@@ -62,6 +64,7 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 
 $commonFlags = "-DLV_CONF_INCLUDE_SIMPLE -I$repoRoot -I$libraries"
 $cppFlags = "-DHOMETILES_CI_TARGET -D$($defines[$Profile]) $commonFlags"
+$cFlags = $cppFlags
 
 Move-Item -LiteralPath $sketchProfiles -Destination $hiddenSketchProfiles
 try {
@@ -70,7 +73,7 @@ try {
         --fqbn $fqbn `
         --export-binaries `
         --output-dir $OutputDirectory `
-        --build-property "compiler.c.extra_flags=$commonFlags" `
+        --build-property "compiler.c.extra_flags=$cFlags" `
         --build-property "compiler.cpp.extra_flags=$cppFlags" `
         $repoRoot
     if ($LASTEXITCODE -ne 0) {

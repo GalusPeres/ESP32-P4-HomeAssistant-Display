@@ -8,9 +8,15 @@ namespace DeviceImpl = DeviceM5StacksTab5;
 #elif defined(DEVICE_GUITION_JC8012P4A1)
 #include "src/devices/guition_jc8012p4a1/device_guition_jc8012p4a1.h"
 namespace DeviceImpl = DeviceGuitionJC8012P4A1;
+#elif defined(DEVICE_WAVESHARE_TOUCH_LCD_7)
+#include "src/devices/waveshare_touch_lcd_7/device_waveshare_touch_lcd_7.h"
+namespace DeviceImpl = DeviceWaveshareTouchLCD7;
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
 #include "src/devices/waveshare_touch_lcd_8/device_waveshare_touch_lcd_8.h"
 namespace DeviceImpl = DeviceWaveshareTouchLCD8;
+#elif defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1)
+#include "src/devices/waveshare_touch_lcd_10_1/device_waveshare_touch_lcd_10_1.h"
+namespace DeviceImpl = DeviceWaveshareTouchLCD10;
 #elif defined(DEVICE_WAVESHARE_4B)
 #include "src/devices/waveshare_4b/device_waveshare_4b.h"
 namespace DeviceImpl = DeviceWaveshare4B;

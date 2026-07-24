@@ -4,10 +4,11 @@
 #include <IPAddress.h>
 #include <atomic>
 
-// Das 8-Zoll-Geraet hat nur USB-Host-Ethernet. Deshalb muss der RTL8156-Weg
-// auch im CI/Release-Build dieses Targets enthalten sein. Lokale Dev-Builds
-// behalten ihn fuer Hardwaretests auf allen USB-Host-faehigen Profilen.
-#if !defined(HOMETILES_CI_TARGET) || defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+// Die Waveshare Touch-LCD-X-Geraete haben nur USB-Host-Ethernet. Deshalb muss
+// der RTL8156-Weg auch in ihren CI/Release-Builds enthalten sein. Lokale
+// Dev-Builds behalten ihn fuer Hardwaretests auf allen USB-Host-faehigen
+// Profilen.
+#if !defined(HOMETILES_CI_TARGET) || defined(DEVICE_WAVESHARE_TOUCH_LCD_X)
 #define HOMETILES_USB_ETHERNET_DEV 1
 #endif
 

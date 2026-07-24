@@ -8,7 +8,9 @@ const versionFilePath = path.join(repoRoot, 'version.txt');
 const devices = new Map([
   ['m5stacks_tab5', { key: 'm5stacks_tab5' }],
   ['waveshare_4b', { key: 'waveshare_4b' }],
+  ['waveshare_touch_lcd_7', { key: 'waveshare_touch_lcd_7' }],
   ['waveshare_touch_lcd_8', { key: 'waveshare_touch_lcd_8' }],
+  ['waveshare_touch_lcd_10_1', { key: 'waveshare_touch_lcd_10_1' }],
   ['guition_jc8012p4a1', { key: 'guition_jc8012p4a1' }],
 ]);
 

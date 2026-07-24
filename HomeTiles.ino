@@ -75,7 +75,7 @@ static uint32_t tab5_brightness_cap_wait_since = 0;
 // Splash-Screen bleibt mindestens so lange stehen, dass Version/Geraet
 // tatsaechlich lesbar sind, auch wenn der restliche Boot schneller fertig ist.
 static constexpr uint32_t kBootSplashMinVisibleMs = 2500;
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || \
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
     defined(DEVICE_GUITION_JC8012P4A1)
 static constexpr uint32_t kBootBlackWarmupMs = 90;
@@ -105,7 +105,7 @@ static void log_memory_status(const char* tag) {
   Serial.flush();
 }
 
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || \
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
     defined(DEVICE_GUITION_JC8012P4A1)
 static void boot_black_warmup(const char* label) {
@@ -616,7 +616,7 @@ void setup() {
   Serial.println("[Setup] Display OK");
   log_memory_status("after-display");
   Serial.flush();
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || \
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
     defined(DEVICE_GUITION_JC8012P4A1)
   boot_black_warmup("after-display");
@@ -655,7 +655,7 @@ void setup() {
   // Framebuffer direkt; waere er waehrend der ersten Splash-Refreshes sichtbar,
   // koennen die LVGL-Flush-Streifen fuer wenige Millisekunden als Treppen-Flash
   // aufblitzen. Deshalb Panel dunkel, Splash fertig rendern, dann erst sichtbar.
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || \
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
     defined(DEVICE_GUITION_JC8012P4A1)
   BoardHAL::displaySleep();
@@ -669,7 +669,7 @@ void setup() {
   // Zwischenzustand zeigen (verzerrt wirkendes Icon/Text), bevor sich beim
   // naechsten Refresh die endgueltige Position einstellt.
   lv_obj_update_layout(lv_screen_active());
-#if !defined(DEVICE_WAVESHARE_TOUCH_LCD_8) && \
+#if !defined(DEVICE_WAVESHARE_TOUCH_LCD_X) && \
     !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_GUITION_JC8012P4A1)
   BoardHAL::displayWake();
@@ -691,7 +691,7 @@ void setup() {
   lv_refr_now(displayManager.getDisplay());
   BoardHAL::displayWaitDisplay();
 #endif
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || \
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
     defined(DEVICE_GUITION_JC8012P4A1)
   BoardHAL::displayWake();

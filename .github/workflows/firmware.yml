@@ -89,10 +89,20 @@ jobs:
             key: waveshare_4b
             define: DEVICE_WAVESHARE_4B
             publish: true
+          - label: Waveshare 7 inch
+            profile: waveshare_7
+            key: waveshare_touch_lcd_7
+            define: DEVICE_WAVESHARE_TOUCH_LCD_7
+            publish: true
           - label: Waveshare 8 inch
             profile: waveshare_8
             key: waveshare_touch_lcd_8
             define: DEVICE_WAVESHARE_TOUCH_LCD_8
+            publish: true
+          - label: Waveshare 10.1 inch
+            profile: waveshare_10_1
+            key: waveshare_touch_lcd_10_1
+            define: DEVICE_WAVESHARE_TOUCH_LCD_10_1
             publish: true
           - label: Guition JC8012P4A1
             profile: guition_jc8012p4a1
@@ -213,7 +223,7 @@ jobs:
             --fqbn "${fqbn}" \
             --export-binaries \
             --output-dir "build/ci/${{ matrix.key }}" \
-            --build-property "compiler.c.extra_flags=$common_flags" \
+            --build-property "compiler.c.extra_flags=-DHOMETILES_CI_TARGET -D${{ matrix.define }} $common_flags" \
             --build-property "compiler.cpp.extra_flags=-DHOMETILES_CI_TARGET -D${{ matrix.define }} $common_flags"
 
           restore_sketch_profiles
@@ -266,7 +276,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # The four matrix jobs finish independently. Retry against the
+          # The matrix jobs finish independently. Retry against the
           # latest private main branch if another device pushed first.
           for attempt in 1 2 3 4 5; do
             git fetch origin main
@@ -318,7 +328,7 @@ jobs:
         shell: bash
         run: |
           ls -la build/release-assets
-          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 8
+          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 12
 
       - name: Upload assets to GitHub release
         env:

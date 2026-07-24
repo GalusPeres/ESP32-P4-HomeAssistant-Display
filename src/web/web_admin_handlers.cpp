@@ -366,7 +366,7 @@ uint32_t g_ota_display_restore_retry_at = 0;
 uint16_t g_ota_display_restore_attempts = 0;
 
 constexpr uint32_t kOtaDisplayRestoreRetryMs = 750;
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X)
 // On the P4 WiFi is provided by ESP-Hosted over SDIO. Starting Update while
 // the browser is still sending the image consumes about 75 KB of internal/DMA
 // RAM and makes the remaining RX stream fragile after longer uptime. Receive

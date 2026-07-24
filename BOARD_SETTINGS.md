@@ -66,12 +66,21 @@ Arduino IDE:
 - Upload Speed: `921600`
 - USB Mode: `USB-OTG (TinyUSB)`
 
-## Waveshare Touch LCD 8
+## Waveshare Touch LCD 7 / 8 / 10.1
 
 Used for:
+- `src/devices/waveshare_touch_lcd_7`
 - `src/devices/waveshare_touch_lcd_8`
+- `src/devices/waveshare_touch_lcd_10_1`
+- build profiles `waveshare_7`, `waveshare_8`, and `waveshare_10_1`
 
 Important:
+- The 7-inch model renders at `1280x720` and uses the Tab5 dashboard layout.
+- The 8-inch and 10.1-inch models render at `1280x800` and share the same
+  dashboard layout.
+- Select the build profile matching the physical panel. The 7-inch panel uses
+  ILI9881C; the 8-inch and 10.1-inch panels use JD9365 with model-specific
+  initialization and timing.
 - Leave `Partition Scheme` on the normal 32MB ESP32-P4 setting.
 - The actual partition layout still comes from the shared repo `partitions.csv`.
 - The `Chip Variant` must be set to `Before v3.00` for this hardware.

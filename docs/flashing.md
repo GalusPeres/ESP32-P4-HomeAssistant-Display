@@ -21,7 +21,9 @@ Grab the file matching your device from the
 | M5Stack Tab5 | `hometiles_<version>_m5stacks_tab5_factory.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B | `hometiles_<version>_waveshare_4b_factory.bin` |
 | Waveshare ESP32-P4-86-Panel-ETH-2RO | `hometiles_<version>_waveshare_4b_factory.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | `hometiles_<version>_waveshare_touch_lcd_7_factory.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-8 | `hometiles_<version>_waveshare_touch_lcd_8_factory.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | `hometiles_<version>_waveshare_touch_lcd_10_1_factory.bin` |
 | Guition JC8012P4A1C_I_W_Y | `hometiles_<version>_guition_jc8012p4a1_factory.bin` |
 
 !!! note "`factory.bin` vs. plain `.bin`"
