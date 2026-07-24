@@ -1,4 +1,4 @@
-# Guition JC8012P4A1 experimental target
+# Guition JC8012P4A1
 
 This target supports the 10.1-inch Guition JC8012P4A1 family as a 1280x800
 landscape HomeTiles display. The physical JD9365 panel is 800x1280; the board
@@ -35,11 +35,10 @@ HomeTiles' display rotation.
 - SD mount first uses 40MHz high-speed mode and retries at 20MHz default speed.
 - Audio, RTC, camera and battery reporting are not enabled yet.
 
-Source review and compilation cannot replace a device test. Display output,
-touch orientation/calibration, the usable minimum brightness, SD read/write and
-remount, Wi-Fi, and a complete OTA round trip must still be checked on the real
-board. CI builds the target but does not publish it while that validation is
-pending.
+The device target has been validated on real hardware through
+[HomeTiles issue #5](https://github.com/GalusPeres/HomeTiles/issues/5):
+display output, touch direction, MQTT/Bridge communication and automatic
+discovery are confirmed working. CI publishes both factory and OTA binaries.
 
 ## Sources and third-party provenance
 

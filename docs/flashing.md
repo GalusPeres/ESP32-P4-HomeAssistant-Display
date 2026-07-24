@@ -21,6 +21,7 @@ Grab the file matching your device from the
 | M5Stack Tab5 | `hometiles_<version>_m5stacks_tab5_factory.bin` |
 | Waveshare 4B | `hometiles_<version>_waveshare_4b_factory.bin` |
 | Waveshare 8" | `hometiles_<version>_waveshare_touch_lcd_8_factory.bin` |
+| Guition JC8012P4A1 | `hometiles_<version>_guition_jc8012p4a1_factory.bin` |
 
 !!! note "`factory.bin` vs. plain `.bin`"
     The **factory** image is a complete flash image — bootloader, firmware, and empty

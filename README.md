@@ -49,23 +49,20 @@ the whole chain: MQTT broker, bridge integration, and connecting the display.
 - [FAQ & Troubleshooting](docs/faq.md) — common questions and known quirks
 - [BOARD_SETTINGS.md](BOARD_SETTINGS.md) — Arduino IDE build settings per device
 
-## Highlights Of v0.6.1
+## Highlights Of v0.6.3
 
-- WiFi and Ethernet now share one consistent DHCP/static-IP configuration
-  instead of maintaining separate address profiles.
-- Static addressing is applied to WiFi, native Ethernet, and USB Ethernet.
-- When the device actually boots with a static address, the on-device network
-  popup exposes a **Use DHCP** recovery action. It can be undone until restart,
-  then disappears again after a normal DHCP boot.
-- Saving network and MQTT settings in the Web Admin now happens in the
-  background without reloading the complete page.
-- The open on-device network popup is rebuilt cleanly after a Web Admin save,
-  preventing stale blocks and misplaced controls.
-- Navigation controls in the light popup now have more even spacing.
-- Network settings have clearer grouping, persistent Save/Restart actions, and
-  consistent German and English labels.
+- Added official support and release binaries for the 10.1-inch
+  **Guition JC8012P4A1**.
+- Integrated its display, brightness control, GSL3680 touch, ESP-Hosted WiFi,
+  microSD storage, dual-partition OTA, and factory image.
+- Fixed the touch direction and verified MQTT, Home Assistant Bridge data, and
+  automatic discovery on real hardware.
+- Includes the important Bridge fix from v0.6.2 for newly added devices.
 
-See the [v0.6.1 release notes](docs/releases/v0.6.1.md) for details.
+Many thanks to [@brmo](https://github.com/brmo) for the original working display
+code, real-device testing, and detailed feedback.
+
+See the [v0.6.3 release notes](docs/releases/v0.6.3.md) for details.
 
 <details>
 <summary>Highlights of v0.6.0</summary>
@@ -191,13 +188,8 @@ Everything visible on the dashboard is tile-based and managed from the built-in 
 - [M5Stack Tab5](https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4)
 - [Waveshare ESP32-P4-WIFI6-Touch-LCD-4B](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm)
 - [Waveshare ESP32-P4-WIFI6-Touch-LCD-8 (8 inch)](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm)
-
-Experimental source-build target:
-
 - [Guition JC8012P4A1 10.1 inch](https://www.guition.com/esp32p4-display-module/hmi-display-panel)
-  as `guition_jc8012p4a1` (display, brightness control, GSL3680 touch, WiFi,
-  microSD and device-safe local OTA are integrated; hardware validation is
-  still pending)
+  as `guition_jc8012p4a1`
 
 Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
 
@@ -292,6 +284,7 @@ Download the files matching your device from the [latest release](https://github
 | M5Stack Tab5 | `..._m5stacks_tab5_factory.bin` | `..._m5stacks_tab5.bin` |
 | Waveshare 4B | `..._waveshare_4b_factory.bin` | `..._waveshare_4b.bin` |
 | Waveshare 8" | `..._waveshare_touch_lcd_8_factory.bin` | `..._waveshare_touch_lcd_8.bin` |
+| Guition JC8012P4A1 | `..._guition_jc8012p4a1_factory.bin` | `..._guition_jc8012p4a1.bin` |
 
 Use:
 - `factory.bin` for a clean first flash (ESP Flash Download Tool at address `0x00000`)

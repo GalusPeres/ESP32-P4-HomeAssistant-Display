@@ -58,18 +58,18 @@ Looking for something specific? [Tile Types](tiles.md) ·
 [FAQ & Troubleshooting](faq.md) ·
 [GitHub](https://github.com/GalusPeres/HomeTiles)
 
-## New In v0.6.1
+## New In v0.6.3
 
-Network configuration is now consistent across WiFi and Ethernet. Both
-transports share the same DHCP/static-IP profile, and static addressing is
-supported by WiFi, native Ethernet, and USB Ethernet.
+The 10.1-inch Guition JC8012P4A1 is now officially supported with factory and
+OTA release binaries. Display, brightness, touch, microSD, WiFi, Home Assistant
+Bridge data, and automatic discovery are integrated.
 
-The on-device network popup provides a DHCP recovery action only when the device
-actually started with a static address. Web Admin saves no longer reload the
-complete page, and an open network popup refreshes cleanly without stale display
-artifacts. Navigation controls in the light popup now have more even spacing.
+This release also includes the important Bridge fix for newly added devices
+introduced in v0.6.2. Thanks to
+[@brmo](https://github.com/brmo) for the original display work, hardware testing,
+and detailed feedback.
 
-[Read the v0.6.1 release notes :octicons-arrow-right-24:](releases/v0.6.1.md)
+[Read the v0.6.3 release notes :octicons-arrow-right-24:](releases/v0.6.3.md)
 
 ## Supported Devices
 
@@ -80,8 +80,10 @@ artifacts. Navigation controls in the light popup now have more even spacing.
 | [M5Stack Tab5](https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4) | 5" 1280×720 |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-4B](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm) | 4" 720×720 |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-8](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 8" 1280×800 |
+| [Guition JC8012P4A1](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | 10.1" 1280×800 |
 
-The same firmware runs on all devices; every release ships prebuilt binaries for each.
+The same HomeTiles codebase runs on all devices; every release ships a matching
+prebuilt binary for each.
 
 ## How It Works
 

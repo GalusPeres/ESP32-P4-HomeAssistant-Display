@@ -2,4 +2,4 @@
 //   1. FW_VERSION unten erhoehen (erst wenn der Stand wirklich released werden soll!)
 //   2. git commit  ->  git tag vX.Y.Z  ->  git push --follow-tags
 // Wichtig: Der Build startet NUR beim Tag-Push, und der Tag muss exakt FW_VERSION entsprechen.
-#define FW_VERSION "v0.6.2"
+#define FW_VERSION "v0.6.3"
