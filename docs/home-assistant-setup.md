@@ -26,7 +26,7 @@ The display never talks to Home Assistant directly. Everything goes through MQTT
   executes in Home Assistant.
 
 So you need three things: an **MQTT broker**, the **bridge integration**, and the
-**display firmware**. This guide covers all three.
+**display firmware**. This guide covers all supported devices.
 
 ## Step 1: Set Up An MQTT Broker
 

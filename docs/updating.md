@@ -66,6 +66,7 @@ Use the asset matching your device from the release page:
 | M5Stack Tab5 | `hometiles_<version>_m5stacks_tab5.bin` |
 | Waveshare 4B | `hometiles_<version>_waveshare_4b.bin` |
 | Waveshare 8" | `hometiles_<version>_waveshare_touch_lcd_8.bin` |
+| Guition JC8012P4A1 | `hometiles_<version>_guition_jc8012p4a1.bin` |
 
 Older devices still running v0.2.9 or earlier look for the previous
 `esp32-p4-homeassistant-display-<version>-<device>-update.bin` naming; the on-device

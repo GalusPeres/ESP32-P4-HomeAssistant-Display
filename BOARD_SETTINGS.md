@@ -91,7 +91,7 @@ Arduino IDE:
 - Upload Speed: `921600`
 - USB Mode: `USB-OTG (TinyUSB)`
 
-## Guition JC8012P4A1 (experimental)
+## Guition JC8012P4A1
 
 Used for:
 - `src/devices/guition_jc8012p4a1`
