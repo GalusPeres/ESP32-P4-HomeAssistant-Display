@@ -35,12 +35,15 @@ Arduino IDE:
 - Upload Speed: `921600`
 - USB Mode: `Hardware CDC and JTAG`
 
-## Waveshare B4
+## Waveshare B4 / ESP32-P4-86-Panel-ETH-2RO
 
 Used for:
 - `src/devices/waveshare_4b`
 
 Important:
+- The ESP32-P4-86-Panel-ETH-2RO uses this same firmware profile. Its native
+  Ethernet connection is supported; its two onboard relays are not exposed by
+  HomeTiles yet.
 - Leave `Partition Scheme` on the normal 32MB B4 setting.
 - The actual partition layout still comes from the shared repo `partitions.csv`.
 - This avoids switching partition files between boards.

@@ -60,7 +60,7 @@ Looking for something specific? [Tile Types](tiles.md) ·
 
 ## New In v0.6.2
 
-The 10.1-inch Guition JC8012P4A1 is now officially supported with factory and
+The 10.1-inch Guition JC8012P4A1C_I_W_Y is now officially supported with factory and
 OTA release binaries. Display, brightness, touch, microSD, WiFi, Home Assistant
 Bridge data and automatic discovery are integrated.
 
@@ -72,14 +72,15 @@ and detailed feedback.
 
 ## Supported Devices
 
-![HomeTiles running on all three supported ESP32-P4 displays](images/hometiles-supported-devices.png){ width="100%" .ht-hero }
+![HomeTiles running on three ESP32-P4 displays](images/hometiles-supported-devices.png){ width="100%" .ht-hero }
 
 | Device | Display |
 | --- | --- |
 | [M5Stack Tab5](https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4) | 5" 1280×720 |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-4B](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm) | 4" 720×720 |
+| [Waveshare ESP32-P4-86-Panel-ETH-2RO](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-4B) | 4" 720×720, native Ethernet; uses the 4B firmware |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-8](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 8" 1280×800 |
-| [Guition JC8012P4A1](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | 10.1" 1280×800 |
+| [Guition JC8012P4A1C_I_W_Y](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | 10.1" 1280×800 |
 
 The same HomeTiles codebase runs on all devices; every release ships a matching
 prebuilt binary for each.

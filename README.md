@@ -52,7 +52,7 @@ the whole chain: MQTT broker, bridge integration, and connecting the display.
 ## Highlights Of v0.6.2
 
 - Added official factory and OTA binaries for the 10.1-inch
-  **Guition JC8012P4A1**.
+  **Guition JC8012P4A1C_I_W_Y**.
 - Integrated its display, brightness control, GSL3680 touch, ESP-Hosted WiFi,
   microSD storage and dual-partition OTA.
 - Fixed the touch direction and verified MQTT, Home Assistant Bridge data and
@@ -187,9 +187,10 @@ Everything visible on the dashboard is tile-based and managed from the built-in 
 
 - [M5Stack Tab5](https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4)
 - [Waveshare ESP32-P4-WIFI6-Touch-LCD-4B](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm)
+- [Waveshare ESP32-P4-86-Panel-ETH-2RO](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-4B)
+  (uses the Waveshare 4B firmware; native Ethernet is supported)
 - [Waveshare ESP32-P4-WIFI6-Touch-LCD-8 (8 inch)](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm)
-- [Guition JC8012P4A1 10.1 inch](https://www.guition.com/esp32p4-display-module/hmi-display-panel)
-  as `guition_jc8012p4a1`
+- [Guition JC8012P4A1C_I_W_Y (10.1 inch)](https://www.guition.com/esp32p4-display-module/hmi-display-panel)
 
 Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
 
@@ -282,9 +283,10 @@ Download the files matching your device from the [latest release](https://github
 | Device | First flash | OTA update file |
 | --- | --- | --- |
 | M5Stack Tab5 | `..._m5stacks_tab5_factory.bin` | `..._m5stacks_tab5.bin` |
-| Waveshare 4B | `..._waveshare_4b_factory.bin` | `..._waveshare_4b.bin` |
-| Waveshare 8" | `..._waveshare_touch_lcd_8_factory.bin` | `..._waveshare_touch_lcd_8.bin` |
-| Guition JC8012P4A1 | `..._guition_jc8012p4a1_factory.bin` | `..._guition_jc8012p4a1.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-4B | `..._waveshare_4b_factory.bin` | `..._waveshare_4b.bin` |
+| Waveshare ESP32-P4-86-Panel-ETH-2RO | `..._waveshare_4b_factory.bin` | `..._waveshare_4b.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-8 | `..._waveshare_touch_lcd_8_factory.bin` | `..._waveshare_touch_lcd_8.bin` |
+| Guition JC8012P4A1C_I_W_Y | `..._guition_jc8012p4a1_factory.bin` | `..._guition_jc8012p4a1.bin` |
 
 Use:
 - `factory.bin` for a clean first flash (ESP Flash Download Tool at address `0x00000`)
