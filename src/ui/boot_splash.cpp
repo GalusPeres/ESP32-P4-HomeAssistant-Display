@@ -6,6 +6,7 @@
 #include "src/devices/device.h"
 #include "src/fonts/ui_fonts.h"
 #include "src/ui/hometiles_logo.h"
+#include "src/ui/popup_layout.h"
 
 namespace BootSplash {
 namespace {
@@ -69,14 +70,14 @@ void show() {
   lv_obj_set_style_bg_color(card, lv_color_hex(0x2A2A2A), 0);
   lv_obj_set_style_border_opa(card, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(card, 0, 0);
-  lv_obj_set_style_radius(card, 22, 0);
+  lv_obj_set_style_radius(card, popup_layout::scale(22), 0);
   lv_obj_set_style_clip_corner(card, false, 0);
   lv_obj_set_style_pad_all(card, 0, 0);
   lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_row(card, 24, 0);
+  lv_obj_set_style_pad_row(card, popup_layout::scale(24), 0);
 
   // Marke: Icon links, rechts daneben Titel+Version -- identischer Aufbau
   // wie im System-Popup.
@@ -89,8 +90,8 @@ void show() {
   lv_obj_set_flex_flow(brand, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(brand, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(brand, 18, 0);
-  create_logo(brand, 100);
+  lv_obj_set_style_pad_column(brand, popup_layout::scale(18), 0);
+  create_logo(brand, popup_layout::scale(100));
 
   lv_obj_t* brand_text = lv_obj_create(brand);
   lv_obj_set_style_bg_opa(brand_text, LV_OPA_TRANSP, 0);
@@ -101,21 +102,21 @@ void show() {
   lv_obj_set_flex_flow(brand_text, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(brand_text, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
                         LV_FLEX_ALIGN_START);
-  lv_obj_set_style_pad_row(brand_text, 2, 0);
+  lv_obj_set_style_pad_row(brand_text, popup_layout::scale(2), 0);
 
   lv_obj_t* title = lv_label_create(brand_text);
   lv_label_set_text(title, "HomeTiles");
-  lv_obj_set_style_text_font(title, &ui_font_40, 0);
+  lv_obj_set_style_text_font(title, popup_layout::font40(), 0);
   lv_obj_set_style_text_color(title, lv_color_white(), 0);
 
   lv_obj_t* version_caption = lv_label_create(brand_text);
   lv_label_set_text(version_caption, FW_VERSION);
-  lv_obj_set_style_text_font(version_caption, &ui_font_24, 0);
+  lv_obj_set_style_text_font(version_caption, popup_layout::font24(), 0);
   lv_obj_set_style_text_color(version_caption, lv_color_hex(0xA8A8A8), 0);
 
   lv_obj_t* device_label = lv_label_create(card);
   lv_label_set_text(device_label, Device::displayName());
-  lv_obj_set_style_text_font(device_label, &ui_font_24, 0);
+  lv_obj_set_style_text_font(device_label, popup_layout::font24(), 0);
   lv_obj_set_style_text_color(device_label, lv_color_hex(0xA8A8A8), 0);
 }
 

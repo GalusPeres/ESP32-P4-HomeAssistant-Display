@@ -22,6 +22,7 @@
 #include "src/web/web_config.h"
 #include "src/ui/ui_keyboard.h"
 #include "src/ui/hometiles_logo.h"
+#include "src/ui/popup_layout.h"
 #include "src/ui/ui_surface_style.h"
 
 static lv_obj_t *brightness_label = nullptr;
@@ -146,7 +147,7 @@ static const i18n::Strings& tr() {
 #if LV_USE_QRCODE
 static void style_qr_code(lv_obj_t* qr) {
   if (!qr) return;
-  lv_obj_set_style_radius(qr, 14, 0);
+  lv_obj_set_style_radius(qr, popup_layout::scale(14), 0);
   lv_obj_set_style_clip_corner(qr, true, 0);
   lv_obj_set_style_border_width(qr, 0, 0);
   lv_obj_set_style_bg_color(qr, lv_color_white(), 0);
@@ -198,25 +199,25 @@ static lv_obj_t *battery_percent_label = nullptr;
 // Layout constants -> kompakter fuer 720x720, 4x4 Grid
 static const int kSettingsColLeftPct = 15;
 static const int kSettingsColRightPct = 85;
-static const int kSettingsColGap = 8;
-static const int kSettingsColRowGap = 4;
-static const int kSettingsBtnHeight = 80;
+static const int kSettingsColGap = popup_layout::scale(8);
+static const int kSettingsColRowGap = popup_layout::scale(4);
+static const int kSettingsBtnHeight = popup_layout::scale(80);
 static const int kSettingsButtonWidthPct = 90;
-static const int kSettingsSliderLabelWidth = 160;
+static const int kSettingsSliderLabelWidth = popup_layout::scale(160);
 static const int kSettingsSectionTitlePct = 20;
 static const int kSettingsSectionContentPct = 50;
 static const int kSettingsSectionActionPct = 30;
-static const int kSettingsDisplayValueWidth = 56;
-static const int kSettingsInlineLabelWidth = 98;
-static const int kSettingsInlineSliderWidth = 116;
+static const int kSettingsDisplayValueWidth = popup_layout::scale(56);
+static const int kSettingsInlineLabelWidth = popup_layout::scale(98);
+static const int kSettingsInlineSliderWidth = popup_layout::scale(116);
 static const uint8_t kSettingsBrightnessRawMin = 121;
 static const uint8_t kSettingsBrightnessRawMax = 255;
 static const int kSettingsBrightnessPctMin = 1;
 static const int kSettingsBrightnessPctMax = 100;
-static const int kSettingsSliderValueWidth = 70;
-static const int kSettingsSliderHeight = 20;
-static const int kSettingsSliderKnobSize = 42;
-static const int kSettingsSliderClickPad = 20;
+static const int kSettingsSliderValueWidth = popup_layout::scale(70);
+static const int kSettingsSliderHeight = popup_layout::scale(20);
+static const int kSettingsSliderKnobSize = popup_layout::scale(42);
+static const int kSettingsSliderClickPad = popup_layout::scale(20);
 static const uint8_t kSettingsCardColStart = 1;
 
 // Forward declarations
@@ -470,6 +471,7 @@ static lv_obj_t* create_icon_block(lv_obj_t *parent, const char *icon_name, cons
   if (FONT_MDI_ICONS) {
     lv_obj_set_style_text_font(icon, FONT_MDI_ICONS, 0);
   }
+  popup_layout::applyIconScale(icon);
   lv_obj_set_width(icon, LV_PCT(100));
   lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_text_color(icon, lv_color_white(), 0);
@@ -478,7 +480,7 @@ static lv_obj_t* create_icon_block(lv_obj_t *parent, const char *icon_name, cons
   lv_label_set_text(label, label_text);
   lv_obj_set_width(label, LV_PCT(100));
   lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_style_text_font(label, &ui_font_20, 0);
+  lv_obj_set_style_text_font(label, popup_layout::font20(), 0);
   lv_obj_set_style_text_color(label, lv_color_white(), 0);
   lv_obj_set_style_margin_top(label, 4, 0);
   return label;
@@ -512,6 +514,7 @@ static void create_settings_back_button(lv_obj_t *parent) {
   if (FONT_MDI_ICONS) {
     lv_obj_set_style_text_font(icon, FONT_MDI_ICONS, 0);
   }
+  popup_layout::applyIconScale(icon);
   lv_obj_set_style_text_color(icon, lv_color_white(), 0);
   lv_obj_center(icon);
 }
@@ -649,10 +652,10 @@ static lv_obj_t *create_settings_card(lv_obj_t *parent, uint8_t col, uint8_t row
   lv_obj_set_style_border_opa(card, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(card, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(card, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_radius(card, 22, 0);
-  lv_obj_set_style_pad_hor(card, 12, 0);
-  lv_obj_set_style_pad_ver(card, 10, 0);
-  lv_obj_set_style_pad_row(card, 4, 0);
+  lv_obj_set_style_radius(card, popup_layout::scale(22), 0);
+  lv_obj_set_style_pad_hor(card, popup_layout::scale(12), 0);
+  lv_obj_set_style_pad_ver(card, popup_layout::scale(10), 0);
+  lv_obj_set_style_pad_row(card, popup_layout::scale(4), 0);
   lv_obj_set_style_pad_column(card, kSettingsColGap, 0);
   lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -666,7 +669,7 @@ static lv_obj_t *create_card_row(lv_obj_t *parent) {
   lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_opa(row, LV_OPA_TRANSP, 0);
   lv_obj_set_style_pad_all(row, 0, 0);
-  lv_obj_set_style_pad_column(row, 8, 0);
+  lv_obj_set_style_pad_column(row, popup_layout::scale(8), 0);
   lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
   return row;
@@ -679,9 +682,9 @@ static lv_obj_t *create_slider_row(lv_obj_t *parent) {
   lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_opa(row, LV_OPA_TRANSP, 0);
   lv_obj_set_style_pad_all(row, 0, 0);
-  lv_obj_set_style_pad_bottom(row, 2, 0);
-  lv_obj_set_style_pad_right(row, 12, 0);
-  lv_obj_set_style_pad_column(row, 8, 0);
+  lv_obj_set_style_pad_bottom(row, popup_layout::scale(2), 0);
+  lv_obj_set_style_pad_right(row, popup_layout::scale(12), 0);
+  lv_obj_set_style_pad_column(row, popup_layout::scale(8), 0);
   lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
   return row;
@@ -750,12 +753,12 @@ static void style_plain_container(lv_obj_t* obj) {
 }
 
 static void style_popup_textarea(lv_obj_t* ta) {
-  lv_obj_set_height(ta, 48);
+  lv_obj_set_height(ta, popup_layout::scale(48));
   lv_textarea_set_one_line(ta, true);
-  lv_obj_set_style_text_font(ta, &ui_font_20, 0);
+  lv_obj_set_style_text_font(ta, popup_layout::font20(), 0);
   lv_obj_set_style_bg_color(ta, lv_color_hex(0x1E1E1E), 0);
   lv_obj_set_style_text_color(ta, lv_color_white(), 0);
-  lv_obj_set_style_radius(ta, 10, 0);
+  lv_obj_set_style_radius(ta, popup_layout::scale(10), 0);
   lv_obj_set_style_border_color(ta, lv_color_hex(0x555555), 0);
   lv_obj_set_style_border_width(ta, 1, 0);
   lv_obj_set_style_border_opa(ta, LV_OPA_COVER, 0);
@@ -774,36 +777,36 @@ static void style_popup_textarea(lv_obj_t* ta) {
 }
 
 static void style_popup_dropdown(lv_obj_t* dd) {
-  lv_obj_set_height(dd, 52);
-  lv_obj_set_style_text_font(dd, &ui_font_20, LV_PART_MAIN);
+  lv_obj_set_height(dd, popup_layout::scale(52));
+  lv_obj_set_style_text_font(dd, popup_layout::font20(), LV_PART_MAIN);
   lv_obj_set_style_text_font(dd, &lv_font_montserrat_20, LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(dd, lv_color_hex(0x1E1E1E), 0);
   lv_obj_set_style_text_color(dd, lv_color_white(), 0);
   lv_obj_set_style_text_color(dd, lv_color_white(), LV_PART_INDICATOR);
-  lv_obj_set_style_radius(dd, 10, 0);
+  lv_obj_set_style_radius(dd, popup_layout::scale(10), 0);
   lv_obj_set_style_border_color(dd, lv_color_hex(0x555555), 0);
   lv_obj_set_style_border_width(dd, 1, 0);
   lv_obj_set_style_border_opa(dd, LV_OPA_COVER, 0);
-  lv_obj_set_style_pad_left(dd, 12, 0);
-  lv_obj_set_style_pad_right(dd, 36, 0);
+  lv_obj_set_style_pad_left(dd, popup_layout::scale(12), 0);
+  lv_obj_set_style_pad_right(dd, popup_layout::scale(36), 0);
 }
 
 static void style_popup_dropdown_list(lv_obj_t* list) {
   if (!list) return;
   lv_obj_set_style_bg_color(list, lv_color_hex(0x1E1E1E), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(list, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_text_font(list, &ui_font_20, LV_PART_MAIN);
+  lv_obj_set_style_text_font(list, popup_layout::font20(), LV_PART_MAIN);
   lv_obj_set_style_text_color(list, lv_color_white(), LV_PART_MAIN);
-  lv_obj_set_style_radius(list, 10, LV_PART_MAIN);
+  lv_obj_set_style_radius(list, popup_layout::scale(10), LV_PART_MAIN);
   lv_obj_set_style_border_color(list, lv_color_hex(0x555555), LV_PART_MAIN);
   lv_obj_set_style_border_width(list, 1, LV_PART_MAIN);
   lv_obj_set_style_border_opa(list, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(list, 6, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(list, popup_layout::scale(6), LV_PART_MAIN);
   lv_obj_set_style_bg_color(list, lv_color_hex(0x26A69A), LV_PART_SELECTED);
   lv_obj_set_style_bg_opa(list, LV_OPA_COVER, LV_PART_SELECTED);
-  lv_obj_set_style_text_font(list, &ui_font_20, LV_PART_SELECTED);
+  lv_obj_set_style_text_font(list, popup_layout::font20(), LV_PART_SELECTED);
   lv_obj_set_style_text_color(list, lv_color_white(), LV_PART_SELECTED);
-  lv_obj_set_style_radius(list, 6, LV_PART_SELECTED);
+  lv_obj_set_style_radius(list, popup_layout::scale(6), LV_PART_SELECTED);
   lv_obj_set_style_bg_color(list, lv_color_hex(0x4A4A4A), LV_PART_SCROLLBAR);
   lv_obj_set_style_bg_opa(list, LV_OPA_COVER, LV_PART_SCROLLBAR);
 }
@@ -811,17 +814,17 @@ static void style_popup_dropdown_list(lv_obj_t* list) {
 static lv_obj_t* create_popup_button(lv_obj_t* parent, const char* text, uint32_t color,
                                      lv_event_cb_t cb) {
   lv_obj_t* btn = lv_button_create(parent);
-  lv_obj_set_height(btn, 64);
+  lv_obj_set_height(btn, popup_layout::scale(64));
   style_settings_button(btn, color);
   lv_obj_set_style_border_opa(btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_radius(btn, 20, 0);
+  lv_obj_set_style_radius(btn, popup_layout::scale(20), 0);
   lv_obj_set_style_pad_all(btn, 0, 0);
   if (cb) lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, nullptr);
   lv_obj_t* label = lv_label_create(btn);
   lv_label_set_text(label, text);
-  lv_obj_set_style_text_font(label, &ui_font_20, 0);
+  lv_obj_set_style_text_font(label, popup_layout::font20(), 0);
   lv_obj_set_style_text_color(label, lv_color_white(), 0);
   lv_obj_center(label);
   return btn;
@@ -834,7 +837,7 @@ static lv_obj_t* create_form_area(lv_obj_t* parent) {
   lv_obj_set_style_bg_opa(form, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_opa(form, LV_OPA_TRANSP, 0);
   lv_obj_set_style_pad_all(form, 0, 0);
-  lv_obj_set_style_pad_row(form, 8, 0);
+  lv_obj_set_style_pad_row(form, popup_layout::scale(8), 0);
   lv_obj_set_scrollbar_mode(form, LV_SCROLLBAR_MODE_AUTO);
   lv_obj_set_flex_flow(form, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(form, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
@@ -845,8 +848,8 @@ static lv_obj_t* create_form_row(lv_obj_t* parent) {
   lv_obj_t* row = lv_obj_create(parent);
   style_plain_container(row);
   lv_obj_set_width(row, LV_PCT(100));
-  lv_obj_set_height(row, 76);
-  lv_obj_set_style_pad_column(row, 10, 0);
+  lv_obj_set_height(row, popup_layout::scale(76));
+  lv_obj_set_style_pad_column(row, popup_layout::scale(10), 0);
   lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
   return row;
@@ -854,8 +857,8 @@ static lv_obj_t* create_form_row(lv_obj_t* parent) {
 
 static lv_obj_t* create_display_control_row(lv_obj_t* parent) {
   lv_obj_t* row = create_form_row(parent);
-  lv_obj_set_height(row, 84);
-  lv_obj_set_style_pad_column(row, 18, 0);
+  lv_obj_set_height(row, popup_layout::scale(84));
+  lv_obj_set_style_pad_column(row, popup_layout::scale(18), 0);
   return row;
 }
 
@@ -870,7 +873,7 @@ static lv_obj_t* create_display_row_label(lv_obj_t* parent, const char* text,
   lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
   lv_obj_set_width(label, width);
   lv_obj_set_style_text_align(label, align, 0);
-  lv_obj_set_style_text_font(label, &ui_font_24, 0);
+  lv_obj_set_style_text_font(label, popup_layout::font24(), 0);
   lv_obj_set_style_text_color(label, lv_color_white(), 0);
   return label;
 }
@@ -1087,27 +1090,28 @@ static lv_obj_t* wifi_create_row(lv_obj_t* parent, const char* name_text, bool s
                                  bool show_lock) {
   lv_obj_t* row = lv_button_create(parent);
   lv_obj_set_width(row, LV_PCT(100));
-  lv_obj_set_height(row, 72);
+  lv_obj_set_height(row, popup_layout::scale(72));
   style_settings_button(row, 0x3A3A3A);
   lv_obj_set_style_border_opa(row, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(row, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(row, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_radius(row, 20, 0);
-  lv_obj_set_style_pad_hor(row, 20, 0);
+  lv_obj_set_style_radius(row, popup_layout::scale(20), 0);
+  lv_obj_set_style_pad_hor(row, popup_layout::scale(20), 0);
   lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(row, 12, 0);
+  lv_obj_set_style_pad_column(row, popup_layout::scale(12), 0);
 
   if (show_check) {
     lv_obj_t* check = lv_label_create(row);
     lv_label_set_text(check, getMdiChar("check").c_str());
     if (FONT_MDI_ICONS) lv_obj_set_style_text_font(check, FONT_MDI_ICONS, 0);
+    popup_layout::applyIconScale(check);
     lv_obj_set_style_text_color(check, lv_color_hex(0x26A69A), 0);
   }
 
   lv_obj_t* name = lv_label_create(row);
   lv_label_set_text(name, name_text);
-  lv_obj_set_style_text_font(name, &ui_font_24, 0);
+  lv_obj_set_style_text_font(name, popup_layout::font24(), 0);
   lv_obj_set_style_text_color(name, lv_color_white(), 0);
   lv_obj_set_flex_grow(name, 1);
   lv_label_set_long_mode(name, LV_LABEL_LONG_CLIP);
@@ -1116,6 +1120,7 @@ static lv_obj_t* wifi_create_row(lv_obj_t* parent, const char* name_text, bool s
     lv_obj_t* lock = lv_label_create(row);
     lv_label_set_text(lock, getMdiChar("lock").c_str());
     if (FONT_MDI_ICONS) lv_obj_set_style_text_font(lock, FONT_MDI_ICONS, 0);
+    popup_layout::applyIconScale(lock);
     lv_obj_set_style_text_color(lock, lv_color_hex(0x888888), 0);
   }
   return row;
@@ -1302,7 +1307,7 @@ static void wifi_update_conn_status_label() {
     // Ueberschrift + Zugangsdaten-Zeilen (SSID/Passwort/IP buendig
     // untereinander) statt des frueheren Fliesstexts mit "(PW: ...)".
     lv_label_set_text(wifi_conn_status_label, tr().wifi_ap_active);
-    lv_obj_set_style_text_font(wifi_conn_status_label, &ui_font_28, 0);
+    lv_obj_set_style_text_font(wifi_conn_status_label, popup_layout::font28(), 0);
     lv_obj_set_style_text_color(wifi_conn_status_label, lv_color_hex(0xFFC04D), 0);
     // Direkt nach dem Einschalten liefert softAPIP() noch "0.0.0.0" -
     // dann die AP-Standard-IP anzeigen statt Muell.
@@ -1324,11 +1329,16 @@ static void wifi_update_conn_status_label() {
         // dann genau den Restplatz, den der QR-Code einnehmen darf (abzueglich
         // pad_row der Infobox + etwas Luft).
         if (wifi_list_view) lv_obj_update_layout(wifi_list_view);
-        int target = 320;
-        if (wifi_list_spacer) target = lv_obj_get_height(wifi_list_spacer) - 24;
+        int target = popup_layout::scale(320);
+        if (wifi_list_spacer) {
+          target = lv_obj_get_height(wifi_list_spacer) -
+                   popup_layout::scale(24);
+        }
         const int max_w = lv_obj_get_content_width(lv_obj_get_parent(wifi_ap_qr));
         if (target > max_w) target = max_w;
-        if (target < 240) target = 240;
+        if (target < popup_layout::scale(240)) {
+          target = popup_layout::scale(240);
+        }
         lv_qrcode_set_size(wifi_ap_qr, target);
         wifi_ap_qr_sized = true;
       }
@@ -1354,7 +1364,7 @@ static void wifi_update_conn_status_label() {
   if (wifi_ap_qr) lv_obj_add_flag(wifi_ap_qr, LV_OBJ_FLAG_HIDDEN);
 #endif
   if (wifi_ap_info_rows) lv_obj_add_flag(wifi_ap_info_rows, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_set_style_text_font(wifi_conn_status_label, &ui_font_24, 0);
+  lv_obj_set_style_text_font(wifi_conn_status_label, popup_layout::font24(), 0);
   if (networkTransport.isConnected()) {
     const String network_name =
         networkTransport.activeKind() == NetworkTransportKind::Wifi
@@ -1775,14 +1785,15 @@ static void build_display_popup(lv_obj_t* parent) {
   // Vier Reihen: mit festem Abstand von oben und ausreichend Luft dazwischen -
   // nicht ganz oben angeklebt (wirkte verloren), aber auch nicht komplett
   // mittig (User-Wunsch).
-  lv_obj_set_style_pad_top(form, 48, 0);
-  lv_obj_set_style_pad_row(form, 26, 0);
+  lv_obj_set_style_pad_top(form, popup_layout::scale(48), 0);
+  lv_obj_set_style_pad_row(form, popup_layout::scale(26), 0);
 
   // Schmalere Beschriftungs-/Wertspalten als frueher (210/150): der
   // Slider dazwischen bekommt den gewonnenen Platz.
   lv_obj_t* brightness_row = create_display_control_row(form);
   brightness_title_label =
-      create_display_row_label(brightness_row, tr().brightness_label, 170);
+      create_display_row_label(brightness_row, tr().brightness_label,
+                               popup_layout::scale(170));
 
   lv_obj_t* brightness_slider = lv_slider_create(brightness_row);
   style_settings_slider(brightness_slider);
@@ -1799,10 +1810,13 @@ static void build_display_popup(lv_obj_t* parent) {
   // Gleiche Wertspaltenbreite wie beim Sleep-Slider, damit beide Slider
   // exakt gleich lang sind
   brightness_label =
-      create_display_row_label(brightness_row, bright_buf, 130, LV_TEXT_ALIGN_RIGHT);
+      create_display_row_label(brightness_row, bright_buf,
+                               popup_layout::scale(130),
+                               LV_TEXT_ALIGN_RIGHT);
 
   lv_obj_t* sleep_row = create_display_control_row(form);
-  sleep_label = create_display_row_label(sleep_row, tr().sleep_label, 170);
+  sleep_label = create_display_row_label(
+      sleep_row, tr().sleep_label, popup_layout::scale(170));
 
   sleep_slider = lv_slider_create(sleep_row);
   style_settings_slider(sleep_slider);
@@ -1819,11 +1833,14 @@ static void build_display_popup(lv_obj_t* parent) {
   static char sleep_buf[32];
   format_sleep_popup_value_for_index(sleep_buf, sizeof(sleep_buf), sleep_index);
   sleep_time_label =
-      create_display_row_label(sleep_row, sleep_buf, 130, LV_TEXT_ALIGN_RIGHT);
+      create_display_row_label(sleep_row, sleep_buf,
+                               popup_layout::scale(130),
+                               LV_TEXT_ALIGN_RIGHT);
 
   lv_obj_t* screensaver_row = create_display_control_row(form);
   screensaver_label =
-      create_display_row_label(screensaver_row, tr().screensaver_label, 170);
+      create_display_row_label(screensaver_row, tr().screensaver_label,
+                               popup_layout::scale(170));
 
   screensaver_slider = lv_slider_create(screensaver_row);
   style_settings_slider(screensaver_slider);
@@ -1843,24 +1860,27 @@ static void build_display_popup(lv_obj_t* parent) {
   format_sleep_popup_value_for_index(screensaver_buf, sizeof(screensaver_buf),
                                      screensaver_index);
   screensaver_time_label = create_display_row_label(
-      screensaver_row, screensaver_buf, 130, LV_TEXT_ALIGN_RIGHT);
+      screensaver_row, screensaver_buf, popup_layout::scale(130),
+      LV_TEXT_ALIGN_RIGHT);
 
   // Rotation als vollbreiter Button mit Icon + Beschriftung im Button
   // (statt "Rotation"-Label links neben einem Icon-Button)
   display_rotate_btn = create_popup_button(form, "", 0x26A69A, on_display_rotate_clicked);
   lv_obj_set_width(display_rotate_btn, LV_PCT(100));
-  lv_obj_set_height(display_rotate_btn, 76);
+  lv_obj_set_height(display_rotate_btn, popup_layout::scale(76));
   lv_obj_set_flex_flow(display_rotate_btn, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(display_rotate_btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(display_rotate_btn, 14, 0);
+  lv_obj_set_style_pad_column(display_rotate_btn, popup_layout::scale(14), 0);
   // Das von create_popup_button angelegte Label wird zum Icon (Flex-Layout
   // ueberstimmt dessen lv_obj_center)
   display_rotate_label = lv_obj_get_child(display_rotate_btn, 0);
   if (FONT_MDI_ICONS) lv_obj_set_style_text_font(display_rotate_label, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(display_rotate_label);
   display_rotate_text_label = lv_label_create(display_rotate_btn);
   lv_label_set_text(display_rotate_text_label, tr().display_rotate_btn_text);
-  lv_obj_set_style_text_font(display_rotate_text_label, &ui_font_28, 0);
+  lv_obj_set_style_text_font(display_rotate_text_label,
+                             popup_layout::font28(), 0);
   lv_obj_set_style_text_color(display_rotate_text_label, lv_color_white(), 0);
   update_display_rotate_label();
 }
@@ -1871,8 +1891,8 @@ static void build_display_popup(lv_obj_t* parent) {
 // (ignore-layout, wie Save-/Close-Button) statt in settings_popup_content
 // gehaengt - andernfalls wuerde settings_popup_content (pad=0) das Ausbrechen
 // aus seiner eigenen Box abschneiden.
-static constexpr int kPopupCardPad = 20;  // muss zu settings_popup_card passen
-static constexpr int kKeyboardInset = 11;
+static constexpr int kPopupCardPad = popup_layout::scale(20);
+static constexpr int kKeyboardInset = popup_layout::scale(11);
 static constexpr int kKeyboardBleed = kPopupCardPad - kKeyboardInset;
 
 // content_parent = settings_popup_content (Breite/Hoehe zur Laufzeit
@@ -1938,13 +1958,13 @@ static lv_obj_t* create_info_value_row(lv_obj_t* parent, const char* label_text)
 
   lv_obj_t* label = lv_label_create(row);
   lv_label_set_text_fmt(label, "%s:", label_text);
-  lv_obj_set_width(label, 160);
-  lv_obj_set_style_text_font(label, &ui_font_24, 0);
+  lv_obj_set_width(label, popup_layout::scale(160));
+  lv_obj_set_style_text_font(label, popup_layout::font24(), 0);
   lv_obj_set_style_text_color(label, lv_color_hex(0xC8C8C8), 0);
 
   lv_obj_t* value = lv_label_create(row);
   lv_label_set_text(value, "-");
-  lv_obj_set_style_text_font(value, &ui_font_24, 0);
+  lv_obj_set_style_text_font(value, popup_layout::font24(), 0);
   lv_obj_set_style_text_color(value, lv_color_white(), 0);
   return value;
 }
@@ -1958,13 +1978,13 @@ static lv_obj_t* wifi_create_entry_row(lv_obj_t* parent, const char* label_text,
   lv_obj_set_height(row, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(row, 14, 0);
+  lv_obj_set_style_pad_column(row, popup_layout::scale(14), 0);
 
   lv_obj_t* label = lv_label_create(row);
   lv_label_set_text_fmt(label, "%s:", label_text);
   lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
-  lv_obj_set_width(label, 160);
-  lv_obj_set_style_text_font(label, &ui_font_24, 0);
+  lv_obj_set_width(label, popup_layout::scale(160));
+  lv_obj_set_style_text_font(label, popup_layout::font24(), 0);
   lv_obj_set_style_text_color(label, lv_color_hex(0xC8C8C8), 0);
 
   lv_obj_t* ta = lv_textarea_create(row);
@@ -1983,10 +2003,10 @@ static lv_obj_t* wifi_create_entry_row(lv_obj_t* parent, const char* label_text,
   lv_obj_add_event_cb(ta, on_popup_textarea_defocused, LV_EVENT_DEFOCUSED, nullptr);
 
   lv_obj_set_height(ta, LV_SIZE_CONTENT);
-  lv_obj_set_style_pad_ver(ta, 20, 0);
-  lv_obj_set_style_pad_left(ta, 20, 0);
-  lv_obj_set_style_radius(ta, 18, 0);
-  lv_obj_set_style_text_font(ta, &ui_font_28, 0);
+  lv_obj_set_style_pad_ver(ta, popup_layout::scale(20), 0);
+  lv_obj_set_style_pad_left(ta, popup_layout::scale(20), 0);
+  lv_obj_set_style_radius(ta, popup_layout::scale(18), 0);
+  lv_obj_set_style_text_font(ta, popup_layout::font28(), 0);
   // lv_textarea ist intern scrollbar - ohne das hier zeigt LVGL einen
   // Scrollbalken an der Feldkante.
   lv_obj_set_scrollbar_mode(ta, LV_SCROLLBAR_MODE_OFF);
@@ -2008,11 +2028,12 @@ static void build_wifi_popup(lv_obj_t* parent) {
   // vollbreite Kinder sind davon unbeeindruckt.
   lv_obj_set_flex_align(wifi_list_view, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_row(wifi_list_view, 10, 0);
+  lv_obj_set_style_pad_row(wifi_list_view, popup_layout::scale(10), 0);
 
   wifi_scan_status_label = lv_label_create(wifi_list_view);
   lv_label_set_text(wifi_scan_status_label, tr().wifi_scan_searching);
-  lv_obj_set_style_text_font(wifi_scan_status_label, &ui_font_20, 0);
+  lv_obj_set_style_text_font(wifi_scan_status_label,
+                             popup_layout::font20(), 0);
   lv_obj_set_style_text_color(wifi_scan_status_label, lv_color_hex(0xA0A0A0), 0);
 
   // Liste ist nur so hoch wie ihr Inhalt (max. knapp die halbe Ansicht,
@@ -2027,7 +2048,7 @@ static void build_wifi_popup(lv_obj_t* parent) {
   // Scrollen per Touch bleibt, nur der Balken verschwindet.
   lv_obj_set_scrollbar_mode(wifi_list_container, LV_SCROLLBAR_MODE_OFF);
   lv_obj_set_flex_flow(wifi_list_container, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_style_pad_row(wifi_list_container, 8, 0);
+  lv_obj_set_style_pad_row(wifi_list_container, popup_layout::scale(8), 0);
 
   // Ausserhalb des scrollbaren Containers - steht immer fest unter der Liste
   // (statt bei jedem Rescan mit den Ergebnissen neu erzeugt zu werden) und ist
@@ -2036,13 +2057,14 @@ static void build_wifi_popup(lv_obj_t* parent) {
   style_plain_container(wifi_manual_gap);
   lv_obj_clear_flag(wifi_manual_gap, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_set_width(wifi_manual_gap, LV_PCT(100));
-  lv_obj_set_height(wifi_manual_gap, 6);
+  lv_obj_set_height(wifi_manual_gap, popup_layout::scale(6));
 
   wifi_manual_row = wifi_create_row(wifi_list_view, tr().wifi_manual_entry, false, false);
   lv_obj_add_event_cb(wifi_manual_row, on_wifi_manual_clicked, LV_EVENT_CLICKED, nullptr);
   lv_obj_t* manual_chevron = lv_label_create(wifi_manual_row);
   lv_label_set_text(manual_chevron, getMdiChar("chevron-right").c_str());
   if (FONT_MDI_ICONS) lv_obj_set_style_text_font(manual_chevron, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(manual_chevron);
   lv_obj_set_style_text_color(manual_chevron, lv_color_hex(0x888888), 0);
 
   // Spacer drueckt den Fussbereich (Infobox + AP-Button) nach unten; im
@@ -2058,9 +2080,9 @@ static void build_wifi_popup(lv_obj_t* parent) {
   lv_obj_set_height(wifi_info_box, LV_SIZE_CONTENT);
   lv_obj_set_style_bg_color(wifi_info_box, lv_color_hex(0x333333), 0);
   lv_obj_set_style_bg_opa(wifi_info_box, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(wifi_info_box, 20, 0);
-  lv_obj_set_style_pad_all(wifi_info_box, 18, 0);
-  lv_obj_set_style_pad_row(wifi_info_box, 16, 0);
+  lv_obj_set_style_radius(wifi_info_box, popup_layout::scale(20), 0);
+  lv_obj_set_style_pad_all(wifi_info_box, popup_layout::scale(18), 0);
+  lv_obj_set_style_pad_row(wifi_info_box, popup_layout::scale(16), 0);
   lv_obj_set_flex_flow(wifi_info_box, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(wifi_info_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
@@ -2069,7 +2091,8 @@ static void build_wifi_popup(lv_obj_t* parent) {
   lv_obj_set_width(wifi_conn_status_label, LV_PCT(100));
   lv_label_set_long_mode(wifi_conn_status_label, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_text_align(wifi_conn_status_label, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_style_text_font(wifi_conn_status_label, &ui_font_24, 0);
+  lv_obj_set_style_text_font(wifi_conn_status_label,
+                             popup_layout::font24(), 0);
 
   // Nach einem Wechsel steht der Neustart-Hinweis direkt beim aktuellen
   // Verbindungsstatus in der Infobox statt losgeloest unter den Buttons.
@@ -2078,7 +2101,8 @@ static void build_wifi_popup(lv_obj_t* parent) {
     lv_obj_set_width(net_mode_hint_label, LV_PCT(100));
     lv_label_set_long_mode(net_mode_hint_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(net_mode_hint_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_font(net_mode_hint_label, &ui_font_20, 0);
+    lv_obj_set_style_text_font(net_mode_hint_label,
+                               popup_layout::font20(), 0);
     lv_obj_set_style_text_color(net_mode_hint_label, lv_color_hex(0xFFC04D), 0);
     lv_label_set_text(net_mode_hint_label, tr().net_mode_restart_note);
     lv_obj_add_flag(net_mode_hint_label, LV_OBJ_FLAG_HIDDEN);
@@ -2090,7 +2114,7 @@ static void build_wifi_popup(lv_obj_t* parent) {
   lv_obj_set_width(ip_mode_hint_label, LV_PCT(100));
   lv_label_set_long_mode(ip_mode_hint_label, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_text_align(ip_mode_hint_label, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_style_text_font(ip_mode_hint_label, &ui_font_20, 0);
+  lv_obj_set_style_text_font(ip_mode_hint_label, popup_layout::font20(), 0);
   lv_obj_set_style_text_color(
       ip_mode_hint_label, lv_color_hex(0xFFC04D), 0);
   lv_label_set_text(ip_mode_hint_label, tr().ethernet_dhcp_selected);
@@ -2103,7 +2127,7 @@ static void build_wifi_popup(lv_obj_t* parent) {
   style_plain_container(wifi_ap_info_rows);
   lv_obj_set_size(wifi_ap_info_rows, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(wifi_ap_info_rows, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_style_pad_row(wifi_ap_info_rows, 8, 0);
+  lv_obj_set_style_pad_row(wifi_ap_info_rows, popup_layout::scale(8), 0);
   lv_obj_add_flag(wifi_ap_info_rows, LV_OBJ_FLAG_HIDDEN);
   wifi_ap_ssid_val = create_info_value_row(wifi_ap_info_rows, tr().ssid_label);
   wifi_ap_pw_val = create_info_value_row(wifi_ap_info_rows, tr().wifi_password_label);
@@ -2111,7 +2135,7 @@ static void build_wifi_popup(lv_obj_t* parent) {
 
 #if LV_USE_QRCODE
   wifi_ap_qr = lv_qrcode_create(wifi_info_box);
-  lv_qrcode_set_size(wifi_ap_qr, 320);
+  lv_qrcode_set_size(wifi_ap_qr, popup_layout::scale(320));
   lv_qrcode_set_dark_color(wifi_ap_qr, lv_color_black());
   lv_qrcode_set_light_color(wifi_ap_qr, lv_color_white());
   lv_qrcode_set_quiet_zone(wifi_ap_qr, true);
@@ -2129,23 +2153,29 @@ static void build_wifi_popup(lv_obj_t* parent) {
   lv_obj_set_width(wifi_btn_row, LV_PCT(100));
   lv_obj_set_height(wifi_btn_row, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(wifi_btn_row, LV_FLEX_FLOW_ROW);
-  lv_obj_set_style_pad_column(wifi_btn_row, 12, 0);
+  lv_obj_set_style_pad_column(wifi_btn_row, popup_layout::scale(12), 0);
 
   wifi_disconnect_btn = create_popup_button(wifi_btn_row, tr().wifi_disconnect_btn,
                                             0xC14444, on_wifi_disconnect_clicked);
   lv_obj_set_flex_grow(wifi_disconnect_btn, 1);
-  lv_obj_set_height(wifi_disconnect_btn, 76);
+  lv_obj_set_height(wifi_disconnect_btn, popup_layout::scale(76));
   lv_obj_t* disconnect_label = lv_obj_get_child(wifi_disconnect_btn, 0);
-  if (disconnect_label) lv_obj_set_style_text_font(disconnect_label, &ui_font_28, 0);
+  if (disconnect_label) {
+    lv_obj_set_style_text_font(disconnect_label,
+                               popup_layout::font28(), 0);
+  }
   lv_obj_add_flag(wifi_disconnect_btn, LV_OBJ_FLAG_HIDDEN);
 
   ap_mode_btn = create_popup_button(wifi_btn_row, ap_mode_active ? tr().ap_disable : tr().ap_enable,
                                     ap_mode_active ? 0xC62828 : 0xFF9800,
                                     on_popup_ap_mode_clicked);
   lv_obj_set_flex_grow(ap_mode_btn, 1);
-  lv_obj_set_height(ap_mode_btn, 76);
+  lv_obj_set_height(ap_mode_btn, popup_layout::scale(76));
   ap_mode_btn_label = lv_obj_get_child(ap_mode_btn, 0);
-  if (ap_mode_btn_label) lv_obj_set_style_text_font(ap_mode_btn_label, &ui_font_28, 0);
+  if (ap_mode_btn_label) {
+    lv_obj_set_style_text_font(ap_mode_btn_label,
+                               popup_layout::font28(), 0);
+  }
 
   // Der DHCP-Reset gilt fuer das ausgewaehlte Netzwerkprofil und ist deshalb
   // auch auf reinen WLAN-Geraeten verfuegbar. Der Ethernet-Schalter wird nur
@@ -2156,17 +2186,18 @@ static void build_wifi_popup(lv_obj_t* parent) {
   lv_obj_set_width(net_mode_row, LV_PCT(100));
   lv_obj_set_height(net_mode_row, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(net_mode_row, LV_FLEX_FLOW_ROW);
-  lv_obj_set_style_pad_column(net_mode_row, 12, 0);
+  lv_obj_set_style_pad_column(net_mode_row, popup_layout::scale(12), 0);
 
   if (NetworkTransportManager::deviceSupportsEthernet()) {
     net_mode_btn = create_popup_button(net_mode_row, "", 0x424242,
                                        on_net_mode_clicked);
     lv_obj_set_width(net_mode_btn, 1);
     lv_obj_set_flex_grow(net_mode_btn, 1);
-    lv_obj_set_height(net_mode_btn, 76);
+    lv_obj_set_height(net_mode_btn, popup_layout::scale(76));
     net_mode_btn_label = lv_obj_get_child(net_mode_btn, 0);
     if (net_mode_btn_label) {
-      lv_obj_set_style_text_font(net_mode_btn_label, &ui_font_28, 0);
+      lv_obj_set_style_text_font(net_mode_btn_label,
+                                 popup_layout::font28(), 0);
     }
   }
 
@@ -2174,7 +2205,7 @@ static void build_wifi_popup(lv_obj_t* parent) {
       net_mode_row, "", 0x424242, on_ethernet_dhcp_clicked);
   lv_obj_set_width(ethernet_dhcp_btn, 1);
   lv_obj_set_flex_grow(ethernet_dhcp_btn, 1);
-  lv_obj_set_height(ethernet_dhcp_btn, 76);
+  lv_obj_set_height(ethernet_dhcp_btn, popup_layout::scale(76));
   ethernet_dhcp_btn_label = lv_obj_get_child(ethernet_dhcp_btn, 0);
   if (ethernet_dhcp_btn_label) {
     lv_obj_set_width(ethernet_dhcp_btn_label, LV_PCT(94));
@@ -2182,7 +2213,7 @@ static void build_wifi_popup(lv_obj_t* parent) {
     lv_obj_set_style_text_align(
         ethernet_dhcp_btn_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(
-        ethernet_dhcp_btn_label, &ui_font_28, 0);
+        ethernet_dhcp_btn_label, popup_layout::font28(), 0);
   }
 
   net_mode_update_ui();
@@ -2200,17 +2231,18 @@ static void build_wifi_popup(lv_obj_t* parent) {
                         LV_FLEX_ALIGN_CENTER);
   // Etwas enger als die anderen Formulare: mit der 48%-Tastatur muss
   // "2 Zeilen + Verbinden" auch auf den 720er-Displays sicher passen.
-  lv_obj_set_style_pad_row(wifi_entry_view, 10, 0);
+  lv_obj_set_style_pad_row(wifi_entry_view, popup_layout::scale(10), 0);
   lv_obj_add_flag(wifi_entry_view, LV_OBJ_FLAG_HIDDEN);
 
   wifi_create_entry_row(wifi_entry_view, tr().ssid_label, &wifi_ssid_ta,
                         CONFIG_WIFI_SSID_MAX - 1, false);
   wifi_create_entry_row(wifi_entry_view, tr().wifi_password_label, &wifi_pass_ta,
                         CONFIG_WIFI_PASS_MAX - 1, true);
-  lv_obj_set_style_pad_right(wifi_pass_ta, 64, 0);
+  lv_obj_set_style_pad_right(wifi_pass_ta, popup_layout::scale(64), 0);
   wifi_pass_eye_icon = lv_label_create(wifi_pass_ta);
   lv_label_set_text(wifi_pass_eye_icon, getMdiChar("eye").c_str());
   if (FONT_MDI_ICONS) lv_obj_set_style_text_font(wifi_pass_eye_icon, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(wifi_pass_eye_icon);
   lv_obj_set_style_text_color(wifi_pass_eye_icon, lv_color_hex(0x888888), 0);
   // FLOATING: sonst zaehlt das Icon in die LV_SIZE_CONTENT-Hoehe des Feldes
   // hinein. lv_obj_align rechnet das Eltern-Padding mit ein (siehe
@@ -2218,7 +2250,8 @@ static void build_wifi_popup(lv_obj_t* parent) {
   // damit das Icon wirklich an der Feldkante sitzt (18px Abstand) statt links
   // neben dem Textbereich zu haengen.
   lv_obj_add_flag(wifi_pass_eye_icon, LV_OBJ_FLAG_FLOATING);
-  lv_obj_align(wifi_pass_eye_icon, LV_ALIGN_RIGHT_MID, 64 - 18, 0);
+  lv_obj_align(wifi_pass_eye_icon, LV_ALIGN_RIGHT_MID,
+               popup_layout::scale(64 - 18), 0);
   lv_obj_add_flag(wifi_pass_eye_icon, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_add_event_cb(wifi_pass_eye_icon, on_wifi_pass_eye_clicked, LV_EVENT_CLICKED, nullptr);
 
@@ -2226,7 +2259,7 @@ static void build_wifi_popup(lv_obj_t* parent) {
   lv_obj_t* connect_gap = lv_obj_create(wifi_entry_view);
   style_plain_container(connect_gap);
   lv_obj_clear_flag(connect_gap, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_set_size(connect_gap, LV_PCT(100), 6);
+  lv_obj_set_size(connect_gap, LV_PCT(100), popup_layout::scale(6));
 
   // Eigener, klar beschrifteter Verbinden-Button statt des generischen
   // Speichern oben rechts. Nutzt denselben Save-Dispatch wie die Tastatur-
@@ -2236,9 +2269,12 @@ static void build_wifi_popup(lv_obj_t* parent) {
   lv_obj_t* wifi_connect_btn = create_popup_button(wifi_entry_view, tr().wifi_connect_btn, 0x2E7D32,
                                                    on_settings_popup_save_clicked);
   lv_obj_set_width(wifi_connect_btn, LV_PCT(100));
-  lv_obj_set_height(wifi_connect_btn, 76);
+  lv_obj_set_height(wifi_connect_btn, popup_layout::scale(76));
   lv_obj_t* connect_label = lv_obj_get_child(wifi_connect_btn, 0);
-  if (connect_label) lv_obj_set_style_text_font(connect_label, &ui_font_28, 0);
+  if (connect_label) {
+    lv_obj_set_style_text_font(connect_label,
+                               popup_layout::font28(), 0);
+  }
 
   // Restplatz zwischen Button und Tastaturbereich
   create_flex_spacer(wifi_entry_view);
@@ -2271,11 +2307,11 @@ static String format_options_text(bool time_format) {
 static void style_locale_dropdown_list(lv_obj_t* list) {
   if (!list) return;
   style_popup_dropdown_list(list);
-  lv_obj_set_style_text_font(list, &ui_font_28, LV_PART_MAIN);
-  lv_obj_set_style_text_font(list, &ui_font_28, LV_PART_SELECTED);
-  lv_obj_set_style_pad_left(list, 20, 0);
-  lv_obj_set_style_pad_right(list, 10, 0);
-  lv_obj_set_style_pad_ver(list, 8, 0);
+  lv_obj_set_style_text_font(list, popup_layout::font28(), LV_PART_MAIN);
+  lv_obj_set_style_text_font(list, popup_layout::font28(), LV_PART_SELECTED);
+  lv_obj_set_style_pad_left(list, popup_layout::scale(20), 0);
+  lv_obj_set_style_pad_right(list, popup_layout::scale(10), 0);
+  lv_obj_set_style_pad_ver(list, popup_layout::scale(8), 0);
   lv_obj_set_style_clip_corner(list, true, 0);
 }
 
@@ -2299,15 +2335,15 @@ static lv_obj_t* create_locale_dropdown_row(lv_obj_t* form, const char* label_te
   lv_obj_set_height(row, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(row, 14, 0);
+  lv_obj_set_style_pad_column(row, popup_layout::scale(14), 0);
 
   // Breiter als beim WLAN (160): "Datumsformat" braucht Platz, und eine
   // gemeinsame Spaltenbreite haelt alle Dropdowns buendig untereinander.
   lv_obj_t* label = lv_label_create(row);
   lv_label_set_text(label, label_text);
   lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
-  lv_obj_set_width(label, 210);
-  lv_obj_set_style_text_font(label, &ui_font_24, 0);
+  lv_obj_set_width(label, popup_layout::scale(210));
+  lv_obj_set_style_text_font(label, popup_layout::font24(), 0);
   lv_obj_set_style_text_color(label, lv_color_white(), 0);
 
   lv_obj_t* dd = lv_dropdown_create(row);
@@ -2320,10 +2356,10 @@ static lv_obj_t* create_locale_dropdown_row(lv_obj_t* form, const char* label_te
 
   // Inhaltshoehe + symmetrisches Padding = Text sitzt exakt mittig
   lv_obj_set_height(dd, LV_SIZE_CONTENT);
-  lv_obj_set_style_pad_ver(dd, 18, 0);
-  lv_obj_set_style_pad_left(dd, 20, 0);
-  lv_obj_set_style_radius(dd, 18, 0);
-  lv_obj_set_style_text_font(dd, &ui_font_28, LV_PART_MAIN);
+  lv_obj_set_style_pad_ver(dd, popup_layout::scale(18), 0);
+  lv_obj_set_style_pad_left(dd, popup_layout::scale(20), 0);
+  lv_obj_set_style_radius(dd, popup_layout::scale(18), 0);
+  lv_obj_set_style_text_font(dd, popup_layout::font28(), LV_PART_MAIN);
   lv_obj_set_style_text_font(dd, &lv_font_montserrat_24, LV_PART_INDICATOR);
   style_locale_dropdown_list(lv_dropdown_get_list(dd));
   lv_obj_add_event_cb(dd, on_locale_dropdown_ready, LV_EVENT_READY, nullptr);
@@ -2334,7 +2370,7 @@ static void build_localization_popup(lv_obj_t* parent) {
   const DeviceConfig& cfg = configManager.getConfig();
   lv_obj_t* form = create_form_area(parent);
   // Gleicher Zeilenabstand wie die WLAN-Eingabe-Ansicht
-  lv_obj_set_style_pad_row(form, 14, 0);
+  lv_obj_set_style_pad_row(form, popup_layout::scale(14), 0);
 
   build_timezone_dropdown_options();
   const String language_options = i18n::build_language_dropdown_options();
@@ -2364,9 +2400,12 @@ static void build_localization_popup(lv_obj_t* parent) {
   lv_obj_t* save_btn = create_popup_button(parent, tr().save, 0x2E7D32,
                                            on_settings_popup_save_clicked);
   lv_obj_set_width(save_btn, LV_PCT(100));
-  lv_obj_set_height(save_btn, 76);
+  lv_obj_set_height(save_btn, popup_layout::scale(76));
   lv_obj_t* save_btn_label = lv_obj_get_child(save_btn, 0);
-  if (save_btn_label) lv_obj_set_style_text_font(save_btn_label, &ui_font_28, 0);
+  if (save_btn_label) {
+    lv_obj_set_style_text_font(save_btn_label,
+                               popup_layout::font28(), 0);
+  }
 }
 
 // ===== System-Popup: Version/Geraet, GitHub-QR, Update-Suche + OTA-Install =====
@@ -2431,11 +2470,16 @@ static void system_show_qr(bool show) {
     if (system_action_row) lv_obj_add_flag(system_action_row, LV_OBJ_FLAG_HIDDEN);
     if (!system_qr_sized) {
       if (settings_popup_content) lv_obj_update_layout(settings_popup_content);
-      int target = 280;
-      if (system_spacer) target = lv_obj_get_height(system_spacer) - 26;
+      int target = popup_layout::scale(280);
+      if (system_spacer) {
+        target = lv_obj_get_height(system_spacer) -
+                 popup_layout::scale(26);
+      }
       const int max_w = lv_obj_get_content_width(lv_obj_get_parent(system_qr));
       if (target > max_w) target = max_w;
-      if (target < 240) target = 240;
+      if (target < popup_layout::scale(240)) {
+        target = popup_layout::scale(240);
+      }
       lv_qrcode_set_size(system_qr, target);
       lv_qrcode_update(system_qr, GithubUpdate::kRepoUrl, strlen(GithubUpdate::kRepoUrl));
       system_qr_sized = true;
@@ -2546,8 +2590,8 @@ static void build_system_popup(lv_obj_t* parent) {
   lv_obj_set_flex_align(box, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
   // Gleiche Anmutung wie das Display-Formular: fester Abstand von oben
-  lv_obj_set_style_pad_top(box, 48, 0);
-  lv_obj_set_style_pad_row(box, 18, 0);
+  lv_obj_set_style_pad_top(box, popup_layout::scale(48), 0);
+  lv_obj_set_style_pad_row(box, popup_layout::scale(18), 0);
 
   // Marke oben im Popup: Icon links, rechts daneben Produktname mit der
   // Version klein darunter -- wie ein App-"Ueber"-Screen.
@@ -2558,8 +2602,8 @@ static void build_system_popup(lv_obj_t* parent) {
   lv_obj_set_flex_flow(brand, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(brand, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(brand, 18, 0);
-  create_hometiles_logo_mark(brand, 100);
+  lv_obj_set_style_pad_column(brand, popup_layout::scale(18), 0);
+  create_hometiles_logo_mark(brand, popup_layout::scale(100));
 
   lv_obj_t* brand_text = lv_obj_create(brand);
   style_plain_container(brand_text);
@@ -2568,23 +2612,23 @@ static void build_system_popup(lv_obj_t* parent) {
   lv_obj_set_flex_flow(brand_text, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(brand_text, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
                         LV_FLEX_ALIGN_START);
-  lv_obj_set_style_pad_row(brand_text, 2, 0);
+  lv_obj_set_style_pad_row(brand_text, popup_layout::scale(2), 0);
 
   lv_obj_t* brand_title = lv_label_create(brand_text);
   lv_label_set_text(brand_title, "HomeTiles");
-  lv_obj_set_style_text_font(brand_title, &ui_font_40, 0);
+  lv_obj_set_style_text_font(brand_title, popup_layout::font40(), 0);
   lv_obj_set_style_text_color(brand_title, lv_color_white(), 0);
 
   lv_obj_t* version_caption = lv_label_create(brand_text);
   lv_label_set_text(version_caption, FW_VERSION);
-  lv_obj_set_style_text_font(version_caption, &ui_font_24, 0);
+  lv_obj_set_style_text_font(version_caption, popup_layout::font24(), 0);
   lv_obj_set_style_text_color(version_caption, lv_color_hex(0xA8A8A8), 0);
 
   // Geraetename allein, ohne "Device:"-Label -- gleiche Optik wie die
   // Version-Caption darueber (Name wechselt eh nie waehrend das Popup offen ist).
   system_info_rows = lv_label_create(box);
   lv_label_set_text(system_info_rows, Device::displayName());
-  lv_obj_set_style_text_font(system_info_rows, &ui_font_24, 0);
+  lv_obj_set_style_text_font(system_info_rows, popup_layout::font24(), 0);
   lv_obj_set_style_text_color(system_info_rows, lv_color_hex(0xA8A8A8), 0);
 
 #if LV_USE_QRCODE
@@ -2594,8 +2638,8 @@ static void build_system_popup(lv_obj_t* parent) {
   // weissen QR-Rahmen) aufzublaehen. QR-Groesse haengt vom Rest-Platz ab
   // (siehe system_show_qr), passt sich also automatisch an und bleibt auch
   // auf 720p-Geraeten im Rahmen.
-  lv_obj_set_style_margin_top(system_qr, 14, 0);
-  lv_qrcode_set_size(system_qr, 280);
+  lv_obj_set_style_margin_top(system_qr, popup_layout::scale(14), 0);
+  lv_qrcode_set_size(system_qr, popup_layout::scale(280));
   lv_qrcode_set_dark_color(system_qr, lv_color_black());
   lv_qrcode_set_light_color(system_qr, lv_color_white());
   lv_qrcode_set_quiet_zone(system_qr, true);
@@ -2616,7 +2660,7 @@ static void build_system_popup(lv_obj_t* parent) {
   lv_obj_set_width(system_status_label, LV_PCT(100));
   lv_label_set_long_mode(system_status_label, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_text_align(system_status_label, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_style_text_font(system_status_label, &ui_font_24, 0);
+  lv_obj_set_style_text_font(system_status_label, popup_layout::font24(), 0);
   lv_obj_set_style_text_color(system_status_label, lv_color_hex(0xC8C8C8), 0);
   if (system_update_available && system_latest_tag[0]) {
     // Bekanntes Check-Ergebnis samt Neustart-Hinweis beim erneuten Oeffnen
@@ -2627,23 +2671,27 @@ static void build_system_popup(lv_obj_t* parent) {
   }
 
   system_progress_bar = lv_bar_create(box);
-  lv_obj_set_size(system_progress_bar, LV_PCT(100), 18);
+  lv_obj_set_size(system_progress_bar, LV_PCT(100),
+                  popup_layout::scale(18));
   lv_obj_set_style_bg_color(system_progress_bar, lv_color_hex(0x1E1E1E), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(system_progress_bar, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_radius(system_progress_bar, 9, LV_PART_MAIN);
+  lv_obj_set_style_radius(system_progress_bar,
+                          popup_layout::scale(9), LV_PART_MAIN);
   lv_obj_set_style_bg_color(system_progress_bar, lv_color_hex(0x43A047), LV_PART_INDICATOR);
   lv_obj_set_style_bg_opa(system_progress_bar, LV_OPA_COVER, LV_PART_INDICATOR);
-  lv_obj_set_style_radius(system_progress_bar, 9, LV_PART_INDICATOR);
+  lv_obj_set_style_radius(system_progress_bar,
+                          popup_layout::scale(9), LV_PART_INDICATOR);
   lv_bar_set_range(system_progress_bar, 0, 100);
   lv_obj_add_flag(system_progress_bar, LV_OBJ_FLAG_HIDDEN);
 
   // Gruen = positive "Los"-Aktion (wie WLAN-Verbinden und Speichern)
   system_check_btn = create_popup_button(box, "", 0x2E7D32, on_system_check_clicked);
   lv_obj_set_width(system_check_btn, LV_PCT(100));
-  lv_obj_set_height(system_check_btn, 76);
+  lv_obj_set_height(system_check_btn, popup_layout::scale(76));
   system_check_btn_label = lv_obj_get_child(system_check_btn, 0);
   if (system_check_btn_label) {
-    lv_obj_set_style_text_font(system_check_btn_label, &ui_font_28, 0);
+    lv_obj_set_style_text_font(system_check_btn_label,
+                               popup_layout::font28(), 0);
   }
   system_update_check_btn_text();
 
@@ -2655,51 +2703,58 @@ static void build_system_popup(lv_obj_t* parent) {
   lv_obj_set_width(system_action_row, LV_PCT(100));
   lv_obj_set_height(system_action_row, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(system_action_row, LV_FLEX_FLOW_ROW);
-  lv_obj_set_style_pad_column(system_action_row, 12, 0);
+  lv_obj_set_style_pad_column(system_action_row,
+                              popup_layout::scale(12), 0);
 
   // Ohne Icon - der Web-Admin-Neustart-Button hat auch keins.
   system_reboot_btn = create_popup_button(system_action_row, tr().restart_button,
                                           0x424242, on_system_reboot_clicked);
   lv_obj_set_flex_grow(system_reboot_btn, 1);
-  lv_obj_set_height(system_reboot_btn, 76);
+  lv_obj_set_height(system_reboot_btn, popup_layout::scale(76));
   lv_obj_t* reboot_text = lv_obj_get_child(system_reboot_btn, 0);
-  if (reboot_text) lv_obj_set_style_text_font(reboot_text, &ui_font_28, 0);
+  if (reboot_text) {
+    lv_obj_set_style_text_font(reboot_text, popup_layout::font28(), 0);
+  }
 
   system_pair_btn = create_popup_button(system_action_row, "", 0x1E88E5,
                                         on_system_pair_clicked);
   lv_obj_set_flex_grow(system_pair_btn, 1);
-  lv_obj_set_height(system_pair_btn, 76);
+  lv_obj_set_height(system_pair_btn, popup_layout::scale(76));
   lv_obj_set_flex_flow(system_pair_btn, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(system_pair_btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(system_pair_btn, 14, 0);
+  lv_obj_set_style_pad_column(system_pair_btn,
+                              popup_layout::scale(14), 0);
   lv_obj_t* pair_icon = lv_obj_get_child(system_pair_btn, 0);
   if (pair_icon) {
     lv_label_set_text(pair_icon, getMdiChar("home-assistant").c_str());
     if (FONT_MDI_ICONS) lv_obj_set_style_text_font(pair_icon, FONT_MDI_ICONS, 0);
+    popup_layout::applyIconScale(pair_icon);
   }
   lv_obj_t* pair_text = lv_label_create(system_pair_btn);
   lv_label_set_text(pair_text, tr().system_pair_btn);
   lv_label_set_long_mode(pair_text, LV_LABEL_LONG_DOT);
-  lv_obj_set_style_text_font(pair_text, &ui_font_28, 0);
+  lv_obj_set_style_text_font(pair_text, popup_layout::font28(), 0);
   lv_obj_set_style_text_color(pair_text, lv_color_white(), 0);
 
   // GitHub-Button: Icon + Schriftzug im Button (wie der Drehen-Button)
   system_github_btn = create_popup_button(box, "", 0x424242, on_system_github_clicked);
   lv_obj_set_width(system_github_btn, LV_PCT(100));
-  lv_obj_set_height(system_github_btn, 76);
+  lv_obj_set_height(system_github_btn, popup_layout::scale(76));
   lv_obj_set_flex_flow(system_github_btn, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(system_github_btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(system_github_btn, 14, 0);
+  lv_obj_set_style_pad_column(system_github_btn,
+                              popup_layout::scale(14), 0);
   lv_obj_t* gh_icon = lv_obj_get_child(system_github_btn, 0);
   if (gh_icon) {
     lv_label_set_text(gh_icon, getMdiChar("github").c_str());
     if (FONT_MDI_ICONS) lv_obj_set_style_text_font(gh_icon, FONT_MDI_ICONS, 0);
+    popup_layout::applyIconScale(gh_icon);
   }
   lv_obj_t* gh_text = lv_label_create(system_github_btn);
   lv_label_set_text(gh_text, "GitHub");
-  lv_obj_set_style_text_font(gh_text, &ui_font_28, 0);
+  lv_obj_set_style_text_font(gh_text, popup_layout::font28(), 0);
   lv_obj_set_style_text_color(gh_text, lv_color_white(), 0);
 }
 
@@ -2773,10 +2828,10 @@ static void open_settings_popup(SettingsPopupKind kind) {
   lv_obj_set_style_border_opa(settings_popup_card, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(settings_popup_card, 0, 0);
   ui_surface_style::apply_global_tile_border(settings_popup_card);
-  lv_obj_set_style_radius(settings_popup_card, 22, 0);
+  lv_obj_set_style_radius(settings_popup_card, popup_layout::scale(22), 0);
   lv_obj_set_style_clip_corner(settings_popup_card, false, 0);
-  lv_obj_set_style_pad_all(settings_popup_card, 20, 0);
-  lv_obj_set_style_pad_row(settings_popup_card, 8, 0);
+  lv_obj_set_style_pad_all(settings_popup_card, kPopupCardPad, 0);
+  lv_obj_set_style_pad_row(settings_popup_card, popup_layout::scale(8), 0);
   lv_obj_clear_flag(settings_popup_card, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_flex_flow(settings_popup_card, LV_FLEX_FLOW_COLUMN);
   // Querachse CENTER: zentriert den (auf Lesebreite begrenzten) Content auf
@@ -2789,14 +2844,16 @@ static void open_settings_popup(SettingsPopupKind kind) {
   // Hoehe so gewaehlt, dass LEFT_MID-Kinder (Icon/Titel) exakt auf der
   // Mittelachse der Speichern/X-Buttons landen (beide Buttons zentrieren
   // sich bei content-y=42; siehe deren align-Offsets weiter unten).
-  lv_obj_set_height(header, 84);
+  lv_obj_set_height(header, popup_layout::scale(84));
   style_plain_container(header);
 
   lv_obj_t* header_icon = lv_label_create(header);
   lv_label_set_text(header_icon, getMdiChar(popup_icon_for_kind(kind)).c_str());
   if (FONT_MDI_ICONS) lv_obj_set_style_text_font(header_icon, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(header_icon);
   lv_obj_set_style_text_color(header_icon, lv_color_white(), 0);
-  lv_obj_align(header_icon, LV_ALIGN_LEFT_MID, 8, 0);
+  lv_obj_align(header_icon, LV_ALIGN_LEFT_MID,
+               popup_layout::kHeaderIconX, 0);
 
   // Kein Speichern oben rechts mehr: WLAN hat den Verbinden-Button und
   // Lokalisierung den Speichern-Button jeweils unten im Inhalt.
@@ -2804,28 +2861,35 @@ static void open_settings_popup(SettingsPopupKind kind) {
   lv_label_set_text(settings_popup_title, popup_title_for_kind(kind));
   lv_label_set_long_mode(settings_popup_title, LV_LABEL_LONG_DOT);
   lv_obj_set_width(settings_popup_title, LV_PCT(62));
-  lv_obj_set_style_text_font(settings_popup_title, &ui_font_24, 0);
+  // Header-Titel und Icon folgen denselben kompakten Maßen wie die Tiles.
+  lv_obj_set_style_text_font(settings_popup_title,
+                              popup_layout::headerTitleFont(), 0);
   lv_obj_set_style_text_color(settings_popup_title, lv_color_white(), 0);
-  lv_obj_align(settings_popup_title, LV_ALIGN_LEFT_MID, 78, 0);
+  lv_obj_align(settings_popup_title, LV_ALIGN_LEFT_MID,
+               popup_layout::kHeaderTitleX, 0);
 
   lv_obj_t* close_btn = lv_button_create(settings_popup_card);
   lv_obj_add_flag(close_btn, LV_OBJ_FLAG_IGNORE_LAYOUT);
-  lv_obj_set_size(close_btn, 96, 96);
+  lv_obj_set_size(close_btn, popup_layout::kCloseButtonSize,
+                   popup_layout::kCloseButtonSize);
   lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_bg_color(close_btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
   lv_obj_set_style_bg_opa(close_btn, LV_OPA_20, LV_STATE_PRESSED);
   lv_obj_set_style_border_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_radius(close_btn, 20, 0);
+  lv_obj_set_style_radius(close_btn, popup_layout::kCloseButtonRadius, 0);
   lv_obj_set_style_pad_all(close_btn, 0, 0);
-  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, 6, -6);
-  lv_obj_set_ext_click_area(close_btn, 8);
+  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT,
+                popup_layout::kCloseButtonOffsetX,
+                popup_layout::kCloseButtonOffsetY);
+  lv_obj_set_ext_click_area(close_btn, popup_layout::kCloseButtonClickArea);
   lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
   lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_event_cb(close_btn, on_settings_popup_close_clicked, LV_EVENT_CLICKED, nullptr);
   lv_obj_t* close_label = lv_label_create(close_btn);
   lv_obj_set_style_text_font(close_label, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(close_label);
   lv_obj_set_style_text_color(close_label, lv_color_white(), 0);
   lv_label_set_text(close_label, getMdiChar("window-close").c_str());
   lv_obj_center(close_label);
@@ -2837,15 +2901,18 @@ static void open_settings_popup(SettingsPopupKind kind) {
   // Dropdowns/Felder/Listenzeilen absurd breit. Deckel entspricht der
   // Content-Breite des B4 (720er: 648px -> dort greift der Deckel nie).
   // Nur der Inhalt - Header und Tastatur bleiben volle Kartenbreite.
-  lv_obj_set_style_max_width(settings_popup_content, 660, 0);
+  lv_obj_set_style_max_width(settings_popup_content,
+                             popup_layout::scale(660), 0);
   lv_obj_set_flex_grow(settings_popup_content, 1);
   style_plain_container(settings_popup_content);
   lv_obj_set_style_pad_all(settings_popup_content, 0, 0);
-  lv_obj_set_style_pad_row(settings_popup_content, 8, 0);
+  lv_obj_set_style_pad_row(settings_popup_content,
+                           popup_layout::scale(8), 0);
   // Luft zum Header: der X/Zurueck-Button (96px + ext_click_area) ragt unter
   // die Header-Kante - ohne Abstand ueberlappt sein Press-Highlight den
   // Inhalt oben rechts.
-  lv_obj_set_style_pad_top(settings_popup_content, 14, 0);
+  lv_obj_set_style_pad_top(settings_popup_content,
+                           popup_layout::scale(14), 0);
   lv_obj_set_flex_flow(settings_popup_content, LV_FLEX_FLOW_COLUMN);
   // Querachse CENTER fuer die schmalen Aktions-Buttons (Speichern etc.);
   // vollbreite Kinder bleiben vollbreit.
@@ -2903,6 +2970,7 @@ static lv_obj_t* create_settings_menu_tile(lv_obj_t* parent, uint8_t col, uint8_
   lv_obj_t* icon = lv_label_create(face);
   lv_label_set_text(icon, getMdiChar(icon_name).c_str());
   if (FONT_MDI_ICONS) lv_obj_set_style_text_font(icon, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(icon);
   lv_obj_set_style_text_color(icon, lv_color_white(), 0);
   lv_obj_clear_flag(icon, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_add_flag(icon, LV_OBJ_FLAG_EVENT_BUBBLE);
@@ -2914,17 +2982,17 @@ static lv_obj_t* create_settings_menu_tile(lv_obj_t* parent, uint8_t col, uint8_
   lv_obj_add_flag(info, LV_OBJ_FLAG_EVENT_BUBBLE);
   lv_obj_set_height(info, LV_PCT(100));
   lv_obj_set_flex_grow(info, 1);
-  lv_obj_set_style_pad_right(info, 16, 0);
-  lv_obj_set_style_pad_ver(info, 8, 0);
+  lv_obj_set_style_pad_right(info, popup_layout::scale(16), 0);
+  lv_obj_set_style_pad_ver(info, popup_layout::scale(8), 0);
   lv_obj_set_flex_flow(info, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(info, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_row(info, 6, 0);
+  lv_obj_set_style_pad_row(info, popup_layout::scale(6), 0);
 
   lv_obj_t* title_label = lv_label_create(info);
   lv_label_set_text(title_label, title);
   lv_label_set_long_mode(title_label, LV_LABEL_LONG_CLIP);
   lv_obj_set_width(title_label, LV_PCT(100));
-  lv_obj_set_style_text_font(title_label, &ui_font_28, 0);
+  lv_obj_set_style_text_font(title_label, popup_layout::font28(), 0);
   lv_obj_set_style_text_color(title_label, lv_color_white(), 0);
   if (title_label_out) *title_label_out = title_label;
 
@@ -2934,7 +3002,7 @@ static lv_obj_t* create_settings_menu_tile(lv_obj_t* parent, uint8_t col, uint8_
     lv_label_set_long_mode(summary, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(summary, LV_PCT(100));
     lv_obj_set_style_text_align(summary, LV_TEXT_ALIGN_LEFT, 0);
-    lv_obj_set_style_text_font(summary, &ui_font_20, 0);
+    lv_obj_set_style_text_font(summary, popup_layout::font20(), 0);
     lv_obj_set_style_text_color(summary, lv_color_hex(0xA8A8A8), 0);
     *summary_label_out = summary;
   }

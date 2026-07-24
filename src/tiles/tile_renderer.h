@@ -209,7 +209,11 @@ struct WeatherForecastWidgets {
 };
 
 static constexpr uint8_t WEATHER_FORECAST_MAX = 8;
+#if defined(DEVICE_LAYOUT_1024X600)
+static constexpr lv_coord_t WEATHER_FORECAST_COL_W = 125;
+#else
 static constexpr lv_coord_t WEATHER_FORECAST_COL_W = 150;
+#endif
 
 // Map tile width (span_w) to number of forecast days shown
 inline uint8_t weather_forecast_count(uint8_t span_w) {

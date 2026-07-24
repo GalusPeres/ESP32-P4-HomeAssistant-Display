@@ -21,6 +21,7 @@
 #include "src/devices/device.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/tiles/tile_renderer.h"
+#include "src/tiles/tile_renderer_fonts.h"
 #include "src/tiles/tile_renderer_shared.h"
 #include "src/types/clock/clock_format.h"
 #include "src/types/clock/renderer.h"
@@ -44,7 +45,8 @@ constexpr uint32_t kMaxDecodePixels = 2048U * 2048U;
 // bleiben (Cover-Worker, Popups, LVGL-Zwischenpuffer).
 constexpr size_t kPsramReserveBytes = 4U * 1024U * 1024U;
 constexpr size_t kPpaBufferAlignment = 64;
-constexpr uint16_t kImageRadius = 26;
+constexpr uint16_t kImageRadius =
+    static_cast<uint16_t>(tile_layout::scale(26));
 // Nach einer Bedienung erst den sichtbaren Tile-/MQTT-Zustand zur Ruhe kommen
 // lassen. Sonst kann ein gleichzeitig faelliger Decode/Composite-Durchlauf den
 // Loop blockieren, bevor LVGL die Switch-Aenderung auf das Panel geflusht hat.

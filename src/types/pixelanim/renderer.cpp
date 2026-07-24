@@ -436,9 +436,11 @@ lv_obj_t* render_pixelanim_tile(lv_obj_t* parent, int col, int row, const Tile& 
   if (has_title) {
     lv_obj_t* title_lbl = lv_label_create(card);
     if (title_lbl) {
-      set_label_style(title_lbl, lv_color_white(), FONT_TITLE);
+      set_label_style(title_lbl, lv_color_white(),
+                      tile_layout::header_title_font());
       lv_label_set_text(title_lbl, tile.title.c_str());
-      lv_obj_align(title_lbl, LV_ALIGN_TOP_LEFT, 14, 12);
+      lv_obj_align(title_lbl, LV_ALIGN_TOP_LEFT,
+                   tile_layout::scale(14), tile_layout::scale(12));
     }
   }
 
@@ -454,14 +456,18 @@ lv_obj_t* render_pixelanim_tile(lv_obj_t* parent, int col, int row, const Tile& 
   uint16_t avail_h = card_h;
   int16_t image_y_offset = 0;
   if (edge_to_edge) {
-    if (has_title && avail_h > 44) {
-      avail_h -= 40;
-      image_y_offset = 20;
+    if (has_title && avail_h > tile_layout::scale_u16(44)) {
+      avail_h -= tile_layout::scale_u16(40);
+      image_y_offset = tile_layout::scale(20);
     }
   } else {
-    if (avail_w > 20) avail_w -= 16;
-    if (avail_h > 20) avail_h -= (has_title ? 40 : 16);
-    image_y_offset = has_title ? 12 : 0;
+    if (avail_w > tile_layout::scale_u16(20)) {
+      avail_w -= tile_layout::scale_u16(16);
+    }
+    if (avail_h > tile_layout::scale_u16(20)) {
+      avail_h -= tile_layout::scale_u16(has_title ? 40 : 16);
+    }
+    image_y_offset = has_title ? tile_layout::scale(12) : 0;
   }
 
   PixelAnimState* st = new PixelAnimState();

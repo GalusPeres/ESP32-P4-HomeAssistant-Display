@@ -53,7 +53,8 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   if (tile.title.length() > 0) {
     lv_obj_t* title_lbl = lv_label_create(card);
     if (title_lbl) {
-      set_label_style(title_lbl, lv_color_hex(0xFFFFFF), FONT_TITLE);
+      set_label_style(title_lbl, lv_color_hex(0xFFFFFF),
+                      tile_layout::header_title_font());
       lv_label_set_text(title_lbl, tile.title.c_str());
       lv_obj_align(title_lbl, LV_ALIGN_TOP_LEFT, 0, 4);
     }
@@ -62,13 +63,13 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   auto get_text_font = [&](const Tile& t) -> const lv_font_t* {
     switch (t.sensor_value_font) {
       case 1:
-        return &ui_font_20;
+        return tile_layout::content_font_20();
       case 2:
-        return &ui_font_24;
+        return tile_layout::content_font_24();
       case 3:
-        return &ui_font_32;
+        return tile_layout::content_font_32();
       case 4:
-        return &ui_font_40;
+        return tile_layout::content_font_40();
       default:
         return FONT_VALUE;
     }
@@ -85,7 +86,8 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
       lv_label_set_long_mode(text_lbl, LV_LABEL_LONG_WRAP);
       lv_obj_set_width(text_lbl, lv_pct(100));
       lv_obj_set_style_text_align(text_lbl, LV_TEXT_ALIGN_CENTER, 0);
-      int16_t y_offset = (tile.title.length() || has_icon) ? 12 : 0;
+      int16_t y_offset =
+          (tile.title.length() || has_icon) ? tile_layout::scale(12) : 0;
       lv_obj_align(text_lbl, LV_ALIGN_CENTER, 0, y_offset);
     }
   }

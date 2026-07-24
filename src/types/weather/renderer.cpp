@@ -21,6 +21,30 @@ constexpr lv_coord_t kWeatherTileContentYOffset = -10;
 #else
 constexpr lv_coord_t kWeatherTileContentYOffset = 0;
 #endif
+
+const lv_font_t* weather_value_font() {
+#if defined(DEVICE_LAYOUT_1024X600)
+  return tile_layout::content_font_24();
+#else
+  return FONT_VALUE;
+#endif
+}
+
+const lv_font_t* weather_forecast_font() {
+#if defined(DEVICE_LAYOUT_1024X600)
+  return tile_layout::content_font_20();
+#else
+  return tile_layout::content_font_24();
+#endif
+}
+
+const lv_font_t* weather_forecast_day_font() {
+#if defined(DEVICE_LAYOUT_1024X600)
+  return tile_layout::content_font_20();
+#else
+  return FONT_TITLE;
+#endif
+}
 }  // namespace
 
 lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type) {
@@ -97,7 +121,8 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   enable_bubble(icon_label);
 
   lv_obj_t* location_label = lv_label_create(card);
-  set_label_style(location_label, lv_color_white(), FONT_TITLE);
+  set_label_style(location_label, lv_color_white(),
+                  tile_layout::header_title_font());
   lv_label_set_long_mode(location_label, LV_LABEL_LONG_DOT);
   lv_obj_set_width(location_label, LV_PCT(70));
   lv_obj_set_style_text_align(location_label, LV_TEXT_ALIGN_RIGHT, 0);
@@ -130,7 +155,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   lv_obj_set_size(value_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(value_row, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(value_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_gap(value_row, 14, 0);
+  lv_obj_set_style_pad_gap(value_row, tile_layout::scale(14), 0);
   lv_obj_set_style_bg_opa(value_row, LV_OPA_TRANSP, 0);
   enable_bubble(value_row);
   lv_obj_remove_flag(value_row, LV_OBJ_FLAG_SCROLLABLE);
@@ -140,26 +165,29 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   lv_obj_t* temp_label = nullptr;
 
   if (span_w > 1) {
-    const lv_font_t* condition_font = FONT_VALUE;
+    const lv_font_t* condition_font = weather_value_font();
 
     condition_label = lv_label_create(value_row);
     set_label_style(condition_label, lv_color_white(), condition_font);
     lv_label_set_long_mode(condition_label, LV_LABEL_LONG_DOT);
     lv_obj_set_width(condition_label, LV_SIZE_CONTENT);
-    lv_obj_set_style_max_width(condition_label, (span_w >= 3) ? 220 : 140, 0);
+    lv_obj_set_style_max_width(
+        condition_label,
+        tile_layout::scale((span_w >= 3) ? 220 : 140), 0);
     lv_label_set_text(condition_label, "--");
     lv_obj_add_flag(condition_label, LV_OBJ_FLAG_HIDDEN);
     enable_bubble(condition_label);
 
     sep_label = lv_label_create(value_row);
-    set_label_style(sep_label, lv_color_hex(0xB0B0B0), FONT_VALUE);
+    set_label_style(sep_label, lv_color_hex(0xB0B0B0),
+                    weather_value_font());
     lv_label_set_text(sep_label, "|");
     lv_obj_add_flag(sep_label, LV_OBJ_FLAG_HIDDEN);
     enable_bubble(sep_label);
   }
 
   temp_label = lv_label_create(value_row);
-  set_label_style(temp_label, lv_color_white(), FONT_VALUE);
+  set_label_style(temp_label, lv_color_white(), weather_value_font());
   lv_label_set_text(temp_label, "--");
   enable_bubble(temp_label);
 
@@ -172,7 +200,8 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
 
   lv_obj_t* forecast_row = nullptr;
   if (show_forecast) {
-    constexpr lv_coord_t kTileForecastTopHeadroom = 52;
+    constexpr lv_coord_t kTileForecastTopHeadroom =
+        tile_layout::scale(52);
     forecast_row = lv_obj_create(card);
     lv_obj_remove_style_all(forecast_row);
     lv_obj_set_size(forecast_row,
@@ -200,7 +229,8 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
     widgets.location_label = location_label;
 
     if (forecast_row && forecast_cols > 0) {
-      constexpr lv_coord_t kTileForecastTopHeadroom = 52;
+      constexpr lv_coord_t kTileForecastTopHeadroom =
+          tile_layout::scale(52);
       const lv_coord_t total_w = (span_w * GRID_CELL_W) + ((span_w - 1) * GRID_GAP);
       const lv_coord_t cols_total = forecast_cols * WEATHER_FORECAST_COL_W;
       const lv_coord_t remaining = total_w - cols_total;
@@ -220,12 +250,15 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
                        spacing + i * (WEATHER_FORECAST_COL_W + spacing),
                        0);
 
-        constexpr lv_coord_t kTileForecastDayTop = kTileForecastTopHeadroom - 33;
-        constexpr lv_coord_t kTileForecastIconTop = kTileForecastTopHeadroom - 8;
-        constexpr lv_coord_t kTileForecastTempTop = kTileForecastTopHeadroom + 54;
+        constexpr lv_coord_t kTileForecastDayTop =
+            kTileForecastTopHeadroom - tile_layout::scale(33);
+        constexpr lv_coord_t kTileForecastIconTop =
+            kTileForecastTopHeadroom - tile_layout::scale(8);
+        constexpr lv_coord_t kTileForecastTempTop =
+            kTileForecastTopHeadroom + tile_layout::scale(54);
 
         lv_obj_t* day = lv_label_create(col);
-        set_label_style(day, lv_color_white(), FONT_TITLE);
+        set_label_style(day, lv_color_white(), weather_forecast_day_font());
         lv_label_set_long_mode(day, LV_LABEL_LONG_DOT);
         lv_obj_set_width(day, LV_PCT(100));
         lv_obj_set_style_text_align(day, LV_TEXT_ALIGN_CENTER, 0);
@@ -242,10 +275,11 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
         lv_obj_set_pos(icon, 0, kTileForecastIconTop);
         enable_bubble(icon);
 
-        constexpr lv_coord_t kTileForecastLowTop = kTileForecastTempTop + 30;
+        constexpr lv_coord_t kTileForecastLowTop =
+            kTileForecastTempTop + tile_layout::scale(30);
 
         lv_obj_t* hi_val = lv_label_create(col);
-        set_label_style(hi_val, lv_color_white(), &ui_font_24);
+        set_label_style(hi_val, lv_color_white(), weather_forecast_font());
         lv_obj_set_style_text_align(hi_val, LV_TEXT_ALIGN_LEFT, 0);
         lv_label_set_text(hi_val, "");
         lv_obj_add_flag(hi_val, LV_OBJ_FLAG_HIDDEN);
@@ -259,7 +293,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
         enable_bubble(hi_unit);
 
         lv_obj_t* lo_val = lv_label_create(col);
-        set_label_style(lo_val, lv_color_white(), &ui_font_24);
+        set_label_style(lo_val, lv_color_white(), weather_forecast_font());
         lv_obj_set_style_text_align(lo_val, LV_TEXT_ALIGN_LEFT, 0);
         lv_label_set_text(lo_val, "");
         lv_obj_add_flag(lo_val, LV_OBJ_FLAG_HIDDEN);

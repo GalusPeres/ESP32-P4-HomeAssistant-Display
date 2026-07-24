@@ -27,8 +27,10 @@ static constexpr lv_coord_t kMediaControlSideOffset = 96;
 static constexpr lv_coord_t kMediaControlBottomOffset = -8;
 static constexpr lv_coord_t kMediaContentYOffset = 8;
 #else
-static constexpr lv_coord_t kMediaControlButtonSize = 56;
-static constexpr lv_coord_t kMediaControlSideOffset = 76;
+static constexpr lv_coord_t kMediaControlButtonSize =
+    tile_layout::scale(56);
+static constexpr lv_coord_t kMediaControlSideOffset =
+    tile_layout::scale(76);
 static constexpr lv_coord_t kMediaControlBottomOffset = 0;
 static constexpr lv_coord_t kMediaContentYOffset = 0;
 #endif
@@ -320,19 +322,22 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
   // Match the bridge's MEDIA_COVER_THUMBNAIL_SIZE (120) so the JPEG is shown
   // 1:1 without LV_IMAGE_ALIGN_COVER cropping right/bottom edges. On a 1x1
   // tile (168x145) we still cap to 96 because there isn't room for 120.
-  const lv_coord_t cover_size = (tile.span_w > 1 || tile.span_h > 1) ? 120 : 96;
+  const lv_coord_t cover_size =
+      tile_layout::scale((tile.span_w > 1 || tile.span_h > 1) ? 120 : 96);
   cover_clip = lv_obj_create(card);
   if (cover_clip) {
     lv_obj_set_size(cover_clip, cover_size, cover_size);
     lv_obj_align(cover_clip,
                  LV_ALIGN_TOP_LEFT,
-                 -2,
-                 ((tile.span_w > 1 || tile.span_h > 1) ? 58 : 42) + kMediaContentYOffset);
+                 tile_layout::scale(-2),
+                 tile_layout::scale(
+                     (tile.span_w > 1 || tile.span_h > 1) ? 58 : 42) +
+                     kMediaContentYOffset);
     lv_obj_set_style_bg_opa(cover_clip, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(cover_clip, 0, 0);
     lv_obj_set_style_shadow_width(cover_clip, 0, 0);
     lv_obj_set_style_pad_all(cover_clip, 0, 0);
-    lv_obj_set_style_radius(cover_clip, 12, 0);
+    lv_obj_set_style_radius(cover_clip, tile_layout::scale(12), 0);
     lv_obj_set_style_clip_corner(cover_clip, true, 0);
     lv_obj_remove_flag(cover_clip, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(cover_clip, LV_OBJ_FLAG_CLICKABLE);
@@ -391,7 +396,8 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
 
   lv_obj_t* title_label = lv_label_create(card);
   if (title_label) {
-    set_label_style(title_label, lv_color_white(), FONT_TITLE);
+    set_label_style(title_label, lv_color_white(),
+                    tile_layout::header_title_font());
     lv_label_set_long_mode(title_label, LV_LABEL_LONG_DOT);
     lv_obj_set_width(title_label, LV_PCT(70));
     lv_obj_set_style_text_align(title_label, LV_TEXT_ALIGN_RIGHT, 0);
@@ -404,7 +410,10 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
   const lv_font_t* media_font = (tile.span_w > 1 || tile.span_h > 1) ? &ui_font_28 : &ui_font_24;
   const lv_font_t* media_subtitle_font = &ui_font_20;
 #else
-  const lv_font_t* media_font = (tile.span_w > 1 || tile.span_h > 1) ? &ui_font_24 : &ui_font_20;
+  const lv_font_t* media_font =
+      (tile.span_w > 1 || tile.span_h > 1)
+          ? tile_layout::content_font_24()
+          : tile_layout::content_font_20();
   const lv_font_t* media_subtitle_font = FONT_SMALL;
 #endif
 
@@ -418,7 +427,8 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
     lv_label_set_text(
         media_title,
         i18n::strings(configManager.getConfig().language).media_no_playback);
-    lv_obj_align(media_title, LV_ALIGN_TOP_LEFT, 20, 108 + kMediaContentYOffset);
+    lv_obj_align(media_title, LV_ALIGN_TOP_LEFT, tile_layout::scale(20),
+                 tile_layout::scale(108) + kMediaContentYOffset);
     enable_event_bubble(media_title);
   }
 
@@ -430,7 +440,8 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
     lv_obj_set_width(subtitle, LV_PCT(82));
     lv_obj_set_style_text_align(subtitle, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(subtitle, "");
-    lv_obj_align(subtitle, LV_ALIGN_LEFT_MID, 20, 34 + kMediaContentYOffset);
+    lv_obj_align(subtitle, LV_ALIGN_LEFT_MID, tile_layout::scale(20),
+                 tile_layout::scale(34) + kMediaContentYOffset);
     lv_obj_add_flag(subtitle, LV_OBJ_FLAG_HIDDEN);
     enable_event_bubble(subtitle);
   }

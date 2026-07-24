@@ -15,6 +15,7 @@
 #include "src/network/mqtt_handlers.h"
 #include "src/network/network_transport.h"
 #include "src/fonts/ui_fonts.h"
+#include "src/ui/popup_layout.h"
 
 #include <time.h>
 #include <string.h>
@@ -23,12 +24,16 @@
 
 static const lv_font_t* get_status_time_font() {
   const DeviceConfig& cfg = configManager.getConfig();
-  return (cfg.status_time_font_size == 24) ? &ui_font_24 : &ui_font_48;
+  return (cfg.status_time_font_size == 24)
+             ? popup_layout::font24()
+             : popup_layout::font48();
 }
 
 static const lv_font_t* get_status_date_font() {
   const DeviceConfig& cfg = configManager.getConfig();
-  return (cfg.status_date_font_size == 20) ? &ui_font_20 : &ui_font_24;
+  return (cfg.status_date_font_size == 20)
+             ? popup_layout::font20()
+             : popup_layout::font24();
 }
 
 
@@ -146,11 +151,12 @@ void UIManager::statusbarInit(lv_obj_t *tab_bar) {
 
   lv_obj_set_style_border_width(status_container, 0, 0);
 
-  lv_obj_set_style_radius(status_container, 12, 0);
+  lv_obj_set_style_radius(status_container, popup_layout::scale(12), 0);
 
-  lv_obj_set_style_pad_all(status_container, 12, 0);
+  lv_obj_set_style_pad_all(status_container, popup_layout::scale(12), 0);
 
-  lv_obj_set_style_pad_row(status_container, 10, 0);  // Abstand zwischen Zeit und Datum
+  lv_obj_set_style_pad_row(status_container,
+                           popup_layout::scale(10), 0);
   lv_obj_set_flex_flow(status_container, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(status_container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
@@ -162,8 +168,10 @@ void UIManager::statusbarInit(lv_obj_t *tab_bar) {
 
   status_time_label = lv_label_create(status_container);
   lv_obj_set_width(status_time_label, LV_PCT(100));
-  lv_obj_set_style_min_width(status_time_label, 200, 0);
-  lv_obj_set_style_max_width(status_time_label, 200, 0);
+  lv_obj_set_style_min_width(status_time_label,
+                             popup_layout::scale(200), 0);
+  lv_obj_set_style_max_width(status_time_label,
+                             popup_layout::scale(200), 0);
   lv_obj_set_style_align(status_time_label, LV_ALIGN_CENTER, 0);
   lv_label_set_long_mode(status_time_label, LV_LABEL_LONG_CLIP);
   lv_obj_set_style_text_align(status_time_label, LV_TEXT_ALIGN_CENTER, 0);
@@ -195,7 +203,7 @@ lv_obj_t* UIManager::setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char
 
   // Button Styling (Normal State: Transparent)
   lv_obj_set_width(btn, LV_PCT(100));
-  lv_obj_set_height(btn, 100);
+  lv_obj_set_height(btn, popup_layout::scale(100));
   lv_obj_set_style_bg_color(btn, lv_color_hex(0xE38422), 0);
   lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(btn, 0, 0);
@@ -210,15 +218,15 @@ lv_obj_t* UIManager::setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char
   lv_obj_set_style_transform_width(btn, 0, LV_STATE_PRESSED);
   lv_obj_set_style_transform_height(btn, 0, LV_STATE_PRESSED);
 
-  lv_obj_set_style_radius(btn, 24, 0);
-  lv_obj_set_style_pad_all(btn, 8, 0);
+  lv_obj_set_style_radius(btn, popup_layout::scale(24), 0);
+  lv_obj_set_style_pad_all(btn, popup_layout::scale(8), 0);
   lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(btn, LV_OBJ_FLAG_CLICKABLE);
 
   // Flexbox column Layout: Icon oben, Text unten
   lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_gap(btn, 12, 0);  // Größerer Abstand wie bei Scene-Kacheln
+  lv_obj_set_style_pad_gap(btn, popup_layout::scale(12), 0);
 
   lv_obj_t *icon_label = nullptr;
   lv_obj_t *text_label = nullptr;
@@ -234,6 +242,7 @@ lv_obj_t* UIManager::setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char
       lv_label_set_text(icon_label, iconChar.c_str());
       lv_obj_set_style_text_color(icon_label, lv_color_white(), 0);
       lv_obj_set_style_text_font(icon_label, FONT_MDI_ICONS, 0);
+      popup_layout::applyIconScale(icon_label);
     }
   }
 
@@ -242,7 +251,7 @@ lv_obj_t* UIManager::setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char
     text_label = lv_label_create(btn);
     lv_label_set_text(text_label, tab_name);
     lv_obj_set_style_text_color(text_label, lv_color_white(), 0);
-    lv_obj_set_style_text_font(text_label, &ui_font_24, 0);
+    lv_obj_set_style_text_font(text_label, popup_layout::font24(), 0);
     lv_label_set_long_mode(text_label, LV_LABEL_LONG_DOT);
     lv_obj_set_width(text_label, LV_PCT(90));
     lv_obj_set_style_text_align(text_label, LV_TEXT_ALIGN_CENTER, 0);
@@ -258,7 +267,7 @@ lv_obj_t* UIManager::setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char
       lv_label_set_text(text_label, fallback);
     }
     lv_obj_set_style_text_color(text_label, lv_color_white(), 0);
-    lv_obj_set_style_text_font(text_label, &ui_font_24, 0);
+    lv_obj_set_style_text_font(text_label, popup_layout::font24(), 0);
     lv_obj_set_style_text_align(text_label, LV_TEXT_ALIGN_CENTER, 0);
   }
 

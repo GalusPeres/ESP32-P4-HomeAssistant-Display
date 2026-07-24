@@ -27,23 +27,27 @@ constexpr int kCardWidth =
         ? (SCREEN_HEIGHT - (kCardMargin * 2))
         : (SCREEN_WIDTH - (kCardMargin * 2));
 constexpr int kCardHeight = SCREEN_HEIGHT - (kCardMargin * 2);
-constexpr int kCardPad = 20;
-constexpr int kHeaderPadTop = 4;
-constexpr int kHeaderIconOffsetX = 4;
-constexpr int kHeaderIconOffsetY = -8;
-constexpr int kChartHeight = 325;
-constexpr int kTimeAxisHeight = 20;  // space for time labels below chart
+constexpr int kCardPad = popup_layout::kCardPad;
+constexpr int kHeaderPadTop = popup_layout::scale(4);
+constexpr int kHeaderIconOffsetX = popup_layout::scale(4);
+constexpr int kHeaderIconOffsetY = -popup_layout::scale(8);
+constexpr int kChartHeight = popup_layout::contentScale(325);
+#if defined(DEVICE_LAYOUT_1024X600)
+constexpr int kTimeAxisHeight = 24;  // full UI16 line height plus bottom breathing room
+#else
+constexpr int kTimeAxisHeight = popup_layout::scale(20);  // space for time labels below chart
+#endif
 constexpr int kTimeAxisMarkerCount = 8;
-constexpr int kChartLineWidth = 4;
+constexpr int kChartLineWidth = popup_layout::scale(4);
 constexpr uint16_t kHistoryHours24h = 24;
 constexpr uint16_t kHistoryPeriodMinutes24h = 5;
 constexpr uint16_t kHistoryPoints24h = 288;
 constexpr uint16_t kHistoryHours7d = 168;
 constexpr uint16_t kHistoryPeriodMinutes7d = 60;
 constexpr uint16_t kHistoryPoints7d = 168;
-constexpr int kRangeButtonWidth = 92;
+constexpr int kRangeButtonWidth = popup_layout::scale(92);
 constexpr int kRangeButtonHeight = popup_layout::kNavHeight;
-constexpr int kRangeButtonGap = 10;
+constexpr int kRangeButtonGap = popup_layout::scale(10);
 
 enum class SensorHistoryRange : uint8_t {
   Day24,
@@ -118,7 +122,7 @@ static const char* get_weekday_abbrev(uint8_t wday) {
 }
 
 static const lv_font_t* get_value_font() {
-  return &ui_font_40;
+  return popup_layout::font32();
 }
 
 static void set_label_style(lv_obj_t* lbl, lv_color_t color, const lv_font_t* font) {
@@ -205,8 +209,8 @@ static void style_range_button(lv_obj_t* btn, bool active) {
 
   lv_obj_t* label = lv_obj_get_child(btn, 0);
   if (label) {
-    lv_obj_set_style_text_font(label, &ui_font_24, 0);
-    lv_obj_set_style_text_font(label, &ui_font_24, LV_STATE_PRESSED);
+    lv_obj_set_style_text_font(label, popup_layout::font24(), 0);
+    lv_obj_set_style_text_font(label, popup_layout::font24(), LV_STATE_PRESSED);
     lv_obj_set_style_text_color(label, active ? active_text_color : lv_color_white(), 0);
     lv_obj_set_style_text_color(label, active ? active_text_color : lv_color_white(), LV_STATE_PRESSED);
   }
@@ -251,17 +255,20 @@ static bool extract_numeric(JsonVariant v, float& out) {
 static void align_header_row(lv_obj_t* card, lv_obj_t* title_label, lv_obj_t* icon_label) {
   if (!card) return;
   lv_obj_update_layout(card);
-  lv_coord_t header_center_y = 60 - lv_obj_get_style_pad_top(card, LV_PART_MAIN);
+  lv_coord_t header_center_y =
+      popup_layout::kHeaderCenterY - lv_obj_get_style_pad_top(card, LV_PART_MAIN);
   if (header_center_y < 0) header_center_y = 0;
   if (icon_label) {
     lv_coord_t icon_y = header_center_y - (lv_obj_get_height(icon_label) / 2);
     if (icon_y < 0) icon_y = 0;
-    lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT, 8, icon_y);
+    lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT,
+                 popup_layout::kHeaderIconX, icon_y);
   }
   if (title_label) {
     lv_coord_t title_y = header_center_y - (lv_obj_get_height(title_label) / 2);
     if (title_y < 0) title_y = 0;
-    lv_obj_align(title_label, LV_ALIGN_TOP_LEFT, 78, title_y);
+    lv_obj_align(title_label, LV_ALIGN_TOP_LEFT,
+                 popup_layout::kHeaderTitleX, title_y);
   }
 }
 
@@ -907,7 +914,7 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
 
   lv_obj_t* title = lv_label_create(card);
   ctx->title_label = title;
-  set_label_style(title, lv_color_white(), &ui_font_24);
+  set_label_style(title, lv_color_white(), popup_layout::headerTitleFont());
   lv_label_set_text(title, init.title.c_str());
   lv_obj_set_width(title, LV_PCT(38));
   lv_obj_align(title, LV_ALIGN_TOP_LEFT, 78, 10);
@@ -915,26 +922,31 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
   lv_obj_t* icon = lv_label_create(card);
   ctx->icon_label = icon;
   lv_obj_set_style_text_font(icon, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(icon);
   lv_obj_set_style_text_color(icon, lv_color_white(), 0);
 
   lv_obj_t* close_btn = lv_button_create(card);
-  lv_obj_set_size(close_btn, 96, 96);
+  lv_obj_set_size(close_btn, popup_layout::kCloseButtonSize,
+                  popup_layout::kCloseButtonSize);
   lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_bg_color(close_btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
   lv_obj_set_style_bg_opa(close_btn, LV_OPA_20, LV_STATE_PRESSED);
   lv_obj_set_style_border_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_radius(close_btn, 16, 0);
+  lv_obj_set_style_radius(close_btn, popup_layout::kCloseButtonRadius, 0);
   lv_obj_set_style_pad_all(close_btn, 0, 0);
-  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, 6, -6);
-  lv_obj_set_ext_click_area(close_btn, 8);
+  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT,
+               popup_layout::kCloseButtonOffsetX,
+               popup_layout::kCloseButtonOffsetY);
+  lv_obj_set_ext_click_area(close_btn, popup_layout::kCloseButtonClickArea);
   lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
   lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_CLICKED, ctx);
   lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_RELEASED, ctx);
   lv_obj_t* close_label = lv_label_create(close_btn);
   lv_obj_set_style_text_font(close_label, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(close_label);
   lv_obj_set_style_text_color(close_label, lv_color_white(), 0);
   lv_label_set_text(close_label, getMdiChar("window-close").c_str());
   lv_obj_center(close_label);
@@ -971,7 +983,7 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
     lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(btn, LV_OBJ_FLAG_PRESS_LOCK);
     lv_obj_t* label = lv_label_create(btn);
-    set_label_style(label, lv_color_white(), &ui_font_24);
+    set_label_style(label, lv_color_white(), popup_layout::font24());
     lv_label_set_text(label, text);
     lv_obj_center(label);
     return btn;
@@ -1013,19 +1025,20 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
 
   // Chart wrapper: Y-axis labels on the left, chart on the right, time labels below.
   // Extra vertical space (kLabelOverhang) at top/bottom so labels don't get clipped.
-  constexpr int kLabelOverhang = 12;  // half of ui_font_20 line height + margin
+  constexpr int kLabelOverhang = popup_layout::contentScale(12);
   lv_obj_t* chart_wrap = lv_obj_create(body_box);
   ctx->chart_wrap = chart_wrap;
   lv_obj_remove_style_all(chart_wrap);
   lv_obj_set_size(chart_wrap, LV_PCT(100), kChartHeight + 2 * kLabelOverhang + kTimeAxisHeight);
   lv_obj_center(chart_wrap);
   lv_obj_set_style_bg_opa(chart_wrap, LV_OPA_TRANSP, 0);
+  lv_obj_add_flag(chart_wrap, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
   lv_obj_remove_flag(chart_wrap, LV_OBJ_FLAG_SCROLLABLE);
 
   // Layout: [labels] [chart fills rest]
-  constexpr int kYAxisWidth = 48;
+  constexpr int kYAxisWidth = popup_layout::scale(48);
   const int kChartLeft = kYAxisWidth;
-  const lv_font_t* y_font = &ui_font_20;
+  const lv_font_t* y_font = popup_layout::font20();
 
   // Max label: vertically centered on top guide line (at y = kLabelOverhang)
   lv_obj_t* y_max = lv_label_create(chart_wrap);
@@ -1046,7 +1059,7 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
   lv_obj_set_pos(y_min, 0, kChartHeight);  // font center ~kChartHeight+kLabelOverhang = on bottom guide line
 
   // Horizontal guide lines at max/min â€” extend 6px left of Y-axis for label alignment
-  constexpr int kLineOverlap = 6;
+  constexpr int kLineOverlap = popup_layout::scale(6);
   const int kLineStart = kYAxisWidth - kLineOverlap;
   const int kLineWidth = kCardWidth - (kCardPad * 2) - kLineStart;
   auto make_guide_line = [&](int16_t y_pos) -> lv_obj_t* {
@@ -1079,7 +1092,7 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
     ctx->time_lines[i] = vline;
 
     lv_obj_t* tlbl = lv_label_create(chart_wrap);
-    set_label_style(tlbl, lv_color_white(), &ui_font_20);
+    set_label_style(tlbl, lv_color_white(), popup_layout::font20());
     lv_obj_set_style_text_align(tlbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(tlbl, LV_SIZE_CONTENT);
     lv_label_set_text(tlbl, "");

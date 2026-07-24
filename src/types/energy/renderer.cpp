@@ -24,13 +24,13 @@ struct EnergyEventData {
 const lv_font_t* get_energy_value_font(const Tile& tile) {
   switch (tile.sensor_value_font) {
     case 1:
-      return &ui_font_20;
+      return tile_layout::content_font_20();
     case 2:
-      return &ui_font_24;
+      return tile_layout::content_font_24();
     case 3:
-      return &ui_font_32;
+      return tile_layout::content_font_32();
     case 4:
-      return &ui_font_40;
+      return tile_layout::content_font_40();
     default:
       return FONT_VALUE;
   }
@@ -112,7 +112,8 @@ lv_obj_t* render_energy_tile(lv_obj_t* parent,
   if (title_text.length() > 0) {
     lv_obj_t* title_label = lv_label_create(card);
     if (title_label) {
-      set_label_style(title_label, lv_color_hex(0xFFFFFF), FONT_TITLE);
+      set_label_style(title_label, lv_color_hex(0xFFFFFF),
+                      tile_layout::header_title_font());
       lv_label_set_long_mode(title_label, LV_LABEL_LONG_DOT);
       lv_obj_set_width(title_label, LV_PCT(70));
       lv_obj_set_style_text_align(title_label, LV_TEXT_ALIGN_RIGHT, 0);
@@ -135,7 +136,9 @@ lv_obj_t* render_energy_tile(lv_obj_t* parent,
   int16_t value_y_offset = tile.sensor_value_y_offset;
   if (value_y_offset < -100) value_y_offset = -100;
   if (value_y_offset > 200) value_y_offset = 200;
-  lv_obj_align(value_label, LV_ALIGN_CENTER, 0, 28 + value_y_offset);
+  value_y_offset = tile_layout::scale_i16(value_y_offset);
+  lv_obj_align(value_label, LV_ALIGN_CENTER, 0,
+               tile_layout::scale(28) + value_y_offset);
 
   SensorTileWidgets* target = tile_renderer_get_sensor_widgets(grid_type);
   if (target && index < TILES_PER_GRID) {

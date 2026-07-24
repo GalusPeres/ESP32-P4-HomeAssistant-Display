@@ -10,13 +10,13 @@
 static const lv_font_t* get_sensor_value_font(const Tile& tile) {
   switch (tile.sensor_value_font) {
     case 1:
-      return &ui_font_20;
+      return tile_layout::content_font_20();
     case 2:
-      return &ui_font_24;
+      return tile_layout::content_font_24();
     case 3:
-      return &ui_font_32;
+      return tile_layout::content_font_32();
     case 4:
-      return &ui_font_40;
+      return tile_layout::content_font_40();
     default:
       return FONT_VALUE;
   }
@@ -111,7 +111,8 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   if (tile.title.length() > 0) {
     title_label = lv_label_create(card);
     if (title_label) {
-      set_label_style(title_label, lv_color_hex(0xFFFFFF), FONT_TITLE);
+      set_label_style(title_label, lv_color_hex(0xFFFFFF),
+                      tile_layout::header_title_font());
       lv_label_set_long_mode(title_label, LV_LABEL_LONG_DOT);
       lv_obj_set_width(title_label, LV_PCT(70));
       lv_obj_set_style_text_align(title_label, LV_TEXT_ALIGN_RIGHT, 0);
@@ -129,9 +130,11 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
     uint16_t gauge_size = tile.sensor_gauge_size;
     if (gauge_size < 100) gauge_size = 100;
     if (gauge_size > 800) gauge_size = 800;
+    gauge_size = tile_layout::scale_u16(gauge_size);
     int16_t y_offset = tile.sensor_gauge_y_offset;
     if (y_offset < -100) y_offset = -100;
     if (y_offset > 200) y_offset = 200;
+    y_offset = tile_layout::scale_i16(y_offset);
     // Calculate rotation so gap is always at bottom: rotation = 270 - arc/2
     uint16_t rotation = 270 - (arc_degrees / 2);
 
@@ -152,11 +155,13 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
       lv_arc_set_bg_angles(gauge, 0, arc_degrees);
       lv_arc_set_angles(gauge, 0, arc_degrees);
 
-      lv_obj_set_style_arc_width(gauge, 14, LV_PART_MAIN);
+      lv_obj_set_style_arc_width(gauge, tile_layout::scale(14),
+                                 LV_PART_MAIN);
       lv_obj_set_style_arc_color(gauge, lv_color_hex(0x2E2E2E), LV_PART_MAIN);
       lv_obj_set_style_arc_rounded(gauge, true, LV_PART_MAIN);
 
-      lv_obj_set_style_arc_width(gauge, 14, LV_PART_INDICATOR);
+      lv_obj_set_style_arc_width(gauge, tile_layout::scale(14),
+                                 LV_PART_INDICATOR);
       lv_obj_set_style_arc_color(gauge, lv_color_hex(0x20A4FF), LV_PART_INDICATOR);
       lv_obj_set_style_arc_rounded(gauge, true, LV_PART_INDICATOR);
 
@@ -179,6 +184,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
     uint16_t graph_height = tile.sensor_graph_height;
     if (graph_height < 20) graph_height = 20;
     if (graph_height > 200) graph_height = 200;
+    graph_height = tile_layout::scale_u16(graph_height);
 
     chart = lv_chart_create(card);
     if (chart) {
@@ -229,14 +235,18 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   int16_t value_y_offset = tile.sensor_value_y_offset;
   if (value_y_offset < -100) value_y_offset = -100;
   if (value_y_offset > 200) value_y_offset = 200;
+  value_y_offset = tile_layout::scale_i16(value_y_offset);
 
   if (gauge_enabled) {
-    lv_obj_align(v, LV_ALIGN_BOTTOM_MID, 0, 12 + value_y_offset);
+    lv_obj_align(v, LV_ALIGN_BOTTOM_MID, 0,
+                 tile_layout::scale(12) + value_y_offset);
   } else if (graph_enabled) {
     // Value above graph: center vertically in upper area
-    lv_obj_align(v, LV_ALIGN_CENTER, 0, -20 + value_y_offset);
+    lv_obj_align(v, LV_ALIGN_CENTER, 0,
+                 tile_layout::scale(-20) + value_y_offset);
   } else {
-    lv_obj_align(v, LV_ALIGN_CENTER, 0, 28 + value_y_offset);  // Nach unten verschoben (war 18)
+    lv_obj_align(v, LV_ALIGN_CENTER, 0,
+                 tile_layout::scale(28) + value_y_offset);
   }
 
   // Speichern für spätere Updates

@@ -116,7 +116,8 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   if (tile.title.length() > 0) {
     lv_obj_t* title_lbl = lv_label_create(card);
     if (title_lbl) {
-      set_label_style(title_lbl, lv_color_hex(0xFFFFFF), FONT_TITLE);
+      set_label_style(title_lbl, lv_color_hex(0xFFFFFF),
+                      tile_layout::header_title_font());
       lv_label_set_text(title_lbl, tile.title.c_str());
       lv_obj_align(title_lbl, LV_ALIGN_TOP_LEFT, 0, 4);
     }
@@ -140,7 +141,8 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
     char buf[16];
     snprintf(buf, sizeof(buf), "%ld", (long)initial);
     lv_label_set_text(val_lbl, buf);
-    int16_t y_offset = (tile.title.length() || has_icon) ? 12 : 0;
+    int16_t y_offset =
+        (tile.title.length() || has_icon) ? tile_layout::scale(12) : 0;
     lv_obj_align(val_lbl, LV_ALIGN_CENTER, 0, y_offset);
   }
   st.label = val_lbl;

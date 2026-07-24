@@ -36,6 +36,27 @@ static uint8_t normalize_clock_date_font_size(uint8_t raw,
   return normalized > 72 ? 72 : normalized;
 }
 
+static uint8_t layout_clock_font_size(uint8_t size) {
+#if defined(DEVICE_LAYOUT_1024X600)
+  switch (size) {
+    case 20: return 16;
+    case 24: return 20;
+    case 28: return 24;
+    case 32: return 28;
+    case 40: return 32;
+    case 48: return 40;
+    case 56: return 48;
+    case 64: return 56;
+    case 72: return 56;
+    case 80: return 64;
+    case 96: return 80;
+    default: return size;
+  }
+#else
+  return size;
+#endif
+}
+
 static uint8_t resolve_clock_time_format(const Tile& tile) {
   const DeviceConfig& cfg = configManager.getConfig();
   return clock_tile::resolve_time_format(tile.sensor_gauge_min, cfg.global_time_format, cfg.language);
@@ -224,11 +245,9 @@ static lv_obj_t* create_clock_line(lv_obj_t* stack,
                                    bool date_line,
                                    uint8_t alignment,
                                    ClockShadowSet* shadow_out) {
-  const uint8_t font_size = date_line
-                                ? normalize_clock_date_font_size(raw_font_size,
-                                                                 fallback)
-                                : normalize_clock_font_size(raw_font_size,
-                                                            fallback);
+  const uint8_t font_size = layout_clock_font_size(
+      date_line ? normalize_clock_date_font_size(raw_font_size, fallback)
+                : normalize_clock_font_size(raw_font_size, fallback));
   const lv_font_t* font = ui_font_for_size(font_size);
   if (!config.text_shadow) {
     lv_obj_t* label = lv_label_create(stack);
@@ -264,15 +283,15 @@ static lv_obj_t* create_clock_line(lv_obj_t* stack,
     int16_t y;
     lv_opa_t opa;
   } copies[kClockShadowCopies] = {
-      {4, 4, static_cast<lv_opa_t>(34)},
-      {2, 4, static_cast<lv_opa_t>(14)},
-      {6, 4, static_cast<lv_opa_t>(14)},
-      {4, 2, static_cast<lv_opa_t>(14)},
-      {4, 6, static_cast<lv_opa_t>(14)},
-      {2, 2, static_cast<lv_opa_t>(8)},
-      {6, 2, static_cast<lv_opa_t>(8)},
-      {2, 6, static_cast<lv_opa_t>(8)},
-      {6, 6, static_cast<lv_opa_t>(8)},
+      {tile_layout::scale(4), tile_layout::scale(4), static_cast<lv_opa_t>(34)},
+      {tile_layout::scale(2), tile_layout::scale(4), static_cast<lv_opa_t>(14)},
+      {tile_layout::scale(6), tile_layout::scale(4), static_cast<lv_opa_t>(14)},
+      {tile_layout::scale(4), tile_layout::scale(2), static_cast<lv_opa_t>(14)},
+      {tile_layout::scale(4), tile_layout::scale(6), static_cast<lv_opa_t>(14)},
+      {tile_layout::scale(2), tile_layout::scale(2), static_cast<lv_opa_t>(8)},
+      {tile_layout::scale(6), tile_layout::scale(2), static_cast<lv_opa_t>(8)},
+      {tile_layout::scale(2), tile_layout::scale(6), static_cast<lv_opa_t>(8)},
+      {tile_layout::scale(6), tile_layout::scale(6), static_cast<lv_opa_t>(8)},
   };
   for (uint8_t i = 0; i < kClockShadowCopies; ++i) {
     lv_obj_t* shadow = lv_label_create(line);
@@ -322,7 +341,7 @@ lv_obj_t* create_clock_widget(lv_obj_t* parent,
   lv_obj_set_flex_align(stack, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
   lv_obj_set_style_pad_all(stack, 0, 0);
-  lv_obj_set_style_pad_gap(stack, 6, 0);
+  lv_obj_set_style_pad_gap(stack, tile_layout::scale(6), 0);
   lv_obj_set_style_bg_opa(stack, LV_OPA_TRANSP, 0);
   lv_obj_remove_flag(stack, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_remove_flag(stack, LV_OBJ_FLAG_CLICKABLE);
@@ -424,7 +443,8 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   if (tile.title.length() > 0) {
     lv_obj_t* title_lbl = lv_label_create(card);
     if (title_lbl) {
-      set_label_style(title_lbl, lv_color_white(), FONT_TITLE);
+      set_label_style(title_lbl, lv_color_white(),
+                      tile_layout::header_title_font());
       lv_label_set_text(title_lbl, tile.title.c_str());
       lv_obj_align(title_lbl, LV_ALIGN_TOP_LEFT, 0, 4);
     }
@@ -445,7 +465,10 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   widget_config.time_format = resolve_clock_time_format(tile);
   widget_config.date_format = resolve_clock_date_format(tile);
   lv_obj_t* stack = create_clock_widget(card, widget_config);
-  if (stack) lv_obj_align(stack, LV_ALIGN_CENTER, 0, has_header ? 18 : 0);
+  if (stack) {
+    lv_obj_align(stack, LV_ALIGN_CENTER, 0,
+                 has_header ? tile_layout::scale(18) : 0);
+  }
 
   // Jede Clock-Kachel oeffnet denselben global konfigurierten Screensaver.
   lv_obj_add_event_cb(

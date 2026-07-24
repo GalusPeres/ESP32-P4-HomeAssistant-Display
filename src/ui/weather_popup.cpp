@@ -28,39 +28,46 @@ constexpr int kCardWidth =
         ? (SCREEN_HEIGHT - (kCardMargin * 2))
         : (SCREEN_WIDTH - (kCardMargin * 2));
 constexpr int kCardHeight = SCREEN_HEIGHT - (kCardMargin * 2);
-constexpr int kCardPad = 20;
+constexpr int kCardPad = popup_layout::kCardPad;
 constexpr int kCols = 7;
 constexpr int kForecastHoursPerDay = 24;
 constexpr int kForecastTempPointCount = (kCols * kForecastHoursPerDay) + 1;
 constexpr int kHourlyForecastMax = 168;
 constexpr int kDetailMarkerCount = 5;
 constexpr int kDetailChartPointCount = 25;
-constexpr int kModeButtonWidth = 96;
-constexpr int kModeButtonHeight = 54;
-constexpr int kModeButtonGap = 12;
+constexpr int kModeButtonWidth = popup_layout::scale(96);
+constexpr int kModeButtonHeight = popup_layout::scale(54);
+constexpr int kModeButtonGap = popup_layout::scale(12);
 constexpr int kModeRowOffsetY =
     popup_layout::kValueY + ((popup_layout::kValueHeight - kModeButtonHeight) / 2);
 constexpr int kSummaryRowTop = popup_layout::kValueY;
 constexpr int kForecastRowTop = popup_layout::kBodyY;
 constexpr int kDetailHeaderSubrowTop = kForecastRowTop;
 constexpr int kForecastRowHeight = popup_layout::kBodyHeight;
-constexpr int kForecastSidePad = 4;
-constexpr int kForecastColGap = 4;
-constexpr int kForecastDayTop = 2;
-constexpr int kForecastDayIconGap = 6;
-constexpr int kForecastIconTop = 30;
-constexpr int kForecastTempChartTop = 102;
-constexpr int kForecastTempChartHeight = 142;
-constexpr int kForecastHighLabelGap = 6;
-constexpr int kForecastLowLabelGap = 8;
-constexpr int kForecastPrecipChartTop = 288;
-constexpr int kForecastPrecipChartHeight = 12;
-constexpr int kForecastAmountTop = 323;
-constexpr int kForecastProbabilityTop = 355;
-constexpr int kForecastColumnTouchHeight = kForecastProbabilityTop + 44;
-constexpr int kForecastBarWidth = 10;
-constexpr int kForecastBarSideInset = 5;
-constexpr int kForecastChartSideInset = 8;
+constexpr int kForecastSidePad = popup_layout::scale(4);
+constexpr int kForecastColGap = popup_layout::scale(4);
+constexpr int kForecastDayTop = popup_layout::contentScale(2);
+#if defined(DEVICE_LAYOUT_1024X600)
+// Keep the compact forecast icons clear of the chart line below them.
+constexpr int kForecastDayIconGap = -3;
+constexpr int kForecastIconTop = popup_layout::contentScale(20);
+#else
+constexpr int kForecastDayIconGap = popup_layout::contentScale(6);
+constexpr int kForecastIconTop = popup_layout::contentScale(30);
+#endif
+constexpr int kForecastTempChartTop = popup_layout::contentScale(102);
+constexpr int kForecastTempChartHeight = popup_layout::contentScale(142);
+constexpr int kForecastHighLabelGap = popup_layout::contentScale(6);
+constexpr int kForecastLowLabelGap = popup_layout::contentScale(8);
+constexpr int kForecastPrecipChartTop = popup_layout::contentScale(288);
+constexpr int kForecastPrecipChartHeight = popup_layout::contentScale(12);
+constexpr int kForecastAmountTop = popup_layout::contentScale(323);
+constexpr int kForecastProbabilityTop = popup_layout::contentScale(355);
+constexpr int kForecastColumnTouchHeight =
+    kForecastProbabilityTop + popup_layout::contentScale(44);
+constexpr int kForecastBarWidth = popup_layout::scale(10);
+constexpr int kForecastBarSideInset = popup_layout::scale(5);
+constexpr int kForecastChartSideInset = popup_layout::scale(8);
 constexpr int kForecastPlotTotalW = kCardWidth - (kCardPad * 2);
 constexpr int kForecastAlignedColW =
     (kForecastPlotTotalW - (kForecastChartSideInset * 2) - (kForecastColGap * (kCols - 1))) / kCols;
@@ -70,13 +77,13 @@ constexpr int kForecastFirstCenter = kForecastSidePad + (kForecastPlotColW / 2);
 constexpr int kForecastLastCenter =
     kForecastSidePad + ((kCols - 1) * (kForecastPlotColW + kForecastColGap)) + (kForecastPlotColW / 2);
 constexpr int kDetailRowTop = kForecastRowTop;
-constexpr int kDetailTitleTop = kDetailHeaderSubrowTop + 6;
+constexpr int kDetailTitleTop = kDetailHeaderSubrowTop + popup_layout::scale(6);
 constexpr int kFooterButtonHeight = popup_layout::kNavHeight;
-constexpr int kFooterActionButtonWidth = 92;
+constexpr int kFooterActionButtonWidth = popup_layout::scale(92);
 constexpr int kFooterButtonRadius = kFooterButtonHeight / 2;
-constexpr int kFooterButtonGap = 10;
-constexpr int kFooterInsetX = 6;
-constexpr int kFooterOffsetY = -6;
+constexpr int kFooterButtonGap = popup_layout::scale(10);
+constexpr int kFooterInsetX = popup_layout::scale(6);
+constexpr int kFooterOffsetY = -popup_layout::scale(6);
 constexpr lv_opa_t kFooterIndicatorOpa = LV_OPA_20;
 constexpr int kDetailNavButtonSize = kFooterButtonHeight;
 constexpr int kFooterNextButtonX = -kFooterInsetX;
@@ -94,18 +101,20 @@ constexpr float kDetailNowCollisionHours = 3.0f;
 constexpr int kDetailNowGuideWidth = 1;
 constexpr int kDetailNowGuideOpa = LV_OPA_30;
 constexpr int kDetailChartWrapTop = 0;
-constexpr int kDetailLabelOverhang = 12;
-constexpr int kDetailYAxisWidth = 18;
-constexpr int kDetailTempChartHeight = kForecastTempChartHeight - 20;
-constexpr int kDetailPrecipChartHeight = kForecastPrecipChartHeight + 20;
+constexpr int kDetailLabelOverhang = popup_layout::scale(12);
+constexpr int kDetailYAxisWidth = popup_layout::scale(18);
+constexpr int kDetailTempChartHeight =
+    kForecastTempChartHeight - popup_layout::scale(20);
+constexpr int kDetailPrecipChartHeight =
+    kForecastPrecipChartHeight + popup_layout::scale(20);
 constexpr int kDetailChartGap =
     kForecastPrecipChartTop - kForecastTempChartTop - kForecastTempChartHeight;
-constexpr int kDetailProbabilityGap = 4;
-constexpr int kDetailProbabilityHeight = 22;
-constexpr int kDetailTempValueGap = 28;
-constexpr int kDetailTempMarkerSize = 12;
-constexpr int kDetailCurrentHourDotSize = 18;
-constexpr int kDetailPrecipBarWidth = 12;
+constexpr int kDetailProbabilityGap = popup_layout::scale(4);
+constexpr int kDetailProbabilityHeight = popup_layout::scale(22);
+constexpr int kDetailTempValueGap = popup_layout::scale(28);
+constexpr int kDetailTempMarkerSize = popup_layout::scale(12);
+constexpr int kDetailCurrentHourDotSize = popup_layout::scale(18);
+constexpr int kDetailPrecipBarWidth = popup_layout::scale(12);
 constexpr int kDetailSectionGutter = 0;
 constexpr int kDetailRightInsetAdjust = 0;
 constexpr int kDetailChartColumnInset = kForecastChartSideInset + (kForecastAlignedColW / 2);
@@ -113,25 +122,31 @@ constexpr int kDetailChartLeftInset = kDetailChartColumnInset;
 constexpr int kDetailChartRightInset = kDetailChartColumnInset;
 constexpr int kDetailTimeLabelY = kForecastDayTop;
 constexpr int kDetailIconY = kForecastIconTop;
-constexpr int kDetailPastOverlayRadius = 16;
-constexpr int kDetailDisabledBlockGap = 5;
-constexpr int kDetailDisabledLineGap = 10;
+constexpr int kDetailPastOverlayRadius = popup_layout::scale(16);
+constexpr int kDetailDisabledBlockGap = popup_layout::scale(5);
+constexpr int kDetailDisabledLineGap = popup_layout::scale(10);
 constexpr int kDetailTempChartTop = kForecastTempChartTop;
-constexpr int kDetailPrecipChartTop = kForecastPrecipChartTop - 20;
+constexpr int kDetailPrecipChartTop =
+    kForecastPrecipChartTop - popup_layout::scale(20);
 constexpr int kDetailAmountTop = kForecastAmountTop;
 constexpr int kDetailProbabilityTop = kForecastProbabilityTop;
-constexpr int kDetailDisabledIconBlockTop = kDetailIconY + 4;
-constexpr int kDetailDisabledTempBlockTop = kDetailTempChartTop - 6;
+constexpr int kDetailDisabledIconBlockTop =
+    kDetailIconY + popup_layout::scale(4);
+constexpr int kDetailDisabledTempBlockTop =
+    kDetailTempChartTop - popup_layout::scale(6);
 constexpr int kDetailDisabledIconBlockHeight =
     kDetailDisabledTempBlockTop - kDetailDisabledBlockGap - kDetailDisabledIconBlockTop;
-constexpr int kDetailDisabledPrecipBlockTop = kDetailPrecipChartTop - 6;
+constexpr int kDetailDisabledPrecipBlockTop =
+    kDetailPrecipChartTop - popup_layout::scale(6);
 constexpr int kDetailDisabledTempBlockHeight =
     kDetailDisabledPrecipBlockTop - kDetailDisabledBlockGap - kDetailDisabledTempBlockTop;
 constexpr int kDetailDisabledPrecipBlockHeight =
-    (kDetailProbabilityTop + kDetailProbabilityHeight + 4) - kDetailDisabledPrecipBlockTop;
+    (kDetailProbabilityTop + kDetailProbabilityHeight + popup_layout::scale(4)) -
+    kDetailDisabledPrecipBlockTop;
 constexpr int kDetailDisabledOverlayTop = kDetailDisabledIconBlockTop;
 constexpr int kDetailDisabledOverlayHeight =
-    (kDetailProbabilityTop + kDetailProbabilityHeight + 4) - kDetailDisabledOverlayTop;
+    (kDetailProbabilityTop + kDetailProbabilityHeight + popup_layout::scale(4)) -
+    kDetailDisabledOverlayTop;
 constexpr int kDetailDisabledSeparator1Top = kDetailDisabledIconBlockHeight;
 constexpr int kDetailDisabledSeparator2Top =
     (kDetailDisabledTempBlockTop + kDetailDisabledTempBlockHeight) - kDetailDisabledOverlayTop;
@@ -146,9 +161,9 @@ constexpr int kDetailPrecipGuideHeight =
     kDetailPrecipChartHeight - kDetailDisabledLineInsetTop;
 constexpr int kDetailChartWrapHeight =
     kDetailProbabilityTop + kDetailProbabilityHeight + kDetailLabelOverhang;
-constexpr int kHeaderPadTop = 4;
-constexpr int kHeaderIconOffsetX = 4;
-constexpr int kHeaderIconOffsetY = -8;
+constexpr int kHeaderPadTop = popup_layout::scale(4);
+constexpr int kHeaderIconOffsetX = popup_layout::scale(4);
+constexpr int kHeaderIconOffsetY = -popup_layout::scale(8);
 
 struct ForecastWidgets {
   lv_obj_t* column = nullptr;
@@ -1201,6 +1216,9 @@ static void set_label_style(lv_obj_t* lbl, lv_color_t color, const lv_font_t* fo
   lv_obj_set_style_text_color(lbl, color, 0);
   if (font) {
     lv_obj_set_style_text_font(lbl, font, 0);
+    if (font == FONT_MDI_ICONS) {
+      popup_layout::applyIconScale(lbl);
+    }
   }
 }
 
@@ -2722,17 +2740,20 @@ static void build_weather_ui(WeatherPopupContext* ctx,
 static void align_header_row(lv_obj_t* card, lv_obj_t* title_label, lv_obj_t* icon_label) {
   if (!card) return;
   lv_obj_update_layout(card);
-  lv_coord_t header_center_y = 60 - lv_obj_get_style_pad_top(card, LV_PART_MAIN);
+  lv_coord_t header_center_y =
+      popup_layout::kHeaderCenterY - lv_obj_get_style_pad_top(card, LV_PART_MAIN);
   if (header_center_y < 0) header_center_y = 0;
   if (icon_label) {
     lv_coord_t icon_y = header_center_y - (lv_obj_get_height(icon_label) / 2);
     if (icon_y < 0) icon_y = 0;
-    lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT, 8, icon_y);
+    lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT,
+                 popup_layout::kHeaderIconX, icon_y);
   }
   if (title_label) {
     lv_coord_t title_y = header_center_y - (lv_obj_get_height(title_label) / 2);
     if (title_y < 0) title_y = 0;
-    lv_obj_align(title_label, LV_ALIGN_TOP_LEFT, 78, title_y);
+    lv_obj_align(title_label, LV_ALIGN_TOP_LEFT,
+                 popup_layout::kHeaderTitleX, title_y);
   }
 }
 
@@ -2913,7 +2934,8 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* location = lv_label_create(card);
   ctx->location_label = location;
-  set_label_style(location, lv_color_white(), &ui_font_24);
+  set_label_style(location, lv_color_white(),
+                  popup_layout::headerTitleFont());
   lv_label_set_long_mode(location, LV_LABEL_LONG_DOT);
   lv_obj_set_width(location, LV_PCT(38));
   lv_obj_align(location, LV_ALIGN_TOP_LEFT, 78, 10);
@@ -2921,6 +2943,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   lv_obj_t* icon = lv_label_create(card);
   ctx->icon_label = icon;
   set_label_style(icon, lv_color_white(), FONT_MDI_ICONS);
+  popup_layout::applyIconScale(icon);
   lv_label_set_text(icon, "");
   lv_obj_add_flag(icon, LV_OBJ_FLAG_HIDDEN);
 
@@ -2959,23 +2982,27 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   };
 
   lv_obj_t* close_btn = lv_button_create(card);
-  lv_obj_set_size(close_btn, 96, 96);
+  lv_obj_set_size(close_btn, popup_layout::kCloseButtonSize,
+                  popup_layout::kCloseButtonSize);
   lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_bg_color(close_btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
   lv_obj_set_style_bg_opa(close_btn, LV_OPA_20, LV_STATE_PRESSED);
   lv_obj_set_style_border_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_radius(close_btn, 16, 0);
+  lv_obj_set_style_radius(close_btn, popup_layout::kCloseButtonRadius, 0);
   lv_obj_set_style_pad_all(close_btn, 0, 0);
-  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, 6, -6);
-  lv_obj_set_ext_click_area(close_btn, 8);
+  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT,
+               popup_layout::kCloseButtonOffsetX,
+               popup_layout::kCloseButtonOffsetY);
+  lv_obj_set_ext_click_area(close_btn, popup_layout::kCloseButtonClickArea);
   lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
   lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_CLICKED, ctx);
   lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_RELEASED, ctx);
   lv_obj_t* close_label = lv_label_create(close_btn);
   set_label_style(close_label, lv_color_white(), FONT_MDI_ICONS);
+  popup_layout::applyIconScale(close_label);
   lv_label_set_text(close_label, getMdiChar("window-close").c_str());
   lv_obj_center(close_label);
 
@@ -3032,7 +3059,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   lv_obj_set_size(value_row, popup_layout::kContentWidth, popup_layout::kValueHeight);
   lv_obj_set_flex_flow(value_row, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(value_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_gap(value_row, 14, 0);
+  lv_obj_set_style_pad_gap(value_row, popup_layout::scale(14), 0);
   lv_obj_set_style_bg_opa(value_row, LV_OPA_TRANSP, 0);
   lv_obj_remove_flag(value_row, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(value_row, LV_OBJ_FLAG_HIDDEN);
@@ -3042,7 +3069,8 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   set_label_style(condition_label, lv_color_white(), FONT_VALUE);
   lv_label_set_long_mode(condition_label, LV_LABEL_LONG_DOT);
   lv_obj_set_width(condition_label, LV_SIZE_CONTENT);
-  lv_obj_set_style_max_width(condition_label, 250, 0);
+  lv_obj_set_style_max_width(
+      condition_label, popup_layout::scale(250), 0);
   lv_label_set_text(condition_label, "--");
   lv_obj_add_flag(condition_label, LV_OBJ_FLAG_HIDDEN);
 
@@ -3204,7 +3232,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     ctx->forecast[i].column = col;
 
     lv_obj_t* day = lv_label_create(col);
-    set_label_style(day, lv_color_white(), FONT_TITLE);
+    set_label_style(day, lv_color_white(), popup_layout::font20());
     lv_label_set_long_mode(day, LV_LABEL_LONG_DOT);
     lv_obj_set_width(day, LV_PCT(100));
     lv_obj_set_style_text_align(day, LV_TEXT_ALIGN_CENTER, 0);
@@ -3219,7 +3247,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_align(icon_day, LV_ALIGN_TOP_MID, 0, kForecastIconTop);
 
     lv_obj_t* high = lv_label_create(col);
-    set_label_style(high, lv_color_white(), &ui_font_24);
+    set_label_style(high, lv_color_white(), popup_layout::font20());
     lv_obj_set_style_text_align(high, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(high, "");
     lv_obj_add_flag(high, LV_OBJ_FLAG_HIDDEN);
@@ -3233,7 +3261,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_set_pos(high_unit, 0, kForecastTempChartTop);
 
     lv_obj_t* low = lv_label_create(col);
-    set_label_style(low, lv_color_white(), &ui_font_24);
+    set_label_style(low, lv_color_white(), popup_layout::font20());
     lv_obj_set_style_text_align(low, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(low, "");
     lv_obj_add_flag(low, LV_OBJ_FLAG_HIDDEN);
@@ -3256,7 +3284,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_remove_flag(precip_bar, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t* amount = lv_label_create(col);
-    set_label_style(amount, lv_color_white(), FONT_TITLE);
+    set_label_style(amount, lv_color_white(), popup_layout::font20());
     lv_obj_set_style_text_align(amount, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(amount, "");
     lv_obj_add_flag(amount, LV_OBJ_FLAG_HIDDEN);
@@ -3270,7 +3298,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_set_pos(amount_unit, 0, kForecastAmountTop);
 
     lv_obj_t* probability = lv_label_create(col);
-    set_label_style(probability, lv_color_white(), &ui_font_24);
+    set_label_style(probability, lv_color_white(), popup_layout::font20());
     lv_obj_set_style_text_align(probability, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(probability, "");
     lv_obj_add_flag(probability, LV_OBJ_FLAG_HIDDEN);
@@ -3445,7 +3473,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* y_max = lv_label_create(chart_wrap);
   ctx->detail_y_max_label = y_max;
-  set_label_style(y_max, lv_color_white(), FONT_TITLE);
+  set_label_style(y_max, lv_color_white(), popup_layout::font20());
   lv_obj_set_style_text_align(y_max, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_set_width(y_max, kDetailYAxisWidth - 10);
   lv_label_set_text(y_max, "");
@@ -3454,7 +3482,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* y_min = lv_label_create(chart_wrap);
   ctx->detail_y_min_label = y_min;
-  set_label_style(y_min, lv_color_white(), FONT_TITLE);
+  set_label_style(y_min, lv_color_white(), popup_layout::font20());
   lv_obj_set_style_text_align(y_min, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_set_width(y_min, kDetailYAxisWidth - 10);
   lv_label_set_text(y_min, "");
@@ -3499,7 +3527,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     ctx->detail_time_lines[i] = vline;
 
     lv_obj_t* tlbl = lv_label_create(chart_wrap);
-    set_label_style(tlbl, lv_color_white(), FONT_TITLE);
+    set_label_style(tlbl, lv_color_white(), popup_layout::font20());
     lv_obj_set_style_text_align(tlbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(tlbl, "");
     lv_obj_set_pos(tlbl, 0, kDetailTimeLabelY);
@@ -3526,7 +3554,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     ctx->detail_temp_point_dots[i] = dot;
 
     lv_obj_t* vlbl = lv_label_create(chart_wrap);
-    set_label_style(vlbl, lv_color_white(), &ui_font_24);
+    set_label_style(vlbl, lv_color_white(), popup_layout::font20());
     lv_obj_set_style_text_align(vlbl, LV_TEXT_ALIGN_LEFT, 0);
     lv_obj_set_style_bg_color(vlbl, lv_color_hex(ctx->bg_color ? ctx->bg_color : 0x2A2A2A), 0);
     lv_obj_set_style_bg_opa(vlbl, LV_OPA_COVER, 0);
@@ -3554,7 +3582,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     ctx->detail_temp_unit_labels[i] = vu;
 
     lv_obj_t* albl = lv_label_create(chart_wrap);
-    set_label_style(albl, lv_color_white(), FONT_TITLE);
+    set_label_style(albl, lv_color_white(), popup_layout::font20());
     lv_obj_set_style_text_align(albl, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(albl, "");
     lv_obj_set_pos(albl, 0, kDetailAmountTop);
@@ -3570,7 +3598,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     ctx->detail_precip_amount_unit_labels[i] = au;
 
     lv_obj_t* plbl = lv_label_create(chart_wrap);
-    set_label_style(plbl, lv_color_white(), &ui_font_24);
+    set_label_style(plbl, lv_color_white(), popup_layout::font20());
     lv_obj_set_style_text_align(plbl, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(plbl, "");
     lv_obj_set_pos(plbl, 0, kDetailProbabilityTop);
@@ -3656,7 +3684,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* now_time = lv_label_create(chart_wrap);
   ctx->detail_now_time_label = now_time;
-  set_label_style(now_time, lv_color_white(), FONT_TITLE);
+  set_label_style(now_time, lv_color_white(), popup_layout::font20());
   lv_obj_set_style_text_align(now_time, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_text(now_time, "");
   lv_obj_set_pos(now_time, 0, kDetailTimeLabelY);
@@ -3672,7 +3700,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* now_temp = lv_label_create(chart_wrap);
   ctx->detail_now_temp_value_label = now_temp;
-  set_label_style(now_temp, lv_color_white(), &ui_font_24);
+  set_label_style(now_temp, lv_color_white(), popup_layout::font20());
   lv_obj_set_style_text_align(now_temp, LV_TEXT_ALIGN_LEFT, 0);
   lv_obj_set_style_bg_color(now_temp, lv_color_hex(ctx->bg_color ? ctx->bg_color : 0x2A2A2A), 0);
   lv_obj_set_style_bg_opa(now_temp, LV_OPA_COVER, 0);
@@ -3700,7 +3728,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* now_amount = lv_label_create(chart_wrap);
   ctx->detail_now_precip_amount_label = now_amount;
-  set_label_style(now_amount, lv_color_white(), FONT_TITLE);
+  set_label_style(now_amount, lv_color_white(), popup_layout::font20());
   lv_obj_set_style_text_align(now_amount, LV_TEXT_ALIGN_LEFT, 0);
   lv_label_set_text(now_amount, "");
   lv_obj_set_pos(now_amount, 0, kDetailAmountTop);
@@ -3716,7 +3744,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
 
   lv_obj_t* now_probability = lv_label_create(chart_wrap);
   ctx->detail_now_probability_label = now_probability;
-  set_label_style(now_probability, lv_color_white(), &ui_font_24);
+  set_label_style(now_probability, lv_color_white(), popup_layout::font20());
   lv_obj_set_style_text_align(now_probability, LV_TEXT_ALIGN_LEFT, 0);
   lv_label_set_text(now_probability, "");
   lv_obj_set_pos(now_probability, 0, kDetailProbabilityTop);

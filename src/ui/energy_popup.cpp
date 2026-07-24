@@ -29,17 +29,17 @@ constexpr int kCardWidth =
         ? (SCREEN_HEIGHT - (kCardMargin * 2))
         : (SCREEN_WIDTH - (kCardMargin * 2));
 constexpr int kCardHeight = SCREEN_HEIGHT - (kCardMargin * 2);
-constexpr int kCardPad = 20;
-constexpr int kChartHeight = 325;
-constexpr int kTimeAxisHeight = 20;
-constexpr int kTimeAxisGap = 14;
-constexpr int kRangeButtonWidth = 92;
+constexpr int kCardPad = popup_layout::kCardPad;
+constexpr int kChartHeight = popup_layout::contentScale(325);
+constexpr int kTimeAxisHeight = popup_layout::scale(20);
+constexpr int kTimeAxisGap = popup_layout::scale(14);
+constexpr int kRangeButtonWidth = popup_layout::scale(92);
 constexpr int kRangeButtonHeight = popup_layout::kNavHeight;
-constexpr int kRangeButtonGap = 10;
+constexpr int kRangeButtonGap = popup_layout::scale(10);
 constexpr uint8_t kDaySlotCount = 24;
 constexpr uint8_t kWeekSlotCount = 7;
-constexpr int kLabelOverhang = 12;
-constexpr int kMinBarHeight = 2;
+constexpr int kLabelOverhang = popup_layout::scale(12);
+constexpr int kMinBarHeight = popup_layout::scale(2);
 
 struct EnergyPopupContext {
   lv_obj_t* overlay = nullptr;
@@ -134,8 +134,8 @@ void style_period_button(lv_obj_t* btn, lv_obj_t* label, bool active) {
   apply_selector(0);
   apply_selector(LV_STATE_PRESSED);
 
-  lv_obj_set_style_text_font(label, &ui_font_24, 0);
-  lv_obj_set_style_text_font(label, &ui_font_24, LV_STATE_PRESSED);
+  lv_obj_set_style_text_font(label, popup_layout::font24(), 0);
+  lv_obj_set_style_text_font(label, popup_layout::font24(), LV_STATE_PRESSED);
   lv_obj_set_style_text_color(label, active ? active_text_color : lv_color_white(), 0);
   lv_obj_set_style_text_color(label, active ? active_text_color : lv_color_white(), LV_STATE_PRESSED);
 }
@@ -150,17 +150,20 @@ void update_period_buttons(EnergyPopupContext* ctx) {
 void align_header_row(lv_obj_t* card, lv_obj_t* title_label, lv_obj_t* icon_label) {
   if (!card) return;
   lv_obj_update_layout(card);
-  lv_coord_t header_center_y = 60 - lv_obj_get_style_pad_top(card, LV_PART_MAIN);
+  lv_coord_t header_center_y =
+      popup_layout::kHeaderCenterY - lv_obj_get_style_pad_top(card, LV_PART_MAIN);
   if (header_center_y < 0) header_center_y = 0;
   if (icon_label) {
     lv_coord_t icon_y = header_center_y - (lv_obj_get_height(icon_label) / 2);
     if (icon_y < 0) icon_y = 0;
-    lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT, 8, icon_y);
+    lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT,
+                 popup_layout::kHeaderIconX, icon_y);
   }
   if (title_label) {
     lv_coord_t title_y = header_center_y - (lv_obj_get_height(title_label) / 2);
     if (title_y < 0) title_y = 0;
-    lv_obj_align(title_label, LV_ALIGN_TOP_LEFT, 78, title_y);
+    lv_obj_align(title_label, LV_ALIGN_TOP_LEFT,
+                 popup_layout::kHeaderTitleX, title_y);
   }
 }
 
@@ -751,7 +754,7 @@ lv_obj_t* make_button_label(lv_obj_t* parent, const char* text, lv_obj_t** out_l
   lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(btn, LV_OBJ_FLAG_PRESS_LOCK);
   lv_obj_t* label = lv_label_create(btn);
-  set_label_style(label, lv_color_white(), &ui_font_24);
+  set_label_style(label, lv_color_white(), popup_layout::font24());
   lv_label_set_text(label, text);
   lv_obj_center(label);
   if (out_label) *out_label = label;
@@ -785,34 +788,39 @@ void build_popup_ui(EnergyPopupContext* ctx, const EnergyPopupInit& init) {
 
   lv_obj_t* title = lv_label_create(card);
   ctx->title_label = title;
-  set_label_style(title, lv_color_white(), &ui_font_24);
+  set_label_style(title, lv_color_white(), popup_layout::headerTitleFont());
   lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
   lv_obj_set_width(title, LV_PCT(38));
 
   lv_obj_t* icon = lv_label_create(card);
   ctx->icon_label = icon;
   lv_obj_set_style_text_font(icon, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(icon);
   lv_obj_set_style_text_color(icon, lv_color_white(), 0);
 
   lv_obj_t* close_btn = lv_button_create(card);
   disable_pressed_button_animation(close_btn);
-  lv_obj_set_size(close_btn, 96, 96);
+  lv_obj_set_size(close_btn, popup_layout::kCloseButtonSize,
+                  popup_layout::kCloseButtonSize);
   lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_bg_color(close_btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
   lv_obj_set_style_bg_opa(close_btn, LV_OPA_20, LV_STATE_PRESSED);
   lv_obj_set_style_border_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_radius(close_btn, 16, 0);
+  lv_obj_set_style_radius(close_btn, popup_layout::kCloseButtonRadius, 0);
   lv_obj_set_style_pad_all(close_btn, 0, 0);
-  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, 6, -6);
-  lv_obj_set_ext_click_area(close_btn, 8);
+  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT,
+               popup_layout::kCloseButtonOffsetX,
+               popup_layout::kCloseButtonOffsetY);
+  lv_obj_set_ext_click_area(close_btn, popup_layout::kCloseButtonClickArea);
   lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
   lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_CLICKED, ctx);
   lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_RELEASED, ctx);
   lv_obj_t* close_lbl = lv_label_create(close_btn);
   lv_obj_set_style_text_font(close_lbl, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(close_lbl);
   lv_obj_set_style_text_color(close_lbl, lv_color_white(), 0);
   lv_label_set_text(close_lbl, getMdiChar("window-close").c_str());
   lv_obj_center(close_lbl);
@@ -847,14 +855,15 @@ void build_popup_ui(EnergyPopupContext* ctx, const EnergyPopupInit& init) {
 
   lv_obj_t* value = lv_label_create(value_box);
   ctx->value_label = value;
-  set_label_style(value, lv_color_white(), &ui_font_40);
+  set_label_style(value, lv_color_white(), popup_layout::font32());
   lv_obj_set_style_text_align(value, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_translate_y(value, popup_layout::kLargeValueTextOffsetY, 0);
   lv_obj_set_width(value, LV_PCT(100));
 
   lv_obj_t* subtitle = lv_label_create(value_box);
   ctx->subtitle_label = subtitle;
-  set_label_style(subtitle, lv_color_hex(0xD9D9D9), FONT_TITLE);
+  set_label_style(subtitle, lv_color_hex(0xD9D9D9),
+                  popup_layout::font20());
   lv_obj_set_style_text_align(subtitle, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_width(subtitle, LV_PCT(100));
   lv_obj_add_flag(subtitle, LV_OBJ_FLAG_HIDDEN);
@@ -901,7 +910,7 @@ void build_popup_ui(EnergyPopupContext* ctx, const EnergyPopupInit& init) {
 
   auto make_axis_label = [&](void) -> lv_obj_t* {
     lv_obj_t* label = lv_label_create(chart_wrap);
-    set_label_style(label, lv_color_white(), &ui_font_20);
+    set_label_style(label, lv_color_white(), popup_layout::font20());
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_RIGHT, 0);
     lv_label_set_text(label, "");
     lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
@@ -952,7 +961,7 @@ void build_popup_ui(EnergyPopupContext* ctx, const EnergyPopupInit& init) {
   for (uint8_t i = 0; i < ENERGY_VALUES_MAX; ++i) {
     lv_obj_t* label = lv_label_create(x_axis);
     ctx->x_labels[i] = label;
-    set_label_style(label, lv_color_white(), &ui_font_20);
+    set_label_style(label, lv_color_white(), popup_layout::font20());
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(label, LV_SIZE_CONTENT);
     lv_label_set_text(label, "");

@@ -183,7 +183,8 @@ lv_obj_set_style_bg_grad_dir(container, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STAT
   if (has_title) {
     title_lbl = lv_label_create(container);
     if (title_lbl) {
-      set_label_style(title_lbl, lv_color_white(), FONT_TITLE);
+      set_label_style(title_lbl, lv_color_white(),
+                      tile_layout::header_title_font());
       lv_label_set_text(title_lbl, tile.title.c_str());
 
       if (use_switch_widget) {
@@ -203,9 +204,11 @@ lv_obj_set_style_bg_grad_dir(container, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STAT
   if (use_switch_widget) {
     switch_obj = lv_switch_create(container);
     if (switch_obj) {
-      lv_obj_set_size(switch_obj, 90, 44);
-      lv_obj_align(switch_obj, LV_ALIGN_CENTER, 0, 28);
-      lv_obj_set_ext_click_area(switch_obj, 18);
+      lv_obj_set_size(switch_obj, tile_layout::scale(90),
+                      tile_layout::scale(44));
+      lv_obj_align(switch_obj, LV_ALIGN_CENTER, 0,
+                   tile_layout::scale(28));
+      lv_obj_set_ext_click_area(switch_obj, tile_layout::scale(18));
       lv_obj_clear_flag(switch_obj, LV_OBJ_FLAG_CLICKABLE);
       lv_obj_clear_flag(switch_obj, LV_OBJ_FLAG_SCROLLABLE);
       lv_obj_set_scrollbar_mode(switch_obj, LV_SCROLLBAR_MODE_OFF);

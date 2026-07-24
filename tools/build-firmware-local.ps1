@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('tab5', 'waveshare_b4', 'waveshare_7', 'waveshare_8', 'waveshare_10_1', 'guition_jc8012p4a1')]
+    [ValidateSet('tab5', 'waveshare_b4', 'waveshare_7', 'waveshare_8', 'waveshare_10_1', 'layout_test_1024x600', 'guition_jc8012p4a1')]
     [string]$Profile,
 
     [string]$OutputDirectory
@@ -30,6 +30,7 @@ $defines = @{
     waveshare_7 = 'DEVICE_WAVESHARE_TOUCH_LCD_7'
     waveshare_8 = 'DEVICE_WAVESHARE_TOUCH_LCD_8'
     waveshare_10_1 = 'DEVICE_WAVESHARE_TOUCH_LCD_10_1'
+    layout_test_1024x600 = 'DEVICE_LAYOUT_TEST_1024X600'
     guition_jc8012p4a1 = 'DEVICE_GUITION_JC8012P4A1'
 }
 

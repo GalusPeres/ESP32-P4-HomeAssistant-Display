@@ -52,7 +52,8 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
 
       // Flexible Positionierung: Icon + Title = 2 Zeilen mittig, nur Icon = 1 Zeile mittig
       if (has_title) {
-        lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0, -20);  // Icon oben (mit Title)
+        lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0,
+                     tile_layout::scale_i16(-20));
       } else {
         lv_obj_center(icon_lbl);  // Icon mittig (ohne Title)
       }
@@ -63,12 +64,12 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
   if (has_title) {
     lv_obj_t* l = lv_label_create(btn);
     if (l) {
-      set_label_style(l, lv_color_white(), FONT_TITLE);
+      set_label_style(l, lv_color_white(), tile_layout::header_title_font());
       lv_label_set_text(l, tile.title.c_str());
 
       // Flexible Positionierung: mit Icon unten, ohne Icon mittig
       if (icon_lbl) {
-        lv_obj_align(l, LV_ALIGN_CENTER, 0, 35);  // Title unten (mit Icon)
+        lv_obj_align(l, LV_ALIGN_CENTER, 0, tile_layout::scale(35));
       } else {
         lv_obj_center(l);  // Title mittig (ohne Icon)
       }

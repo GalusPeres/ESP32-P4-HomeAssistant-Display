@@ -86,6 +86,23 @@ void appendPreviewScaleVars(String& html) {
     html += "px;";
   };
   html += "  <style>:root{";
+#if defined(DEVICE_LAYOUT_1024X600)
+  // Match the compact layout's real LVGL font substitutions. The preview
+  // variables describe the rendered font, not the originally requested size.
+  emit("fs16", 16);
+  emit("fs20", 16);
+  emit("fs24", 20);
+  emit("fs28", 24);
+  emit("fs32", 28);
+  emit("fs40", 32);
+  emit("fs48", 40);
+  emit("fs56", 48);
+  emit("fs64", 56);
+  emit("fs72", 56);
+  emit("fs80", 64);
+  emit("fs96", 80);
+  emit("icon-size", 40);
+#else
   emit("fs16", 16);
   emit("fs20", 20);
   emit("fs24", 24);
@@ -99,9 +116,14 @@ void appendPreviewScaleVars(String& html) {
   emit("fs80", 80);
   emit("fs96", 96);
   emit("icon-size", 48);      // FONT_MDI_ICONS = mdi_icons_48
+#endif
   emit("tile-pad-v", climate_layout::kCardPaddingVertical);
   emit("tile-pad-h", climate_layout::kCardPaddingHorizontal);
-  emit("value-dy", 28);       // Sensorwert: LV_ALIGN_CENTER(0, 28)
+#if defined(DEVICE_LAYOUT_1024X600)
+  emit("value-dy", 23);
+#else
+  emit("value-dy", 28);
+#endif
   emit_exact("tile-radius", 22);
   // Climate tile geometry uses the exact same LVGL-to-preview scale as the
   // device. Keeping these separate from font variables avoids the 6 px
@@ -968,7 +990,7 @@ void appendAdminStyles(String& html) {
       pointer-events:none;
       color:rgba(255,255,255,0.35);
     }
-    .tile-ghost-icon .mdi { font-size:24px; line-height:1; }
+    .tile-ghost-icon .mdi { font-size:var(--icon-size, 24px); line-height:1; }
 
     /* Settings Panel: sticky rechts, scrollt bei langem Inhalt intern
        (max. Viewport-Hoehe) statt die ganze Seite zu strecken. */

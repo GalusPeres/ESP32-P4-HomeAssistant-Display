@@ -24,35 +24,35 @@ constexpr int kCardWidth =
         ? (SCREEN_HEIGHT - (kCardMargin * 2))
         : (SCREEN_WIDTH - (kCardMargin * 2));
 constexpr int kCardHeight = SCREEN_HEIGHT - (kCardMargin * 2);
-constexpr int kCardPad = 20;
+constexpr int kCardPad = popup_layout::kCardPad;
 constexpr int kHeaderIconOffsetX = 0;
 constexpr int kHeaderIconOffsetY = 0;
 constexpr int kTopValueHeight = popup_layout::kValueHeight;
 constexpr int kTopValueBottomPad = 0;
 constexpr int kMainPanelHeight = popup_layout::kBodyHeight;
-constexpr int kControlsRowPadX = 12;
-constexpr int kControlsRowGap = 28;
-constexpr int kControlButtonSize = 92;
+constexpr int kControlsRowPadX = popup_layout::scale(12);
+constexpr int kControlsRowGap = popup_layout::scale(28);
+constexpr int kControlButtonSize = popup_layout::scale(92);
 constexpr int kControlButtonTouchWidth = kControlButtonSize;
 constexpr int kControlButtonTouchHeight = popup_layout::kNavHeight;
 constexpr int kControlButtonTopInset = 0;
-constexpr int kControlButtonTouchPadX = 10;
-constexpr int kVerticalSliderWidth = 160;
-constexpr int kVerticalSliderHeight = 340;
-constexpr int kVerticalSliderRadius = 32;
+constexpr int kControlButtonTouchPadX = popup_layout::scale(10);
+constexpr int kVerticalSliderWidth = popup_layout::contentScale(160);
+constexpr int kVerticalSliderHeight = popup_layout::contentScale(340);
+constexpr int kVerticalSliderRadius = popup_layout::contentScale(32);
 constexpr int kVerticalValueLabelPadTop = 0;
 constexpr int kTempHandleWidth = kVerticalSliderWidth;
 constexpr int kTempHandleRadius = kVerticalSliderRadius;
 constexpr int kTempHandleHeight = kTempHandleRadius * 2;
-constexpr int kTempHandleDashWidth = 46;
-constexpr int kTempHandleDashHeight = 4;
+constexpr int kTempHandleDashWidth = popup_layout::contentScale(46);
+constexpr int kTempHandleDashHeight = popup_layout::contentScale(4);
 constexpr int kTempWrapWidth = kVerticalSliderWidth;
 constexpr int kTempWrapHeight = kVerticalSliderHeight;
 constexpr int kColorFieldSize = kVerticalSliderHeight;
 constexpr int kColorFieldWidth = kColorFieldSize;
 constexpr int kColorFieldHeight = kColorFieldSize;
 constexpr int kColorFieldWrapHeight = kMainPanelHeight;
-constexpr int kColorFieldCursorSize = 30;
+constexpr int kColorFieldCursorSize = popup_layout::contentScale(30);
 constexpr int kBrightnessDashWidth = kTempHandleDashWidth;
 constexpr int kBrightnessDashHeight = kTempHandleDashHeight;
 constexpr int kBrightnessOffDragThreshold = kVerticalSliderRadius;
@@ -301,7 +301,7 @@ static bool is_remote_update_close(LightPopupContext* ctx, const LightPopupInit&
 static void set_label_style(lv_obj_t* lbl, lv_color_t color) {
   if (!lbl) return;
   lv_obj_set_style_text_color(lbl, color, 0);
-  lv_obj_set_style_text_font(lbl, &ui_font_24, 0);
+  lv_obj_set_style_text_font(lbl, popup_layout::font24(), 0);
 }
 
 static void update_popup_language(LightPopupContext* ctx) {
@@ -929,17 +929,21 @@ static void update_preview(LightPopupContext* ctx) {
 static void align_header_row(lv_obj_t* card, lv_obj_t* title_label, lv_obj_t* icon_label) {
   if (!card) return;
   lv_obj_update_layout(card);
-  lv_coord_t header_center_y = 60 - lv_obj_get_style_pad_top(card, LV_PART_MAIN);
+  lv_coord_t header_center_y =
+      popup_layout::kHeaderCenterY - lv_obj_get_style_pad_top(card, LV_PART_MAIN);
   if (header_center_y < 0) header_center_y = 0;
   if (icon_label) {
     lv_coord_t icon_y = header_center_y - (lv_obj_get_height(icon_label) / 2);
     if (icon_y < 0) icon_y = 0;
-    lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT, 8 + kHeaderIconOffsetX, icon_y + kHeaderIconOffsetY);
+    lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT,
+                 popup_layout::kHeaderIconX + kHeaderIconOffsetX,
+                 icon_y + kHeaderIconOffsetY);
   }
   if (title_label) {
     lv_coord_t title_y = header_center_y - (lv_obj_get_height(title_label) / 2);
     if (title_y < 0) title_y = 0;
-    lv_obj_align(title_label, LV_ALIGN_TOP_LEFT, 78, title_y);
+    lv_obj_align(title_label, LV_ALIGN_TOP_LEFT,
+                 popup_layout::kHeaderTitleX, title_y);
   }
 }
 
@@ -1078,6 +1082,7 @@ static lv_obj_t* create_vertical_slider_panel(lv_obj_t* parent,
 
     switch_icon = lv_label_create(cap);
     lv_obj_set_style_text_font(switch_icon, FONT_MDI_ICONS, 0);
+    popup_layout::applyIconScale(switch_icon);
     lv_obj_set_style_text_color(switch_icon, lv_color_white(), 0);
     lv_label_set_text(switch_icon, "");
     lv_obj_center(switch_icon);
@@ -1087,7 +1092,7 @@ static lv_obj_t* create_vertical_slider_panel(lv_obj_t* parent,
   }
 
   lv_obj_t* value = lv_label_create(panel);
-  lv_obj_set_style_text_font(value, &ui_font_24, 0);
+  lv_obj_set_style_text_font(value, popup_layout::font24(), 0);
   lv_obj_set_style_text_color(value, lv_color_white(), 0);
   lv_label_set_text(value, "");
   lv_obj_add_flag(value, LV_OBJ_FLAG_HIDDEN);
@@ -1172,7 +1177,7 @@ static lv_obj_t* create_temperature_panel(lv_obj_t* parent,
   lv_obj_center(dash);
 
   lv_obj_t* value = lv_label_create(panel);
-  lv_obj_set_style_text_font(value, &ui_font_24, 0);
+  lv_obj_set_style_text_font(value, popup_layout::font24(), 0);
   lv_obj_set_style_text_color(value, lv_color_white(), 0);
   lv_label_set_text(value, "");
   lv_obj_add_flag(value, LV_OBJ_FLAG_HIDDEN);
@@ -1215,6 +1220,7 @@ static lv_obj_t* create_control_icon_button(lv_obj_t* parent, const char* icon_n
 
   lv_obj_t* icon = lv_label_create(btn);
   lv_obj_set_style_text_font(icon, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(icon);
   lv_obj_set_style_text_color(icon, lv_color_white(), 0);
   lv_obj_set_style_text_color(icon, lv_color_white(), LV_STATE_PRESSED);
   lv_label_set_text(icon, getMdiChar(icon_name).c_str());
@@ -1641,29 +1647,33 @@ void show_light_popup(const LightPopupInit& init) {
   lv_obj_t* title = lv_label_create(card);
   ctx->title_label = title;
   set_label_style(title, lv_color_white());
-  lv_obj_set_style_text_font(title, &ui_font_24, 0);
+  lv_obj_set_style_text_font(title, popup_layout::headerTitleFont(), 0);
   lv_obj_set_width(title, LV_PCT(62));
   lv_label_set_text(title, init.title.c_str());
 
   lv_obj_t* icon = lv_label_create(card);
   ctx->icon_label = icon;
   lv_obj_set_style_text_font(icon, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(icon);
   if (init.icon_name.length() > 0) {
     lv_label_set_text(icon, getMdiChar(init.icon_name).c_str());
   }
 
   lv_obj_t* close_btn = lv_button_create(card);
-  lv_obj_set_size(close_btn, 96, 96);
+  lv_obj_set_size(close_btn, popup_layout::kCloseButtonSize,
+                  popup_layout::kCloseButtonSize);
   lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_bg_color(close_btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
   lv_obj_set_style_bg_opa(close_btn, LV_OPA_20, LV_STATE_PRESSED);
   lv_obj_set_style_border_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_radius(close_btn, 16, 0);
+  lv_obj_set_style_radius(close_btn, popup_layout::kCloseButtonRadius, 0);
   lv_obj_set_style_pad_all(close_btn, 0, 0);
-  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, 6, -6);
-  lv_obj_set_ext_click_area(close_btn, 8);
+  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT,
+               popup_layout::kCloseButtonOffsetX,
+               popup_layout::kCloseButtonOffsetY);
+  lv_obj_set_ext_click_area(close_btn, popup_layout::kCloseButtonClickArea);
   lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
   lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_CLICKED, ctx);
@@ -1671,6 +1681,7 @@ void show_light_popup(const LightPopupInit& init) {
 
   lv_obj_t* close_label = lv_label_create(close_btn);
   lv_obj_set_style_text_font(close_label, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(close_label);
   lv_obj_set_style_text_color(close_label, lv_color_white(), 0);
   lv_label_set_text(close_label, getMdiChar("window-close").c_str());
   lv_obj_center(close_label);
@@ -1690,7 +1701,7 @@ void show_light_popup(const LightPopupInit& init) {
   lv_obj_set_width(ctx->top_value_label, LV_PCT(100));
   lv_obj_set_height(ctx->top_value_label, kTopValueHeight);
   lv_obj_set_style_text_align(ctx->top_value_label, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_style_text_font(ctx->top_value_label, &ui_font_48, 0);
+  lv_obj_set_style_text_font(ctx->top_value_label, popup_layout::font40(), 0);
   lv_obj_set_style_text_color(ctx->top_value_label, lv_color_white(), 0);
   lv_obj_set_style_translate_y(ctx->top_value_label, popup_layout::kLargeValueTextOffsetY, 0);
   lv_obj_set_style_pad_bottom(ctx->top_value_label, kTopValueBottomPad, 0);

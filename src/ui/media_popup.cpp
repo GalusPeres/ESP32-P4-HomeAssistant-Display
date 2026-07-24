@@ -33,28 +33,29 @@ constexpr int kCardWidth =
         ? (SCREEN_HEIGHT - (kCardMargin * 2))
         : (SCREEN_WIDTH - (kCardMargin * 2));
 constexpr int kCardHeight = SCREEN_HEIGHT - (kCardMargin * 2);
-constexpr int kCardPad = 20;
+constexpr int kCardPad = popup_layout::kCardPad;
 constexpr int kHeaderIconOffsetX = 0;
 constexpr int kHeaderIconOffsetY = 0;
-constexpr int kCoverSize = 240;
-constexpr int kControlButtonSize = 78;
-constexpr int kControlSideOffset = 116;
+constexpr int kCoverSize = popup_layout::scale(240);
+constexpr int kControlButtonSize = popup_layout::scale(78);
+constexpr int kControlSideOffset = popup_layout::scale(116);
 constexpr int kHeightExtra = (kCardHeight > 712) ? (kCardHeight - 712) : 0;
-constexpr int kCoverTop = 104;
-constexpr int kCoverTextGap = 20;
+constexpr int kCoverTop = popup_layout::scale(104);
+constexpr int kCoverTextGap = popup_layout::scale(20);
 constexpr int kTitleTop = kCoverTop + kCoverSize + kCoverTextGap;
-constexpr int kSeekTop = 470 + (kHeightExtra / 2);
-constexpr int kControlsTop = popup_layout::kNavY - kControlButtonSize - 36;
-constexpr int kSeekWidth = kCardWidth - (kCardPad * 2) - 220;
-constexpr int kSeekTimeGap = 22;
-constexpr int kSeekSliderHeight = 10;
-constexpr int kSeekSliderKnobSize = 26;
-constexpr int kSeekSliderClickPad = 18;
-constexpr int kVolumeWidth = (kCardWidth >= 760) ? 410 : 330;
-constexpr int kVolumeSliderHeight = 16;
-constexpr int kVolumeSliderKnobSize = 36;
-constexpr int kVolumeSliderClickPad = 20;
-constexpr int kVolumeSideOffset = (kVolumeWidth / 2) + 70;
+constexpr int kSeekTop = popup_layout::scale(470) + (kHeightExtra / 2);
+constexpr int kControlsTop = popup_layout::kNavY - kControlButtonSize - popup_layout::scale(36);
+constexpr int kSeekWidth = kCardWidth - (kCardPad * 2) - popup_layout::scale(220);
+constexpr int kSeekTimeGap = popup_layout::scale(22);
+constexpr int kSeekSliderHeight = popup_layout::scale(10);
+constexpr int kSeekSliderKnobSize = popup_layout::scale(26);
+constexpr int kSeekSliderClickPad = popup_layout::scale(18);
+constexpr int kVolumeWidth =
+    (kCardWidth >= 760) ? popup_layout::scale(410) : popup_layout::scale(330);
+constexpr int kVolumeSliderHeight = popup_layout::scale(16);
+constexpr int kVolumeSliderKnobSize = popup_layout::scale(36);
+constexpr int kVolumeSliderClickPad = popup_layout::scale(20);
+constexpr int kVolumeSideOffset = (kVolumeWidth / 2) + popup_layout::scale(70);
 
 struct MediaPopupContext;
 
@@ -169,17 +170,21 @@ static void apply_popup_scroll_style(lv_obj_t* label) {
 static void align_header_row(lv_obj_t* card, lv_obj_t* title_label, lv_obj_t* icon_label) {
   if (!card) return;
   lv_obj_update_layout(card);
-  lv_coord_t header_center_y = 60 - lv_obj_get_style_pad_top(card, LV_PART_MAIN);
+  lv_coord_t header_center_y =
+      popup_layout::kHeaderCenterY - lv_obj_get_style_pad_top(card, LV_PART_MAIN);
   if (header_center_y < 0) header_center_y = 0;
   if (icon_label) {
     lv_coord_t icon_y = header_center_y - (lv_obj_get_height(icon_label) / 2);
     if (icon_y < 0) icon_y = 0;
-    lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT, 8 + kHeaderIconOffsetX, icon_y + kHeaderIconOffsetY);
+    lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT,
+                 popup_layout::kHeaderIconX + kHeaderIconOffsetX,
+                 icon_y + kHeaderIconOffsetY);
   }
   if (title_label) {
     lv_coord_t title_y = header_center_y - (lv_obj_get_height(title_label) / 2);
     if (title_y < 0) title_y = 0;
-    lv_obj_align(title_label, LV_ALIGN_TOP_LEFT, 78, title_y);
+    lv_obj_align(title_label, LV_ALIGN_TOP_LEFT,
+                 popup_layout::kHeaderTitleX, title_y);
   }
 }
 
@@ -614,27 +619,31 @@ void show_media_popup(const MediaPopupInit& init) {
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
   ctx->title_label = lv_label_create(card);
-  set_label_style(ctx->title_label, lv_color_white(), &ui_font_24);
-  lv_obj_set_style_text_font(ctx->title_label, &ui_font_24, 0);
+  set_label_style(ctx->title_label, lv_color_white(),
+                  popup_layout::headerTitleFont());
   lv_obj_set_width(ctx->title_label, LV_PCT(62));
   lv_label_set_long_mode(ctx->title_label, LV_LABEL_LONG_DOT);
 
   ctx->icon_label = lv_label_create(card);
   lv_obj_set_style_text_font(ctx->icon_label, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(ctx->icon_label);
   lv_obj_set_style_text_color(ctx->icon_label, lv_color_white(), 0);
 
   lv_obj_t* close_btn = lv_button_create(card);
-  lv_obj_set_size(close_btn, 96, 96);
+  lv_obj_set_size(close_btn, popup_layout::kCloseButtonSize,
+                  popup_layout::kCloseButtonSize);
   lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_bg_color(close_btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
   lv_obj_set_style_bg_opa(close_btn, LV_OPA_20, LV_STATE_PRESSED);
   lv_obj_set_style_border_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(close_btn, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_radius(close_btn, 16, 0);
+  lv_obj_set_style_radius(close_btn, popup_layout::kCloseButtonRadius, 0);
   lv_obj_set_style_pad_all(close_btn, 0, 0);
-  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, 6, -6);
-  lv_obj_set_ext_click_area(close_btn, 8);
+  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT,
+               popup_layout::kCloseButtonOffsetX,
+               popup_layout::kCloseButtonOffsetY);
+  lv_obj_set_ext_click_area(close_btn, popup_layout::kCloseButtonClickArea);
   lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
   lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_CLICKED, ctx);
@@ -642,6 +651,7 @@ void show_media_popup(const MediaPopupInit& init) {
 
   lv_obj_t* close_label = lv_label_create(close_btn);
   lv_obj_set_style_text_font(close_label, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(close_label);
   lv_obj_set_style_text_color(close_label, lv_color_white(), 0);
   lv_label_set_text(close_label, getMdiChar("window-close").c_str());
   lv_obj_center(close_label);
@@ -672,7 +682,7 @@ void show_media_popup(const MediaPopupInit& init) {
 
   const lv_coord_t text_width = kCardWidth - (kCardPad * 2) - 72;
   ctx->media_title_label = lv_label_create(card);
-  set_label_style(ctx->media_title_label, lv_color_white(), &ui_font_32);
+  set_label_style(ctx->media_title_label, lv_color_white(), popup_layout::font32());
   lv_obj_set_width(ctx->media_title_label, text_width);
   lv_obj_set_style_text_align(ctx->media_title_label, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_long_mode(ctx->media_title_label, LV_LABEL_LONG_SCROLL);
@@ -680,7 +690,7 @@ void show_media_popup(const MediaPopupInit& init) {
   lv_obj_align(ctx->media_title_label, LV_ALIGN_TOP_MID, 0, kTitleTop);
 
   ctx->media_subtitle_label = lv_label_create(card);
-  set_label_style(ctx->media_subtitle_label, lv_color_hex(0xD8DEE9), &ui_font_24);
+  set_label_style(ctx->media_subtitle_label, lv_color_hex(0xD8DEE9), popup_layout::font24());
   lv_obj_set_width(ctx->media_subtitle_label, text_width);
   lv_obj_set_style_text_align(ctx->media_subtitle_label, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_long_mode(ctx->media_subtitle_label, LV_LABEL_LONG_SCROLL);
@@ -709,7 +719,7 @@ void show_media_popup(const MediaPopupInit& init) {
   lv_obj_add_event_cb(ctx->seek_slider, on_seek_slider_event, LV_EVENT_RELEASED, ctx);
 
   ctx->seek_current_label = lv_label_create(card);
-  set_label_style(ctx->seek_current_label, lv_color_hex(0xD8DEE9), &ui_font_20);
+  set_label_style(ctx->seek_current_label, lv_color_hex(0xD8DEE9), popup_layout::font20());
   lv_obj_set_width(ctx->seek_current_label, 80);
   lv_obj_set_style_text_align(ctx->seek_current_label, LV_TEXT_ALIGN_RIGHT, 0);
   lv_label_set_text(ctx->seek_current_label, "--:--");
@@ -720,7 +730,7 @@ void show_media_popup(const MediaPopupInit& init) {
                   0);
 
   ctx->seek_duration_label = lv_label_create(card);
-  set_label_style(ctx->seek_duration_label, lv_color_hex(0xD8DEE9), &ui_font_20);
+  set_label_style(ctx->seek_duration_label, lv_color_hex(0xD8DEE9), popup_layout::font20());
   lv_obj_set_width(ctx->seek_duration_label, 80);
   lv_obj_set_style_text_align(ctx->seek_duration_label, LV_TEXT_ALIGN_LEFT, 0);
   lv_label_set_text(ctx->seek_duration_label, "--:--");
@@ -782,7 +792,7 @@ void show_media_popup(const MediaPopupInit& init) {
   lv_obj_add_event_cb(ctx->volume_slider, on_volume_slider_event, LV_EVENT_RELEASED, ctx);
 
   ctx->volume_label = lv_label_create(ctx->volume_row);
-  set_label_style(ctx->volume_label, lv_color_hex(0xD8DEE9), &ui_font_20);
+  set_label_style(ctx->volume_label, lv_color_hex(0xD8DEE9), popup_layout::font20());
   lv_label_set_text(ctx->volume_label, "0%");
   lv_obj_set_width(ctx->volume_label, kControlButtonSize);
   lv_obj_set_style_text_align(ctx->volume_label, LV_TEXT_ALIGN_CENTER, 0);

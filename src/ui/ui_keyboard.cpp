@@ -4,6 +4,7 @@
 
 #include "src/core/config_manager.h"
 #include "src/fonts/ui_fonts.h"
+#include "src/ui/popup_layout.h"
 
 namespace {
 
@@ -111,8 +112,14 @@ void kb_draw_task_cb(lv_event_t* e) {
     // zeigen dafuer Platzhalter-Kaestchen. Fuer diese Tasten auf LVGLs
     // eingebautes Montserrat wechseln, das den Symbolbereich mitbringt.
     if (txt && static_cast<unsigned char>(txt[0]) == 0xEF) {
-      const bool large = lv_display_get_horizontal_resolution(nullptr) >= 1024;
-      label->font = large ? &lv_font_montserrat_24 : &lv_font_montserrat_20;
+#if defined(DEVICE_LAYOUT_1024X600)
+      label->font = &lv_font_montserrat_20;
+#else
+      const bool large =
+          lv_display_get_horizontal_resolution(nullptr) >= 1024;
+      label->font =
+          large ? &lv_font_montserrat_24 : &lv_font_montserrat_20;
+#endif
     }
     return;
   }
@@ -173,13 +180,18 @@ lv_obj_t* ui_keyboard_create(lv_obj_t* parent) {
   lv_obj_set_style_bg_opa(kb, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_opa(kb, LV_OPA_TRANSP, 0);
   lv_obj_set_style_pad_all(kb, 0, 0);
-  lv_obj_set_style_pad_gap(kb, 6, 0);
+  lv_obj_set_style_pad_gap(kb, popup_layout::scale(6), 0);
   lv_obj_set_style_radius(kb, 0, 0);
 
   // Eigene Fonts statt LVGLs eingebauter Montserrat-Fonts: letztere decken nur
   // ASCII + Symbole ab, unsere ui_font_20/24 auch oe/ae/ue/ss (Bereich 174-383).
+#if defined(DEVICE_LAYOUT_1024X600)
+  lv_obj_set_style_text_font(kb, popup_layout::font24(), LV_PART_ITEMS);
+#else
   const bool large = lv_display_get_horizontal_resolution(nullptr) >= 1024;
-  lv_obj_set_style_text_font(kb, large ? &ui_font_24 : &ui_font_20, LV_PART_ITEMS);
+  lv_obj_set_style_text_font(
+      kb, large ? &ui_font_24 : &ui_font_20, LV_PART_ITEMS);
+#endif
 
   // Ohne Layout-Eintrag bleibt LVGLs eingebaute Englisch-Map (bereits nach
   // lv_keyboard_create aktiv) unveraendert.
@@ -193,7 +205,7 @@ lv_obj_t* ui_keyboard_create(lv_obj_t* parent) {
   lv_obj_set_style_bg_color(kb, lv_color_hex(kKeyBg), LV_PART_ITEMS);
   lv_obj_set_style_bg_opa(kb, LV_OPA_COVER, LV_PART_ITEMS);
   lv_obj_set_style_text_color(kb, lv_color_hex(kKeyText), LV_PART_ITEMS);
-  lv_obj_set_style_radius(kb, 10, LV_PART_ITEMS);
+  lv_obj_set_style_radius(kb, popup_layout::scale(10), LV_PART_ITEMS);
   lv_obj_set_style_border_opa(kb, LV_OPA_TRANSP, LV_PART_ITEMS);
   lv_obj_set_style_outline_opa(kb, LV_OPA_TRANSP, LV_PART_ITEMS);
   lv_obj_set_style_shadow_opa(kb, LV_OPA_TRANSP, LV_PART_ITEMS);

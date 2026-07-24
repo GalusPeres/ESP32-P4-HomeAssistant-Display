@@ -18,6 +18,9 @@
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1)
 #define FW_META_TARGET_DEVICE_KEY "waveshare_touch_lcd_10_1"
 #define FW_META_TARGET_DISPLAY_NAME "Waveshare Touch LCD 10.1"
+#elif defined(DEVICE_LAYOUT_TEST_1024X600)
+#define FW_META_TARGET_DEVICE_KEY "layout_test_1024x600"
+#define FW_META_TARGET_DISPLAY_NAME "Layout Test 1024x600"
 #elif defined(DEVICE_WAVESHARE_4B)
 #define FW_META_TARGET_DEVICE_KEY "waveshare_4b"
 #define FW_META_TARGET_DISPLAY_NAME "Waveshare B4"

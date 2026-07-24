@@ -663,21 +663,22 @@ void layout_climate_slots(
       lv_obj_set_style_text_font(
           label,
           (compact_target || horizontal_target)
-              ? (root_w < 130 ? &ui_font_16 : &ui_font_20)
-              : &ui_font_24,
+              ? (root_w < 130 ? &ui_font_16
+                              : tile_layout::content_font_20())
+              : tile_layout::content_font_24(),
           0);
       if (compact_target) {
         lv_obj_align(
             label,
             left ? LV_ALIGN_LEFT_MID : LV_ALIGN_RIGHT_MID,
-            left ? 8 : -8, 0);
+            left ? tile_layout::scale(8) : tile_layout::scale(-8), 0);
       } else if (horizontal_target) {
         lv_obj_align(
             label,
             left ? LV_ALIGN_LEFT_MID : LV_ALIGN_RIGHT_MID,
-            left ? 8 : -8, 0);
+            left ? tile_layout::scale(8) : tile_layout::scale(-8), 0);
       } else if (vertical_target) {
-        lv_obj_align(label, LV_ALIGN_CENTER, 0, -4);
+        lv_obj_align(label, LV_ALIGN_CENTER, 0, tile_layout::scale(-4));
       } else {
         lv_obj_center(label);
       }
@@ -700,13 +701,14 @@ void layout_climate_slots(
       }
       if (value) {
         lv_obj_set_width(
-            value, std::max<lv_coord_t>(1, root_w - 32));
+            value,
+            std::max<lv_coord_t>(1, root_w - tile_layout::scale(32)));
         lv_obj_set_style_text_font(
             value,
             root_w < 110
-                ? &ui_font_20
+                ? tile_layout::content_font_20()
                 : (root_w < 130
-                       ? &ui_font_24
+                       ? tile_layout::content_font_24()
                        : FONT_VALUE),
             0);
         lv_obj_align(value, LV_ALIGN_CENTER, 0, 0);
@@ -727,7 +729,8 @@ void layout_climate_slots(
       const lv_coord_t minus_w = control_w / 2;
       const lv_coord_t plus_w = control_w - minus_w;
       const lv_coord_t value_w =
-          std::max<lv_coord_t>(1, control_w - 32);
+          std::max<lv_coord_t>(1,
+                               control_w - tile_layout::scale(32));
       if (caption) {
         lv_obj_set_width(caption, caption_w);
         lv_obj_set_style_text_align(
@@ -751,48 +754,54 @@ void layout_climate_slots(
             control_x + (control_w - value_w) / 2, 0);
       }
     } else if (vertical_target) {
-      const lv_coord_t button_h = 40;
+      const lv_coord_t button_h = tile_layout::scale(40);
       if (caption) {
-        lv_obj_set_width(caption, root_w - 16);
+        lv_obj_set_width(caption, root_w - tile_layout::scale(16));
         lv_obj_set_style_text_align(
             caption, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_align(caption, LV_ALIGN_TOP_MID, 0, 10);
+        lv_obj_align(caption, LV_ALIGN_TOP_MID, 0,
+                     tile_layout::scale(10));
       }
       if (value) {
-        lv_obj_set_width(value, root_w - 12);
+        lv_obj_set_width(value, root_w - tile_layout::scale(12));
         lv_obj_set_style_text_font(value, FONT_VALUE, 0);
         lv_obj_align(value, LV_ALIGN_CENTER, 0, 0);
       }
       if (minus) {
         lv_obj_set_size(minus, root_w / 2, button_h);
-        lv_obj_align(minus, LV_ALIGN_BOTTOM_LEFT, 0, -8);
+        lv_obj_align(minus, LV_ALIGN_BOTTOM_LEFT, 0,
+                     tile_layout::scale(-8));
       }
       if (plus) {
         lv_obj_set_size(
             plus, root_w - root_w / 2, button_h);
-        lv_obj_align(plus, LV_ALIGN_BOTTOM_RIGHT, 0, -8);
+        lv_obj_align(plus, LV_ALIGN_BOTTOM_RIGHT, 0,
+                     tile_layout::scale(-8));
       }
     } else if (large_target) {
-      const lv_coord_t button_w = 54;
-      const lv_coord_t button_h = 42;
+      const lv_coord_t button_w = tile_layout::scale(54);
+      const lv_coord_t button_h = tile_layout::scale(42);
       if (caption) {
-        lv_obj_set_width(caption, root_w - 24);
+        lv_obj_set_width(caption, root_w - tile_layout::scale(24));
         lv_obj_set_style_text_align(
             caption, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_align(caption, LV_ALIGN_CENTER, 0, -44);
+        lv_obj_align(caption, LV_ALIGN_CENTER, 0,
+                     tile_layout::scale(-44));
       }
       if (value) {
-        lv_obj_set_width(value, root_w - 24);
+        lv_obj_set_width(value, root_w - tile_layout::scale(24));
         lv_obj_set_style_text_font(value, FONT_VALUE, 0);
         lv_obj_align(value, LV_ALIGN_CENTER, 0, 0);
       }
       if (minus) {
         lv_obj_set_size(minus, button_w, button_h);
-        lv_obj_align(minus, LV_ALIGN_CENTER, -36, 44);
+        lv_obj_align(minus, LV_ALIGN_CENTER, tile_layout::scale(-36),
+                     tile_layout::scale(44));
       }
       if (plus) {
         lv_obj_set_size(plus, button_w, button_h);
-        lv_obj_align(plus, LV_ALIGN_CENTER, 36, 44);
+        lv_obj_align(plus, LV_ALIGN_CENTER, tile_layout::scale(36),
+                     tile_layout::scale(44));
       }
     } else {
       if (caption) {
@@ -984,7 +993,8 @@ lv_obj_t* create_climate_slot(
     disable_pressed_button_animation(button);
 
     lv_obj_t* label = lv_label_create(button);
-    set_label_style(label, lv_color_white(), &ui_font_24);
+    set_label_style(label, lv_color_white(),
+                    tile_layout::content_font_24());
     lv_label_set_text(label, direction < 0 ? "-" : "+");
     lv_obj_center(label);
     lv_obj_clear_flag(label, LV_OBJ_FLAG_CLICKABLE);
@@ -1004,7 +1014,8 @@ lv_obj_t* create_climate_slot(
   create_adjust_button(-1);
 
   lv_obj_t* value = lv_label_create(root);
-  set_label_style(value, lv_color_white(), &ui_font_24);
+  set_label_style(value, lv_color_white(),
+                  tile_layout::content_font_24());
   lv_obj_set_style_text_align(value, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_long_mode(value, LV_LABEL_LONG_CLIP);
   lv_label_set_text(value, "--");
@@ -1269,7 +1280,8 @@ lv_obj_t* render_climate_tile(lv_obj_t* parent,
 
   if (tile.title.length()) {
     lv_obj_t* title = lv_label_create(card);
-    set_label_style(title, lv_color_white(), FONT_TITLE);
+    set_label_style(title, lv_color_white(),
+                    tile_layout::header_title_font());
     lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
     lv_obj_set_width(title, LV_PCT(70));
     lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_RIGHT, 0);
@@ -1300,7 +1312,7 @@ lv_obj_t* render_climate_tile(lv_obj_t* parent,
     lv_label_set_text(
         value, "-- \xC2\xB0"
                "C");
-    lv_obj_align(value, LV_ALIGN_CENTER, 0, 28);
+    lv_obj_align(value, LV_ALIGN_CENTER, 0, tile_layout::scale(28));
     widget.value_label = value;
 
     // Every climate size, including 1x1, renders its configured mini content

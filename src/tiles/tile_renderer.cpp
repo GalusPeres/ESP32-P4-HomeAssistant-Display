@@ -397,10 +397,10 @@ static uint32_t fnv1a_hash(const char* data) {
 
 static const lv_font_t* get_sensor_value_font(const Tile& tile) {
   switch (tile.sensor_value_font) {
-    case 1: return &ui_font_20;
-    case 2: return &ui_font_24;
-    case 3: return &ui_font_32;
-    case 4: return &ui_font_40;
+    case 1: return tile_layout::content_font_20();
+    case 2: return tile_layout::content_font_24();
+    case 3: return tile_layout::content_font_32();
+    case 4: return tile_layout::content_font_40();
     default: return FONT_VALUE;
   }
 }
@@ -2414,8 +2414,10 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
       }
     }
     if (fw.temp_high_label) {
-      constexpr lv_coord_t kTileForecastTempTop = 52 + 54;
-      constexpr lv_coord_t kTileForecastLowTop = kTileForecastTempTop + 30;
+      constexpr lv_coord_t kTileForecastTempTop =
+          tile_layout::scale(52 + 54);
+      constexpr lv_coord_t kTileForecastLowTop =
+          kTileForecastTempTop + tile_layout::scale(30);
       constexpr lv_coord_t kTileColContentW = WEATHER_FORECAST_COL_W - 40;
       constexpr lv_coord_t kTileColCenterX = kTileColContentW / 2;
       String unit_text = format_weather_temp_unit(unit);
@@ -3102,7 +3104,8 @@ static lv_image_dsc_t* make_media_tile_cover_dsc(const lv_image_dsc_t* source) {
     return nullptr;
   }
 
-  constexpr uint16_t kTileCoverMaxSide = 120;
+  constexpr uint16_t kTileCoverMaxSide =
+      tile_layout::scale_u16(120);
   if (source->header.w <= kTileCoverMaxSide &&
       source->header.h <= kTileCoverMaxSide) {
     return nullptr;
@@ -3484,22 +3487,28 @@ static void set_media_cover_text_layout(MediaTileWidgets& widgets, bool cover_vi
   }
   const lv_coord_t parent_w = text_parent ? lv_obj_get_width(text_parent) : 720;
   const lv_coord_t parent_h = text_parent ? lv_obj_get_height(text_parent) : 240;
-  const bool large_cover = widgets.cover_clip && lv_obj_get_width(widgets.cover_clip) >= 120;
-  const lv_coord_t text_x = cover_visible ? (large_cover ? 138 : 112) : 20;
-  const lv_coord_t text_right_margin = cover_visible ? 42 : 28;
+  const bool large_cover =
+      widgets.cover_clip &&
+      lv_obj_get_width(widgets.cover_clip) >= tile_layout::scale(120);
+  const lv_coord_t text_x =
+      tile_layout::scale(cover_visible ? (large_cover ? 138 : 112) : 20);
+  const lv_coord_t text_right_margin =
+      tile_layout::scale(cover_visible ? 42 : 28);
   lv_coord_t text_w = parent_w - text_x - text_right_margin;
-  if (text_w < 120) {
-    text_w = parent_w > 40 ? parent_w - 40 : parent_w;
+  if (text_w < tile_layout::scale(120)) {
+    const lv_coord_t fallback_margin = tile_layout::scale(40);
+    text_w =
+        parent_w > fallback_margin ? parent_w - fallback_margin : parent_w;
   }
 
-  lv_coord_t title_h = 32;
+  lv_coord_t title_h = tile_layout::scale(32);
   lv_coord_t subtitle_h = 0;
   if (widgets.media_title_label) {
     lv_obj_set_width(widgets.media_title_label, text_w);
     lv_obj_set_style_text_align(widgets.media_title_label, LV_TEXT_ALIGN_LEFT, 0);
     lv_obj_update_layout(widgets.media_title_label);
     title_h = lv_obj_get_height(widgets.media_title_label);
-    if (title_h < 1) title_h = 32;
+    if (title_h < 1) title_h = tile_layout::scale(32);
   }
   if (widgets.media_subtitle_label) {
     lv_obj_set_width(widgets.media_subtitle_label, text_w);
@@ -3507,7 +3516,7 @@ static void set_media_cover_text_layout(MediaTileWidgets& widgets, bool cover_vi
     if (has_subtitle) {
       lv_obj_update_layout(widgets.media_subtitle_label);
       subtitle_h = lv_obj_get_height(widgets.media_subtitle_label);
-      if (subtitle_h < 1) subtitle_h = 20;
+      if (subtitle_h < 1) subtitle_h = tile_layout::scale(20);
     }
   }
 
@@ -3517,11 +3526,14 @@ static void set_media_cover_text_layout(MediaTileWidgets& widgets, bool cover_vi
     center_y = lv_obj_get_y(widgets.cover_clip) + (lv_obj_get_height(widgets.cover_clip) / 2);
   }
 
-  const lv_coord_t subtitle_gap = has_subtitle ? 6 : 0;
+  const lv_coord_t subtitle_gap =
+      has_subtitle ? tile_layout::scale(6) : 0;
   const lv_coord_t block_h = title_h + subtitle_gap + subtitle_h;
   lv_coord_t title_y = center_y - (block_h / 2);
-  const lv_coord_t min_title_y = cover_visible ? (large_cover ? 58 : 42) : 76;
-  const lv_coord_t max_title_y = parent_h - block_h - 68;
+  const lv_coord_t min_title_y = tile_layout::scale(
+      cover_visible ? (large_cover ? 58 : 42) : 76);
+  const lv_coord_t max_title_y =
+      parent_h - block_h - tile_layout::scale(68);
   if (title_y < min_title_y) title_y = min_title_y;
   if (max_title_y > min_title_y && title_y > max_title_y) title_y = max_title_y;
 
@@ -4413,6 +4425,9 @@ void request_tile_graph_history(const char* entity_id) {
 void set_label_style(lv_obj_t* lbl, lv_color_t c, const lv_font_t* f) {
   lv_obj_set_style_text_color(lbl, c, 0);
   lv_obj_set_style_text_font(lbl, f, 0);
+  if (f == FONT_MDI_ICONS) {
+    tile_layout::apply_mdi_icon_scale(lbl);
+  }
 }
 
 void set_tile_grid_cell(lv_obj_t* obj, uint8_t col, uint8_t row, uint8_t span_w, uint8_t span_h) {
