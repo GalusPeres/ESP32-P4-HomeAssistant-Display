@@ -94,11 +94,14 @@ jobs:
             key: waveshare_touch_lcd_8
             define: DEVICE_WAVESHARE_TOUCH_LCD_8
             publish: true
-          - label: Guition JC8012P4A1
+          - label: Guition JC8012P4A1 (experimental)
             profile: guition_jc8012p4a1
             key: guition_jc8012p4a1
             define: DEVICE_GUITION_JC8012P4A1
-            publish: true
+            # Build and validate on every CI run, but do not publish a release
+            # artifact until the clean Apache-2.0 touch path has passed a
+            # real-device boot, touch, and OTA test.
+            publish: false
 
     steps:
       - name: Check out repository
@@ -266,7 +269,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # The four matrix jobs finish independently. Retry against the
+          # The three matrix jobs finish independently. Retry against the
           # latest private main branch if another device pushed first.
           for attempt in 1 2 3 4 5; do
             git fetch origin main
@@ -318,7 +321,7 @@ jobs:
         shell: bash
         run: |
           ls -la build/release-assets
-          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 8
+          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 6
 
       - name: Upload assets to GitHub release
         env:

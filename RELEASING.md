@@ -19,14 +19,13 @@ git push --follow-tags
 
 That's it. The action then:
 
-1. Builds all four devices (M5Stack Tab5, Waveshare 4B, Waveshare 8", and
-   Guition JC8012P4A1) with the
+1. Builds all three devices (M5Stack Tab5, Waveshare 4B, Waveshare 8") with the
    pinned toolchain (ESP32 core + libraries, see workflow `env`).
 2. Verifies that the tag matches `FW_VERSION` in `version.txt` — a mismatch
    fails the build on purpose.
 3. Verifies the device descriptor embedded in each binary.
 4. Creates the GitHub release with auto-generated notes and uploads all
-   8 binaries (`<device>.bin` for OTA + `<device>_factory.bin` for first flash).
+   6 binaries (`<device>.bin` for OTA + `<device>_factory.bin` for first flash).
 
 Devices pick up the new version via their GitHub OTA check as soon as the
 release is published (GitHub CDN propagation can add a few minutes).
