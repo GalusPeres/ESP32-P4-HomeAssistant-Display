@@ -5121,9 +5121,24 @@ void appendAdminScripts(String& html) {
     clock.classList.toggle('selected-clock', screensaverSelected.kind === 'clock');
     const width = preview.getBoundingClientRect().width || 800;
     const scale = width / Number(d.screen_width || 1280);
-    clock.style.setProperty('--screensaver-clock-shadow-2', (2 * scale) + 'px');
-    clock.style.setProperty('--screensaver-clock-shadow-4', (4 * scale) + 'px');
-    clock.style.setProperty('--screensaver-clock-shadow-6', (6 * scale) + 'px');
+    const rootStyles = getComputedStyle(document.documentElement);
+    const devicePx = (name, fallback) => {
+      const value = parseFloat(rootStyles.getPropertyValue(name));
+      return Number.isFinite(value) && value > 0 ? value : fallback;
+    };
+    const deviceClockFontPx = (raw, fallback) => {
+      const requested = Number(raw || fallback);
+      return devicePx('--screensaver-fs' + requested, requested);
+    };
+    clock.style.setProperty(
+      '--screensaver-clock-shadow-2',
+      (devicePx('--screensaver-shadow-2', 2) * scale) + 'px');
+    clock.style.setProperty(
+      '--screensaver-clock-shadow-4',
+      (devicePx('--screensaver-shadow-4', 4) * scale) + 'px');
+    clock.style.setProperty(
+      '--screensaver-clock-shadow-6',
+      (devicePx('--screensaver-shadow-6', 6) * scale) + 'px');
     const wallpaper = ssCurrentWallpaper();
     if (d.use_wallpapers && wallpaper && wallpaper.file_name) {
       const wanted = '/api/screensaver/wallpaper?name=' + encodeURIComponent(wallpaper.file_name);
@@ -5145,8 +5160,10 @@ void appendAdminScripts(String& html) {
     const date = document.getElementById('screensaverClockDate');
     time.hidden = !d.show_time;
     date.hidden = !d.show_date && !d.show_weekday;
-    time.style.fontSize = Math.max(10, Number(d.time_font_size || 48) * scale) + 'px';
-    date.style.fontSize = Math.max(8, Number(d.date_font_size || 28) * scale) + 'px';
+    time.style.fontSize =
+      Math.max(10, deviceClockFontPx(d.time_font_size, 48) * scale) + 'px';
+    date.style.fontSize =
+      Math.max(8, deviceClockFontPx(d.date_font_size, 28) * scale) + 'px';
     time.textContent = getClockPreviewTime(d.time_format);
     date.textContent = getScreensaverClockPreviewDate(d);
     time.style.width = 'auto';

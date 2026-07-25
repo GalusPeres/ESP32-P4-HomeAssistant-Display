@@ -50,10 +50,12 @@ constexpr int kForecastDayTop = popup_layout::contentScale(2);
 #if defined(DEVICE_LAYOUT_1024X600)
 // Keep the compact forecast icons clear of the chart line below them.
 constexpr int kForecastDayIconGap = -3;
-constexpr int kForecastIconTop = popup_layout::contentScale(20);
+// day top 2 + compact 16 px font line height 21 - gap 3 = 20
+constexpr int kForecastIconTop = 20;
 #else
 constexpr int kForecastDayIconGap = popup_layout::contentScale(6);
-constexpr int kForecastIconTop = popup_layout::contentScale(30);
+// day top 2 + regular 20 px font line height 27 + gap 6 = 35
+constexpr int kForecastIconTop = 35;
 #endif
 constexpr int kForecastTempChartTop = popup_layout::contentScale(102);
 constexpr int kForecastTempChartHeight = popup_layout::contentScale(142);

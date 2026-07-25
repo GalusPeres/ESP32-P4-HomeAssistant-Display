@@ -85,6 +85,13 @@ void appendPreviewScaleVars(String& html) {
     html += String(preview_scaled_exact_px(lvgl_px));
     html += "px;";
   };
+  auto emit_device_px = [&html](const char* name, int device_px) {
+    html += "--";
+    html += name;
+    html += ":";
+    html += String(device_px);
+    html += "px;";
+  };
   html += "  <style>:root{";
 #if defined(DEVICE_LAYOUT_1024X600)
   // Match the compact layout's real LVGL font substitutions. The preview
@@ -102,6 +109,20 @@ void appendPreviewScaleVars(String& html) {
   emit("fs80", 64);
   emit("fs96", 80);
   emit("icon-size", 40);
+  emit_device_px("screensaver-fs20", 16);
+  emit_device_px("screensaver-fs24", 20);
+  emit_device_px("screensaver-fs28", 24);
+  emit_device_px("screensaver-fs32", 28);
+  emit_device_px("screensaver-fs40", 32);
+  emit_device_px("screensaver-fs48", 40);
+  emit_device_px("screensaver-fs56", 48);
+  emit_device_px("screensaver-fs64", 56);
+  emit_device_px("screensaver-fs72", 56);
+  emit_device_px("screensaver-fs80", 64);
+  emit_device_px("screensaver-fs96", 80);
+  emit_device_px("screensaver-shadow-2", 2);
+  emit_device_px("screensaver-shadow-4", 3);
+  emit_device_px("screensaver-shadow-6", 5);
 #else
   emit("fs16", 16);
   emit("fs20", 20);
@@ -116,6 +137,20 @@ void appendPreviewScaleVars(String& html) {
   emit("fs80", 80);
   emit("fs96", 96);
   emit("icon-size", 48);      // FONT_MDI_ICONS = mdi_icons_48
+  emit_device_px("screensaver-fs20", 20);
+  emit_device_px("screensaver-fs24", 24);
+  emit_device_px("screensaver-fs28", 28);
+  emit_device_px("screensaver-fs32", 32);
+  emit_device_px("screensaver-fs40", 40);
+  emit_device_px("screensaver-fs48", 48);
+  emit_device_px("screensaver-fs56", 56);
+  emit_device_px("screensaver-fs64", 64);
+  emit_device_px("screensaver-fs72", 72);
+  emit_device_px("screensaver-fs80", 80);
+  emit_device_px("screensaver-fs96", 96);
+  emit_device_px("screensaver-shadow-2", 2);
+  emit_device_px("screensaver-shadow-4", 4);
+  emit_device_px("screensaver-shadow-6", 6);
 #endif
   emit("tile-pad-v", climate_layout::kCardPaddingVertical);
   emit("tile-pad-h", climate_layout::kCardPaddingHorizontal);
