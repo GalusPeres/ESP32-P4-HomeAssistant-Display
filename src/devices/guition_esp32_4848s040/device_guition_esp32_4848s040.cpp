@@ -208,16 +208,16 @@ void mapTouch(uint16_t raw_x, uint16_t raw_y, int16_t& x, int16_t& y) {
   constexpr int16_t kMax = 479;
   switch (g_rotation & 0x03) {
     case 1:
-      x = kMax - static_cast<int16_t>(raw_y);
-      y = static_cast<int16_t>(raw_x);
+      x = static_cast<int16_t>(raw_y);
+      y = kMax - static_cast<int16_t>(raw_x);
       break;
     case 2:
       x = kMax - static_cast<int16_t>(raw_x);
       y = kMax - static_cast<int16_t>(raw_y);
       break;
     case 3:
-      x = static_cast<int16_t>(raw_y);
-      y = kMax - static_cast<int16_t>(raw_x);
+      x = kMax - static_cast<int16_t>(raw_y);
+      y = static_cast<int16_t>(raw_x);
       break;
     default:
       x = static_cast<int16_t>(raw_x);
