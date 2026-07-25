@@ -84,11 +84,11 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_DEF
 lv_obj_set_style_bg_grad_color(card, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
 lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRESSED);
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(card, 22, 0);
+  lv_obj_set_style_radius(card, tile_layout::scale_480(22), 0);
   lv_obj_set_style_border_width(card, 0, 0);
   lv_obj_set_style_shadow_width(card, 0, 0);
-  const int16_t pad_hor = 20;
-  const int16_t pad_ver = 24;
+  const int16_t pad_hor = tile_layout::scale_480(20);
+  const int16_t pad_ver = tile_layout::scale_480(24);
   lv_obj_set_style_pad_hor(card, pad_hor, 0);
   lv_obj_set_style_pad_ver(card, pad_ver, 0);
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
@@ -127,7 +127,9 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
 
   lv_obj_t* icon_label = lv_label_create(card);
   set_label_style(icon_label, lv_color_white(), FONT_MDI_ICONS);
-  lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT, -8, -8);
+  lv_obj_align(icon_label, LV_ALIGN_TOP_LEFT,
+               tile_layout::scale_480(-8),
+               tile_layout::scale_480(-8));
   enable_bubble(icon_label);
 
   lv_obj_t* location_label = lv_label_create(card);
@@ -137,7 +139,9 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   lv_obj_set_width(location_label, LV_PCT(70));
   lv_obj_set_style_text_align(location_label, LV_TEXT_ALIGN_RIGHT, 0);
   lv_label_set_text(location_label, location.c_str());
-  lv_obj_align(location_label, LV_ALIGN_TOP_RIGHT, 4, 4);
+  lv_obj_align(location_label, LV_ALIGN_TOP_RIGHT,
+               tile_layout::scale_480(4),
+               tile_layout::scale_480(4));
   enable_bubble(location_label);
 
   String icon_name = tile.icon_name;
@@ -204,7 +208,9 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   // Position like a 1x1 sensor tile: keep the same top offset regardless of span.
   lv_obj_update_layout(value_row);
   lv_coord_t row_h = lv_obj_get_height(value_row);
-  lv_coord_t base_center = ((GRID_CELL_H - 48) / 2) + 28;  // content center + offset (pad_ver=24)
+  lv_coord_t base_center =
+      ((GRID_CELL_H - tile_layout::scale_480(48)) / 2) +
+      tile_layout::scale_480(28);
   lv_coord_t value_row_y = base_center - (row_h / 2) + kWeatherTileContentYOffset;
   lv_obj_align(value_row, LV_ALIGN_TOP_MID, 0, value_row_y);
 

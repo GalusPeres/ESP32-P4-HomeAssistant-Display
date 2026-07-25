@@ -8,6 +8,8 @@ namespace popup_layout {
 constexpr int scale(int value) {
 #if defined(DEVICE_LAYOUT_1024X600)
   return (value * 5 + (value >= 0 ? 3 : -3)) / 6;
+#elif defined(DEVICE_LAYOUT_480X480)
+  return (value * 2 + (value >= 0 ? 1 : -1)) / 3;
 #else
   return value;
 #endif
@@ -16,6 +18,18 @@ constexpr int scale(int value) {
 constexpr int contentScale(int value) {
 #if defined(DEVICE_LAYOUT_1024X600)
   return (value * 3 + (value >= 0 ? 2 : -2)) / 4;
+#elif defined(DEVICE_LAYOUT_480X480)
+  return (value * 2 + (value >= 0 ? 1 : -1)) / 3;
+#else
+  return value;
+#endif
+}
+
+// Scale legacy 720x720 geometry only for the strict 2/3 square layout.
+// The separately tuned 1024x600 popup geometry must remain unchanged.
+constexpr int scale480(int value) {
+#if defined(DEVICE_LAYOUT_480X480)
+  return (value * 2 + (value >= 0 ? 1 : -1)) / 3;
 #else
   return value;
 #endif
@@ -24,6 +38,8 @@ constexpr int contentScale(int value) {
 inline const lv_font_t* font20() {
 #if defined(DEVICE_LAYOUT_1024X600)
   return &ui_font_16;
+#elif defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_14;
 #else
   return &ui_font_20;
 #endif
@@ -32,6 +48,8 @@ inline const lv_font_t* font20() {
 inline const lv_font_t* font24() {
 #if defined(DEVICE_LAYOUT_1024X600)
   return &ui_font_20;
+#elif defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_16;
 #else
   return &ui_font_24;
 #endif
@@ -40,6 +58,8 @@ inline const lv_font_t* font24() {
 inline const lv_font_t* font28() {
 #if defined(DEVICE_LAYOUT_1024X600)
   return &ui_font_24;
+#elif defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_20;
 #else
   return &ui_font_28;
 #endif
@@ -48,6 +68,8 @@ inline const lv_font_t* font28() {
 inline const lv_font_t* font32() {
 #if defined(DEVICE_LAYOUT_1024X600)
   return &ui_font_28;
+#elif defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_20;
 #else
   return &ui_font_32;
 #endif
@@ -56,6 +78,8 @@ inline const lv_font_t* font32() {
 inline const lv_font_t* font40() {
 #if defined(DEVICE_LAYOUT_1024X600)
   return &ui_font_32;
+#elif defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_28;
 #else
   return &ui_font_40;
 #endif
@@ -64,6 +88,8 @@ inline const lv_font_t* font40() {
 inline const lv_font_t* font48() {
 #if defined(DEVICE_LAYOUT_1024X600)
   return &ui_font_40;
+#elif defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_32;
 #else
   return &ui_font_48;
 #endif
@@ -72,6 +98,8 @@ inline const lv_font_t* font48() {
 inline const lv_font_t* font56() {
 #if defined(DEVICE_LAYOUT_1024X600)
   return &ui_font_48;
+#elif defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_40;
 #else
   return &ui_font_56;
 #endif
@@ -80,6 +108,8 @@ inline const lv_font_t* font56() {
 inline const lv_font_t* font64() {
 #if defined(DEVICE_LAYOUT_1024X600)
   return &ui_font_56;
+#elif defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_40;
 #else
   return &ui_font_64;
 #endif
@@ -88,6 +118,8 @@ inline const lv_font_t* font64() {
 inline const lv_font_t* font72() {
 #if defined(DEVICE_LAYOUT_1024X600)
   return &ui_font_56;
+#elif defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_48;
 #else
   return &ui_font_72;
 #endif
@@ -96,6 +128,8 @@ inline const lv_font_t* font72() {
 inline const lv_font_t* font80() {
 #if defined(DEVICE_LAYOUT_1024X600)
   return &ui_font_64;
+#elif defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_56;
 #else
   return &ui_font_80;
 #endif
@@ -104,6 +138,8 @@ inline const lv_font_t* font80() {
 inline const lv_font_t* font96() {
 #if defined(DEVICE_LAYOUT_1024X600)
   return &ui_font_80;
+#elif defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_64;
 #else
   return &ui_font_96;
 #endif
@@ -111,6 +147,8 @@ inline const lv_font_t* font96() {
 
 inline const lv_font_t* headerTitleFont() {
 #if defined(DEVICE_LAYOUT_1024X600)
+  return &ui_font_16;
+#elif defined(DEVICE_LAYOUT_480X480)
   return &ui_font_16;
 #else
   return &ui_font_24;
@@ -131,6 +169,14 @@ constexpr int kCloseButtonRadius = 13;
 constexpr int kCloseButtonOffsetX = 3;
 constexpr int kCloseButtonOffsetY = -3;
 constexpr int kCloseButtonClickArea = 7;
+#elif defined(DEVICE_LAYOUT_480X480)
+constexpr int kHeaderCenterY = 40;
+constexpr int kHeaderTitleX = 52;
+constexpr int kCloseButtonSize = 64;
+constexpr int kCloseButtonRadius = 11;
+constexpr int kCloseButtonOffsetX = 4;
+constexpr int kCloseButtonOffsetY = -4;
+constexpr int kCloseButtonClickArea = 6;
 #else
 constexpr int kHeaderCenterY = 60;
 constexpr int kHeaderTitleX = 78;
@@ -142,7 +188,13 @@ constexpr int kCloseButtonClickArea = 8;
 #endif
 constexpr int kHeaderIconX = scale(8);
 
+#if defined(DEVICE_LAYOUT_480X480)
+constexpr int kCardMargin = 3;
+constexpr int kCardRadius = 15;
+#else
 constexpr int kCardMargin = 4;
+constexpr int kCardRadius = 22;
+#endif
 constexpr int kCardWidth =
     (SCREEN_WIDTH > SCREEN_HEIGHT)
         ? (SCREEN_HEIGHT - (kCardMargin * 2))
@@ -151,7 +203,7 @@ constexpr int kCardHeight = SCREEN_HEIGHT - (kCardMargin * 2);
 constexpr int kCardPad = scale(20);
 constexpr int kContentWidth = kCardWidth - (kCardPad * 2);
 
-#if defined(DEVICE_LAYOUT_1024X600)
+#if defined(DEVICE_LAYOUT_1024X600) || defined(DEVICE_LAYOUT_480X480)
 constexpr int kExtraHeight = 0;
 constexpr int kCompactHeightLift = 0;
 #else
@@ -187,6 +239,20 @@ constexpr int kValueBaseY = scale(98);
 constexpr int kValueHeight = scale(74);
 constexpr int kBodyBaseY = scale(178);
 // Leave a visible buffer above the bottom navigation on the 600 px layout.
+constexpr int kBodyHeight = contentScale(414);
+constexpr int kNavHeight = scale(92);
+constexpr int kNavBottomInset = scale(6);
+#elif defined(DEVICE_LAYOUT_480X480)
+constexpr int kCompactValueLiftY = 0;
+// The strict 2/3 scaling left the body only about 14 px above the bottom
+// navigation. Lift it as one unit: the gap below grows while the oversized gap
+// between the main value and the body disappears on every compact popup.
+constexpr int kCompactBodyLiftY = 12;
+constexpr int kLargeValueTextOffsetY = 0;
+constexpr int kHeaderHeight = scale(96);
+constexpr int kValueBaseY = scale(98);
+constexpr int kValueHeight = scale(74);
+constexpr int kBodyBaseY = scale(178) - kCompactBodyLiftY;
 constexpr int kBodyHeight = contentScale(414);
 constexpr int kNavHeight = scale(92);
 constexpr int kNavBottomInset = scale(6);

@@ -2380,8 +2380,17 @@ void appendAdminScripts(String& html) {
     bindLive(typeSelect, 'change', 'tileType', () => {
       const tileEl = document.getElementById(tab + '-tile-' + currentTileIndex);
       const previousType = Number(tileEl?.dataset.type ?? 0);
+      const nextType = Number(typeSelect.value);
+      // A freshly created tile must start with the selected type's real
+      // default colour. Do not inherit an explicit colour state from the empty
+      // editor placeholder.
+      if (previousType === 0 && nextType !== 0) {
+        const nextMeta = getTileTypeMeta(typeSelect.value);
+        setTileColorInputFromStored(
+          tab, 0, nextMeta.defaultBg || '#2A2A2A');
+      }
       if (isScreensaverTileTab(tab) && previousType === 0 &&
-          Number(typeSelect.value) !== 0 && opacityInput) {
+          nextType !== 0 && opacityInput) {
         opacityInput.value = String(SCREENSAVER_TILE_DEFAULT_OPACITY);
       }
       updateTileType(tab);
@@ -3656,8 +3665,10 @@ void appendAdminScripts(String& html) {
   function resetTileColor(tab) {
     const input = document.getElementById(tab + '_tile_color');
     if (!input) return;
-    input.value = '#2A2A2A';
-    input.dataset.bgColorDefault = '0';
+    const typeValue = document.getElementById(tab + '_tile_type')?.value || '0';
+    const meta = getTileTypeMeta(typeValue);
+    input.value = meta.defaultBg || '#2A2A2A';
+    input.dataset.bgColorDefault = '1';
     if (isScreensaverTileTab(tab)) {
       const opacity = document.getElementById('screensaver_tile_opacity');
       if (opacity) opacity.value = String(SCREENSAVER_TILE_DEFAULT_OPACITY);

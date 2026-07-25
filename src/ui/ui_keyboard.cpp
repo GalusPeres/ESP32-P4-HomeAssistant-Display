@@ -114,6 +114,8 @@ void kb_draw_task_cb(lv_event_t* e) {
     if (txt && static_cast<unsigned char>(txt[0]) == 0xEF) {
 #if defined(DEVICE_LAYOUT_1024X600)
       label->font = &lv_font_montserrat_20;
+#elif defined(DEVICE_LAYOUT_480X480)
+      label->font = &lv_font_montserrat_14;
 #else
       const bool large =
           lv_display_get_horizontal_resolution(nullptr) >= 1024;
@@ -187,6 +189,8 @@ lv_obj_t* ui_keyboard_create(lv_obj_t* parent) {
   // ASCII + Symbole ab, unsere ui_font_20/24 auch oe/ae/ue/ss (Bereich 174-383).
 #if defined(DEVICE_LAYOUT_1024X600)
   lv_obj_set_style_text_font(kb, popup_layout::font24(), LV_PART_ITEMS);
+#elif defined(DEVICE_LAYOUT_480X480)
+  lv_obj_set_style_text_font(kb, &ui_font_14, LV_PART_ITEMS);
 #else
   const bool large = lv_display_get_horizontal_resolution(nullptr) >= 1024;
   lv_obj_set_style_text_font(

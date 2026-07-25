@@ -22,7 +22,7 @@
 
 namespace {
 
-constexpr int kCardMargin = 4;
+constexpr int kCardMargin = popup_layout::kCardMargin;
 constexpr int kCardWidth =
     (SCREEN_WIDTH > SCREEN_HEIGHT)
         ? (SCREEN_HEIGHT - (kCardMargin * 2))
@@ -44,6 +44,10 @@ constexpr int kModeRowOffsetY =
 constexpr int kSummaryRowTop = popup_layout::kValueY - 24;
 constexpr int kForecastRowTop = popup_layout::kBodyY - 16;
 constexpr int kForecastRowHeight = popup_layout::kBodyHeight + 48;
+#elif defined(DEVICE_LAYOUT_480X480)
+constexpr int kSummaryRowTop = popup_layout::kValueY - 10;
+constexpr int kForecastRowTop = popup_layout::kBodyY;
+constexpr int kForecastRowHeight = popup_layout::kBodyHeight;
 #else
 constexpr int kSummaryRowTop = popup_layout::kValueY;
 constexpr int kForecastRowTop = popup_layout::kBodyY;
@@ -60,8 +64,8 @@ constexpr int kForecastDayIconGap = -3;
 constexpr int kForecastIconTop = 20;
 #else
 constexpr int kForecastDayIconGap = popup_layout::contentScale(6);
-// day top 2 + regular 20 px font line height 27 + gap 6 = 35
-constexpr int kForecastIconTop = 35;
+// Keep the same 720x720 relationship when the square layout is scaled.
+constexpr int kForecastIconTop = popup_layout::scale480(35);
 #endif
 constexpr int kForecastTempChartTop = popup_layout::contentScale(102);
 #if defined(DEVICE_LAYOUT_1024X600)
@@ -590,12 +594,20 @@ static void position_value_unit_centered(
   if (x < 0) x = 0;
   if (x + total_w > wrap_w) x = wrap_w - total_w;
   lv_obj_set_pos(val_label, x, y);
-#if defined(DEVICE_LAYOUT_1024X600)
+#if defined(DEVICE_LAYOUT_1024X600) || defined(DEVICE_LAYOUT_480X480)
   const lv_coord_t unit_y_offset = 0;
 #else
   const lv_coord_t unit_y_offset = 3;
 #endif
   lv_obj_set_pos(unit_label, x + val_w, y + unit_y_offset);
+}
+
+static constexpr lv_coord_t weather_detail_unit_y_offset() {
+#if defined(DEVICE_LAYOUT_1024X600) || defined(DEVICE_LAYOUT_480X480)
+  return 0;
+#else
+  return 3;
+#endif
 }
 
 static String format_forecast_chart_temp(float temp) {
@@ -913,7 +925,8 @@ static void update_forecast_graph(WeatherPopupContext* ctx) {
         if (hu) {
           lv_label_set_text(hu, format_temperature_unit_label(ctx->unit).c_str());
           lv_obj_update_layout(fw.high_label);
-          lv_coord_t y = top_separator_y + 14;
+          lv_coord_t y =
+              top_separator_y + popup_layout::scale480(14);
           position_value_unit_centered(fw.high_label, hu, center_x, y, col_w);
           lv_obj_clear_flag(hu, LV_OBJ_FLAG_HIDDEN);
         }
@@ -938,7 +951,9 @@ static void update_forecast_graph(WeatherPopupContext* ctx) {
 #if defined(DEVICE_LAYOUT_1024X600)
           lv_coord_t y = bottom_separator_y - lv_obj_get_height(fw.low_label) - 8;
 #else
-          lv_coord_t y = bottom_separator_y - lv_obj_get_height(fw.low_label) - 16;
+          lv_coord_t y = bottom_separator_y -
+                         lv_obj_get_height(fw.low_label) -
+                         popup_layout::scale480(16);
 #endif
           position_value_unit_centered(fw.low_label, lu, center_x, y, col_w);
           lv_obj_clear_flag(lu, LV_OBJ_FLAG_HIDDEN);
@@ -2251,7 +2266,8 @@ static bool update_detail_view(WeatherPopupContext* ctx, int day_index) {
           if (y < min_y) y = min_y;
           if (y > max_y) y = max_y;
           lv_obj_set_pos(ctx->detail_temp_value_labels[marker], cx, y);
-          lv_obj_set_pos(tu, cx + val_w, y + 3);
+          lv_obj_set_pos(
+              tu, cx + val_w, y + weather_detail_unit_y_offset());
           lv_obj_clear_flag(tu, LV_OBJ_FLAG_HIDDEN);
         }
         lv_obj_clear_flag(ctx->detail_temp_value_labels[marker], LV_OBJ_FLAG_HIDDEN);
@@ -2358,7 +2374,8 @@ static bool update_detail_view(WeatherPopupContext* ctx, int day_index) {
           if (y < min_y) y = min_y;
           if (y > max_y) y = max_y;
           lv_obj_set_pos(ctx->detail_now_temp_value_label, cx, y);
-          lv_obj_set_pos(ntu, cx + val_w, y + 3);
+          lv_obj_set_pos(
+              ntu, cx + val_w, y + weather_detail_unit_y_offset());
           lv_obj_clear_flag(ntu, LV_OBJ_FLAG_HIDDEN);
         }
         lv_obj_clear_flag(ctx->detail_now_temp_value_label, LV_OBJ_FLAG_HIDDEN);
@@ -2969,14 +2986,14 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   ctx->bg_color = popup_tile_bg_color;
   lv_obj_set_style_bg_color(card, lv_color_hex(popup_tile_bg_color), 0);
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(card, 22, 0);
+  lv_obj_set_style_radius(card, popup_layout::kCardRadius, 0);
   lv_obj_set_style_border_width(card, 0, 0);
   ui_surface_style::apply_global_tile_border(card);
   lv_obj_set_style_pad_all(card, kCardPad, 0);
-  lv_obj_set_style_shadow_width(card, 28, 0);
+  lv_obj_set_style_shadow_width(card, popup_layout::scale480(28), 0);
   lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
   lv_obj_set_style_shadow_opa(card, LV_OPA_40, 0);
-  lv_obj_set_style_shadow_spread(card, 2, 0);
+  lv_obj_set_style_shadow_spread(card, popup_layout::scale480(2), 0);
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
   lv_obj_t* location = lv_label_create(card);
@@ -3017,7 +3034,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_set_style_translate_y(btn, 0, 0);
     lv_obj_set_style_translate_y(btn, 0, LV_STATE_PRESSED);
     lv_obj_align(btn, LV_ALIGN_BOTTOM_RIGHT, x_ofs, kFooterOffsetY);
-    lv_obj_set_ext_click_area(btn, 12);
+    lv_obj_set_ext_click_area(btn, popup_layout::scale480(12));
     lv_obj_add_flag(btn, LV_OBJ_FLAG_PRESS_LOCK);
     lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(btn, on_header_action_click, LV_EVENT_CLICKED, ctx);
@@ -3075,7 +3092,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   auto make_mode_button = [&](const char* text) -> lv_obj_t* {
     lv_obj_t* btn = lv_button_create(mode_row);
     lv_obj_set_size(btn, kModeButtonWidth, kModeButtonHeight);
-    lv_obj_set_style_radius(btn, 16, 0);
+    lv_obj_set_style_radius(btn, popup_layout::scale480(16), 0);
     lv_obj_set_style_pad_all(btn, 0, 0);
     lv_obj_set_style_anim_time(btn, 0, 0);
     lv_obj_set_style_anim_time(btn, 0, LV_STATE_PRESSED);
@@ -3205,7 +3222,8 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   for (int i = 1; i < kCols; ++i) {
     lv_obj_t* divider = lv_obj_create(forecast_row);
     lv_obj_remove_style_all(divider);
-    lv_obj_set_size(divider, 1, kForecastRowHeight - 12);
+    lv_obj_set_size(
+        divider, 1, kForecastRowHeight - popup_layout::scale480(12));
     lv_obj_set_style_bg_color(divider, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_bg_opa(divider, LV_OPA_10, 0);
     lv_obj_set_style_radius(divider, 0, 0);
@@ -3215,7 +3233,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
         (i * forecast_col_base_w) +
         ((i < forecast_col_extra) ? i : forecast_col_extra) +
         (i * kForecastColGap);
-    lv_obj_set_pos(divider, divider_x, 10);
+    lv_obj_set_pos(divider, divider_x, popup_layout::scale480(10));
     lv_obj_add_flag(divider, LV_OBJ_FLAG_HIDDEN);
     ctx->forecast_dividers[i - 1] = divider;
   }
@@ -3273,7 +3291,7 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_add_flag(col, LV_OBJ_FLAG_PRESS_LOCK);
     lv_obj_add_flag(col, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
     lv_obj_clear_flag(col, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_ext_click_area(col, 4);
+    lv_obj_set_ext_click_area(col, popup_layout::scale480(4));
     lv_obj_set_pos(col, forecast_col_x, 0);
     lv_obj_add_event_cb(col, on_day_column_click, LV_EVENT_CLICKED, ctx);
     ctx->forecast[i].column = col;
@@ -3312,14 +3330,16 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_set_style_text_align(low, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(low, "");
     lv_obj_add_flag(low, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_set_pos(low, 0, kForecastTempChartTop + 24);
+    lv_obj_set_pos(low, 0,
+                   kForecastTempChartTop + popup_layout::scale480(24));
 
     lv_obj_t* low_unit = lv_label_create(col);
     set_label_style(low_unit, lv_color_white(), weather_unit_font());
     lv_obj_set_style_text_align(low_unit, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(low_unit, "");
     lv_obj_add_flag(low_unit, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_set_pos(low_unit, 0, kForecastTempChartTop + 24);
+    lv_obj_set_pos(low_unit, 0,
+                   kForecastTempChartTop + popup_layout::scale480(24));
 
     lv_obj_t* precip_bar = lv_obj_create(col);
     lv_obj_remove_style_all(precip_bar);
@@ -3522,7 +3542,8 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   ctx->detail_y_max_label = y_max;
   set_label_style(y_max, lv_color_white(), popup_layout::font20());
   lv_obj_set_style_text_align(y_max, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_obj_set_width(y_max, kDetailYAxisWidth - 10);
+  lv_obj_set_width(
+      y_max, kDetailYAxisWidth - popup_layout::scale480(10));
   lv_label_set_text(y_max, "");
   lv_obj_set_pos(y_max, 0, 0);
   lv_obj_add_flag(y_max, LV_OBJ_FLAG_HIDDEN);
@@ -3531,7 +3552,8 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
   ctx->detail_y_min_label = y_min;
   set_label_style(y_min, lv_color_white(), popup_layout::font20());
   lv_obj_set_style_text_align(y_min, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_obj_set_width(y_min, kDetailYAxisWidth - 10);
+  lv_obj_set_width(
+      y_min, kDetailYAxisWidth - popup_layout::scale480(10));
   lv_label_set_text(y_min, "");
   lv_obj_set_pos(y_min, 0, kDetailTempChartHeight);
   lv_obj_add_flag(y_min, LV_OBJ_FLAG_HIDDEN);
@@ -3605,11 +3627,11 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_set_style_text_align(vlbl, LV_TEXT_ALIGN_LEFT, 0);
     lv_obj_set_style_bg_color(vlbl, lv_color_hex(ctx->bg_color ? ctx->bg_color : 0x2A2A2A), 0);
     lv_obj_set_style_bg_opa(vlbl, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(vlbl, 6, 0);
-    lv_obj_set_style_pad_left(vlbl, 4, 0);
+    lv_obj_set_style_radius(vlbl, popup_layout::scale480(6), 0);
+    lv_obj_set_style_pad_left(vlbl, popup_layout::scale480(4), 0);
     lv_obj_set_style_pad_right(vlbl, 0, 0);
-    lv_obj_set_style_pad_top(vlbl, 1, 0);
-    lv_obj_set_style_pad_bottom(vlbl, 1, 0);
+    lv_obj_set_style_pad_top(vlbl, popup_layout::scale480(1), 0);
+    lv_obj_set_style_pad_bottom(vlbl, popup_layout::scale480(1), 0);
     lv_label_set_text(vlbl, "");
     lv_obj_add_flag(vlbl, LV_OBJ_FLAG_HIDDEN);
     ctx->detail_temp_value_labels[i] = vlbl;
@@ -3619,11 +3641,11 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     lv_obj_set_style_text_align(vu, LV_TEXT_ALIGN_LEFT, 0);
     lv_obj_set_style_bg_color(vu, lv_color_hex(ctx->bg_color ? ctx->bg_color : 0x2A2A2A), 0);
     lv_obj_set_style_bg_opa(vu, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(vu, 6, 0);
+    lv_obj_set_style_radius(vu, popup_layout::scale480(6), 0);
     lv_obj_set_style_pad_left(vu, 0, 0);
-    lv_obj_set_style_pad_right(vu, 4, 0);
-    lv_obj_set_style_pad_top(vu, 1, 0);
-    lv_obj_set_style_pad_bottom(vu, 1, 0);
+    lv_obj_set_style_pad_right(vu, popup_layout::scale480(4), 0);
+    lv_obj_set_style_pad_top(vu, popup_layout::scale480(1), 0);
+    lv_obj_set_style_pad_bottom(vu, popup_layout::scale480(1), 0);
     lv_label_set_text(vu, "");
     lv_obj_add_flag(vu, LV_OBJ_FLAG_HIDDEN);
     ctx->detail_temp_unit_labels[i] = vu;

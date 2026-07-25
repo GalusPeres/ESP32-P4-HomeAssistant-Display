@@ -705,11 +705,18 @@ void layout_climate_slots(
             std::max<lv_coord_t>(1, root_w - tile_layout::scale(32)));
         lv_obj_set_style_text_font(
             value,
+#if defined(DEVICE_LAYOUT_480X480)
+            // The compact target still has enough room for the same value font
+            // as the current-temperature slot. A smaller fallback made the two
+            // values look unrelated in a 2x1 climate tile.
+            FONT_VALUE,
+#else
             root_w < 110
                 ? tile_layout::content_font_20()
                 : (root_w < 130
                        ? tile_layout::content_font_24()
                        : FONT_VALUE),
+#endif
             0);
         lv_obj_align(value, LV_ALIGN_CENTER, 0, 0);
       }
@@ -968,7 +975,7 @@ lv_obj_t* create_climate_slot(
   lv_obj_set_style_bg_opa(root, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_set_style_border_width(root, 0, 0);
   lv_obj_set_style_shadow_width(root, 0, 0);
-  // Card radius 22 with a 6 px inset -> 16 px keeps both arcs concentric.
+  // Keep the inner control radius concentric with the active layout's card.
   lv_obj_set_style_radius(
       root, climate_layout::kControlRadius, 0);
   lv_obj_set_style_pad_all(root, 0, 0);
@@ -1250,7 +1257,7 @@ lv_obj_t* render_climate_tile(lv_obj_t* parent,
   lv_obj_set_style_bg_color(
       card, lv_color_hex(brighten_rgb_color(color, 0x10)),
       LV_PART_MAIN | LV_STATE_PRESSED);
-  lv_obj_set_style_radius(card, 22, 0);
+  lv_obj_set_style_radius(card, tile_layout::scale_480(22), 0);
   lv_obj_set_style_border_width(card, 0, 0);
   lv_obj_set_style_shadow_width(card, 0, 0);
   lv_obj_set_style_pad_hor(

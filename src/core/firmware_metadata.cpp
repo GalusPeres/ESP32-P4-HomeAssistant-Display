@@ -24,6 +24,9 @@
 #elif defined(DEVICE_LAYOUT_TEST_1024X600)
 #define FW_META_TARGET_DEVICE_KEY "layout_test_1024x600"
 #define FW_META_TARGET_DISPLAY_NAME "Layout Test 1024x600"
+#elif defined(DEVICE_LAYOUT_TEST_480X480)
+#define FW_META_TARGET_DEVICE_KEY "layout_test_480x480"
+#define FW_META_TARGET_DISPLAY_NAME "Layout Test 480x480"
 #elif defined(DEVICE_WAVESHARE_4B)
 #define FW_META_TARGET_DEVICE_KEY "waveshare_4b"
 #define FW_META_TARGET_DISPLAY_NAME "Waveshare B4"

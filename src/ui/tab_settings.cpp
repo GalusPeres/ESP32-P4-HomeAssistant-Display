@@ -2640,7 +2640,13 @@ static void build_system_popup(lv_obj_t* parent) {
   // (siehe system_show_qr), passt sich also automatisch an und bleibt auch
   // auf 720p-Geraeten im Rahmen.
   lv_obj_set_style_margin_top(system_qr, popup_layout::scale(14), 0);
+#if defined(DEVICE_LAYOUT_480X480)
+  // Leave enough vertical room for the GitHub action on the compact square
+  // layout without changing the QR size on any hardware profile.
+  lv_qrcode_set_size(system_qr, popup_layout::scale480(264));
+#else
   lv_qrcode_set_size(system_qr, popup_layout::scale(280));
+#endif
   lv_qrcode_set_dark_color(system_qr, lv_color_black());
   lv_qrcode_set_light_color(system_qr, lv_color_white());
   lv_qrcode_set_quiet_zone(system_qr, true);

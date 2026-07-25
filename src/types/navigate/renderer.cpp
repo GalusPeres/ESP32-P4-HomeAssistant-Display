@@ -18,14 +18,12 @@ static uint16_t navFolderIdFromTile(const Tile& tile) {
 
 lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index) {
   lv_obj_t* btn = lv_button_create(parent);
-  lv_obj_set_style_radius(btn, 22, 0);
+  lv_obj_set_style_radius(btn, tile_layout::scale_480(22), 0);
   lv_obj_set_style_border_width(btn, 0, 0);
 
-  // Settings/Back behalten ohne gesetzte Farbe ihr neutrales Grau, duerfen aber
-  // bei expliziter Farbwahl ebenfalls schwarz bzw. jede andere Farbe nutzen.
-  const uint32_t default_color = ((tile.type == TILE_SETTINGS) || (tile.type == TILE_BACK))
-                                     ? 0x2A2A2A
-                                     : 0x353535;
+  // Alle Navigationstypen verwenden ohne explizite Farbwahl dieselbe neutrale
+  // Standardflaeche wie die restlichen HomeTiles.
+  const uint32_t default_color = 0x2A2A2A;
   uint32_t btn_color = tileBgColorOrDefault(tile, default_color);
   lv_obj_set_style_bg_color(btn, lv_color_hex(btn_color), LV_PART_MAIN | LV_STATE_DEFAULT);
   lv_obj_set_style_bg_color(btn, lv_color_hex(btn_color), LV_PART_MAIN | LV_STATE_FOCUSED);

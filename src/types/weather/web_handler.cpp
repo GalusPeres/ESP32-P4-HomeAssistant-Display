@@ -5,7 +5,7 @@ void apply_weather_fields_from_request(WebServer& server, Tile& tile) {
   tile.sensor_unit = "";
   tile.sensor_decimals = 0xFF;
   tile.sensor_value_font = 0;
-  uint8_t popup_mode = TILE_POPUP_OPEN_LONG_PRESS;
+  uint8_t popup_mode = TILE_POPUP_OPEN_SHORT_PRESS;
   if (server.hasArg("popup_open_mode")) {
     popup_mode = (server.arg("popup_open_mode").toInt() == TILE_POPUP_OPEN_SHORT_PRESS)
                      ? TILE_POPUP_OPEN_SHORT_PRESS

@@ -23,6 +23,9 @@ namespace DeviceImpl = DeviceWaveshareTouchLCD10;
 #elif defined(DEVICE_LAYOUT_TEST_1024X600)
 #include "src/devices/layout_test_1024x600/device_layout_test_1024x600.h"
 namespace DeviceImpl = DeviceLayoutTest1024x600;
+#elif defined(DEVICE_LAYOUT_TEST_480X480)
+#include "src/devices/layout_test_480x480/device_layout_test_480x480.h"
+namespace DeviceImpl = DeviceLayoutTest480x480;
 #elif defined(DEVICE_WAVESHARE_4B)
 #include "src/devices/waveshare_4b/device_waveshare_4b.h"
 namespace DeviceImpl = DeviceWaveshare4B;

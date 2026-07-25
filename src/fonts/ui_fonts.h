@@ -1,7 +1,12 @@
 #pragma once
 
 #include <lvgl.h>
+#include "src/devices/device_select.h"
 
+#if defined(DEVICE_LAYOUT_480X480)
+LV_FONT_DECLARE(ui_font_12);
+LV_FONT_DECLARE(ui_font_14);
+#endif
 LV_FONT_DECLARE(ui_font_16);
 LV_FONT_DECLARE(ui_font_20);
 LV_FONT_DECLARE(ui_font_20_semibold);
@@ -20,6 +25,10 @@ LV_FONT_DECLARE(ui_font_96);
 // deklarierten Groessen enthalten denselben vollstaendigen UI-Zeichensatz.
 static inline const lv_font_t* ui_font_for_size(uint8_t size) {
   switch (size) {
+#if defined(DEVICE_LAYOUT_480X480)
+    case 12: return &ui_font_12;
+    case 14: return &ui_font_14;
+#endif
     case 16: return &ui_font_16;
     case 20: return &ui_font_20;
     case 24: return &ui_font_24;

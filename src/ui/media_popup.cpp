@@ -27,7 +27,7 @@
 
 namespace {
 
-constexpr int kCardMargin = 4;
+constexpr int kCardMargin = popup_layout::kCardMargin;
 constexpr int kCardWidth =
     (SCREEN_WIDTH > SCREEN_HEIGHT)
         ? (SCREEN_HEIGHT - (kCardMargin * 2))
@@ -608,14 +608,14 @@ void show_media_popup(const MediaPopupInit& init) {
   lv_obj_center(card);
   lv_obj_set_style_bg_color(card, lv_color_hex(init.bg_color != 0 ? init.bg_color : 0x2A2A2A), 0);
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(card, 22, 0);
+  lv_obj_set_style_radius(card, popup_layout::kCardRadius, 0);
   lv_obj_set_style_border_width(card, 0, 0);
   ui_surface_style::apply_global_tile_border(card);
   lv_obj_set_style_pad_all(card, kCardPad, 0);
-  lv_obj_set_style_shadow_width(card, 28, 0);
+  lv_obj_set_style_shadow_width(card, popup_layout::scale480(28), 0);
   lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
   lv_obj_set_style_shadow_opa(card, LV_OPA_40, 0);
-  lv_obj_set_style_shadow_spread(card, 2, 0);
+  lv_obj_set_style_shadow_spread(card, popup_layout::scale480(2), 0);
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
   ctx->title_label = lv_label_create(card);
@@ -664,7 +664,7 @@ void show_media_popup(const MediaPopupInit& init) {
   lv_obj_set_style_border_width(ctx->cover_clip, 0, 0);
   lv_obj_set_style_shadow_width(ctx->cover_clip, 0, 0);
   lv_obj_set_style_pad_all(ctx->cover_clip, 0, 0);
-  lv_obj_set_style_radius(ctx->cover_clip, 18, 0);
+  lv_obj_set_style_radius(ctx->cover_clip, popup_layout::scale480(18), 0);
   lv_obj_set_style_clip_corner(ctx->cover_clip, true, 0);
   lv_obj_remove_flag(ctx->cover_clip, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_clear_flag(ctx->cover_clip, LV_OBJ_FLAG_CLICKABLE);
@@ -695,7 +695,8 @@ void show_media_popup(const MediaPopupInit& init) {
   lv_obj_set_style_text_align(ctx->media_subtitle_label, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_long_mode(ctx->media_subtitle_label, LV_LABEL_LONG_SCROLL);
   apply_popup_scroll_style(ctx->media_subtitle_label);
-  lv_obj_align_to(ctx->media_subtitle_label, ctx->media_title_label, LV_ALIGN_OUT_BOTTOM_MID, 0, 8);
+  lv_obj_align_to(ctx->media_subtitle_label, ctx->media_title_label,
+                  LV_ALIGN_OUT_BOTTOM_MID, 0, popup_layout::scale480(8));
 
   ctx->seek_slider = lv_slider_create(card);
   lv_obj_set_size(ctx->seek_slider, kSeekWidth, kSeekSliderHeight);

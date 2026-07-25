@@ -3,6 +3,7 @@
 #include "src/types/types_registry.h"
 #include "src/types/climate/layout.h"
 #include "src/tiles/tile_config.h"
+#include "src/tiles/tile_renderer_fonts.h"
 
 namespace {
 
@@ -123,6 +124,35 @@ void appendPreviewScaleVars(String& html) {
   emit_device_px("screensaver-shadow-2", 2);
   emit_device_px("screensaver-shadow-4", 3);
   emit_device_px("screensaver-shadow-6", 5);
+#elif defined(DEVICE_LAYOUT_480X480)
+  // Native 2/3 font and icon assets used by the 480x480 target.
+  emit("fs16", 12);
+  emit("fs20", 14);
+  emit("fs24", 16);
+  emit("fs28", 20);
+  emit("fs32", 20);
+  emit("fs40", 28);
+  emit("fs48", 32);
+  emit("fs56", 40);
+  emit("fs64", 40);
+  emit("fs72", 48);
+  emit("fs80", 56);
+  emit("fs96", 64);
+  emit("icon-size", 32);
+  emit_device_px("screensaver-fs20", 14);
+  emit_device_px("screensaver-fs24", 16);
+  emit_device_px("screensaver-fs28", 20);
+  emit_device_px("screensaver-fs32", 20);
+  emit_device_px("screensaver-fs40", 28);
+  emit_device_px("screensaver-fs48", 32);
+  emit_device_px("screensaver-fs56", 40);
+  emit_device_px("screensaver-fs64", 40);
+  emit_device_px("screensaver-fs72", 48);
+  emit_device_px("screensaver-fs80", 56);
+  emit_device_px("screensaver-fs96", 64);
+  emit_device_px("screensaver-shadow-2", 1);
+  emit_device_px("screensaver-shadow-4", 3);
+  emit_device_px("screensaver-shadow-6", 4);
 #else
   emit("fs16", 16);
   emit("fs20", 20);
@@ -156,10 +186,12 @@ void appendPreviewScaleVars(String& html) {
   emit("tile-pad-h", climate_layout::kCardPaddingHorizontal);
 #if defined(DEVICE_LAYOUT_1024X600)
   emit("value-dy", 23);
+#elif defined(DEVICE_LAYOUT_480X480)
+  emit("value-dy", 19);
 #else
   emit("value-dy", 28);
 #endif
-  emit_exact("tile-radius", 22);
+  emit_exact("tile-radius", tile_layout::scale_480(22));
   // Climate tile geometry uses the exact same LVGL-to-preview scale as the
   // device. Keeping these separate from font variables avoids the 6 px
   // minimum used for readable preview text.
@@ -170,14 +202,14 @@ void appendPreviewScaleVars(String& html) {
   emit_exact(
       "climate-control-radius",
       climate_layout::kControlRadius);
-  emit_exact("climate-control-side-pad", 8);
-  emit_exact("climate-control-caption-w", 96);
-  emit_exact("climate-control-button-w", 40);
+  emit_exact("climate-control-side-pad", tile_layout::scale_480(8));
+  emit_exact("climate-control-caption-w", tile_layout::scale_480(96));
+  emit_exact("climate-control-button-w", tile_layout::scale_480(40));
   emit_exact(
       "climate-control-single-w",
       GRID_CELL_W - climate_layout::kOuterInset * 2);
-  emit_exact("climate-control-v-pad-top", 5);
-  emit_exact("climate-control-v-pad-bottom", 5);
+  emit_exact("climate-control-v-pad-top", tile_layout::scale_480(5));
+  emit_exact("climate-control-v-pad-bottom", tile_layout::scale_480(5));
   html += "--settings-panel-width:";
   html += String(settings_panel_target_width_px());
   html += "px;";

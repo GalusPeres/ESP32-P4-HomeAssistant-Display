@@ -44,7 +44,15 @@ constexpr int kPillWidth =
     (popup_layout::kContentWidth - ((kControlCount - 1) * kPillGap)) /
     kControlCount;
 constexpr int kPillLabelHeight = popup_layout::scale(32);
-constexpr int kPillCaptionHeight = popup_layout::scale(22);
+#if defined(DEVICE_LAYOUT_480X480)
+// ui_font_14 needs its full 19 px line height so descenders such as the
+// "g" in "Swing" are not clipped.
+constexpr int kPillCaptionHeight = 19;
+#elif defined(DEVICE_LAYOUT_1024X600)
+constexpr int kPillCaptionHeight = 21;
+#else
+constexpr int kPillCaptionHeight = 22;
+#endif
 constexpr int kPillCaptionYWithValue = -popup_layout::scale(16);
 constexpr int kPillValueY = popup_layout::scale(14);
 constexpr int kMenuOptionHeight = popup_layout::scale(64);
@@ -60,12 +68,41 @@ constexpr int kCurrentMarkerSize = popup_layout::contentScale(14);
 constexpr int kRangeLineCenterGap = popup_layout::contentScale(52);
 constexpr int kRangeTargetTextHeight = popup_layout::contentScale(114);
 constexpr int kRangeBlockVisualOffsetY = -popup_layout::contentScale(24);
+#if defined(DEVICE_LAYOUT_480X480)
+constexpr int kClimateContentLiftY = popup_layout::scale480(6);
+constexpr int kClimateValueLiftY = kClimateContentLiftY + 2;
+constexpr int kCurrentCaptionOpticalOffsetY = popup_layout::scale480(3);
+#else
+constexpr int kClimateContentLiftY = 0;
+constexpr int kClimateValueLiftY = 0;
+constexpr int kCurrentCaptionOpticalOffsetY = 0;
+#endif
+// Preserve the original 720 px distance between the state caption ("Heating")
+// and the target value, scaled with the popup content.
+constexpr int kStateCaptionOffsetY = -popup_layout::contentScale(62);
+constexpr int kTargetLabelCenterY = -popup_layout::contentScale(2);
 constexpr int kRangeTargetLabelCenterY =
     kGaugeOffsetY + (kRangeLineCenterGap / 2) +
     kRangeBlockVisualOffsetY;
 constexpr int kRangeStateCenterY =
     kGaugeOffsetY - kRangeLineCenterGap +
     kRangeBlockVisualOffsetY;
+
+static const lv_font_t* climate_current_value_font() {
+#if defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_24;
+#else
+  return popup_layout::font32();
+#endif
+}
+
+static const lv_font_t* climate_control_caption_font() {
+#if defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_14;
+#else
+  return &ui_font_16;
+#endif
+}
 
 enum class ClimateControlType : uint8_t {
   HVAC = 0,
@@ -776,7 +813,7 @@ void refresh_target_label(
           show_range ? kRangeTargetTextHeight : LV_SIZE_CONTENT);
       lv_obj_align(
           ctx->target_label, LV_ALIGN_CENTER, 0,
-          show_range ? kRangeTargetLabelCenterY : -2);
+          show_range ? kRangeTargetLabelCenterY : kTargetLabelCenterY);
     }
   }
 }
@@ -831,7 +868,8 @@ void refresh_state_caption(ClimatePopupContext* ctx) {
       !ctx->humidity_control_active && ctx->has_range;
   lv_obj_align(
       ctx->state_caption, LV_ALIGN_CENTER, 0,
-      off ? -2 : (show_range ? kRangeStateCenterY : -62));
+      off ? kTargetLabelCenterY
+          : (show_range ? kRangeStateCenterY : kStateCaptionOffsetY));
   if (ctx->target_label) {
     if (off) {
       lv_obj_add_flag(ctx->target_label, LV_OBJ_FLAG_HIDDEN);
@@ -1914,7 +1952,8 @@ void open_control_menu(ClimatePopupContext* ctx, uint8_t control_index) {
 
   const bool has_current_value = current && current->length();
   lv_obj_t* current_caption = lv_label_create(current_pill);
-  lv_obj_set_style_text_font(current_caption, &ui_font_16, 0);
+  lv_obj_set_style_text_font(
+      current_caption, climate_control_caption_font(), 0);
   lv_obj_set_style_text_color(
       current_caption,
       colored_current ? lv_color_hex(kCardBg) : lv_color_hex(0xD0D0D0), 0);
@@ -2154,14 +2193,16 @@ void show_climate_popup(const ClimatePopupInit& init) {
   lv_obj_center(ctx->card);
   lv_obj_set_style_bg_color(ctx->card, lv_color_hex(kCardBg), 0);
   lv_obj_set_style_bg_opa(ctx->card, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(ctx->card, 22, 0);
+  lv_obj_set_style_radius(ctx->card, popup_layout::kCardRadius, 0);
   lv_obj_set_style_border_width(ctx->card, 0, 0);
   ui_surface_style::apply_global_tile_border(ctx->card);
   lv_obj_set_style_pad_all(ctx->card, popup_layout::kCardPad, 0);
-  lv_obj_set_style_shadow_width(ctx->card, 28, 0);
+  lv_obj_set_style_shadow_width(
+      ctx->card, popup_layout::scale480(28), 0);
   lv_obj_set_style_shadow_color(ctx->card, lv_color_black(), 0);
   lv_obj_set_style_shadow_opa(ctx->card, LV_OPA_40, 0);
-  lv_obj_set_style_shadow_spread(ctx->card, 2, 0);
+  lv_obj_set_style_shadow_spread(
+      ctx->card, popup_layout::scale480(2), 0);
   lv_obj_remove_flag(ctx->card, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(ctx->card, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
   lv_obj_add_flag(ctx->card, LV_OBJ_FLAG_CLICKABLE);
@@ -2211,7 +2252,8 @@ void show_climate_popup(const ClimatePopupInit& init) {
   lv_obj_remove_style_all(value_box);
   lv_obj_set_size(value_box, LV_PCT(100), popup_layout::kValueHeight);
   lv_obj_align(
-      value_box, LV_ALIGN_TOP_MID, 0, popup_layout::kValueY);
+      value_box, LV_ALIGN_TOP_MID, 0,
+      popup_layout::kValueY - kClimateValueLiftY);
   lv_obj_set_style_bg_opa(value_box, LV_OPA_TRANSP, 0);
   lv_obj_set_layout(value_box, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(value_box, LV_FLEX_FLOW_ROW);
@@ -2220,7 +2262,8 @@ void show_climate_popup(const ClimatePopupInit& init) {
       LV_FLEX_ALIGN_CENTER);
   lv_obj_clear_flag(value_box, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_clear_flag(value_box, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_style_pad_column(value_box, 28, 0);
+  lv_obj_set_style_pad_column(
+      value_box, popup_layout::scale480(28), 0);
 
   ctx->top_caption_label = lv_label_create(value_box);
   lv_obj_set_width(ctx->top_caption_label, LV_SIZE_CONTENT);
@@ -2230,7 +2273,9 @@ void show_climate_popup(const ClimatePopupInit& init) {
       ctx->top_caption_label, lv_color_white(), 0);
   lv_obj_set_style_translate_y(
       ctx->top_caption_label,
-      popup_layout::kLargeValueTextOffsetY, 0);
+      popup_layout::kLargeValueTextOffsetY +
+          kCurrentCaptionOpticalOffsetY,
+      0);
   lv_label_set_long_mode(
       ctx->top_caption_label, LV_LABEL_LONG_CLIP);
   lv_obj_clear_flag(
@@ -2241,7 +2286,8 @@ void show_climate_popup(const ClimatePopupInit& init) {
   ctx->top_value_label = lv_label_create(value_box);
   lv_obj_set_width(ctx->top_value_label, LV_SIZE_CONTENT);
   lv_obj_set_height(ctx->top_value_label, LV_SIZE_CONTENT);
-  lv_obj_set_style_text_font(ctx->top_value_label, popup_layout::font32(), 0);
+  lv_obj_set_style_text_font(
+      ctx->top_value_label, climate_current_value_font(), 0);
   lv_obj_set_style_text_color(
       ctx->top_value_label, lv_color_white(), 0);
   lv_obj_set_style_text_align(
@@ -2258,7 +2304,8 @@ void show_climate_popup(const ClimatePopupInit& init) {
   ctx->body = lv_obj_create(ctx->card);
   lv_obj_set_size(ctx->body, LV_PCT(100), popup_layout::kBodyHeight);
   lv_obj_align(
-      ctx->body, LV_ALIGN_TOP_MID, 0, popup_layout::kBodyY);
+      ctx->body, LV_ALIGN_TOP_MID, 0,
+      popup_layout::kBodyY - kClimateContentLiftY);
   lv_obj_set_style_bg_opa(ctx->body, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(ctx->body, 0, 0);
   lv_obj_set_style_pad_all(ctx->body, 0, 0);
@@ -2381,8 +2428,8 @@ void show_climate_popup(const ClimatePopupInit& init) {
       ctx->state_caption, kGaugeSize - popup_layout::contentScale(110));
   lv_obj_set_style_text_align(
       ctx->state_caption, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(ctx->state_caption, LV_ALIGN_CENTER, 0,
-               -popup_layout::contentScale(62));
+  lv_obj_align(
+      ctx->state_caption, LV_ALIGN_CENTER, 0, kStateCaptionOffsetY);
 
   ctx->target_label = lv_label_create(ctx->body);
   lv_obj_set_style_text_font(ctx->target_label, popup_layout::font48(), 0);
@@ -2392,8 +2439,8 @@ void show_climate_popup(const ClimatePopupInit& init) {
       ctx->target_label, kGaugeSize - popup_layout::contentScale(80));
   lv_obj_set_style_text_align(
       ctx->target_label, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(ctx->target_label, LV_ALIGN_CENTER, 0,
-               -popup_layout::contentScale(2));
+  lv_obj_align(
+      ctx->target_label, LV_ALIGN_CENTER, 0, kTargetLabelCenterY);
 
   ctx->minus_button =
       create_step_button(
@@ -2539,12 +2586,14 @@ void show_climate_popup(const ClimatePopupInit& init) {
     lv_obj_set_style_shadow_width(control.dropdown, 0, 0);
     lv_obj_set_style_shadow_width(
         control.dropdown, 0, LV_STATE_PRESSED);
-    lv_obj_set_style_pad_left(control.dropdown, 8, 0);
     lv_obj_set_style_pad_left(
-        control.dropdown, 8, LV_STATE_PRESSED);
-    lv_obj_set_style_pad_right(control.dropdown, 8, 0);
+        control.dropdown, popup_layout::scale480(8), 0);
+    lv_obj_set_style_pad_left(
+        control.dropdown, popup_layout::scale480(8), LV_STATE_PRESSED);
     lv_obj_set_style_pad_right(
-        control.dropdown, 8, LV_STATE_PRESSED);
+        control.dropdown, popup_layout::scale480(8), 0);
+    lv_obj_set_style_pad_right(
+        control.dropdown, popup_layout::scale480(8), LV_STATE_PRESSED);
     lv_obj_set_style_pad_top(control.dropdown, 0, 0);
     lv_obj_set_style_pad_top(
         control.dropdown, 0, LV_STATE_PRESSED);
@@ -2577,7 +2626,8 @@ void show_climate_popup(const ClimatePopupInit& init) {
         control.dropdown, on_control_event, LV_EVENT_CLICKED, ctx);
 
     control.caption = lv_label_create(control.dropdown);
-    lv_obj_set_style_text_font(control.caption, &ui_font_16, 0);
+    lv_obj_set_style_text_font(
+        control.caption, climate_control_caption_font(), 0);
     lv_obj_set_style_text_color(
         control.caption, lv_color_hex(0xD0D0D0), 0);
     lv_obj_set_width(control.caption, kPillWidth - 16);

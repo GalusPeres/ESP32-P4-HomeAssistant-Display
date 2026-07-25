@@ -211,6 +211,8 @@ struct WeatherForecastWidgets {
 static constexpr uint8_t WEATHER_FORECAST_MAX = 8;
 #if defined(DEVICE_LAYOUT_1024X600)
 static constexpr lv_coord_t WEATHER_FORECAST_COL_W = 125;
+#elif defined(DEVICE_LAYOUT_480X480)
+static constexpr lv_coord_t WEATHER_FORECAST_COL_W = 100;
 #else
 static constexpr lv_coord_t WEATHER_FORECAST_COL_W = 150;
 #endif

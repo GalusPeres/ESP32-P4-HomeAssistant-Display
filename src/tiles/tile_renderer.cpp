@@ -837,6 +837,11 @@ static void position_tile_value_unit_centered(
   lv_obj_set_pos(val_label, x, y);
 #if defined(DEVICE_LAYOUT_1024X600)
   const lv_coord_t unit_y_offset = 0;
+#elif defined(DEVICE_LAYOUT_480X480)
+  // The compact unit font must share the value's top edge. A baseline-style
+  // offset makes the value/unit pair look low and no longer centered below
+  // the day icon.
+  const lv_coord_t unit_y_offset = 0;
 #else
   const lv_coord_t unit_y_offset = 5;
 #endif
@@ -2438,7 +2443,9 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
           tile_layout::scale(52 + 54);
       constexpr lv_coord_t kTileForecastLowTop =
           kTileForecastTempTop + tile_layout::scale(30);
-      constexpr lv_coord_t kTileColContentW = WEATHER_FORECAST_COL_W - 40;
+      constexpr lv_coord_t kTileColContentW =
+          WEATHER_FORECAST_COL_W -
+          (2 * tile_layout::scale_480(20));
       constexpr lv_coord_t kTileColCenterX = kTileColContentW / 2;
       String unit_text = format_weather_temp_unit(unit);
       if (slot.has_data && slot.has_temp) {

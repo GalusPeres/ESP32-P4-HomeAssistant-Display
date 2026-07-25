@@ -18,7 +18,7 @@
 
 namespace {
 
-constexpr int kCardMargin = 4;
+constexpr int kCardMargin = popup_layout::kCardMargin;
 constexpr int kCardWidth =
     (SCREEN_WIDTH > SCREEN_HEIGHT)
         ? (SCREEN_HEIGHT - (kCardMargin * 2))
@@ -30,6 +30,11 @@ constexpr int kHeaderIconOffsetY = 0;
 constexpr int kTopValueHeight = popup_layout::kValueHeight;
 constexpr int kTopValueBottomPad = 0;
 constexpr int kMainPanelHeight = popup_layout::kBodyHeight;
+#if defined(DEVICE_LAYOUT_480X480)
+constexpr int kContentLiftY = 6;
+#else
+constexpr int kContentLiftY = 0;
+#endif
 constexpr int kControlsRowPadX = popup_layout::scale(12);
 constexpr int kControlsRowGap = popup_layout::scale(28);
 constexpr int kControlButtonSize = popup_layout::scale(92);
@@ -1634,14 +1639,14 @@ void show_light_popup(const LightPopupInit& init) {
   lv_obj_center(card);
   lv_obj_set_style_bg_color(card, lv_color_hex(0x2A2A2A), 0);
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(card, 22, 0);
+  lv_obj_set_style_radius(card, popup_layout::kCardRadius, 0);
   lv_obj_set_style_border_width(card, 0, 0);
   ui_surface_style::apply_global_tile_border(card);
   lv_obj_set_style_pad_all(card, kCardPad, 0);
-  lv_obj_set_style_shadow_width(card, 28, 0);
+  lv_obj_set_style_shadow_width(card, popup_layout::scale480(28), 0);
   lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
   lv_obj_set_style_shadow_opa(card, LV_OPA_40, 0);
-  lv_obj_set_style_shadow_spread(card, 2, 0);
+  lv_obj_set_style_shadow_spread(card, popup_layout::scale480(2), 0);
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
   lv_obj_t* title = lv_label_create(card);
@@ -1689,7 +1694,9 @@ void show_light_popup(const LightPopupInit& init) {
   lv_obj_t* value_box = lv_obj_create(card);
   lv_obj_remove_style_all(value_box);
   lv_obj_set_size(value_box, LV_PCT(100), popup_layout::kValueHeight);
-  lv_obj_align(value_box, LV_ALIGN_TOP_MID, 0, popup_layout::kValueY);
+  lv_obj_align(
+      value_box, LV_ALIGN_TOP_MID, 0,
+      popup_layout::kValueY - kContentLiftY);
   lv_obj_set_style_bg_opa(value_box, LV_OPA_TRANSP, 0);
   lv_obj_set_layout(value_box, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(value_box, LV_FLEX_FLOW_ROW);
@@ -1709,7 +1716,9 @@ void show_light_popup(const LightPopupInit& init) {
 
   ctx->main_panel = lv_obj_create(card);
   lv_obj_set_size(ctx->main_panel, LV_PCT(100), kMainPanelHeight);
-  lv_obj_align(ctx->main_panel, LV_ALIGN_TOP_MID, 0, popup_layout::kBodyY);
+  lv_obj_align(
+      ctx->main_panel, LV_ALIGN_TOP_MID, 0,
+      popup_layout::kBodyY - kContentLiftY);
   lv_obj_set_style_bg_opa(ctx->main_panel, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(ctx->main_panel, 0, 0);
   lv_obj_set_style_pad_all(ctx->main_panel, 0, 0);

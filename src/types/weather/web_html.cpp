@@ -43,7 +43,7 @@ void append_weather_fields_html(String& html, const String& tab_id, const std::v
                 <option value="0">)html";
     html += tr.long_press;
     html += R"html(</option>
-                <option value="1">)html";
+                <option value="1" selected>)html";
     html += tr.short_press;
     html += R"html(</option>
               </select>

@@ -7,6 +7,9 @@
 #include <Arduino.h>
 #include <libs/tjpgd/tjpgd.h>
 
+static constexpr uint16_t kSceneIconMaxSide =
+    static_cast<uint16_t>(tile_layout::scale_480(64));
+
 // --- Simple JPEG icon decoder ---
 
 struct IconDecodeCtx {
@@ -87,10 +90,10 @@ static lv_image_dsc_t* decode_jpeg_icon(const String& path) {
   // Determine target size (max 64px on longest side, keep aspect)
   uint16_t dst_w, dst_h;
   if (jd.width >= jd.height) {
-    dst_w = jd.width <= 64 ? jd.width : 64;
+    dst_w = jd.width <= kSceneIconMaxSide ? jd.width : kSceneIconMaxSide;
     dst_h = static_cast<uint16_t>((static_cast<uint32_t>(jd.height) * dst_w) / jd.width);
   } else {
-    dst_h = jd.height <= 64 ? jd.height : 64;
+    dst_h = jd.height <= kSceneIconMaxSide ? jd.height : kSceneIconMaxSide;
     dst_w = static_cast<uint16_t>((static_cast<uint32_t>(jd.width) * dst_h) / jd.height);
   }
   if (dst_w == 0) dst_w = 1;
@@ -151,10 +154,10 @@ struct SceneEventData {
 
 lv_obj_t* render_scene_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, scene_publish_cb_t scene_cb) {
   lv_obj_t* btn = lv_button_create(parent);
-  lv_obj_set_style_radius(btn, 22, 0);
+  lv_obj_set_style_radius(btn, tile_layout::scale_480(22), 0);
   lv_obj_set_style_border_width(btn, 0, 0);
 
-  uint32_t btn_color = tileBgColorOrDefault(tile, 0x353535);
+  uint32_t btn_color = tileBgColorOrDefault(tile, 0x2A2A2A);
   lv_obj_set_style_bg_color(btn, lv_color_hex(btn_color), LV_PART_MAIN | LV_STATE_DEFAULT);
 lv_obj_set_style_bg_grad_color(btn, lv_color_hex(btn_color), LV_PART_MAIN | LV_STATE_DEFAULT);
 lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -205,7 +208,7 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
       lv_obj_set_style_bg_opa(icon_img, LV_OPA_TRANSP, 0);
       lv_obj_set_style_border_width(icon_img, 0, 0);
       lv_obj_set_style_pad_all(icon_img, 0, 0);
-      lv_obj_set_style_radius(icon_img, 22, 0);
+      lv_obj_set_style_radius(icon_img, tile_layout::scale_480(22), 0);
       lv_obj_set_style_clip_corner(icon_img, true, 0);
       lv_obj_clear_flag(icon_img, LV_OBJ_FLAG_SCROLLABLE);
       lv_obj_clear_flag(icon_img, LV_OBJ_FLAG_CLICKABLE);
@@ -217,7 +220,7 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
       lv_image_set_src(img, src.c_str());
       lv_coord_t btn_w = lv_obj_get_width(btn);
       lv_coord_t btn_h = lv_obj_get_height(btn);
-      const lv_coord_t bleed = 2;
+      const lv_coord_t bleed = tile_layout::scale_480(2);
       if (btn_w > 0 && btn_h > 0) {
         lv_obj_set_size(img, btn_w + bleed * 2, btn_h + bleed * 2);
         lv_obj_set_pos(img, -bleed, -bleed);
@@ -238,12 +241,12 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
       }
       if (is_png || dsc) {
         icon_img = lv_obj_create(btn);
-        const lv_coord_t icon_box = 64;
+        const lv_coord_t icon_box = tile_layout::scale_480(64);
         lv_obj_set_size(icon_img, icon_box, icon_box);
         lv_obj_set_style_bg_opa(icon_img, LV_OPA_TRANSP, 0);
         lv_obj_set_style_border_width(icon_img, 0, 0);
         lv_obj_set_style_pad_all(icon_img, 0, 0);
-        lv_obj_set_style_radius(icon_img, 8, 0);
+        lv_obj_set_style_radius(icon_img, tile_layout::scale_480(8), 0);
         lv_obj_set_style_clip_corner(icon_img, true, 0);
         lv_obj_clear_flag(icon_img, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_clear_flag(icon_img, LV_OBJ_FLAG_CLICKABLE);

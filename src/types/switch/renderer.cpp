@@ -115,11 +115,11 @@ static bool is_switch_widget_tile(const Tile& tile) {
 lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type) {
   const bool use_switch_widget = is_switch_widget_tile(tile);
   lv_obj_t* container = use_switch_widget ? lv_obj_create(parent) : lv_button_create(parent);
-  lv_obj_set_style_radius(container, 22, 0);
+  lv_obj_set_style_radius(container, tile_layout::scale_480(22), 0);
   lv_obj_set_style_border_width(container, 0, 0);
 
   // Farbe verwenden (Standard: 0x353535 wenn color = 0)
-  uint32_t tile_color = tileBgColorOrDefault(tile, 0x353535);
+  uint32_t tile_color = tileBgColorOrDefault(tile, 0x2A2A2A);
   lv_obj_set_style_bg_color(container, lv_color_hex(tile_color), LV_PART_MAIN | LV_STATE_DEFAULT);
 lv_obj_set_style_bg_grad_color(container, lv_color_hex(tile_color), LV_PART_MAIN | LV_STATE_DEFAULT);
 lv_obj_set_style_bg_grad_dir(container, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -135,8 +135,8 @@ lv_obj_set_style_bg_grad_dir(container, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STAT
   lv_obj_set_style_bg_opa(container, LV_OPA_COVER, 0);
   lv_obj_set_style_shadow_width(container, 0, 0);
   if (use_switch_widget) {
-    lv_obj_set_style_pad_hor(container, 20, 0);
-    lv_obj_set_style_pad_ver(container, 24, 0);
+    lv_obj_set_style_pad_hor(container, tile_layout::scale_480(20), 0);
+    lv_obj_set_style_pad_ver(container, tile_layout::scale_480(24), 0);
     lv_obj_add_flag(container, LV_OBJ_FLAG_CLICKABLE);
   }
   lv_obj_remove_flag(container, LV_OBJ_FLAG_SCROLLABLE);
@@ -167,11 +167,14 @@ lv_obj_set_style_bg_grad_dir(container, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STAT
       lv_label_set_text(icon_lbl, iconChar.c_str());
 
       if (use_switch_widget) {
-        lv_obj_align(icon_lbl, LV_ALIGN_TOP_RIGHT, 4, -8);
+        lv_obj_align(icon_lbl, LV_ALIGN_TOP_RIGHT,
+                     tile_layout::scale_480(4),
+                     tile_layout::scale_480(-8));
       } else {
         // Flexible Positionierung: Icon + Title = 2 Zeilen mittig, nur Icon = 1 Zeile mittig
         if (has_title) {
-          lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0, -20);
+          lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0,
+                       tile_layout::scale_480(-20));
         } else {
           lv_obj_center(icon_lbl);
         }
@@ -188,11 +191,13 @@ lv_obj_set_style_bg_grad_dir(container, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STAT
       lv_label_set_text(title_lbl, tile.title.c_str());
 
       if (use_switch_widget) {
-        lv_obj_align(title_lbl, LV_ALIGN_TOP_LEFT, 0, 4);
+        lv_obj_align(title_lbl, LV_ALIGN_TOP_LEFT, 0,
+                     tile_layout::scale_480(4));
       } else {
         // Flexible Positionierung: mit Icon unten, ohne Icon mittig
         if (icon_lbl) {
-          lv_obj_align(title_lbl, LV_ALIGN_CENTER, 0, 35);
+          lv_obj_align(title_lbl, LV_ALIGN_CENTER, 0,
+                       tile_layout::scale_480(35));
         } else {
           lv_obj_center(title_lbl);
         }

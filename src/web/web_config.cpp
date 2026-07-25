@@ -31,6 +31,8 @@ const char* apSsidForDevice() {
   return "Waveshare_LCD10_1_Config";
 #elif defined(DEVICE_LAYOUT_TEST_1024X600)
   return "HomeTiles_1024x600_Test";
+#elif defined(DEVICE_LAYOUT_TEST_480X480)
+  return "HomeTiles_480x480_Test";
 #elif defined(DEVICE_WAVESHARE_4B)
   return "Waveshare_B4_Config";
 #else

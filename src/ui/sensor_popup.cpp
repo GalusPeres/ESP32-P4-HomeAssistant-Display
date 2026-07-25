@@ -21,7 +21,7 @@
 
 namespace {
 
-constexpr int kCardMargin = 4;
+constexpr int kCardMargin = popup_layout::kCardMargin;
 constexpr int kCardWidth =
     (SCREEN_WIDTH > SCREEN_HEIGHT)
         ? (SCREEN_HEIGHT - (kCardMargin * 2))
@@ -34,6 +34,8 @@ constexpr int kHeaderIconOffsetY = -popup_layout::scale(8);
 constexpr int kChartHeight = popup_layout::contentScale(325);
 #if defined(DEVICE_LAYOUT_1024X600)
 constexpr int kTimeAxisHeight = 24;  // full UI16 line height plus bottom breathing room
+#elif defined(DEVICE_LAYOUT_480X480)
+constexpr int kTimeAxisHeight = 20;  // full native UI14 line plus breathing room
 #else
 constexpr int kTimeAxisHeight = popup_layout::scale(20);  // space for time labels below chart
 #endif
@@ -48,6 +50,11 @@ constexpr uint16_t kHistoryPoints7d = 168;
 constexpr int kRangeButtonWidth = popup_layout::scale(92);
 constexpr int kRangeButtonHeight = popup_layout::kNavHeight;
 constexpr int kRangeButtonGap = popup_layout::scale(10);
+#if defined(DEVICE_LAYOUT_480X480)
+constexpr int kContentLiftY = 6;
+#else
+constexpr int kContentLiftY = 0;
+#endif
 
 enum class SensorHistoryRange : uint8_t {
   Day24,
@@ -122,7 +129,11 @@ static const char* get_weekday_abbrev(uint8_t wday) {
 }
 
 static const lv_font_t* get_value_font() {
+#if defined(DEVICE_LAYOUT_480X480)
+  return &ui_font_24;
+#else
   return popup_layout::font32();
+#endif
 }
 
 static void set_label_style(lv_obj_t* lbl, lv_color_t color, const lv_font_t* font) {
@@ -594,7 +605,9 @@ static void update_y_axis_layout(SensorPopupContext* ctx) {
         if (max_x < min_x) max_x = min_x;
         if (label_x < min_x) label_x = min_x;
         if (label_x > max_x) label_x = max_x;
-        lv_obj_set_pos(ctx->time_labels[i], label_x, kLabelOverhang + kChartHeight + 8);
+        lv_obj_set_pos(
+            ctx->time_labels[i], label_x,
+            kLabelOverhang + kChartHeight + popup_layout::scale480(8));
         lv_obj_clear_flag(ctx->time_labels[i], LV_OBJ_FLAG_HIDDEN);
       }
     } else {
@@ -902,14 +915,14 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
   uint32_t card_color = init.bg_color ? init.bg_color : 0x2A2A2A;
   lv_obj_set_style_bg_color(card, lv_color_hex(card_color), 0);
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(card, 22, 0);
+  lv_obj_set_style_radius(card, popup_layout::kCardRadius, 0);
   lv_obj_set_style_border_width(card, 0, 0);
   ui_surface_style::apply_global_tile_border(card);
   lv_obj_set_style_pad_all(card, kCardPad, 0);
-  lv_obj_set_style_shadow_width(card, 28, 0);
+  lv_obj_set_style_shadow_width(card, popup_layout::scale480(28), 0);
   lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
   lv_obj_set_style_shadow_opa(card, LV_OPA_40, 0);
-  lv_obj_set_style_shadow_spread(card, 2, 0);
+  lv_obj_set_style_shadow_spread(card, popup_layout::scale480(2), 0);
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
   lv_obj_t* title = lv_label_create(card);
@@ -999,7 +1012,9 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
   lv_obj_t* value_box = lv_obj_create(card);
   lv_obj_remove_style_all(value_box);
   lv_obj_set_size(value_box, LV_PCT(100), popup_layout::kValueHeight);
-  lv_obj_align(value_box, LV_ALIGN_TOP_MID, 0, popup_layout::kValueY);
+  lv_obj_align(
+      value_box, LV_ALIGN_TOP_MID, 0,
+      popup_layout::kValueY - kContentLiftY);
   lv_obj_set_style_bg_opa(value_box, LV_OPA_TRANSP, 0);
   lv_obj_set_layout(value_box, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(value_box, LV_FLEX_FLOW_ROW);
@@ -1017,7 +1032,9 @@ static void build_popup_ui(SensorPopupContext* ctx, const SensorPopupInit& init)
   lv_obj_t* body_box = lv_obj_create(card);
   lv_obj_remove_style_all(body_box);
   lv_obj_set_size(body_box, LV_PCT(100), popup_layout::kBodyHeight);
-  lv_obj_align(body_box, LV_ALIGN_TOP_MID, 0, popup_layout::kBodyY);
+  lv_obj_align(
+      body_box, LV_ALIGN_TOP_MID, 0,
+      popup_layout::kBodyY - kContentLiftY);
   lv_obj_set_style_bg_opa(body_box, LV_OPA_TRANSP, 0);
   lv_obj_add_flag(body_box, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
   lv_obj_clear_flag(body_box, LV_OBJ_FLAG_CLICKABLE);

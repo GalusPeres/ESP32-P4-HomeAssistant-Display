@@ -75,11 +75,11 @@ lv_obj_t* render_energy_tile(lv_obj_t* parent,
   lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRESSED);
 
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(card, 22, 0);
+  lv_obj_set_style_radius(card, tile_layout::scale_480(22), 0);
   lv_obj_set_style_border_width(card, 0, 0);
   lv_obj_set_style_shadow_width(card, 0, 0);
-  lv_obj_set_style_pad_hor(card, 20, 0);
-  lv_obj_set_style_pad_ver(card, 24, 0);
+  lv_obj_set_style_pad_hor(card, tile_layout::scale_480(20), 0);
+  lv_obj_set_style_pad_ver(card, tile_layout::scale_480(24), 0);
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
   disable_pressed_button_animation(card);
 
@@ -99,7 +99,9 @@ lv_obj_t* render_energy_tile(lv_obj_t* parent,
       if (icon_lbl) {
         set_label_style(icon_lbl, lv_color_white(), FONT_MDI_ICONS);
         lv_label_set_text(icon_lbl, iconChar.c_str());
-        lv_obj_align(icon_lbl, LV_ALIGN_TOP_LEFT, -8, -8);
+        lv_obj_align(icon_lbl, LV_ALIGN_TOP_LEFT,
+                     tile_layout::scale_480(-8),
+                     tile_layout::scale_480(-8));
       }
     }
   }
@@ -118,7 +120,9 @@ lv_obj_t* render_energy_tile(lv_obj_t* parent,
       lv_obj_set_width(title_label, LV_PCT(70));
       lv_obj_set_style_text_align(title_label, LV_TEXT_ALIGN_RIGHT, 0);
       lv_label_set_text(title_label, title_text.c_str());
-      lv_obj_align(title_label, LV_ALIGN_TOP_RIGHT, 4, 4);
+      lv_obj_align(title_label, LV_ALIGN_TOP_RIGHT,
+                   tile_layout::scale_480(4),
+                   tile_layout::scale_480(4));
     }
   }
 
@@ -130,7 +134,7 @@ lv_obj_t* render_energy_tile(lv_obj_t* parent,
   lv_label_set_long_mode(value_label, LV_LABEL_LONG_WRAP);
   lv_obj_set_width(value_label, LV_PCT(100));
   lv_obj_set_style_text_align(value_label, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_style_text_line_space(value_label, 8, 0);
+  lv_obj_set_style_text_line_space(value_label, tile_layout::scale_480(8), 0);
   lv_label_set_text(value_label, "--");
 
   int16_t value_y_offset = tile.sensor_value_y_offset;
