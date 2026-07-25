@@ -27,31 +27,14 @@ inline const lv_font_t* header_title_font() {
 }
 
 inline void apply_mdi_icon_scale(lv_obj_t* label) {
-#if defined(DEVICE_LAYOUT_1024X600)
-  if (label) {
-    // The project only embeds the 48 px MDI font. Scale its rendered widget
-    // to 40 px for the compact layout without adding another large icon font.
-    // Scale around the label center; LVGL's default top-left pivot would move
-    // a 48 -> 40 px icon 4 px left and up.
-    lv_obj_set_style_transform_pivot_x(label, LV_PCT(50), 0);
-    lv_obj_set_style_transform_pivot_y(label, LV_PCT(50), 0);
-    lv_obj_set_style_transform_scale(label, 213, 0);
-  }
-#else
+  // Each compact layout selects a native-size MDI font at compile time.
+  // Keeping this hook as a no-op avoids a runtime transform and preserves
+  // natural LVGL label centering.
   (void)label;
-#endif
 }
 
 inline void reset_mdi_icon_scale(lv_obj_t* label) {
-#if defined(DEVICE_LAYOUT_1024X600)
-  if (label) {
-    lv_obj_set_style_transform_scale(label, LV_SCALE_NONE, 0);
-    lv_obj_set_style_transform_pivot_x(label, 0, 0);
-    lv_obj_set_style_transform_pivot_y(label, 0, 0);
-  }
-#else
   (void)label;
-#endif
 }
 
 constexpr lv_coord_t scale(lv_coord_t value) {

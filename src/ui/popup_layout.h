@@ -118,15 +118,9 @@ inline const lv_font_t* headerTitleFont() {
 }
 
 inline void applyIconScale(lv_obj_t* label) {
-#if defined(DEVICE_LAYOUT_1024X600)
-  if (label) {
-    lv_obj_set_style_transform_pivot_x(label, LV_PCT(50), 0);
-    lv_obj_set_style_transform_pivot_y(label, LV_PCT(50), 0);
-    lv_obj_set_style_transform_scale(label, 213, 0);
-  }
-#else
+  // Compact layouts use native-size MDI fonts, so LVGL can center the label
+  // directly without a transform pivot or per-frame resampling.
   (void)label;
-#endif
 }
 
 #if defined(DEVICE_LAYOUT_1024X600)

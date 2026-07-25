@@ -4,9 +4,18 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
-// Font-Deklaration (muss extern definiert werden, z.B. in main .ino)
+#include "src/devices/device_select.h"
+
+#if defined(DEVICE_LAYOUT_1024X600)
+extern const lv_font_t mdi_icons_40;
+#define FONT_MDI_ICONS (&mdi_icons_40)
+#elif defined(DEVICE_LAYOUT_480X480)
+extern const lv_font_t mdi_icons_32;
+#define FONT_MDI_ICONS (&mdi_icons_32)
+#else
 extern const lv_font_t mdi_icons_48;
 #define FONT_MDI_ICONS (&mdi_icons_48)
+#endif
 
 // Icon-Name zu Unicode-Codepoint Mapping
 // Gibt den Codepoint zurück für einen Icon-Namen (z.B. "home" -> 0xF02DC)
