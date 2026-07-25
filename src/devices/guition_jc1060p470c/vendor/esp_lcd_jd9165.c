@@ -191,7 +191,7 @@ static const jd9165_lcd_init_cmd_t vendor_specific_init_default[] = {
     {0x13, (uint8_t[]){0x0C}, 1, 0},
     {0x30, (uint8_t[]){0x00}, 1, 0},
 
-    // {0X3A, (uint8_t[]){0x55}, 1, 0},
+    {0X3A, (uint8_t[]){0x55}, 1, 0},
     {0x11, (uint8_t[]){0x00}, 1, 120},
     {0x29, (uint8_t[]){0x00}, 1, 50},
 };
