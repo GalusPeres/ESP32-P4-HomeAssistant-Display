@@ -109,6 +109,11 @@ jobs:
             key: guition_jc8012p4a1
             define: DEVICE_GUITION_JC8012P4A1
             publish: true
+          - label: Guition JC1060P470C (experimental)
+            profile: guition_jc1060p470c
+            key: guition_jc1060p470c
+            define: DEVICE_GUITION_JC1060P470C
+            publish: false
 
     steps:
       - name: Check out repository

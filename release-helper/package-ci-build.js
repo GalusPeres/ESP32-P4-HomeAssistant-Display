@@ -12,6 +12,7 @@ const devices = new Map([
   ['waveshare_touch_lcd_8', { key: 'waveshare_touch_lcd_8' }],
   ['waveshare_touch_lcd_10_1', { key: 'waveshare_touch_lcd_10_1' }],
   ['guition_jc8012p4a1', { key: 'guition_jc8012p4a1' }],
+  ['guition_jc1060p470c', { key: 'guition_jc1060p470c' }],
 ]);
 
 function readVersion() {

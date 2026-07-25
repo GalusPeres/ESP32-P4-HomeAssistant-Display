@@ -124,8 +124,8 @@ inline void applyIconScale(lv_obj_t* label) {
 }
 
 #if defined(DEVICE_LAYOUT_1024X600)
-constexpr int kHeaderCenterY = 42;
-constexpr int kHeaderTitleX = 58;
+constexpr int kHeaderCenterY = 50;
+constexpr int kHeaderTitleX = 62;
 constexpr int kCloseButtonSize = 72;
 constexpr int kCloseButtonRadius = 13;
 constexpr int kCloseButtonOffsetX = 3;

@@ -24,6 +24,7 @@
 #include "src/ui/hometiles_logo.h"
 #include "src/ui/popup_layout.h"
 #include "src/ui/ui_surface_style.h"
+#include "src/ui/weather_popup.h"
 
 static lv_obj_t *brightness_label = nullptr;
 static lv_obj_t *display_rotate_btn = nullptr;
@@ -3283,4 +3284,6 @@ void settings_refresh_language() {
     close_settings_popup();
     open_settings_popup(SettingsPopupKind::Wifi);
   }
+
+  weather_popup_refresh_language();
 }

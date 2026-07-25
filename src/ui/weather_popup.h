@@ -12,6 +12,7 @@ struct WeatherPopupInit {
 void show_weather_popup(const WeatherPopupInit& init);
 void preload_weather_popup();
 void hide_weather_popup();
+void weather_popup_refresh_language();
 
 // Thread-safe queue helper (MQTT -> main loop).
 void queue_weather_popup_payload(const char* entity_id, const char* payload);

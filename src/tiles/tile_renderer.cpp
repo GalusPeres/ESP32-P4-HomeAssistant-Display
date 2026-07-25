@@ -803,8 +803,24 @@ static String format_weather_temp_value(float temp) {
       configManager.getConfig().language, temp, 1, true);
 }
 
+static const char* weather_unit_gap() {
+#if defined(DEVICE_LAYOUT_1024X600)
+  return " ";
+#else
+  return "\xE2\x80\x89";
+#endif
+}
+
 static String format_weather_temp_unit(const String& unit) {
-  return String("\xE2\x80\x89") + (unit.length() ? unit : String("\xC2\xB0\x43"));
+  return String(weather_unit_gap()) + (unit.length() ? unit : String("\xC2\xB0\x43"));
+}
+
+static const lv_font_t* weather_unit_font() {
+#if defined(DEVICE_LAYOUT_1024X600)
+  return LV_FONT_DEFAULT;
+#else
+  return FONT_SMALL;
+#endif
 }
 
 static void position_tile_value_unit_centered(
@@ -819,7 +835,11 @@ static void position_tile_value_unit_centered(
   if (x < 0) x = 0;
   if (x + total_w > wrap_w) x = wrap_w - total_w;
   lv_obj_set_pos(val_label, x, y);
+#if defined(DEVICE_LAYOUT_1024X600)
+  const lv_coord_t unit_y_offset = 0;
+#else
   const lv_coord_t unit_y_offset = 5;
+#endif
   lv_obj_set_pos(unit_label, x + val_w, y + unit_y_offset);
 }
 

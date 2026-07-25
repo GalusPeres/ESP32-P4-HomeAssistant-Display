@@ -18,7 +18,7 @@
 //   mitliefern, seit v0.3.1 keine Geraete mehr auf <= v0.2.9 unterwegs sind.)
 // Die Geraete-Keys sind: waveshare_touch_lcd_7, waveshare_touch_lcd_8,
 // waveshare_touch_lcd_10_1, waveshare_4b, m5stacks_tab5 und
-// guition_jc8012p4a1.
+// guition_jc8012p4a1 sowie guition_jc1060p470c.
 //
 // Repo wurde von ESP32-P4-HomeAssistant-Display auf HomeTiles umbenannt.
 // GitHub redirected die alte URL dauerhaft, d.h. Geraete mit einer aelteren

@@ -2,7 +2,8 @@
 #include "src/core/power_manager.h"
 #include "src/core/board_hal.h"
 #include "src/devices/device_select.h"
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X)
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
+    defined(DEVICE_GUITION_JC1060P470C)
 #include "src/devices/active_device.h"
 #endif
 #include "esp_heap_caps.h"
@@ -126,7 +127,8 @@ static constexpr size_t kInternalDrawMinLines     = 16;          // below this S
 static constexpr size_t kInternalDrawRestoreReserveBytes = 80 * 1024;
 
 static inline void commit_display_if_last(lv_display_t* lv_disp) {
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X)
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
+    defined(DEVICE_GUITION_JC1060P470C)
   if (lv_display_flush_is_last(lv_disp)) {
     DeviceImpl::displayCommit();
   }
@@ -574,7 +576,8 @@ void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *
     int16_t mapped_y = tp.y;
 #if !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_X) && \
-    !defined(DEVICE_GUITION_JC8012P4A1)
+    !defined(DEVICE_GUITION_JC8012P4A1) && \
+    !defined(DEVICE_GUITION_JC1060P470C)
     switch (rotation & 0x03) {
       case 1:
         mapped_x = tp.y;
@@ -614,7 +617,8 @@ bool DisplayManager::init() {
   BoardHAL::displayFillScreen(0x0000);  // black
 #if !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_X) && \
-    !defined(DEVICE_GUITION_JC8012P4A1)
+    !defined(DEVICE_GUITION_JC8012P4A1) && \
+    !defined(DEVICE_GUITION_JC1060P470C)
   BoardHAL::setBrightness(150);  // Wird spaeter vom Power Manager gesteuert
 #endif
   rotation = Device::kRotationDefault;
@@ -668,7 +672,9 @@ bool DisplayManager::init() {
   lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
   lv_indev_set_read_cb(indev, touch_cb);
   lv_indev_set_display(indev, disp);
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || defined(DEVICE_GUITION_JC8012P4A1)
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
+    defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_JC1060P470C)
   if (lv_timer_t* read_timer = lv_indev_get_read_timer(indev)) {
     lv_timer_set_period(read_timer, 8);
     Serial.println("[Display] Large-panel touch poll period set to 8 ms");

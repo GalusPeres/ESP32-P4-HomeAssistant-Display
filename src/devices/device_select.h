@@ -12,6 +12,7 @@
 // #define DEVICE_LAYOUT_TEST_1024X600
 // #define DEVICE_M5STACKS_TAB5
 // #define DEVICE_GUITION_JC8012P4A1
+// #define DEVICE_GUITION_JC1060P470C
 #endif
 //
 // If nothing is selected, the project defaults to Waveshare 4B.
@@ -30,7 +31,8 @@
      defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) + \
      defined(DEVICE_LAYOUT_TEST_1024X600) + \
      defined(DEVICE_M5STACKS_TAB5) + \
-     defined(DEVICE_GUITION_JC8012P4A1)) > 1
+     defined(DEVICE_GUITION_JC8012P4A1) + \
+     defined(DEVICE_GUITION_JC1060P470C)) > 1
 #error "Select only one device target."
 #endif
 
@@ -41,6 +43,7 @@
     !defined(DEVICE_LAYOUT_TEST_1024X600) && \
     !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_GUITION_JC8012P4A1) && \
+    !defined(DEVICE_GUITION_JC1060P470C) && \
     defined(HOMETILES_CI_TARGET)
 #error "HOMETILES_CI_TARGET requires one DEVICE_* build flag."
 #endif
@@ -52,6 +55,7 @@
     !defined(DEVICE_LAYOUT_TEST_1024X600) && \
     !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_GUITION_JC8012P4A1) && \
+    !defined(DEVICE_GUITION_JC1060P470C) && \
     !defined(HOMETILES_CI_TARGET)
 #define DEVICE_WAVESHARE_4B
 #endif
@@ -66,7 +70,8 @@
 #define DEVICE_WAVESHARE_TOUCH_LCD_X
 #endif
 
-#if defined(DEVICE_LAYOUT_TEST_1024X600)
+#if defined(DEVICE_LAYOUT_TEST_1024X600) || \
+    defined(DEVICE_GUITION_JC1060P470C)
 #define DEVICE_LAYOUT_1024X600
 #endif
 

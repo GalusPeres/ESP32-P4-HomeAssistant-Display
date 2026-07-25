@@ -22,12 +22,14 @@ constexpr lv_coord_t kWeatherTileContentYOffset = -10;
 constexpr lv_coord_t kWeatherTileContentYOffset = 0;
 #endif
 
-const lv_font_t* weather_value_font() {
 #if defined(DEVICE_LAYOUT_1024X600)
-  return tile_layout::content_font_24();
+constexpr lv_coord_t kWeatherTileForecastYOffset = -5;
 #else
-  return FONT_VALUE;
+constexpr lv_coord_t kWeatherTileForecastYOffset = 0;
 #endif
+
+const lv_font_t* weather_value_font() {
+  return FONT_VALUE;
 }
 
 const lv_font_t* weather_forecast_font() {
@@ -43,6 +45,14 @@ const lv_font_t* weather_forecast_day_font() {
   return tile_layout::content_font_20();
 #else
   return FONT_TITLE;
+#endif
+}
+
+const lv_font_t* weather_unit_font() {
+#if defined(DEVICE_LAYOUT_1024X600)
+  return LV_FONT_DEFAULT;
+#else
+  return FONT_SMALL;
 #endif
 }
 }  // namespace
@@ -215,7 +225,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
     lv_coord_t forecast_x = -pad_hor;
     lv_coord_t forecast_y =
         ((span_h - 1) * (GRID_CELL_H + GRID_GAP)) - pad_ver - kTileForecastTopHeadroom +
-        kWeatherTileContentYOffset;
+        kWeatherTileContentYOffset + kWeatherTileForecastYOffset;
     lv_obj_set_pos(forecast_row, forecast_x, forecast_y);
   }
 
@@ -286,7 +296,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
         enable_bubble(hi_val);
 
         lv_obj_t* hi_unit = lv_label_create(col);
-        set_label_style(hi_unit, lv_color_white(), FONT_SMALL);
+        set_label_style(hi_unit, lv_color_white(), weather_unit_font());
         lv_obj_set_style_text_align(hi_unit, LV_TEXT_ALIGN_LEFT, 0);
         lv_label_set_text(hi_unit, "");
         lv_obj_add_flag(hi_unit, LV_OBJ_FLAG_HIDDEN);
@@ -300,7 +310,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
         enable_bubble(lo_val);
 
         lv_obj_t* lo_unit = lv_label_create(col);
-        set_label_style(lo_unit, lv_color_white(), FONT_SMALL);
+        set_label_style(lo_unit, lv_color_white(), weather_unit_font());
         lv_obj_set_style_text_align(lo_unit, LV_TEXT_ALIGN_LEFT, 0);
         lv_label_set_text(lo_unit, "");
         lv_obj_add_flag(lo_unit, LV_OBJ_FLAG_HIDDEN);
