@@ -138,3 +138,36 @@ Arduino IDE:
 - Upload Mode: `UART0 / Hardware CDC`
 - Upload Speed: `921600`
 - USB Mode: `USB-OTG (TinyUSB)`
+
+## GUITION ESP32-4848S040
+
+Used for:
+- `src/devices/guition_esp32_4848s040`
+- build profile `guition_esp32_4848s040`
+
+Important:
+- This is the ESP32-S3 `ESP32-4848S040C_I` family with `16MB` flash and
+  `8MB` octal PSRAM.
+- The panel is a `480x480` ST7701 RGB display. The initial test profile uses a
+  conservative 10MHz pixel clock and a ten-line bounce buffer.
+- Capacitive touch is GT911 on SDA 19 / SCL 45.
+- Backlight PWM is active-high on GPIO 38.
+- The microSD card uses SPI mode (`SCK 48`, `MOSI 47`, `MISO 41`, `CS 42`).
+- Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.
+
+Arduino IDE:
+- Board: `ESP32S3 Dev Module`
+- USB CDC On Boot: `Enabled`
+- CPU Frequency: `240MHz (WiFi)`
+- Core Debug Level: `None`
+- USB DFU On Boot: `Disabled`
+- Erase All Flash Before Sketch Upload: `Disabled`
+- Flash Mode: `QIO 80MHz`
+- Flash Size: `16MB (128Mb)`
+- JTAG Adapter: `Disabled`
+- USB Firmware MSC On Boot: `Disabled`
+- Partition Scheme: `Custom`
+- PSRAM: `OPI PSRAM`
+- Upload Mode: `UART0 / Hardware CDC`
+- Upload Speed: `921600`
+- USB Mode: `Hardware CDC and JTAG`

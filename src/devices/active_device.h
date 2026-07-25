@@ -11,6 +11,9 @@ namespace DeviceImpl = DeviceGuitionJC8012P4A1;
 #elif defined(DEVICE_GUITION_JC1060P470C)
 #include "src/devices/guition_jc1060p470c/device_guition_jc1060p470c.h"
 namespace DeviceImpl = DeviceGuitionJC1060P470C;
+#elif defined(DEVICE_GUITION_ESP32_4848S040)
+#include "src/devices/guition_esp32_4848s040/device_guition_esp32_4848s040.h"
+namespace DeviceImpl = DeviceGuitionESP324848S040;
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_7)
 #include "src/devices/waveshare_touch_lcd_7/device_waveshare_touch_lcd_7.h"
 namespace DeviceImpl = DeviceWaveshareTouchLCD7;

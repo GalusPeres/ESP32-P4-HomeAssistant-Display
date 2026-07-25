@@ -4,6 +4,7 @@ const path = require('path');
 const repoRoot = path.resolve(__dirname, '..');
 const projectName = 'HomeTiles.ino';
 const versionFilePath = path.join(repoRoot, 'version.txt');
+const otaSlotSize = 0x680000;
 
 const devices = new Map([
   ['m5stacks_tab5', { key: 'm5stacks_tab5' }],
@@ -13,6 +14,7 @@ const devices = new Map([
   ['waveshare_touch_lcd_10_1', { key: 'waveshare_touch_lcd_10_1' }],
   ['guition_jc8012p4a1', { key: 'guition_jc8012p4a1' }],
   ['guition_jc1060p470c', { key: 'guition_jc1060p470c' }],
+  ['guition_esp32_4848s040', { key: 'guition_esp32_4848s040' }],
 ]);
 
 function readVersion() {
@@ -149,6 +151,12 @@ function main() {
   );
 
   verifyDeviceDescriptor(updatePath, metadataDeviceKey);
+  const updateSize = fs.statSync(updatePath).size;
+  if (updateSize > otaSlotSize) {
+    throw new Error(
+      `Firmware image is ${updateSize} bytes but the OTA slot is only ${otaSlotSize} bytes.`
+    );
+  }
 
   ensureCleanDeviceOutputs(outDir, deviceKey);
 

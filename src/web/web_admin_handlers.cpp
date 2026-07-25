@@ -30,7 +30,11 @@
 #include <Update.h>
 #include <esp_core_dump.h>
 #include <esp_partition.h>
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#include <img_converters.h>
+#else
 #include <driver/jpeg_encode.h>
+#endif
 #include <esp_heap_caps.h>
 #include <lvgl.h>
 #include <algorithm>
@@ -652,11 +656,17 @@ bool saveDrawBufferAsJpeg(const lv_draw_buf_t* draw_buf, const String& path, Str
     return false;
   }
 
+  size_t input_capacity = raw_size;
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+  uint8_t* input = static_cast<uint8_t*>(
+      heap_caps_malloc(raw_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+#else
   jpeg_encode_memory_alloc_cfg_t input_mem_cfg = {};
   input_mem_cfg.buffer_direction = JPEG_ENC_ALLOC_INPUT_BUFFER;
-  size_t input_capacity = 0;
+  input_capacity = 0;
   uint8_t* input = static_cast<uint8_t*>(
       jpeg_alloc_encoder_mem(raw_size, &input_mem_cfg, &input_capacity));
+#endif
   if (!input || input_capacity < raw_size) {
     if (input) free(input);
     error = "JPEG input buffer allocation failed";
@@ -668,10 +678,25 @@ bool saveDrawBufferAsJpeg(const lv_draw_buf_t* draw_buf, const String& path, Str
            row_bytes);
   }
 
+  const uint32_t started_ms = millis();
+  uint8_t* output = nullptr;
+  size_t jpeg_size = 0;
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+  // ESP32-S3 has no hardware JPEG encoder. The Apache-2.0 esp32-camera
+  // converter included with the Arduino core provides the software fallback.
+  // Its quality scale is 0..63 (lower is better); 7 is close to the P4's 92%.
+  if (!fmt2jpg(input, raw_size, static_cast<uint16_t>(width),
+               static_cast<uint16_t>(height), PIXFORMAT_RGB565, 7, &output,
+               &jpeg_size)) {
+    free(input);
+    error = "JPEG software encoding failed";
+    return false;
+  }
+#else
   jpeg_encode_memory_alloc_cfg_t output_mem_cfg = {};
   output_mem_cfg.buffer_direction = JPEG_ENC_ALLOC_OUTPUT_BUFFER;
   size_t output_capacity = 0;
-  uint8_t* output = static_cast<uint8_t*>(
+  output = static_cast<uint8_t*>(
       jpeg_alloc_encoder_mem(raw_size, &output_mem_cfg, &output_capacity));
   if (!output || output_capacity == 0) {
     free(input);
@@ -698,29 +723,27 @@ bool saveDrawBufferAsJpeg(const lv_draw_buf_t* draw_buf, const String& path, Str
   encode_cfg.sub_sample = JPEG_DOWN_SAMPLING_YUV444;
   encode_cfg.image_quality = kScreenshotJpegQuality;
 
-  const uint32_t started_ms = millis();
-  uint32_t jpeg_size = 0;
+  uint32_t hardware_jpeg_size = 0;
   result = jpeg_encoder_process(
-      encoder,
-      &encode_cfg,
-      input,
-      static_cast<uint32_t>(raw_size),
-      output,
-      static_cast<uint32_t>(output_capacity),
-      &jpeg_size);
+      encoder, &encode_cfg, input, static_cast<uint32_t>(raw_size), output,
+      static_cast<uint32_t>(output_capacity), &hardware_jpeg_size);
+  jpeg_size = hardware_jpeg_size;
   jpeg_del_encoder_engine(encoder);
-  free(input);
 
   if (result != ESP_OK) {
+    free(input);
     free(output);
     error = String("JPEG encoding failed: ") + esp_err_to_name(result);
     return false;
   }
   if (jpeg_size == 0 || jpeg_size > output_capacity) {
+    free(input);
     free(output);
     error = "JPEG encoder returned an invalid output size";
     return false;
   }
+#endif
+  free(input);
 
   if (sdFS().exists(path)) sdFS().remove(path);
   File file = sdFS().open(path, FILE_WRITE);

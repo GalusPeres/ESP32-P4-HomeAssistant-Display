@@ -55,10 +55,17 @@ String dumpFingerprint(const esp_core_dump_summary_t& s) {
   size_t size = 0;
   esp_core_dump_image_get(&addr, &size);
   char buf[48];
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+  const unsigned long return_address =
+      static_cast<unsigned long>(s.ex_info.exc_a[0]);
+#else
+  const unsigned long return_address =
+      static_cast<unsigned long>(s.ex_info.ra);
+#endif
   snprintf(buf, sizeof(buf), "%08lx-%08lx-%08lx-%08x",
            static_cast<unsigned long>(s.exc_pc),
            static_cast<unsigned long>(s.exc_tcb),
-           static_cast<unsigned long>(s.ex_info.ra),
+           return_address,
            static_cast<unsigned>(size));
   return String(buf);
 }
@@ -91,6 +98,24 @@ void rotateLogIfNeeded() {
 
 void appendSummary(File& f, const esp_core_dump_summary_t& s) {
   f.printf("Crashed task: %s\n", s.exc_task);
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+  f.printf("PC=0x%08lx A0=0x%08lx A1=0x%08lx\n",
+           static_cast<unsigned long>(s.exc_pc),
+           static_cast<unsigned long>(s.ex_info.exc_a[0]),
+           static_cast<unsigned long>(s.ex_info.exc_a[1]));
+  f.printf("EXCCAUSE=0x%08lx EXCVADDR=0x%08lx\n",
+           static_cast<unsigned long>(s.ex_info.exc_cause),
+           static_cast<unsigned long>(s.ex_info.exc_vaddr));
+  f.printf("A0-A7: %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n",
+           static_cast<unsigned long>(s.ex_info.exc_a[0]),
+           static_cast<unsigned long>(s.ex_info.exc_a[1]),
+           static_cast<unsigned long>(s.ex_info.exc_a[2]),
+           static_cast<unsigned long>(s.ex_info.exc_a[3]),
+           static_cast<unsigned long>(s.ex_info.exc_a[4]),
+           static_cast<unsigned long>(s.ex_info.exc_a[5]),
+           static_cast<unsigned long>(s.ex_info.exc_a[6]),
+           static_cast<unsigned long>(s.ex_info.exc_a[7]));
+#else
   f.printf("PC=0x%08lx RA=0x%08lx SP=0x%08lx\n",
            static_cast<unsigned long>(s.exc_pc),
            static_cast<unsigned long>(s.ex_info.ra),
@@ -108,6 +133,7 @@ void appendSummary(File& f, const esp_core_dump_summary_t& s) {
            static_cast<unsigned long>(s.ex_info.exc_a[5]),
            static_cast<unsigned long>(s.ex_info.exc_a[6]),
            static_cast<unsigned long>(s.ex_info.exc_a[7]));
+#endif
   f.printf("App ELF SHA256: %s\n",
            reinterpret_cast<const char*>(s.app_elf_sha256));
   f.print("Full core dump stored in flash - download via web admin "
@@ -130,10 +156,17 @@ String coreDumpSummaryLine() {
   String line;
   if (esp_core_dump_get_summary(s) == ESP_OK) {
     char buf[96];
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+    snprintf(buf, sizeof(buf), "task=%s pc=0x%08lx exccause=0x%lx",
+             s->exc_task,
+             static_cast<unsigned long>(s->exc_pc),
+             static_cast<unsigned long>(s->ex_info.exc_cause));
+#else
     snprintf(buf, sizeof(buf), "task=%s pc=0x%08lx mcause=0x%lx",
              s->exc_task,
              static_cast<unsigned long>(s->exc_pc),
              static_cast<unsigned long>(s->ex_info.mcause));
+#endif
     line = buf;
   }
   free(s);

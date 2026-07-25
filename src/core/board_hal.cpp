@@ -6,6 +6,9 @@
 #if defined(DEVICE_WAVESHARE_4B)
 #include <esp_private/system_internal.h>
 #endif
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+#include <esp_sleep.h>
+#endif
 
 bool BoardHAL::init() {
   return Device::init();
@@ -86,6 +89,14 @@ void BoardHAL::restart() {
   Serial.println("[BoardHAL] Neustart via no-OS restart");
   Serial.flush();
   esp_restart_noos();
+#elif defined(DEVICE_GUITION_ESP32_4848S040)
+  // Some ESP32-S3 RGB boards do not reliably reset the panel/PSRAM path with
+  // a software-only restart. A short timed deep sleep performs a clean
+  // hardware reset and is also safe after OTA.
+  Serial.println("[BoardHAL] Hardware reset via timed deep sleep");
+  Serial.flush();
+  esp_sleep_enable_timer_wakeup(100000);
+  esp_deep_sleep_start();
 #else
   ESP.restart();
 #endif

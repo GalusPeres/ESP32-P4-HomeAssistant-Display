@@ -558,7 +558,7 @@ void setup() {
   g_lvgl_tick_last_ms = millis();
   Serial.begin(115200);
   delay(2000);
-  Serial.println("\n\n=== WAVESHARE P4 STARTUP ===");
+  Serial.println("\n\n=== HOMETILES STARTUP ===");
   Serial.printf("[Setup] Firmware: hometiles-%s-%s\n", FW_VERSION, Device::profile().key);
   confirm_running_ota_if_needed();
   log_memory_status("boot-start");

@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('tab5', 'waveshare_b4', 'waveshare_7', 'waveshare_8', 'waveshare_10_1', 'layout_test_1024x600', 'layout_test_480x480', 'guition_jc8012p4a1', 'guition_jc1060p470c')]
+    [ValidateSet('tab5', 'waveshare_b4', 'waveshare_7', 'waveshare_8', 'waveshare_10_1', 'layout_test_1024x600', 'layout_test_480x480', 'guition_jc8012p4a1', 'guition_jc1060p470c', 'guition_esp32_4848s040')]
     [string]$Profile,
 
     [string]$OutputDirectory
@@ -34,6 +34,7 @@ $defines = @{
     layout_test_480x480 = 'DEVICE_LAYOUT_TEST_480X480'
     guition_jc8012p4a1 = 'DEVICE_GUITION_JC8012P4A1'
     guition_jc1060p470c = 'DEVICE_GUITION_JC1060P470C'
+    guition_esp32_4848s040 = 'DEVICE_GUITION_ESP32_4848S040'
 }
 
 $profileLines = Get-Content -LiteralPath $sketchProfiles
@@ -63,7 +64,9 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 # The Arduino profile command reinstalls the ESP32 platform immediately before
 # compiling and can silently overwrite the patched ESP-Hosted archive. Apply
 # and verify the fixes first, then compile by FQBN while sketch.yaml is hidden.
-& (Join-Path $PSScriptRoot 'apply-esp-hosted-3.3.7-fixes-local.ps1')
+if ($Profile -ne 'guition_esp32_4848s040') {
+    & (Join-Path $PSScriptRoot 'apply-esp-hosted-3.3.7-fixes-local.ps1')
+}
 
 $commonFlags = "-DLV_CONF_INCLUDE_SIMPLE -I$repoRoot -I$libraries"
 $cppFlags = "-DHOMETILES_CI_TARGET -D$($defines[$Profile]) $commonFlags"
@@ -93,19 +96,31 @@ $firmwareBin = Join-Path $OutputDirectory 'HomeTiles.ino.bin'
 if (-not (Test-Path -LiteralPath $firmwareBin)) {
     throw "Firmware binary was not created: $firmwareBin"
 }
-
-$stringsTool = Get-ChildItem `
-    (Join-Path $env:LOCALAPPDATA 'Arduino15\packages\esp32\tools') `
-    -Recurse -Filter 'riscv32-esp-elf-strings.exe' |
-    Select-Object -First 1 -ExpandProperty FullName
-if (-not $stringsTool) {
-    throw 'riscv32-esp-elf-strings.exe was not found.'
+$otaSlotBytes = 0x680000
+$firmwareBytes = (Get-Item -LiteralPath $firmwareBin).Length
+if ($firmwareBytes -gt $otaSlotBytes) {
+    throw "Firmware is $firmwareBytes bytes, larger than the $otaSlotBytes-byte OTA slot."
 }
 
-$fatalAssertions = & $stringsTool $firmwareBin |
-    Select-String -Pattern 'pkt_rxbuff|copy_buff'
-if ($fatalAssertions) {
-    throw "Stock ESP-Hosted allocation assert found in $firmwareBin"
+$stringsToolName = if ($Profile -eq 'guition_esp32_4848s040') {
+    'xtensa-esp32s3-elf-strings.exe'
+} else {
+    'riscv32-esp-elf-strings.exe'
+}
+$stringsTool = Get-ChildItem `
+    (Join-Path $env:LOCALAPPDATA 'Arduino15\packages\esp32\tools') `
+    -Recurse -Filter $stringsToolName |
+    Select-Object -First 1 -ExpandProperty FullName
+if (-not $stringsTool) {
+    throw "$stringsToolName was not found."
+}
+
+if ($Profile -ne 'guition_esp32_4848s040') {
+    $fatalAssertions = & $stringsTool $firmwareBin |
+        Select-String -Pattern 'pkt_rxbuff|copy_buff'
+    if ($fatalAssertions) {
+        throw "Stock ESP-Hosted allocation assert found in $firmwareBin"
+    }
 }
 
 $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $firmwareBin).Hash

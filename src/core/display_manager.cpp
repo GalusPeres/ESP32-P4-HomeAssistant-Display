@@ -577,7 +577,8 @@ void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *
 #if !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_X) && \
     !defined(DEVICE_GUITION_JC8012P4A1) && \
-    !defined(DEVICE_GUITION_JC1060P470C)
+    !defined(DEVICE_GUITION_JC1060P470C) && \
+    !defined(DEVICE_GUITION_ESP32_4848S040)
     switch (rotation & 0x03) {
       case 1:
         mapped_x = tp.y;
@@ -674,7 +675,8 @@ bool DisplayManager::init() {
   lv_indev_set_display(indev, disp);
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_GUITION_JC8012P4A1) || \
-    defined(DEVICE_GUITION_JC1060P470C)
+    defined(DEVICE_GUITION_JC1060P470C) || \
+    defined(DEVICE_GUITION_ESP32_4848S040)
   if (lv_timer_t* read_timer = lv_indev_get_read_timer(indev)) {
     lv_timer_set_period(read_timer, 8);
     Serial.println("[Display] Large-panel touch poll period set to 8 ms");

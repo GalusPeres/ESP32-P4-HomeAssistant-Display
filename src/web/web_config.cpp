@@ -23,6 +23,8 @@ const char* apSsidForDevice() {
   return "Guition_JC8012P4A1_Config";
 #elif defined(DEVICE_GUITION_JC1060P470C)
   return "Guition_JC1060P470C_Config";
+#elif defined(DEVICE_GUITION_ESP32_4848S040)
+  return "Guition_4848S040_Config";
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_7)
   return "Waveshare_LCD7_Config";
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_8)

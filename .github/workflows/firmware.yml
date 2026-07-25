@@ -114,6 +114,11 @@ jobs:
             key: guition_jc1060p470c
             define: DEVICE_GUITION_JC1060P470C
             publish: false
+          - label: GUITION ESP32-4848S040 (experimental)
+            profile: guition_esp32_4848s040
+            key: guition_esp32_4848s040
+            define: DEVICE_GUITION_ESP32_4848S040
+            publish: false
 
     steps:
       - name: Check out repository
@@ -234,17 +239,18 @@ jobs:
           restore_sketch_profiles
           trap - EXIT
 
-          # Fatal allocation asserts retain their expression text in the
-          # stripped firmware image. The patched RX object still has a normal
-          # `pkt_rxbuff` debug variable, but debug data is not part of the BIN.
+          # Fatal ESP-Hosted allocation asserts retain their expression text
+          # in P4 images. Native-WiFi S3 targets do not link ESP-Hosted.
           firmware_bin="build/ci/${{ matrix.key }}/HomeTiles.ino.bin"
           test -f "${firmware_bin}"
-          for fatal_assert in copy_buff pkt_rxbuff; do
-            if grep -a -q "${fatal_assert}" "${firmware_bin}"; then
-              echo "Stock ESP-Hosted assert '${fatal_assert}' found in ${firmware_bin}" >&2
-              exit 1
-            fi
-          done
+          if [ "${{ matrix.profile }}" != "guition_esp32_4848s040" ]; then
+            for fatal_assert in copy_buff pkt_rxbuff; do
+              if grep -a -q "${fatal_assert}" "${firmware_bin}"; then
+                echo "Stock ESP-Hosted assert '${fatal_assert}' found in ${firmware_bin}" >&2
+                exit 1
+              fi
+            done
+          fi
 
       - name: Package firmware binaries
         shell: bash

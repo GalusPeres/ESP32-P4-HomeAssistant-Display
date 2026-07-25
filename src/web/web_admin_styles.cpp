@@ -220,10 +220,16 @@ void appendPreviewScaleVars(String& html) {
   const int image_inset = preview_pad_px() > image_bleed
                               ? preview_pad_px() - image_bleed
                               : 0;
+  int image_radius = preview_scaled_exact_px(26);
+#if defined(DEVICE_LAYOUT_480X480)
+  // The 480x480 preview has a visible black display rim. Keep the inner
+  // wallpaper corner concentric with the 21px outer preview corner.
+  image_radius = 21 > image_inset ? 21 - image_inset : 0;
+#endif
   html += "--screensaver-image-inset:";
   html += String(image_inset);
   html += "px;--screensaver-image-radius:";
-  html += String(preview_scaled_exact_px(26));
+  html += String(image_radius);
   html += "px;";
   html += "}</style>\n";
 }
