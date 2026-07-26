@@ -40,7 +40,8 @@ consumed.
 
 ## Memory and recovery behavior
 
-- Two fixed 752x424 RGB565 frame buffers use about 1.22 MB of P4 PSRAM.
+- Two fixed 752x424 RGB565 frame buffers use about 1.24 MiB of P4 PSRAM,
+  including the hardware decoder's required 16-pixel height alignment.
 - The framed-JPEG input buffer uses 256 KB of P4 PSRAM.
 - Frame buffers remain allocated after their first use to avoid repeated large
   allocations and PSRAM fragmentation.

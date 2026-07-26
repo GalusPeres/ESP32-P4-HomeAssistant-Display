@@ -588,6 +588,7 @@ const TileTypeDescriptor kTileTypes[] = {
     append_climate_styles,
     append_climate_scripts
   },
+#if !defined(DEVICE_GUITION_ESP32_4848S040)
   {
     TILE_CAMERA,
     "Camera",
@@ -606,6 +607,7 @@ const TileTypeDescriptor kTileTypes[] = {
     append_camera_styles,
     append_camera_scripts
   },
+#endif
   {
     TILE_PIXELANIM,
     "Animation",

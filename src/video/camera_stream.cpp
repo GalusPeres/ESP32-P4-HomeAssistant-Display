@@ -30,8 +30,10 @@ namespace {
 
 constexpr uint16_t kWidth = 752;
 constexpr uint16_t kHeight = 424;
+constexpr uint16_t kDecodedWidth = (kWidth + 15U) & ~15U;
+constexpr uint16_t kDecodedHeight = (kHeight + 15U) & ~15U;
 constexpr size_t kPixelBytes =
-    static_cast<size_t>(kWidth) * kHeight * sizeof(uint16_t);
+    static_cast<size_t>(kDecodedWidth) * kDecodedHeight * sizeof(uint16_t);
 constexpr size_t kMaxJpegBytes = 256U * 1024U;
 constexpr uint8_t kFrameBufferCount = 2;
 constexpr uint32_t kHttpHeaderTimeoutMs = 5000;
@@ -127,7 +129,7 @@ static bool ensure_frame_buffers() {
     g_images[i].header.cf = LV_COLOR_FORMAT_RGB565_SWAPPED;
     g_images[i].header.w = kWidth;
     g_images[i].header.h = kHeight;
-    g_images[i].header.stride = kWidth * sizeof(uint16_t);
+    g_images[i].header.stride = kDecodedWidth * sizeof(uint16_t);
     g_images[i].data_size = kPixelBytes;
     g_images[i].data =
         reinterpret_cast<const uint8_t*>(g_pixels[i]);
