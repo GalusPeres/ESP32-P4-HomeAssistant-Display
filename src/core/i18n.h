@@ -363,7 +363,7 @@ struct Strings {
   const char* media_state_off;
   const char* media_no_playback;
 
-  // Kamera-Kachel/-Popup und H.264-Laufzeitstatus
+  // Kamera-Kachel/-Popup und Video-Laufzeitstatus
   const char* camera_tile_type;
   const char* camera_entity;
   const char* camera_ready;

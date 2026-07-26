@@ -11,14 +11,19 @@
 
 #include <HTTPClient.h>
 #include <NetworkClient.h>
-#include <esp_h264_dec.h>
-#include <esp_h264_dec_sw.h>
+#include <driver/jpeg_decode.h>
 #include <lwip/sockets.h>
+#include <soc/soc_caps.h>
 
 #include <algorithm>
 #include <cstring>
 
+#include "src/core/dma2d_arbiter.h"
 #include "src/devices/waveshare_touch_lcd_8/device_waveshare_touch_lcd_8.h"
+
+#if !defined(CONFIG_IDF_TARGET_ESP32P4) || !SOC_JPEG_DECODE_SUPPORTED
+#error "Waveshare 8 camera video requires the ESP32-P4 JPEG decoder"
+#endif
 
 namespace {
 
@@ -26,14 +31,12 @@ constexpr uint16_t kWidth = 640;
 constexpr uint16_t kHeight = 480;
 constexpr size_t kPixelBytes =
     static_cast<size_t>(kWidth) * kHeight * sizeof(uint16_t);
-constexpr size_t kI420Bytes =
-    static_cast<size_t>(kWidth) * kHeight * 3U / 2U;
-constexpr size_t kInputBytes = 192U * 1024U;
+constexpr size_t kMaxJpegBytes = 256U * 1024U;
 constexpr uint8_t kFrameBufferCount = 2;
 constexpr uint32_t kHttpHeaderTimeoutMs = 5000;
 constexpr int kHttpReceiveBufferBytes = 8 * 1024;
 constexpr size_t kMinCameraDmaFreeBytes = 24 * 1024;
-constexpr char kAccessUnitFraming[] = "be32-access-unit";
+constexpr char kJpegFraming[] = "be32-jpeg";
 
 enum class FrameState : uint8_t {
   Free,
@@ -57,53 +60,12 @@ char g_status[96] = "";
 bool g_status_error = false;
 uint32_t g_worker_frame_count = 0;
 
-// BT.601 limited-range lookup tables remove five multiplications per output
-// pixel. Four pixels share one U/V pair, which keeps the software conversion
-// from monopolising the P4 while LVGL is drawing the rest of the UI.
-bool g_color_tables_ready = false;
-int32_t g_y_term[256];
-int32_t g_r_from_v[256];
-int32_t g_g_from_u[256];
-int32_t g_g_from_v[256];
-int32_t g_b_from_u[256];
+// Keep the engine alive across popup opens. Creating/deleting JPEG engines
+// repeatedly churns the 2D-DMA pool shared with the display PPA.
+jpeg_decoder_handle_t g_jpeg_decoder = nullptr;
 
 static const i18n::Strings& camera_text() {
   return i18n::strings(configManager.getConfig().language);
-}
-
-static uint8_t clamp_u8(int32_t value) {
-  if (value < 0) return 0;
-  if (value > 255) return 255;
-  return static_cast<uint8_t>(value);
-}
-
-static void initialize_color_tables() {
-  if (g_color_tables_ready) return;
-  for (int value = 0; value < 256; ++value) {
-    const int y = std::max(0, value - 16);
-    const int chroma = value - 128;
-    g_y_term[value] = 298 * y;
-    g_r_from_v[value] = 409 * chroma;
-    g_g_from_u[value] = -100 * chroma;
-    g_g_from_v[value] = -208 * chroma;
-    g_b_from_u[value] = 516 * chroma;
-  }
-  g_color_tables_ready = true;
-}
-
-static uint16_t rgb565_swapped(uint8_t y_value,
-                               int32_t r_add,
-                               int32_t g_add,
-                               int32_t b_add) {
-  const int32_t y = g_y_term[y_value];
-  const uint8_t r = clamp_u8((y + r_add + 128) >> 8);
-  const uint8_t g = clamp_u8((y + g_add + 128) >> 8);
-  const uint8_t b = clamp_u8((y + b_add + 128) >> 8);
-  const uint16_t rgb565 =
-      static_cast<uint16_t>(((r & 0xF8U) << 8) |
-                            ((g & 0xFCU) << 3) |
-                            (b >> 3));
-  return static_cast<uint16_t>((rgb565 >> 8) | (rgb565 << 8));
 }
 
 static void set_status(const char* text, bool error = false) {
@@ -137,20 +99,27 @@ static void release_frame_buffers() {
   portEXIT_CRITICAL(&g_state_mux);
 
   for (uint8_t i = 0; i < kFrameBufferCount; ++i) {
-    if (buffers[i]) heap_caps_free(buffers[i]);
+    free(buffers[i]);
   }
 }
 
 static bool ensure_frame_buffers() {
   for (uint8_t i = 0; i < kFrameBufferCount; ++i) {
     if (g_pixels[i]) continue;
-    g_pixels[i] = static_cast<uint16_t*>(heap_caps_aligned_alloc(
-        64, kPixelBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    if (!g_pixels[i]) {
+
+    jpeg_decode_memory_alloc_cfg_t memory_config{};
+    memory_config.buffer_direction = JPEG_DEC_ALLOC_OUTPUT_BUFFER;
+    size_t allocated_bytes = 0;
+    g_pixels[i] = static_cast<uint16_t*>(
+        jpeg_alloc_decoder_mem(kPixelBytes, &memory_config, &allocated_bytes));
+    if (!g_pixels[i] || allocated_bytes < kPixelBytes) {
+      free(g_pixels[i]);
+      g_pixels[i] = nullptr;
       set_status(camera_text().camera_frame_memory_failed, true);
       release_frame_buffers();
       return false;
     }
+
     memset(g_pixels[i], 0, kPixelBytes);
     memset(&g_images[i], 0, sizeof(g_images[i]));
     g_images[i].header.magic = LV_IMAGE_HEADER_MAGIC;
@@ -208,111 +177,124 @@ static void release_write_buffer(int8_t index) {
   portEXIT_CRITICAL(&g_state_mux);
 }
 
-static bool i420_to_rgb565_swapped(const uint8_t* src, uint16_t* dst) {
-  initialize_color_tables();
-  const uint8_t* y_plane = src;
-  const uint8_t* u_plane = y_plane + static_cast<size_t>(kWidth) * kHeight;
-  const uint8_t* v_plane =
-      u_plane + static_cast<size_t>(kWidth / 2U) * (kHeight / 2U);
+static bool ensure_jpeg_decoder() {
+  if (g_jpeg_decoder) return true;
 
-  for (uint16_t y = 0; y < kHeight; y += 2) {
-    if ((y & 7U) == 0U) {
-      if (g_stop_requested) return false;
-      taskYIELD();
-    }
-    const size_t row0 = static_cast<size_t>(y) * kWidth;
-    const size_t row1 = row0 + kWidth;
-    const size_t uv_row = static_cast<size_t>(y / 2U) * (kWidth / 2U);
-    for (uint16_t x = 0; x < kWidth; x += 2) {
-      const uint8_t u = u_plane[uv_row + x / 2U];
-      const uint8_t v = v_plane[uv_row + x / 2U];
-      const int32_t r_add = g_r_from_v[v];
-      const int32_t g_add = g_g_from_u[u] + g_g_from_v[v];
-      const int32_t b_add = g_b_from_u[u];
-
-      dst[row0 + x] =
-          rgb565_swapped(y_plane[row0 + x], r_add, g_add, b_add);
-      dst[row0 + x + 1] =
-          rgb565_swapped(y_plane[row0 + x + 1], r_add, g_add, b_add);
-      dst[row1 + x] =
-          rgb565_swapped(y_plane[row1 + x], r_add, g_add, b_add);
-      dst[row1 + x + 1] =
-          rgb565_swapped(y_plane[row1 + x + 1], r_add, g_add, b_add);
-    }
-  }
-  return !g_stop_requested;
-}
-
-static bool output_frame(const esp_h264_dec_out_frame_t& output) {
-  if (!output.outbuf || output.out_size == 0) return true;
-  if (output.out_size != kI420Bytes) {
-    char message[96];
-    snprintf(message, sizeof(message),
-             camera_text().camera_resolution_error_fmt,
-             static_cast<unsigned>(output.out_size));
-    set_status(message, true);
+  jpeg_decode_engine_cfg_t engine_config{};
+  engine_config.intr_priority = 0;
+  engine_config.timeout_ms = 500;
+  const esp_err_t result =
+      jpeg_new_decoder_engine(&engine_config, &g_jpeg_decoder);
+  if (result != ESP_OK || !g_jpeg_decoder) {
+    g_jpeg_decoder = nullptr;
+    Serial.printf("[CameraStream] JPEG-Engine konnte nicht starten: %s\n",
+                  esp_err_to_name(result));
+    set_status(camera_text().camera_decoder_start_failed, true);
     return false;
   }
-
-  const int8_t index = acquire_write_buffer();
-  if (index < 0) return true;
-  if (!i420_to_rgb565_swapped(output.outbuf, g_pixels[index])) {
-    release_write_buffer(index);
-    return false;
-  }
-  publish_write_buffer(index);
-  ++g_worker_frame_count;
-  if (g_worker_frame_count == 1) {
-    Serial.printf("[CameraStream] Erstes Bild dekodiert (%u Bytes I420)\n",
-                  static_cast<unsigned>(output.out_size));
-  }
+  Serial.println("[CameraStream] JPEG-Hardwaredecoder bereit");
   return true;
 }
 
-static bool decode_access_unit(esp_h264_dec_handle_t decoder,
-                               uint8_t* input,
-                               size_t access_unit_size) {
-  size_t offset = 0;
-  while (offset < access_unit_size && !g_stop_requested) {
-    esp_h264_dec_in_frame_t in_frame{};
-    in_frame.raw_data.buffer = input + offset;
-    in_frame.raw_data.len =
-        static_cast<uint32_t>(access_unit_size - offset);
-    esp_h264_dec_out_frame_t out_frame{};
-    const esp_h264_err_t result =
-        esp_h264_dec_process(decoder, &in_frame, &out_frame);
-    if (result != ESP_H264_ERR_OK) {
-      Serial.printf(
-          "[CameraStream] Decoderfehler=%d au=%u offset=%u consume=%u\n",
-          static_cast<int>(result),
-          static_cast<unsigned>(access_unit_size),
-          static_cast<unsigned>(offset),
-          static_cast<unsigned>(in_frame.consume));
-      set_status(camera_text().camera_decoder_error, true);
-      return false;
+static bool decode_jpeg_frame(const uint8_t* jpeg, size_t jpeg_bytes) {
+  if (!jpeg || jpeg_bytes < 4 || jpeg_bytes > UINT32_MAX ||
+      jpeg[0] != 0xFF || jpeg[1] != 0xD8 ||
+      jpeg[jpeg_bytes - 2] != 0xFF || jpeg[jpeg_bytes - 1] != 0xD9) {
+    Serial.printf("[CameraStream] Ungueltiger JPEG-Frame: %u Bytes\n",
+                  static_cast<unsigned>(jpeg_bytes));
+    set_status(camera_text().camera_invalid_response, true);
+    return false;
+  }
+
+  jpeg_decode_picture_info_t picture_info{};
+  esp_err_t result = jpeg_decoder_get_info(
+      jpeg, static_cast<uint32_t>(jpeg_bytes), &picture_info);
+  if (result != ESP_OK ||
+      picture_info.width != kWidth || picture_info.height != kHeight) {
+    Serial.printf(
+        "[CameraStream] JPEG-Format ungueltig: decode=%s size=%ux%u\n",
+        esp_err_to_name(result),
+        static_cast<unsigned>(picture_info.width),
+        static_cast<unsigned>(picture_info.height));
+    set_status(camera_text().camera_invalid_response, true);
+    return false;
+  }
+
+  if (!ensure_jpeg_decoder()) return false;
+  const int8_t index = acquire_write_buffer();
+  if (index < 0) return true;
+
+  jpeg_decode_cfg_t decode_config{};
+  decode_config.output_format = JPEG_DECODE_OUT_FORMAT_RGB565;
+  // RGB order produces the byte layout represented by
+  // LV_COLOR_FORMAT_RGB565_SWAPPED on the little-endian P4.
+  decode_config.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_RGB;
+  decode_config.conv_std = JPEG_YUV_RGB_CONV_STD_BT601;
+
+  const uint32_t decode_started_ms = millis();
+  uint32_t decoded_bytes = 0;
+  {
+    // JPEG and display PPA share the P4's 2D-DMA pool. Skipping a frame on
+    // timeout is safe; decoding concurrently is not.
+    Dma2dArbiterGuard dma2d_guard(500);
+    if (!dma2d_guard.locked()) {
+      release_write_buffer(index);
+      Serial.println("[CameraStream] JPEG ausgelassen: 2D-DMA belegt");
+      return true;
     }
-    if (!output_frame(out_frame)) return false;
-    if (in_frame.consume == 0) {
-      Serial.printf(
-          "[CameraStream] Decoder verbrauchte keine Daten: au=%u offset=%u\n",
-          static_cast<unsigned>(access_unit_size),
-          static_cast<unsigned>(offset));
-      set_status(camera_text().camera_decoder_error, true);
-      return false;
+    result = jpeg_decoder_process(
+        g_jpeg_decoder,
+        &decode_config,
+        jpeg,
+        static_cast<uint32_t>(jpeg_bytes),
+        reinterpret_cast<uint8_t*>(g_pixels[index]),
+        static_cast<uint32_t>(kPixelBytes),
+        &decoded_bytes);
+    if (result != ESP_OK || decoded_bytes < kPixelBytes) {
+      // Discard a potentially wedged decoder while the DMA arbiter is still
+      // held. The next popup/frame creates a clean engine.
+      jpeg_del_decoder_engine(g_jpeg_decoder);
+      g_jpeg_decoder = nullptr;
     }
-    offset += in_frame.consume;
+  }
+
+  if (result != ESP_OK || decoded_bytes < kPixelBytes) {
+    release_write_buffer(index);
+    Serial.printf(
+        "[CameraStream] JPEG-Decode fehlgeschlagen: %s bytes=%u/%u\n",
+        esp_err_to_name(result),
+        static_cast<unsigned>(decoded_bytes),
+        static_cast<unsigned>(kPixelBytes));
+    set_status(camera_text().camera_decoder_error, true);
+    return false;
+  }
+
+  publish_write_buffer(index);
+  ++g_worker_frame_count;
+  if (g_worker_frame_count == 1) {
+    Serial.printf(
+        "[CameraStream] Erstes Bild dekodiert: jpeg=%u Bytes decode=%ums "
+        "int=%uKB largest=%uKB psram=%uKB\n",
+        static_cast<unsigned>(jpeg_bytes),
+        static_cast<unsigned>(millis() - decode_started_ms),
+        static_cast<unsigned>(
+            heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024U),
+        static_cast<unsigned>(
+            heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024U),
+        static_cast<unsigned>(
+            heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
+    set_status(camera_text().camera_ready);
   }
   return true;
 }
 
 // Receives the HomeTiles record stream after HttpChunkedBodyDecoder has
 // removed HTTP/1.1 chunk framing. Each record is a big-endian uint32 length
-// followed by exactly one complete Annex-B H.264 access unit.
-class H264AccessUnitStream final : public Stream {
+// followed by exactly one complete JPEG frame.
+class JpegRecordStream final : public Stream {
  public:
-  H264AccessUnitStream(esp_h264_dec_handle_t decoder, uint8_t* input)
-      : decoder_(decoder),
-        input_(input),
+  explicit JpegRecordStream(uint8_t* input)
+      : input_(input),
         last_fps_ms_(millis()) {}
 
   size_t write(uint8_t value) override {
@@ -348,11 +330,11 @@ class H264AccessUnitStream final : public Stream {
           }
           continue;
         }
-        if (expected_bytes_ > kInputBytes) {
+        if (expected_bytes_ > kMaxJpegBytes) {
           Serial.printf(
-              "[CameraStream] H.264 Access Unit zu gross: %u > %u Bytes\n",
+              "[CameraStream] JPEG-Frame zu gross: %u > %u Bytes\n",
               static_cast<unsigned>(expected_bytes_),
-              static_cast<unsigned>(kInputBytes));
+              static_cast<unsigned>(kMaxJpegBytes));
           set_status(camera_text().camera_input_buffer_full, true);
           failed_ = true;
           break;
@@ -367,10 +349,10 @@ class H264AccessUnitStream final : public Stream {
       len -= take;
       if (buffered_ < expected_bytes_) continue;
 
-      if (!received_first_access_unit_) {
-        received_first_access_unit_ = true;
+      if (!received_first_frame_) {
+        received_first_frame_ = true;
         Serial.printf(
-            "[CameraStream] Erste vollstaendige H.264 Access Unit: %u Bytes "
+            "[CameraStream] Erster vollstaendiger JPEG-Frame: %u Bytes "
             "int=%uKB largest=%uKB psram=%uKB\n",
             static_cast<unsigned>(expected_bytes_),
             static_cast<unsigned>(
@@ -383,7 +365,7 @@ class H264AccessUnitStream final : public Stream {
       }
 
       const uint32_t frames_before = g_worker_frame_count;
-      if (!decode_access_unit(decoder_, input_, expected_bytes_)) {
+      if (!decode_jpeg_frame(input_, expected_bytes_)) {
         failed_ = true;
         break;
       }
@@ -414,7 +396,6 @@ class H264AccessUnitStream final : public Stream {
   void flush() override {}
 
  private:
-  esp_h264_dec_handle_t decoder_;
   uint8_t* input_;
   uint8_t length_header_[4] = {};
   size_t length_bytes_ = 0;
@@ -423,14 +404,13 @@ class H264AccessUnitStream final : public Stream {
   uint32_t frame_count_ = 0;
   uint32_t last_fps_ms_ = 0;
   bool received_flush_record_ = false;
-  bool received_first_access_unit_ = false;
+  bool received_first_frame_ = false;
   bool failed_ = false;
 };
 
 class HttpChunkedBodyDecoder {
  public:
-  bool feed(const uint8_t* raw, size_t len,
-            H264AccessUnitStream& output) {
+  bool feed(const uint8_t* raw, size_t len, JpegRecordStream& output) {
     size_t offset = 0;
     while (offset < len && state_ != State::Done) {
       switch (state_) {
@@ -528,9 +508,7 @@ class HttpChunkedBodyDecoder {
   size_t chunk_remaining_ = 0;
 };
 
-static void finish_camera_task(HTTPClient* http,
-                               esp_h264_dec_handle_t decoder,
-                               uint8_t* input) {
+static void finish_camera_task(HTTPClient* http, uint8_t* input) {
   Serial.printf(
       "[CameraStream] Task-Ende: stop=%s frames=%u int=%uKB "
       "largest=%uKB psram=%uKB\n",
@@ -542,11 +520,7 @@ static void finish_camera_task(HTTPClient* http,
           heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024U),
       static_cast<unsigned>(
           heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
-  if (input) heap_caps_free(input);
-  if (decoder) {
-    esp_h264_dec_close(decoder);
-    esp_h264_dec_del(decoder);
-  }
+  free(input);
   if (http) http->end();
 }
 
@@ -559,12 +533,12 @@ static void run_camera_task() {
     set_status(camera_text().camera_invalid_response, true);
     return;
   }
+
   NetworkClient plain_client;
   HTTPClient http;
   http.setConnectTimeout(4000);
-  // Home Assistant may still be scheduling the route while the BambuLab
-  // integration finishes a snapshot request. Keep this timeout separate from
-  // the short streaming read waits configured after the response arrives.
+  // Home Assistant may still be scheduling the route while a camera
+  // integration finishes its first snapshot request.
   http.setTimeout(kHttpHeaderTimeoutMs);
   http.setReuse(false);
   const char* response_headers[] = {
@@ -583,11 +557,10 @@ static void run_camera_task() {
           heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024U),
       static_cast<unsigned>(
           heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
-  const bool began = http.begin(plain_client, url);
-  if (!began) {
+  if (!http.begin(plain_client, url)) {
     Serial.println("[CameraStream] HTTP begin() fehlgeschlagen");
     set_status(camera_text().camera_url_open_failed, true);
-    finish_camera_task(&http, nullptr, nullptr);
+    finish_camera_task(&http, nullptr);
     return;
   }
 
@@ -601,9 +574,10 @@ static void run_camera_task() {
     snprintf(message, sizeof(message), camera_text().camera_http_error_fmt,
              code);
     set_status(message, true);
-    finish_camera_task(&http, nullptr, nullptr);
+    finish_camera_task(&http, nullptr);
     return;
   }
+
   const int receive_buffer_bytes = kHttpReceiveBufferBytes;
   const int receive_buffer_result = plain_client.setSocketOption(
       SOL_SOCKET, SO_RCVBUF, &receive_buffer_bytes,
@@ -611,44 +585,30 @@ static void run_camera_task() {
   Serial.printf("[CameraStream] HTTP RX-Puffer: %d Bytes (set=%d)\n",
                 receive_buffer_bytes, receive_buffer_result);
   const String transfer_encoding = http.header("Transfer-Encoding");
-  const bool chunked =
-      transfer_encoding.equalsIgnoreCase("chunked");
+  const bool chunked = transfer_encoding.equalsIgnoreCase("chunked");
   const String framing = http.header("X-HomeTiles-Framing");
   Serial.printf("[CameraStream] HTTP-Transfer: %s\n",
                 chunked ? "chunked" : "identity");
-  Serial.printf("[CameraStream] H.264-Framing: %s\n", framing.c_str());
-  if (!framing.equalsIgnoreCase(kAccessUnitFraming)) {
-    Serial.println("[CameraStream] Bridge liefert kein Access-Unit-Framing");
+  Serial.printf("[CameraStream] JPEG-Framing: %s\n", framing.c_str());
+  if (!framing.equalsIgnoreCase(kJpegFraming)) {
+    Serial.println("[CameraStream] Bridge liefert kein JPEG-Framing");
     set_status(camera_text().camera_invalid_response, true);
-    finish_camera_task(&http, nullptr, nullptr);
+    finish_camera_task(&http, nullptr);
     return;
   }
 
-  esp_h264_dec_cfg_sw_t decoder_cfg{};
-  decoder_cfg.pic_type = ESP_H264_RAW_FMT_I420;
-  esp_h264_dec_handle_t decoder = nullptr;
-  if (esp_h264_dec_sw_new(&decoder_cfg, &decoder) != ESP_H264_ERR_OK ||
-      !decoder ||
-      esp_h264_dec_open(decoder) != ESP_H264_ERR_OK) {
-    Serial.println("[CameraStream] H.264-Decoder konnte nicht starten");
-    set_status(camera_text().camera_decoder_start_failed, true);
-    if (decoder) esp_h264_dec_del(decoder);
-    finish_camera_task(&http, nullptr, nullptr);
-    return;
-  }
-
-  uint8_t* input = static_cast<uint8_t*>(heap_caps_malloc(
-      kInputBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  uint8_t* input = static_cast<uint8_t*>(heap_caps_aligned_alloc(
+      64, kMaxJpegBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   if (!input) {
-    Serial.printf("[CameraStream] Eingangspuffer (%u Bytes) fehlt\n",
-                  static_cast<unsigned>(kInputBytes));
+    Serial.printf("[CameraStream] JPEG-Eingangspuffer (%u Bytes) fehlt\n",
+                  static_cast<unsigned>(kMaxJpegBytes));
     set_status(camera_text().camera_input_memory_failed, true);
-    finish_camera_task(&http, decoder, nullptr);
+    finish_camera_task(&http, nullptr);
     return;
   }
 
   set_status(camera_text().camera_buffering);
-  H264AccessUnitStream decode_stream(decoder, input);
+  JpegRecordStream jpeg_stream(input);
   HttpChunkedBodyDecoder chunk_decoder;
   NetworkClient* stream = http.getStreamPtr();
   uint8_t raw[2048];
@@ -680,11 +640,11 @@ static void run_camera_task() {
     }
     if (chunked) {
       if (!chunk_decoder.feed(raw, static_cast<size_t>(received),
-                              decode_stream)) {
+                              jpeg_stream)) {
         stream_ok = false;
         break;
       }
-    } else if (decode_stream.write(
+    } else if (jpeg_stream.write(
                    raw, static_cast<size_t>(received)) !=
                static_cast<size_t>(received)) {
       stream_ok = false;
@@ -703,7 +663,7 @@ static void run_camera_task() {
     portEXIT_CRITICAL(&g_state_mux);
     if (!had_error) set_status(camera_text().camera_connection_ended, true);
   }
-  finish_camera_task(&http, decoder, input);
+  finish_camera_task(&http, input);
 }
 
 static void camera_task(void*) {
@@ -733,7 +693,7 @@ bool camera_stream_start(const char* url) {
   }
   if (!ensure_frame_buffers()) return false;
   Serial.printf(
-      "[CameraStream] Bildpuffer bereit: %u x %u Bytes, int=%uKB "
+      "[CameraStream] JPEG-Bildpuffer bereit: %u x %u Bytes, int=%uKB "
       "largest=%uKB psram=%uKB\n",
       static_cast<unsigned>(kFrameBufferCount),
       static_cast<unsigned>(kPixelBytes),
@@ -759,7 +719,7 @@ bool camera_stream_start(const char* url) {
   g_worker_frame_count = 0;
   const BaseType_t task_core = (ARDUINO_RUNNING_CORE == 0) ? 1 : 0;
   if (xTaskCreatePinnedToCoreWithCaps(
-          camera_task, "cameraH264", 16384, nullptr, tskIDLE_PRIORITY,
+          camera_task, "cameraJpeg", 16384, nullptr, tskIDLE_PRIORITY,
           &g_task, task_core, MALLOC_CAP_SPIRAM) != pdPASS) {
     portENTER_CRITICAL(&g_state_mux);
     g_task = nullptr;
