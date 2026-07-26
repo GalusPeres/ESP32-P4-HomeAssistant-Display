@@ -10,6 +10,7 @@
 #include "src/devices/device.h"
 #include "src/core/board_hal.h"
 #include "src/core/crash_log.h"
+#include "src/video/camera_stream.h"
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -1164,6 +1165,15 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
         if (recovery_allowed &&
             (uint32_t)(now_ms - g_mqtt_dma_low_since) >=
                 kMqttDmaRecoveryWaitMs) {
+          // Never tear down ESP-Hosted while the camera task owns an active
+          // HTTP socket. The teardown invalidates that socket underneath the
+          // other core and caused an instruction-access panic. The camera
+          // path has its own DMA guard and will close first if memory remains
+          // scarce; normal MQTT publishes continue through their own lane.
+          if (camera_stream_is_active()) {
+            log_dma_wait("Recovery wartet auf Kamera-Ende", dma_largest);
+            return;
+          }
           Serial.printf(
               "[MQTT] DMA-Starvation seit %u ms: WLAN/SDIO-Recovery\n",
               static_cast<unsigned>(now_ms - g_mqtt_dma_low_since));

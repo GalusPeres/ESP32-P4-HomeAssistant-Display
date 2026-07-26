@@ -13,6 +13,7 @@
 #include <NetworkClient.h>
 #include <esp_h264_dec.h>
 #include <esp_h264_dec_sw.h>
+#include <lwip/sockets.h>
 
 #include <algorithm>
 #include <cstring>
@@ -30,6 +31,8 @@ constexpr size_t kI420Bytes =
 constexpr size_t kInputBytes = 192U * 1024U;
 constexpr uint8_t kFrameBufferCount = 2;
 constexpr uint32_t kHttpHeaderTimeoutMs = 5000;
+constexpr int kHttpReceiveBufferBytes = 8 * 1024;
+constexpr size_t kMinCameraDmaFreeBytes = 24 * 1024;
 constexpr char kAccessUnitFraming[] = "be32-access-unit";
 
 enum class FrameState : uint8_t {
@@ -601,6 +604,12 @@ static void run_camera_task() {
     finish_camera_task(&http, nullptr, nullptr);
     return;
   }
+  const int receive_buffer_bytes = kHttpReceiveBufferBytes;
+  const int receive_buffer_result = plain_client.setSocketOption(
+      SOL_SOCKET, SO_RCVBUF, &receive_buffer_bytes,
+      sizeof(receive_buffer_bytes));
+  Serial.printf("[CameraStream] HTTP RX-Puffer: %d Bytes (set=%d)\n",
+                receive_buffer_bytes, receive_buffer_result);
   const String transfer_encoding = http.header("Transfer-Encoding");
   const bool chunked =
       transfer_encoding.equalsIgnoreCase("chunked");
@@ -646,6 +655,17 @@ static void run_camera_task() {
   bool stream_ok = true;
   while (!g_stop_requested && stream &&
          (http.connected() || stream->available() > 0)) {
+    const size_t dma_free = heap_caps_get_free_size(
+        MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+    if (dma_free < kMinCameraDmaFreeBytes) {
+      Serial.printf(
+          "[CameraStream] Sicherheitsstopp: DMA frei nur %u KB; "
+          "MQTT/WLAN bleiben aktiv\n",
+          static_cast<unsigned>(dma_free / 1024U));
+      set_status(camera_text().camera_connection_ended, true);
+      stream_ok = false;
+      break;
+    }
     const int available = stream->available();
     if (available <= 0) {
       vTaskDelay(pdMS_TO_TICKS(2));
