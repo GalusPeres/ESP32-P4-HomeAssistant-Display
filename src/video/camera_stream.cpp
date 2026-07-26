@@ -11,10 +11,8 @@
 
 #include <HTTPClient.h>
 #include <NetworkClient.h>
-#include <NetworkClientSecure.h>
 #include <esp_h264_dec.h>
 #include <esp_h264_dec_sw.h>
-#include <mbedtls/platform.h>
 
 #include <algorithm>
 #include <cstring>
@@ -55,41 +53,6 @@ uint32_t g_ui_status_sequence = 0;
 char g_status[96] = "";
 bool g_status_error = false;
 uint32_t g_worker_frame_count = 0;
-
-static void* camera_tls_internal_calloc(size_t count, size_t size) {
-  return heap_caps_calloc(count, size,
-                          MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-}
-
-static void* camera_tls_psram_calloc(size_t count, size_t size) {
-  void* ptr = heap_caps_calloc(count, size,
-                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  return ptr ? ptr : camera_tls_internal_calloc(count, size);
-}
-
-static void camera_tls_free(void* ptr) {
-  heap_caps_free(ptr);
-}
-
-class ScopedCameraTlsPsramAllocator {
- public:
-  ScopedCameraTlsPsramAllocator()
-      : active_(mbedtls_platform_set_calloc_free(
-                    camera_tls_psram_calloc, camera_tls_free) == 0) {
-    Serial.printf("[CameraStream] TLS-Allokator: %s\n",
-                  active_ ? "PSRAM bevorzugt" : "Core-Standard");
-  }
-
-  ~ScopedCameraTlsPsramAllocator() {
-    if (active_) {
-      mbedtls_platform_set_calloc_free(camera_tls_internal_calloc,
-                                       camera_tls_free);
-    }
-  }
-
- private:
-  bool active_;
-};
 
 // BT.601 limited-range lookup tables remove five multiplications per output
 // pixel. Four pixels share one U/V pair, which keeps the software conversion
@@ -587,10 +550,13 @@ static void finish_camera_task(HTTPClient* http,
 static void run_camera_task() {
   set_status(camera_text().camera_http_connecting);
   const String url = g_url;
-  ScopedCameraTlsPsramAllocator tls_allocator;
+  if (!url.startsWith("http://")) {
+    Serial.println(
+        "[CameraStream] Abgelehnt: Kamera-Transport muss lokales HTTP sein");
+    set_status(camera_text().camera_invalid_response, true);
+    return;
+  }
   NetworkClient plain_client;
-  NetworkClientSecure secure_client;
-  secure_client.setInsecure();
   HTTPClient http;
   http.setConnectTimeout(4000);
   // Home Assistant may still be scheduling the route while the BambuLab
@@ -604,11 +570,9 @@ static void run_camera_task() {
   };
   http.collectHeaders(response_headers, 2);
 
-  const bool secure = url.startsWith("https://");
   Serial.printf(
-      "[CameraStream] Start: https=%s url_len=%u int=%uKB largest=%uKB "
+      "[CameraStream] Start: transport=http url_len=%u int=%uKB largest=%uKB "
       "psram=%uKB\n",
-      secure ? "ja" : "nein",
       static_cast<unsigned>(url.length()),
       static_cast<unsigned>(
           heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024U),
@@ -616,8 +580,7 @@ static void run_camera_task() {
           heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024U),
       static_cast<unsigned>(
           heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
-  const bool began = secure ? http.begin(secure_client, url)
-                            : http.begin(plain_client, url);
+  const bool began = http.begin(plain_client, url);
   if (!began) {
     Serial.println("[CameraStream] HTTP begin() fehlgeschlagen");
     set_status(camera_text().camera_url_open_failed, true);
@@ -725,8 +688,7 @@ static void run_camera_task() {
 
 static void camera_task(void*) {
   // Keep all C++ objects inside this scope. Their destructors must run before
-  // FreeRTOS deletes the task stack, especially HTTPClient/NetworkClientSecure
-  // and the temporary global mbedTLS allocator override.
+  // FreeRTOS deletes the task stack, especially HTTPClient/NetworkClient.
   run_camera_task();
 
   bool release_buffers = false;

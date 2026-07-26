@@ -12,16 +12,17 @@ flash a connected device automatically.
 3. Open the HomeTiles integration options. Under entity configuration, add the
    desired `camera.*` entity.
 4. Flash the Waveshare 8" OTA image:
-   `build/camera-h264-test-waveshare-8-final/HomeTiles.ino.bin`.
+   `build/camera-h264-test-waveshare-8-b8-http/HomeTiles.ino.bin`.
 5. In the HomeTiles web admin, create a `Kamera` tile and select the configured
    camera entity.
 6. Tap the tile. A 760x740 popup opens with a 640x480 video area.
 
 The bridge resolves the Home Assistant camera stream and starts FFmpeg only
-while the popup is open. It outputs a raw H.264 Annex-B stream using constrained
-baseline, 640x480, 12 fps and 850 kbit/s. MQTT carries only the open/close
-commands and the short-lived HTTP stream URL; video bytes do not pass through
-MQTT.
+while the popup is open. It outputs access-unit-framed H.264 using constrained
+baseline at 640x480. MQTT carries only the open/close commands and the
+short-lived stream URL; video bytes do not pass through MQTT. The bridge opens
+a dedicated plain-HTTP LAN listener on the first free port from 8124 through
+8131. Camera transport never uses TLS on the ESP32-P4.
 
 ## MQTT diagnostics
 
@@ -38,8 +39,8 @@ consumed.
 
 ## Memory and recovery behavior
 
-- Three fixed 640x480 RGB565 frame buffers use about 1.84 MB of P4 PSRAM.
-- The H.264 input buffer uses 256 KB of P4 PSRAM.
+- Two fixed 640x480 RGB565 frame buffers use about 1.2 MB of P4 PSRAM.
+- The H.264 input buffer uses 192 KB of P4 PSRAM.
 - Frame buffers remain allocated after their first use to avoid repeated large
   allocations and PSRAM fragmentation.
 - The decoder, HTTP input buffer and FFmpeg process are released when the popup
