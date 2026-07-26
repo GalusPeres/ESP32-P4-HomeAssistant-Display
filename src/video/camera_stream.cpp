@@ -767,7 +767,6 @@ void camera_stream_process_ui(lv_obj_t* image,
                               lv_obj_t* status_label) {
   if (!image) return;
   int8_t ready = -1;
-  bool direct_preview = false;
   // If the display PPA has entered its short self-healing cooldown, keep the
   // last frame. Repainting the full video area through the CPU fallback would
   // make every other LVGL interaction sluggish and fight the recovery.
@@ -778,50 +777,26 @@ void camera_stream_process_ui(lv_obj_t* image,
         ready = static_cast<int8_t>(i);
       }
     }
-    portEXIT_CRITICAL(&g_state_mux);
-
-    // After the first LVGL frame established the clipped popup surface, update
-    // subsequent packed frames straight into the physical framebuffer. The
-    // device implementation synchronizes this PPA copy to the next panel
-    // refresh, avoiding the visible band-by-band rebuild of a large LVGL image.
-    if (ready >= 0 && g_displayed_index >= 0 &&
-        kDecodedWidth == kWidth) {
-      lv_area_t area{};
-      lv_obj_get_coords(image, &area);
-      direct_preview = Device::displayTryFullFramePreview(
-          area.x1, area.y1, kWidth, kHeight,
-          g_pixels[ready], kPixelBytes,
-          true);  // JPEG decoder output is RGB565 byte-swapped for LVGL.
-    }
-
-    portENTER_CRITICAL(&g_state_mux);
     if (ready >= 0) {
+      if (g_displayed_index >= 0 &&
+          g_displayed_index < static_cast<int8_t>(kFrameBufferCount) &&
+          g_frame_states[g_displayed_index] == FrameState::Displayed) {
+        g_frame_states[g_displayed_index] = FrameState::Free;
+      }
       for (uint8_t i = 0; i < kFrameBufferCount; ++i) {
         if (static_cast<int8_t>(i) != ready &&
             g_frame_states[i] == FrameState::Ready) {
           g_frame_states[i] = FrameState::Free;
         }
       }
-      if (direct_preview) {
-        g_frame_states[ready] = FrameState::Free;
-      } else {
-        if (g_displayed_index >= 0 &&
-            g_displayed_index < static_cast<int8_t>(kFrameBufferCount) &&
-            g_frame_states[g_displayed_index] == FrameState::Displayed) {
-          g_frame_states[g_displayed_index] = FrameState::Free;
-        }
-        g_frame_states[ready] = FrameState::Displayed;
-        g_displayed_index = ready;
-      }
+      g_frame_states[ready] = FrameState::Displayed;
+      g_displayed_index = ready;
     }
     portEXIT_CRITICAL(&g_state_mux);
   }
 
-  if (ready >= 0 && !direct_preview) {
+  if (ready >= 0) {
     lv_image_set_src(image, &g_images[ready]);
-    lv_obj_clear_flag(image, LV_OBJ_FLAG_HIDDEN);
-    if (placeholder) lv_obj_add_flag(placeholder, LV_OBJ_FLAG_HIDDEN);
-  } else if (direct_preview) {
     lv_obj_clear_flag(image, LV_OBJ_FLAG_HIDDEN);
     if (placeholder) lv_obj_add_flag(placeholder, LV_OBJ_FLAG_HIDDEN);
   }

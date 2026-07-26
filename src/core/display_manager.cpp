@@ -38,6 +38,7 @@ static bool g_reverse_flush_once = false;
 static volatile uint32_t g_fullscreen_flush_seq = 0;
 static size_t g_requested_buffer_lines = 0;
 static bool g_fast_internal_draw_buffer = false;
+static bool g_single_psram_draw_buffer = false;
 
 #if defined(DEVICE_M5STACKS_TAB5)
 struct Tab5FlushStats {
@@ -125,6 +126,10 @@ static constexpr size_t kInternalDrawMinLines     = 16;          // below this S
 // PSRAM. ~80KB Rest-Luft entsprechen dem gemessen stabilen Betriebspunkt
 // (DMA free ~100KB bei aktivem Band).
 static constexpr size_t kInternalDrawRestoreReserveBytes = 80 * 1024;
+// Camera rendering may temporarily use one full-height LVGL band. Keep a
+// generous PSRAM floor for decoded frames, folder caches and later features.
+// This check is independent from the internal/DMA heap used by WiFi and MQTT.
+static constexpr size_t kLargeDrawPsramReserveBytes = 8 * 1024 * 1024;
 
 static inline void commit_display_if_last(lv_display_t* lv_disp) {
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
@@ -304,6 +309,7 @@ bool DisplayManager::allocDrawBuffers(size_t requested_lines, lv_display_render_
   g_requested_buffer_lines = requested_lines;
   g_render_mode = mode;
   g_fast_internal_draw_buffer = single;
+  g_single_psram_draw_buffer = false;
 
   Serial.printf("[Display] Draw-Puffer: %s %s, %u Zeilen, %u Bytes/Puffer | int frei=%u KB | dma frei=%u KB | dma largest=%u KB\n",
                 single ? "1x" : "2x",
@@ -317,6 +323,70 @@ bool DisplayManager::allocDrawBuffers(size_t requested_lines, lv_display_render_
 
 bool DisplayManager::setBufferLines(size_t lines) {
   return setBufferLines(lines, LV_DISPLAY_RENDER_MODE_PARTIAL);
+}
+
+bool DisplayManager::setSinglePsramBufferLines(size_t lines) {
+  if (!disp || lines == 0 || lines > SCREEN_HEIGHT) return false;
+  if (g_single_psram_draw_buffer && g_buffer_lines == lines && buf1 &&
+      !buf2) {
+    return true;
+  }
+  if (g_bytes_per_pixel == 0) {
+    g_bytes_per_pixel =
+        lv_color_format_get_size(lv_display_get_color_format(disp));
+    if (g_bytes_per_pixel == 0) g_bytes_per_pixel = 2;
+  }
+
+  const size_t bytes =
+      static_cast<size_t>(SCREEN_WIDTH) * lines * g_bytes_per_pixel;
+  const uint32_t psram_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA;
+  const size_t free_psram = heap_caps_get_free_size(psram_caps);
+  const size_t largest_psram =
+      heap_caps_get_largest_free_block(psram_caps);
+  if (free_psram < bytes + kLargeDrawPsramReserveBytes ||
+      largest_psram < bytes) {
+    Serial.printf(
+        "[Display] Grosser PSRAM-Zeichenpuffer abgelehnt: benoetigt=%u KB "
+        "frei=%u KB largest=%u KB Reserve=%u KB\n",
+        static_cast<unsigned>(bytes / 1024U),
+        static_cast<unsigned>(free_psram / 1024U),
+        static_cast<unsigned>(largest_psram / 1024U),
+        static_cast<unsigned>(kLargeDrawPsramReserveBytes / 1024U));
+    return false;
+  }
+
+  lv_color_t* next = static_cast<lv_color_t*>(
+      heap_caps_aligned_alloc(64, bytes, psram_caps));
+  if (!next) {
+    Serial.println("[Display] Grosser PSRAM-Zeichenpuffer nicht allokierbar");
+    return false;
+  }
+
+  // Finish all rendering that still references the old draw buffer before
+  // swapping it out. A single buffer is sufficient because every P4 flush is
+  // synchronous and calls lv_display_flush_ready() only after PPA completion.
+  lv_refr_now(disp);
+  lv_display_set_buffers(disp, next, nullptr, bytes,
+                         LV_DISPLAY_RENDER_MODE_PARTIAL);
+
+  if (buf1) heap_caps_free(buf1);
+  if (buf2) heap_caps_free(buf2);
+  buf1 = next;
+  buf2 = nullptr;
+  g_buffer_lines = lines;
+  g_requested_buffer_lines = lines;
+  g_render_mode = LV_DISPLAY_RENDER_MODE_PARTIAL;
+  g_fast_internal_draw_buffer = false;
+  g_single_psram_draw_buffer = true;
+
+  Serial.printf(
+      "[Display] Kamera-Zeichenpuffer: 1x PSRAM, %u Zeilen, %u KB | "
+      "PSRAM frei=%u KB\n",
+      static_cast<unsigned>(lines),
+      static_cast<unsigned>(bytes / 1024U),
+      static_cast<unsigned>(
+          heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
+  return true;
 }
 
 bool DisplayManager::restoreBufferLinesAfterOta(size_t lines) {

@@ -37,6 +37,9 @@ struct CameraPopupContext {
   lv_obj_t* image = nullptr;
   lv_obj_t* placeholder = nullptr;
   lv_obj_t* status = nullptr;
+  size_t previous_draw_buffer_lines = 0;
+  bool large_draw_buffer_active = false;
+  bool draw_buffer_restore_pending = false;
   bool visible = false;
 };
 
@@ -111,6 +114,13 @@ static void close_camera_popup() {
   }
   lv_obj_add_flag(g_camera_popup->card, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_camera_popup->overlay, LV_OBJ_FLAG_CLICKABLE);
+
+  // Closing usually runs from an LVGL button callback. Reallocating LVGL draw
+  // buffers there would call lv_refr_now() recursively from lv_timer_handler().
+  // Defer the swap to process_camera_popup() in the next normal loop pass.
+  if (g_camera_popup->large_draw_buffer_active) {
+    g_camera_popup->draw_buffer_restore_pending = true;
+  }
 }
 
 static void close_event_cb(lv_event_t* event) {
@@ -254,6 +264,9 @@ void show_camera_popup(const CameraPopupInit& init) {
   if (!g_camera_popup) g_camera_popup = create_popup();
   if (!g_camera_popup) return;
 
+  // A different camera may be opened before the deferred restore runs. Reuse
+  // the existing large buffer and retain the original small-buffer size.
+  g_camera_popup->draw_buffer_restore_pending = false;
   g_camera_popup->entity_id = init.entity_id;
   g_camera_popup->visible = true;
   lv_obj_set_style_bg_color(
@@ -289,7 +302,23 @@ void hide_camera_popup() {
 }
 
 void process_camera_popup() {
-  if (!g_camera_popup || !g_camera_popup->visible) return;
+  if (!g_camera_popup) return;
+  if (g_camera_popup->draw_buffer_restore_pending &&
+      !g_camera_popup->visible) {
+    const size_t restore_lines =
+        g_camera_popup->previous_draw_buffer_lines;
+    g_camera_popup->draw_buffer_restore_pending = false;
+    g_camera_popup->large_draw_buffer_active = false;
+    g_camera_popup->previous_draw_buffer_lines = 0;
+    if (restore_lines > 0 &&
+        !displayManager.restoreBufferLinesAfterOta(restore_lines)) {
+      Serial.printf(
+          "[Camera] Schneller Display-Puffer konnte nicht sofort "
+          "wiederhergestellt werden (%u Zeilen)\n",
+          static_cast<unsigned>(restore_lines));
+    }
+  }
+  if (!g_camera_popup->visible) return;
   if (powerManager.isInSleep()) {
     close_camera_popup();
     return;
@@ -345,7 +374,27 @@ void camera_popup_handle_mqtt_status(const char* payload) {
     Serial.printf("[Camera] Stream-URL empfangen (%u Zeichen)\n",
                   static_cast<unsigned>(strlen(url)));
     camera_popup_set_status(camera_text().camera_connecting, false);
-    camera_stream_start(url);
+    if (!g_camera_popup->large_draw_buffer_active) {
+      const size_t previous_lines = displayManager.getBufferLines();
+      if (displayManager.setSinglePsramBufferLines(kVideoHeight)) {
+        g_camera_popup->previous_draw_buffer_lines = previous_lines;
+        g_camera_popup->large_draw_buffer_active = true;
+      } else {
+        Serial.println(
+            "[Camera] Grosser LVGL-Zeichenpuffer nicht verfuegbar; "
+            "normaler sicherer Renderpfad bleibt aktiv");
+      }
+    }
+    if (!camera_stream_start(url) &&
+        g_camera_popup->large_draw_buffer_active) {
+      const size_t restore_lines =
+          g_camera_popup->previous_draw_buffer_lines;
+      g_camera_popup->large_draw_buffer_active = false;
+      g_camera_popup->previous_draw_buffer_lines = 0;
+      if (restore_lines > 0) {
+        displayManager.restoreBufferLinesAfterOta(restore_lines);
+      }
+    }
     return;
   }
   if (strcmp(status, "error") == 0) {

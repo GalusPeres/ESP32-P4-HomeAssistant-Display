@@ -18,7 +18,10 @@ inline constexpr uint16_t kWidth =
     static_cast<uint16_t>(popup_layout::kContentWidth & ~1);
 inline constexpr uint16_t kHeight = evenCeil(
     static_cast<uint32_t>(kWidth) * 9U, 16U);
-inline constexpr uint8_t kFps = 15;
+// 10 FPS is the measured stable operating point on the Waveshare 8": a
+// 3227-frame run kept MQTT/WiFi and DMA headroom healthy, while 15 FPS drove
+// the shared internal DMA heap below the safety floor after 191 frames.
+inline constexpr uint8_t kFps = 10;
 
 // ESP32-P4's JPEG hardware decoder writes in 16-pixel-aligned dimensions.
 // LVGL still receives the visible width/height and the aligned row stride.

@@ -29,6 +29,10 @@ public:
   void setReverseFlushOnce();
   bool setBufferLines(size_t lines);
   bool setBufferLines(size_t lines, lv_display_render_mode_t render_mode);
+  // Temporary large single-buffer mode for full-frame content such as the
+  // camera popup. The buffer lives exclusively in PSRAM, so the internal
+  // DMA reserve used by WiFi/MQTT remains untouched.
+  bool setSinglePsramBufferLines(size_t lines);
   // Nach OTA-Vorbereitung (setBufferLines(8)) zurueck zum schnellen Band:
   // nutzt eine kleinere interne Reserve als beim Boot, weil WLAN/MQTT ihr
   // RAM zur Laufzeit schon besitzen - sonst faellt der Puffer nach jedem

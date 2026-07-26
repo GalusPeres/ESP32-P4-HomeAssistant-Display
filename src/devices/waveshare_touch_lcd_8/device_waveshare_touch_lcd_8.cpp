@@ -1056,9 +1056,6 @@ bool DeviceWaveshareTouchLCD8::displayTryFullFramePreview(
   uint16_t* fb = panel_fb();
   if (!fb) return false;
 
-  drain_refresh_signal();
-  wait_refresh_done();
-
   // Nicht auf einen parallel laufenden JPEG-Decode warten: Nach kurzer Frist
   // ist der bewaehrte LVGL-Pfad schneller und vor allem risikolos.
   Dma2dArbiterGuard dma2d_guard(25);
