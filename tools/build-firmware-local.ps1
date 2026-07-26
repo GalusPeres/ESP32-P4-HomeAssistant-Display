@@ -13,6 +13,7 @@ $sketchProfiles = Join-Path $repoRoot 'sketch.yaml'
 $hiddenSketchProfiles = Join-Path $repoRoot 'sketch.yaml.hometiles-local-build'
 $arduinoCli = Join-Path $env:LOCALAPPDATA 'Programs\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe'
 $libraries = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Arduino\libraries'
+$repoLibraries = Join-Path $repoRoot 'third_party'
 
 if (-not (Test-Path -LiteralPath $arduinoCli)) {
     throw "Arduino CLI was not found: $arduinoCli"
@@ -79,6 +80,7 @@ try {
         --fqbn $fqbn `
         --export-binaries `
         --output-dir $OutputDirectory `
+        --libraries $repoLibraries `
         --build-property "compiler.c.extra_flags=$cFlags" `
         --build-property "compiler.cpp.extra_flags=$cppFlags" `
         $repoRoot

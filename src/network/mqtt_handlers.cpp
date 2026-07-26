@@ -5,6 +5,7 @@
 #include "src/ui/tab_tiles_unified.h"
 #include "src/ui/screensaver_config.h"
 #include "src/ui/sensor_popup.h"
+#include "src/ui/camera_popup.h"
 #include "src/ui/tab_settings.h"
 #include "src/types/energy/energy_data.h"
 #include "src/tiles/tile_config.h"
@@ -1073,6 +1074,10 @@ static bool handle_local_light_command(const char* entity_id, const char* state,
   return true;
 }
 
+static void handleCameraStatus(const char* payload, size_t) {
+  camera_popup_handle_mqtt_status(payload);
+}
+
 static const TopicRoute kRoutes[] = {
   {TopicKey::SENSOR_OUT, handleOutside, false},
   {TopicKey::SENSOR_IN, handleInside, false},
@@ -1084,6 +1089,7 @@ static const TopicRoute kRoutes[] = {
   {TopicKey::DISPLAY_SLEEP_CMND, handleDisplaySleepCommand, false},
   {TopicKey::SLEEP_MAINS_CMND, handleSleepMainsCommand, false},
   {TopicKey::SLEEP_BAT_CMND, handleSleepBatteryCommand, false},
+  {TopicKey::CAMERA_STAT, handleCameraStatus, true},
 };
 
 static String buildHaStatestreamTopic(const String& entity_id, const char* suffix) {
@@ -2263,4 +2269,29 @@ void mqttServicePostConnect() {
   // repair an entry that still points at an older device ID. The publish uses
   // the large-buffer queue, which is held back until the startup storm ends.
   networkManager.publishBridgeConfig();
+}
+
+void mqttPublishCameraCommand(const char* entity_id, const char* command) {
+  if (!entity_id || !*entity_id) return;
+  if (!networkManager.isMqttConnected()) {
+    camera_popup_set_status("MQTT nicht verbunden", true);
+    return;
+  }
+
+  const char* topic = mqttTopics.topic(TopicKey::CAMERA_CMND);
+  if (!topic || !*topic) {
+    camera_popup_set_status("Kamera-Topic fehlt", true);
+    return;
+  }
+
+  const char* action = (command && *command) ? command : "open";
+  char payload[320];
+  snprintf(payload, sizeof(payload),
+           "{\"entity_id\":\"%s\",\"command\":\"%s\"}",
+           entity_id, action);
+  const bool queued =
+      networkManager.mqttEnqueuePublishPriority(topic, payload, false);
+  Serial.printf("[Camera] command %s -> %s (%s)\n", action, topic,
+                queued ? "queued" : "queue-full");
+  if (!queued) camera_popup_set_status("MQTT Queue voll", true);
 }

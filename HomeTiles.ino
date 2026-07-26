@@ -25,6 +25,7 @@
 #include "src/ui/sensor_popup.h"
 #include "src/ui/weather_popup.h"
 #include "src/ui/energy_popup.h"
+#include "src/ui/camera_popup.h"
 #include "src/types/energy/energy_data.h"
 #include "src/network/network_manager.h"
 #include "src/network/network_transport.h"
@@ -1205,6 +1206,7 @@ void loop() {
   process_weather_popup_queue();
   process_energy_response_queue();
   process_energy_popup_queue();
+  process_camera_popup();
   uint32_t t_popup_queues = millis();
 
   // Im Idle nur alle 2s tile/sensor Queues verarbeiten (spart CPU bei 10 FPS)

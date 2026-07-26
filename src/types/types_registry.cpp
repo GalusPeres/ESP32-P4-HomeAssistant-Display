@@ -17,6 +17,7 @@
 #include "src/types/weather/renderer.h"
 #include "src/types/media/renderer.h"
 #include "src/types/climate/renderer.h"
+#include "src/types/camera/renderer.h"
 #include "src/types/pixelanim/renderer.h"
 
 #include "src/types/clock/web_handler.h"
@@ -31,6 +32,7 @@
 #include "src/types/weather/web_handler.h"
 #include "src/types/media/web_handler.h"
 #include "src/types/climate/web_handler.h"
+#include "src/types/camera/web_handler.h"
 #include "src/types/pixelanim/web_handler.h"
 
 #include "src/types/clock/web_html.h"
@@ -45,6 +47,7 @@
 #include "src/types/weather/web_html.h"
 #include "src/types/media/web_html.h"
 #include "src/types/climate/web_html.h"
+#include "src/types/camera/web_html.h"
 #include "src/types/pixelanim/web_html.h"
 
 #include "src/types/clock/web_scripts.h"
@@ -59,6 +62,7 @@
 #include "src/types/weather/web_scripts.h"
 #include "src/types/media/web_scripts.h"
 #include "src/types/climate/web_scripts.h"
+#include "src/types/camera/web_scripts.h"
 #include "src/types/pixelanim/web_scripts.h"
 
 #include "src/types/clock/web_styles.h"
@@ -73,6 +77,7 @@
 #include "src/types/weather/web_styles.h"
 #include "src/types/media/web_styles.h"
 #include "src/types/climate/web_styles.h"
+#include "src/types/camera/web_styles.h"
 #include "src/types/pixelanim/web_styles.h"
 
 #include "src/core/config_manager.h"
@@ -217,6 +222,16 @@ lv_obj_t* render_climate_wrapper(lv_obj_t* parent,
   return render_climate_tile(parent, col, row, tile, index, grid_type);
 }
 
+lv_obj_t* render_camera_wrapper(lv_obj_t* parent,
+                                int col,
+                                int row,
+                                const Tile& tile,
+                                uint8_t index,
+                                GridType grid_type,
+                                scene_publish_cb_t) {
+  return render_camera_tile(parent, col, row, tile, index, grid_type);
+}
+
 lv_obj_t* render_empty_wrapper(lv_obj_t* parent,
                                int col,
                                int row,
@@ -299,6 +314,11 @@ bool apply_climate_wrapper(WebServer& server, Tile& tile, const TileTypeApplyCon
   return true;
 }
 
+bool apply_camera_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
+  apply_camera_fields_from_request(server, tile);
+  return true;
+}
+
 bool apply_pixelanim_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
   apply_pixelanim_fields_from_request(server, tile);
   return true;
@@ -376,6 +396,11 @@ void append_media_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
 void append_climate_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
   append_climate_fields_html(
       html, safeString(ctx.tab_id), safeStrings(ctx.climate_options));
+}
+
+void append_camera_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
+  append_camera_fields_html(
+      html, safeString(ctx.tab_id), safeStrings(ctx.camera_options));
 }
 
 void append_pixelanim_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
@@ -564,6 +589,24 @@ const TileTypeDescriptor kTileTypes[] = {
     append_climate_scripts
   },
   {
+    TILE_CAMERA,
+    "Kamera",
+    "camera",
+    "camera",
+    "none",
+    nullptr,
+    "loadCameraFields",
+    "saveCameraFields",
+    "resetCameraFields",
+    0x2A2A2A,
+    false,
+    render_camera_wrapper,
+    apply_camera_wrapper,
+    append_camera_fields_wrapper,
+    append_camera_styles,
+    append_camera_scripts
+  },
+  {
     TILE_PIXELANIM,
     "Animation",
     "animation",
@@ -740,6 +783,7 @@ void append_tile_type_select_options(String& html) {
       case TILE_FOLDER: label = tr.tile_type_folder; break;
       case TILE_SWITCH: label = tr.tile_type_switch; break;
       case TILE_MEDIA: label = tr.tile_type_media; break;
+      case TILE_CAMERA: label = "Kamera"; break;
       case TILE_CLIMATE:
         label = i18n::climate_tile_type_label(
             configManager.getConfig().language);
@@ -774,6 +818,7 @@ void append_tile_type_registry_js(String& html) {
       case TILE_FOLDER: label = tr.tile_type_folder; break;
       case TILE_SWITCH: label = tr.tile_type_switch; break;
       case TILE_MEDIA: label = tr.tile_type_media; break;
+      case TILE_CAMERA: label = "Kamera"; break;
       case TILE_CLIMATE:
         label = i18n::climate_tile_type_label(
             configManager.getConfig().language);

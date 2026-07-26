@@ -70,6 +70,7 @@ struct HaBridgeConfigData {
   String switches_text;
   String media_players_text;
   String climates_text;
+  String cameras_text;
   String scene_alias_text;
   String sensor_slots[HA_SENSOR_SLOT_COUNT];
   String scene_slots[HA_SCENE_SLOT_COUNT];
