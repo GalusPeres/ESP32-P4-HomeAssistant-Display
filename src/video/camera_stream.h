@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
-bool camera_stream_start(const char* url);
+bool camera_stream_start(const char* url, uint32_t corner_rgb);
 void camera_stream_stop();
 void camera_stream_process_ui(lv_obj_t* image,
                               lv_obj_t* placeholder,

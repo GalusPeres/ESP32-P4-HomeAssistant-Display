@@ -33,6 +33,7 @@ constexpr uint16_t kWidth = camera_geometry::kWidth;
 constexpr uint16_t kHeight = camera_geometry::kHeight;
 constexpr uint16_t kDecodedWidth = camera_geometry::kDecodedWidth;
 constexpr uint16_t kDecodedHeight = camera_geometry::kDecodedHeight;
+constexpr uint16_t kCornerRadius = camera_geometry::kCornerRadius;
 constexpr size_t kPixelBytes =
     static_cast<size_t>(kDecodedWidth) * kDecodedHeight * sizeof(uint16_t);
 constexpr size_t kMaxJpegBytes = 256U * 1024U;
@@ -67,6 +68,9 @@ uint32_t g_ui_status_sequence = 0;
 char g_status[96] = "";
 bool g_status_error = false;
 uint32_t g_worker_frame_count = 0;
+uint32_t g_presented_frame_count = 0;
+uint32_t g_presented_fps_ms = 0;
+uint16_t g_corner_fill_swapped = 0;
 
 // Keep the engine alive across popup opens. Creating/deleting JPEG engines
 // repeatedly churns the 2D-DMA pool shared with the display PPA.
@@ -204,6 +208,41 @@ static bool ensure_jpeg_decoder() {
   return true;
 }
 
+static uint16_t rgb888_to_swapped_rgb565(uint32_t rgb) {
+  const uint16_t native = static_cast<uint16_t>(
+      (((rgb >> 16U) & 0xFFU) >> 3U) << 11U |
+      (((rgb >> 8U) & 0xFFU) >> 2U) << 5U |
+      ((rgb & 0xFFU) >> 3U));
+  return static_cast<uint16_t>((native << 8U) | (native >> 8U));
+}
+
+static void apply_rounded_frame_corners(uint16_t* pixels) {
+  if (!pixels || kCornerRadius == 0 ||
+      kCornerRadius * 2U > kWidth || kCornerRadius * 2U > kHeight) {
+    return;
+  }
+
+  // LVGL's generic rounded child clipping blends the entire 752x424 image.
+  // Masking only these four tiny corner quadrants preserves the same solid
+  // popup surface while keeping the regular cache-coherent LVGL render path.
+  const int32_t diameter = static_cast<int32_t>(kCornerRadius) * 2;
+  const int32_t radius_squared = diameter * diameter;
+  for (uint16_t y = 0; y < kCornerRadius; ++y) {
+    const int32_t dy = diameter - 1 - static_cast<int32_t>(y) * 2;
+    uint16_t* top = pixels + static_cast<size_t>(y) * kDecodedWidth;
+    uint16_t* bottom =
+        pixels + static_cast<size_t>(kHeight - 1U - y) * kDecodedWidth;
+    for (uint16_t x = 0; x < kCornerRadius; ++x) {
+      const int32_t dx = diameter - 1 - static_cast<int32_t>(x) * 2;
+      if ((dx * dx) + (dy * dy) <= radius_squared) continue;
+      top[x] = g_corner_fill_swapped;
+      top[kWidth - 1U - x] = g_corner_fill_swapped;
+      bottom[x] = g_corner_fill_swapped;
+      bottom[kWidth - 1U - x] = g_corner_fill_swapped;
+    }
+  }
+}
+
 static bool decode_jpeg_frame(const uint8_t* jpeg, size_t jpeg_bytes) {
   if (!jpeg || jpeg_bytes < 4 || jpeg_bytes > UINT32_MAX ||
       jpeg[0] != 0xFF || jpeg[1] != 0xD8 ||
@@ -277,6 +316,7 @@ static bool decode_jpeg_frame(const uint8_t* jpeg, size_t jpeg_bytes) {
     return false;
   }
 
+  apply_rounded_frame_corners(g_pixels[index]);
   publish_write_buffer(index);
   ++g_worker_frame_count;
   if (g_worker_frame_count == 1) {
@@ -387,9 +427,7 @@ class JpegRecordStream final : public Stream {
         const float fps =
             static_cast<float>(frame_count_) * 1000.0f /
             static_cast<float>(now - last_fps_ms_);
-        char message[64];
-        snprintf(message, sizeof(message), camera_text().camera_fps_fmt, fps);
-        set_status(message);
+        Serial.printf("[CameraStream] Decode: %.1f FPS\n", fps);
         frame_count_ = 0;
         last_fps_ms_ = now;
       }
@@ -946,7 +984,7 @@ static void camera_task(void*) {
 
 }  // namespace
 
-bool camera_stream_start(const char* url) {
+bool camera_stream_start(const char* url, uint32_t corner_rgb) {
   if (!url || !*url) {
     set_status(camera_text().camera_empty_url, true);
     return false;
@@ -979,8 +1017,11 @@ bool camera_stream_start(const char* url) {
   portEXIT_CRITICAL(&g_state_mux);
 
   g_url = url;
+  g_corner_fill_swapped = rgb888_to_swapped_rgb565(corner_rgb);
   g_stop_requested = false;
   g_worker_frame_count = 0;
+  g_presented_frame_count = 0;
+  g_presented_fps_ms = millis();
   const BaseType_t task_core = (ARDUINO_RUNNING_CORE == 0) ? 1 : 0;
   if (xTaskCreatePinnedToCoreWithCaps(
           camera_task, "cameraJpeg", 16384, nullptr, tskIDLE_PRIORITY,
@@ -1053,6 +1094,18 @@ void camera_stream_process_ui(lv_obj_t* image,
     if (lv_display_t* display = lv_obj_get_display(image)) {
       lv_refr_now(display);
     }
+    ++g_presented_frame_count;
+    const uint32_t now = millis();
+    if (now - g_presented_fps_ms >= 2000) {
+      const float fps =
+          static_cast<float>(g_presented_frame_count) * 1000.0f /
+          static_cast<float>(now - g_presented_fps_ms);
+      char message[64];
+      snprintf(message, sizeof(message), camera_text().camera_fps_fmt, fps);
+      set_status(message);
+      g_presented_frame_count = 0;
+      g_presented_fps_ms = now;
+    }
   }
 
   char status[sizeof(g_status)] = "";
@@ -1084,7 +1137,7 @@ bool camera_stream_is_active() {
 
 #else
 
-bool camera_stream_start(const char*) {
+bool camera_stream_start(const char*, uint32_t) {
   camera_stream_set_external_status(
       i18n::strings(configManager.getConfig().language).camera_device_only,
       true);

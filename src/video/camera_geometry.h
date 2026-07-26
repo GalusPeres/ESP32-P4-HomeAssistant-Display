@@ -18,6 +18,8 @@ inline constexpr uint16_t kWidth =
     static_cast<uint16_t>(popup_layout::kContentWidth & ~1);
 inline constexpr uint16_t kHeight = evenCeil(
     static_cast<uint32_t>(kWidth) * 9U, 16U);
+inline constexpr uint16_t kCornerRadius =
+    static_cast<uint16_t>(popup_layout::scale480(18));
 // Experimental target for the bounded low-latency camera path. Frames may be
 // dropped locally when display/DMA work cannot keep up; MQTT is never paused
 // and its internal-memory reserve is not reduced.

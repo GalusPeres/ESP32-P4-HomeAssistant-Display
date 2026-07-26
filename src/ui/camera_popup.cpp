@@ -30,6 +30,7 @@ constexpr int kStatusTop =
 
 struct CameraPopupContext {
   String entity_id;
+  uint32_t surface_color = 0x2A2A2A;
   lv_obj_t* overlay = nullptr;
   lv_obj_t* card = nullptr;
   lv_obj_t* icon_label = nullptr;
@@ -209,8 +210,10 @@ static CameraPopupContext* create_popup() {
   lv_obj_align(video, LV_ALIGN_TOP_MID, 0, kVideoTop);
   lv_obj_set_style_bg_color(video, lv_color_black(), 0);
   lv_obj_set_style_bg_opa(video, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(video, popup_layout::scale480(18), 0);
-  lv_obj_set_style_clip_corner(video, true, 0);
+  lv_obj_set_style_radius(video, camera_geometry::kCornerRadius, 0);
+  // Camera frames carry their own small rounded-corner mask. Generic child
+  // clipping makes every full video redraw pixel-bound and stalls the P4 UI.
+  lv_obj_set_style_clip_corner(video, false, 0);
   lv_obj_set_style_border_width(video, 0, 0);
   lv_obj_set_style_shadow_width(video, 0, 0);
   lv_obj_set_style_pad_all(video, 0, 0);
@@ -269,9 +272,11 @@ void show_camera_popup(const CameraPopupInit& init) {
   g_camera_popup->draw_buffer_restore_pending = false;
   g_camera_popup->entity_id = init.entity_id;
   g_camera_popup->visible = true;
+  g_camera_popup->surface_color =
+      init.bg_color != 0 ? init.bg_color : 0x2A2A2A;
   lv_obj_set_style_bg_color(
       g_camera_popup->card,
-      lv_color_hex(init.bg_color != 0 ? init.bg_color : 0x2A2A2A), 0);
+      lv_color_hex(g_camera_popup->surface_color), 0);
 
   String title = init.title;
   title.trim();
@@ -385,7 +390,7 @@ void camera_popup_handle_mqtt_status(const char* payload) {
             "normaler sicherer Renderpfad bleibt aktiv");
       }
     }
-    if (!camera_stream_start(url) &&
+    if (!camera_stream_start(url, g_camera_popup->surface_color) &&
         g_camera_popup->large_draw_buffer_active) {
       const size_t restore_lines =
           g_camera_popup->previous_draw_buffer_lines;
