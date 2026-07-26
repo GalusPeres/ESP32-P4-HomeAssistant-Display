@@ -339,9 +339,8 @@ static bool decode_buffer(esp_h264_dec_handle_t decoder,
   return true;
 }
 
-// HTTPClient::getStreamPtr() exposes the raw socket, including HTTP/1.1 chunk
-// framing. writeToStream() removes that framing first and forwards only H.264
-// payload bytes to this sink.
+// Receives only H.264 payload bytes after HttpChunkedBodyDecoder has removed
+// HTTP/1.1 chunk framing from the raw socket.
 class H264DecodeStream final : public Stream {
  public:
   H264DecodeStream(esp_h264_dec_handle_t decoder, uint8_t* input)
@@ -419,6 +418,106 @@ class H264DecodeStream final : public Stream {
   bool at_stream_start_ = true;
 };
 
+class HttpChunkedBodyDecoder {
+ public:
+  bool feed(const uint8_t* raw, size_t len, H264DecodeStream& output) {
+    size_t offset = 0;
+    while (offset < len && state_ != State::Done) {
+      switch (state_) {
+        case State::SizeLine: {
+          const char ch = static_cast<char>(raw[offset++]);
+          if (ch == '\n') {
+            if (!parse_size_line()) return fail("ungueltige Chunk-Groesse");
+            size_line_len_ = 0;
+            state_ = chunk_remaining_ == 0 ? State::Done : State::Data;
+          } else if (ch != '\r') {
+            if (size_line_len_ + 1 >= sizeof(size_line_)) {
+              return fail("Chunk-Groessenzeile zu lang");
+            }
+            size_line_[size_line_len_++] = ch;
+          }
+          break;
+        }
+        case State::Data: {
+          const size_t take =
+              std::min(chunk_remaining_, len - offset);
+          if (output.write(raw + offset, take) != take) return false;
+          offset += take;
+          chunk_remaining_ -= take;
+          if (chunk_remaining_ == 0) state_ = State::DataCr;
+          break;
+        }
+        case State::DataCr:
+          if (raw[offset++] != '\r') {
+            return fail("CR nach Chunk fehlt");
+          }
+          state_ = State::DataLf;
+          break;
+        case State::DataLf:
+          if (raw[offset++] != '\n') {
+            return fail("LF nach Chunk fehlt");
+          }
+          state_ = State::SizeLine;
+          break;
+        case State::Done:
+          break;
+      }
+    }
+    return state_ != State::Done;
+  }
+
+ private:
+  enum class State : uint8_t {
+    SizeLine,
+    Data,
+    DataCr,
+    DataLf,
+    Done,
+  };
+
+  bool parse_size_line() {
+    size_t index = 0;
+    while (index < size_line_len_ &&
+           (size_line_[index] == ' ' || size_line_[index] == '\t')) {
+      ++index;
+    }
+    uint32_t value = 0;
+    bool have_digit = false;
+    for (; index < size_line_len_; ++index) {
+      const char ch = size_line_[index];
+      if (ch == ';' || ch == ' ' || ch == '\t') break;
+      uint8_t digit = 0;
+      if (ch >= '0' && ch <= '9') {
+        digit = static_cast<uint8_t>(ch - '0');
+      } else if (ch >= 'a' && ch <= 'f') {
+        digit = static_cast<uint8_t>(ch - 'a' + 10);
+      } else if (ch >= 'A' && ch <= 'F') {
+        digit = static_cast<uint8_t>(ch - 'A' + 10);
+      } else {
+        return false;
+      }
+      if (value > (UINT32_MAX - digit) / 16U) return false;
+      value = value * 16U + digit;
+      have_digit = true;
+    }
+    if (!have_digit) return false;
+    chunk_remaining_ = value;
+    return true;
+  }
+
+  bool fail(const char* reason) {
+    Serial.printf("[CameraStream] HTTP-Chunk-Fehler: %s\n", reason);
+    set_status(camera_text().camera_connection_ended, true);
+    state_ = State::Done;
+    return false;
+  }
+
+  State state_ = State::SizeLine;
+  char size_line_[32] = {};
+  size_t size_line_len_ = 0;
+  size_t chunk_remaining_ = 0;
+};
+
 static void finish_camera_task(HTTPClient* http,
                                esp_h264_dec_handle_t decoder,
                                uint8_t* input) {
@@ -455,6 +554,8 @@ static void run_camera_task() {
   // the short streaming read waits configured after the response arrives.
   http.setTimeout(kHttpHeaderTimeoutMs);
   http.setReuse(false);
+  const char* response_headers[] = {"Transfer-Encoding"};
+  http.collectHeaders(response_headers, 1);
 
   const bool secure = url.startsWith("https://");
   Serial.printf(
@@ -490,6 +591,11 @@ static void run_camera_task() {
     finish_camera_task(&http, nullptr, nullptr);
     return;
   }
+  const String transfer_encoding = http.header("Transfer-Encoding");
+  const bool chunked =
+      transfer_encoding.equalsIgnoreCase("chunked");
+  Serial.printf("[CameraStream] HTTP-Transfer: %s\n",
+                chunked ? "chunked" : "identity");
 
   esp_h264_dec_cfg_sw_t decoder_cfg{};
   decoder_cfg.pic_type = ESP_H264_RAW_FMT_I420;
@@ -514,14 +620,41 @@ static void run_camera_task() {
     return;
   }
 
-  // Let HTTPClient remove HTTP/1.1 chunk framing before bytes reach the H.264
-  // decoder. A bounded per-chunk wait keeps close responsive without touching
-  // the TLS socket from another task.
-  http.setTimeout(1500);
   set_status(camera_text().camera_buffering);
   H264DecodeStream decode_stream(decoder, input);
-  const int stream_result = http.writeToStream(&decode_stream);
-  Serial.printf("[CameraStream] HTTP-Stream beendet: %d\n", stream_result);
+  HttpChunkedBodyDecoder chunk_decoder;
+  NetworkClient* stream = http.getStreamPtr();
+  uint8_t raw[2048];
+  bool stream_ok = true;
+  while (!g_stop_requested && stream &&
+         (http.connected() || stream->available() > 0)) {
+    const int available = stream->available();
+    if (available <= 0) {
+      vTaskDelay(pdMS_TO_TICKS(2));
+      continue;
+    }
+    const size_t wanted =
+        std::min(sizeof(raw), static_cast<size_t>(available));
+    const int received = stream->read(raw, wanted);
+    if (received <= 0) {
+      vTaskDelay(pdMS_TO_TICKS(1));
+      continue;
+    }
+    if (chunked) {
+      if (!chunk_decoder.feed(raw, static_cast<size_t>(received),
+                              decode_stream)) {
+        stream_ok = false;
+        break;
+      }
+    } else if (decode_stream.write(
+                   raw, static_cast<size_t>(received)) !=
+               static_cast<size_t>(received)) {
+      stream_ok = false;
+      break;
+    }
+  }
+  Serial.printf("[CameraStream] HTTP-Stream beendet: ok=%s\n",
+                stream_ok ? "ja" : "nein");
 
   if (g_stop_requested) {
     set_status(camera_text().camera_stream_stopped);
