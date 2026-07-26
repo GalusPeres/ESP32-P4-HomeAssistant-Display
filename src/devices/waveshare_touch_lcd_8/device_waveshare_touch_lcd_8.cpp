@@ -1132,6 +1132,14 @@ bool DeviceWaveshareTouchLCD8::displayTryFullFramePreview(
 void DeviceWaveshareTouchLCD8::displayWaitDMA() {
 }
 
+void DeviceWaveshareTouchLCD8::displayWaitFrameStart() {
+  // Discard an old ISR signal and wait for the next physical frame boundary.
+  // The following full camera flush then has almost one scan period to update
+  // its rotated framebuffer region, greatly reducing single-FB tearing.
+  drain_refresh_signal();
+  wait_refresh_done();
+}
+
 void DeviceWaveshareTouchLCD8::displayCommit() {
   if (!g_panel || !g_panel_fb_ready || !g_frame_dirty) {
     return;

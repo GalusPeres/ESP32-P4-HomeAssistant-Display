@@ -48,6 +48,12 @@ void displayWaitDMA() {
   DeviceImpl::displayWaitDMA();
 }
 
+void displayWaitFrameStart() {
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+  DeviceImpl::displayWaitFrameStart();
+#endif
+}
+
 void displayFillScreen(uint16_t color) {
   DeviceImpl::displayFillScreen(color);
 }

@@ -12,13 +12,16 @@
 #if defined(CONFIG_IDF_TARGET_ESP32P4) && \
     defined(SOC_JPEG_DECODE_SUPPORTED) && SOC_JPEG_DECODE_SUPPORTED
 
-#include <HTTPClient.h>
-#include <NetworkClient.h>
 #include <driver/jpeg_decode.h>
+#include <fcntl.h>
+#include <lwip/netdb.h>
 #include <lwip/sockets.h>
 
 #include <algorithm>
+#include <cerrno>
+#include <cstdlib>
 #include <cstring>
+#include <strings.h>
 
 #include "src/core/dma2d_arbiter.h"
 #include "src/devices/device.h"
@@ -36,6 +39,9 @@ constexpr size_t kMaxJpegBytes = 256U * 1024U;
 constexpr uint8_t kFrameBufferCount = 2;
 constexpr uint32_t kHttpHeaderTimeoutMs = 5000;
 constexpr int kHttpReceiveBufferBytes = 4 * 1024;
+constexpr uint32_t kHttpConnectTimeoutMs = 4000;
+constexpr uint32_t kSocketPollTimeoutMs = 250;
+constexpr size_t kHttpHeaderBytes = 4 * 1024;
 constexpr size_t kMinCameraDmaHeadroomBytes = 24 * 1024;
 constexpr uint32_t kDmaHeadroomGraceMs = 250;
 constexpr char kJpegFraming[] = "be32-jpeg";
@@ -510,7 +516,201 @@ class HttpChunkedBodyDecoder {
   size_t chunk_remaining_ = 0;
 };
 
-static void finish_camera_task(HTTPClient* http, uint8_t* input) {
+struct HttpEndpoint {
+  char host[128] = {};
+  char path[320] = {};
+  uint16_t port = 80;
+};
+
+static bool parse_http_url(const char* url, HttpEndpoint& endpoint) {
+  constexpr char kScheme[] = "http://";
+  if (!url || strncmp(url, kScheme, sizeof(kScheme) - 1) != 0) return false;
+  const char* authority = url + sizeof(kScheme) - 1;
+  const char* path = strchr(authority, '/');
+  const char* authority_end = path ? path : authority + strlen(authority);
+  if (authority == authority_end ||
+      memchr(authority, '@', authority_end - authority)) {
+    return false;
+  }
+
+  const char* host_begin = authority;
+  const char* host_end = authority_end;
+  const char* port_begin = nullptr;
+  if (*host_begin == '[') {
+    ++host_begin;
+    host_end = static_cast<const char*>(
+        memchr(host_begin, ']', authority_end - host_begin));
+    if (!host_end) return false;
+    const char* after_bracket = host_end + 1;
+    if (after_bracket < authority_end) {
+      if (*after_bracket != ':') return false;
+      port_begin = after_bracket + 1;
+    }
+  } else {
+    const char* colon = static_cast<const char*>(
+        memchr(authority, ':', authority_end - authority));
+    if (colon) {
+      host_end = colon;
+      port_begin = colon + 1;
+    }
+  }
+
+  const size_t host_len = static_cast<size_t>(host_end - host_begin);
+  if (host_len == 0 || host_len >= sizeof(endpoint.host)) return false;
+  memcpy(endpoint.host, host_begin, host_len);
+  endpoint.host[host_len] = '\0';
+
+  if (port_begin) {
+    if (port_begin >= authority_end) return false;
+    char port_text[8] = {};
+    const size_t port_len =
+        static_cast<size_t>(authority_end - port_begin);
+    if (port_len == 0 || port_len >= sizeof(port_text)) return false;
+    memcpy(port_text, port_begin, port_len);
+    char* port_end = nullptr;
+    const unsigned long parsed = strtoul(port_text, &port_end, 10);
+    if (!port_end || *port_end || parsed == 0 || parsed > UINT16_MAX) {
+      return false;
+    }
+    endpoint.port = static_cast<uint16_t>(parsed);
+  }
+
+  const char* source_path = path ? path : "/";
+  if (strlen(source_path) >= sizeof(endpoint.path)) return false;
+  snprintf(endpoint.path, sizeof(endpoint.path), "%s", source_path);
+  return true;
+}
+
+static int connect_http_socket(const HttpEndpoint& endpoint) {
+  char port_text[8] = {};
+  snprintf(port_text, sizeof(port_text), "%u",
+           static_cast<unsigned>(endpoint.port));
+  addrinfo hints{};
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_protocol = IPPROTO_TCP;
+  addrinfo* addresses = nullptr;
+  const int lookup = getaddrinfo(endpoint.host, port_text, &hints, &addresses);
+  if (lookup != 0 || !addresses) {
+    Serial.printf("[CameraStream] HTTP DNS fehlgeschlagen: %d\n", lookup);
+    return -1;
+  }
+
+  int connected_fd = -1;
+  for (addrinfo* address = addresses; address; address = address->ai_next) {
+    const int fd =
+        socket(address->ai_family, address->ai_socktype, address->ai_protocol);
+    if (fd < 0) continue;
+
+    setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &kHttpReceiveBufferBytes,
+               sizeof(kHttpReceiveBufferBytes));
+    const int original_flags = fcntl(fd, F_GETFL, 0);
+    if (original_flags < 0 ||
+        fcntl(fd, F_SETFL, original_flags | O_NONBLOCK) < 0) {
+      close(fd);
+      continue;
+    }
+
+    int result = connect(fd, address->ai_addr, address->ai_addrlen);
+    bool connected = result == 0;
+    if (!connected && result < 0 && errno == EINPROGRESS) {
+      fd_set writable;
+      FD_ZERO(&writable);
+      FD_SET(fd, &writable);
+      timeval timeout{
+          static_cast<time_t>(kHttpConnectTimeoutMs / 1000U),
+          static_cast<suseconds_t>(
+              (kHttpConnectTimeoutMs % 1000U) * 1000U)};
+      const int selected =
+          select(fd + 1, nullptr, &writable, nullptr, &timeout);
+      if (selected > 0) {
+        int socket_error = 0;
+        socklen_t error_size = sizeof(socket_error);
+        result = getsockopt(fd, SOL_SOCKET, SO_ERROR, &socket_error,
+                            &error_size);
+        connected = result == 0 && socket_error == 0;
+        if (!connected && socket_error != 0) errno = socket_error;
+      }
+    }
+    if (!connected) {
+      close(fd);
+      continue;
+    }
+
+    fcntl(fd, F_SETFL, original_flags & ~O_NONBLOCK);
+    timeval poll_timeout{
+        static_cast<time_t>(kSocketPollTimeoutMs / 1000U),
+        static_cast<suseconds_t>(
+            (kSocketPollTimeoutMs % 1000U) * 1000U)};
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &poll_timeout,
+               sizeof(poll_timeout));
+    connected_fd = fd;
+    break;
+  }
+  freeaddrinfo(addresses);
+  return connected_fd;
+}
+
+static bool socket_send_all(int fd, const char* data, size_t bytes) {
+  while (bytes > 0 && !g_stop_requested) {
+    const int sent = send(fd, data, bytes, 0);
+    if (sent > 0) {
+      data += sent;
+      bytes -= static_cast<size_t>(sent);
+      continue;
+    }
+    if (sent < 0 && errno == EINTR) continue;
+    return false;
+  }
+  return bytes == 0;
+}
+
+static size_t find_http_header_end(const char* data, size_t bytes) {
+  if (!data || bytes < 4) return SIZE_MAX;
+  for (size_t i = 0; i + 3 < bytes; ++i) {
+    if (data[i] == '\r' && data[i + 1] == '\n' &&
+        data[i + 2] == '\r' && data[i + 3] == '\n') {
+      return i;
+    }
+  }
+  return SIZE_MAX;
+}
+
+static bool read_http_header_value(const char* header,
+                                   const char* name,
+                                   char* output,
+                                   size_t output_bytes) {
+  if (!header || !name || !output || output_bytes == 0) return false;
+  const size_t name_len = strlen(name);
+  const char* line = strstr(header, "\r\n");
+  if (!line) return false;
+  line += 2;
+  while (*line) {
+    const char* line_end = strstr(line, "\r\n");
+    if (!line_end) line_end = line + strlen(line);
+    const char* colon = static_cast<const char*>(
+        memchr(line, ':', static_cast<size_t>(line_end - line)));
+    if (colon && static_cast<size_t>(colon - line) == name_len &&
+        strncasecmp(line, name, name_len) == 0) {
+      const char* value = colon + 1;
+      while (value < line_end && (*value == ' ' || *value == '\t')) ++value;
+      while (line_end > value &&
+             (line_end[-1] == ' ' || line_end[-1] == '\t')) {
+        --line_end;
+      }
+      const size_t value_len = static_cast<size_t>(line_end - value);
+      if (value_len >= output_bytes) return false;
+      memcpy(output, value, value_len);
+      output[value_len] = '\0';
+      return true;
+    }
+    if (!*line_end) break;
+    line = line_end + 2;
+  }
+  return false;
+}
+
+static void finish_camera_task(int socket_fd, uint8_t* input) {
   Serial.printf(
       "[CameraStream] Task-Ende: stop=%s frames=%u int=%uKB "
       "largest=%uKB psram=%uKB\n",
@@ -523,35 +723,26 @@ static void finish_camera_task(HTTPClient* http, uint8_t* input) {
       static_cast<unsigned>(
           heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
   free(input);
-  if (http) http->end();
+  if (socket_fd >= 0) {
+    shutdown(socket_fd, SHUT_RDWR);
+    close(socket_fd);
+  }
 }
 
 static void run_camera_task() {
   set_status(camera_text().camera_http_connecting);
   const String url = g_url;
-  if (!url.startsWith("http://")) {
+  HttpEndpoint endpoint;
+  if (!parse_http_url(url.c_str(), endpoint)) {
     Serial.println(
         "[CameraStream] Abgelehnt: Kamera-Transport muss lokales HTTP sein");
     set_status(camera_text().camera_invalid_response, true);
     return;
   }
 
-  NetworkClient plain_client;
-  HTTPClient http;
-  http.setConnectTimeout(4000);
-  // Home Assistant may still be scheduling the route while a camera
-  // integration finishes its first source request.
-  http.setTimeout(kHttpHeaderTimeoutMs);
-  http.setReuse(false);
-  const char* response_headers[] = {
-      "Transfer-Encoding",
-      "X-HomeTiles-Framing",
-  };
-  http.collectHeaders(response_headers, 2);
-
   Serial.printf(
-      "[CameraStream] Start: transport=http url_len=%u int=%uKB largest=%uKB "
-      "psram=%uKB\n",
+      "[CameraStream] Start: transport=bounded-tcp-http url_len=%u "
+      "int=%uKB largest=%uKB psram=%uKB\n",
       static_cast<unsigned>(url.length()),
       static_cast<unsigned>(
           heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024U),
@@ -559,43 +750,94 @@ static void run_camera_task() {
           heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024U),
       static_cast<unsigned>(
           heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
-  if (!http.begin(plain_client, url)) {
-    Serial.println("[CameraStream] HTTP begin() fehlgeschlagen");
+  const uint32_t get_started_ms = millis();
+  int socket_fd = connect_http_socket(endpoint);
+  if (socket_fd < 0) {
+    Serial.printf("[CameraStream] HTTP-Verbindung fehlgeschlagen: errno=%d\n",
+                  errno);
     set_status(camera_text().camera_url_open_failed, true);
-    finish_camera_task(&http, nullptr);
     return;
   }
 
-  const uint32_t get_started_ms = millis();
-  const int code = http.GET();
-  Serial.printf("[CameraStream] HTTP GET=%d nach %ums\n",
-                code,
+  char request[512] = {};
+  const int request_bytes = snprintf(
+      request, sizeof(request),
+      "GET %s HTTP/1.1\r\nHost: %s:%u\r\n"
+      "Accept: application/x-hometiles-jpeg-stream\r\n"
+      "Connection: close\r\nUser-Agent: HomeTiles-P4/1\r\n\r\n",
+      endpoint.path, endpoint.host, static_cast<unsigned>(endpoint.port));
+  if (request_bytes <= 0 ||
+      static_cast<size_t>(request_bytes) >= sizeof(request) ||
+      !socket_send_all(socket_fd, request,
+                       static_cast<size_t>(request_bytes))) {
+    Serial.printf("[CameraStream] HTTP GET senden fehlgeschlagen: errno=%d\n",
+                  errno);
+    set_status(camera_text().camera_url_open_failed, true);
+    finish_camera_task(socket_fd, nullptr);
+    return;
+  }
+
+  char header[kHttpHeaderBytes] = {};
+  size_t header_bytes = 0;
+  size_t header_marker = SIZE_MAX;
+  uint8_t raw[2048];
+  while (!g_stop_requested &&
+         static_cast<uint32_t>(millis() - get_started_ms) <
+             kHttpHeaderTimeoutMs) {
+    const int received = recv(socket_fd, raw, sizeof(raw), 0);
+    if (received > 0) {
+      if (header_bytes + static_cast<size_t>(received) >
+          sizeof(header) - 1) {
+        break;
+      }
+      memcpy(header + header_bytes, raw, static_cast<size_t>(received));
+      header_bytes += static_cast<size_t>(received);
+      header_marker = find_http_header_end(header, header_bytes);
+      if (header_marker != SIZE_MAX) break;
+      continue;
+    }
+    if (received == 0) break;
+    if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) continue;
+    break;
+  }
+  if (header_marker == SIZE_MAX) {
+    Serial.printf("[CameraStream] HTTP-Header unvollstaendig: %u Bytes\n",
+                  static_cast<unsigned>(header_bytes));
+    set_status(camera_text().camera_url_open_failed, true);
+    finish_camera_task(socket_fd, nullptr);
+    return;
+  }
+
+  header[header_marker] = '\0';
+  int code = 0;
+  if (sscanf(header, "HTTP/%*u.%*u %d", &code) != 1) code = -1;
+  Serial.printf("[CameraStream] HTTP GET=%d nach %ums\n", code,
                 static_cast<unsigned>(millis() - get_started_ms));
-  if (code != HTTP_CODE_OK) {
+  if (code != 200) {
     char message[64];
     snprintf(message, sizeof(message), camera_text().camera_http_error_fmt,
              code);
     set_status(message, true);
-    finish_camera_task(&http, nullptr);
+    finish_camera_task(socket_fd, nullptr);
     return;
   }
 
-  const int receive_buffer_bytes = kHttpReceiveBufferBytes;
-  const int receive_buffer_result = plain_client.setSocketOption(
-      SOL_SOCKET, SO_RCVBUF, &receive_buffer_bytes,
-      sizeof(receive_buffer_bytes));
-  Serial.printf("[CameraStream] HTTP RX-Puffer: %d Bytes (set=%d)\n",
-                receive_buffer_bytes, receive_buffer_result);
-  const String transfer_encoding = http.header("Transfer-Encoding");
-  const bool chunked = transfer_encoding.equalsIgnoreCase("chunked");
-  const String framing = http.header("X-HomeTiles-Framing");
+  char transfer_encoding[32] = {};
+  char framing[32] = {};
+  read_http_header_value(header, "Transfer-Encoding", transfer_encoding,
+                         sizeof(transfer_encoding));
+  read_http_header_value(header, "X-HomeTiles-Framing", framing,
+                         sizeof(framing));
+  const bool chunked = strcasecmp(transfer_encoding, "chunked") == 0;
+  Serial.printf("[CameraStream] HTTP RX-Puffer: %d Bytes (fest)\n",
+                kHttpReceiveBufferBytes);
   Serial.printf("[CameraStream] HTTP-Transfer: %s\n",
                 chunked ? "chunked" : "identity");
-  Serial.printf("[CameraStream] JPEG-Framing: %s\n", framing.c_str());
-  if (!framing.equalsIgnoreCase(kJpegFraming)) {
+  Serial.printf("[CameraStream] JPEG-Framing: %s\n", framing);
+  if (strcasecmp(framing, kJpegFraming) != 0) {
     Serial.println("[CameraStream] Bridge liefert kein JPEG-Framing");
     set_status(camera_text().camera_invalid_response, true);
-    finish_camera_task(&http, nullptr);
+    finish_camera_task(socket_fd, nullptr);
     return;
   }
 
@@ -605,19 +847,25 @@ static void run_camera_task() {
     Serial.printf("[CameraStream] JPEG-Eingangspuffer (%u Bytes) fehlt\n",
                   static_cast<unsigned>(kMaxJpegBytes));
     set_status(camera_text().camera_input_memory_failed, true);
-    finish_camera_task(&http, nullptr);
+    finish_camera_task(socket_fd, nullptr);
     return;
   }
 
   set_status(camera_text().camera_buffering);
   JpegRecordStream jpeg_stream(input);
   HttpChunkedBodyDecoder chunk_decoder;
-  NetworkClient* stream = http.getStreamPtr();
-  uint8_t raw[2048];
   bool stream_ok = true;
   uint32_t low_dma_headroom_since_ms = 0;
-  while (!g_stop_requested && stream &&
-         (http.connected() || stream->available() > 0)) {
+  const size_t body_offset = header_marker + 4;
+  if (body_offset < header_bytes) {
+    const uint8_t* body =
+        reinterpret_cast<const uint8_t*>(header) + body_offset;
+    const size_t body_bytes = header_bytes - body_offset;
+    stream_ok = chunked
+        ? chunk_decoder.feed(body, body_bytes, jpeg_stream)
+        : jpeg_stream.write(body, body_bytes) == body_bytes;
+  }
+  while (!g_stop_requested && stream_ok) {
     const size_t dma_free = heap_caps_get_free_size(
         MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
     const size_t mqtt_dma_reserve = networkManager.mqttDmaReserveBytes();
@@ -643,16 +891,15 @@ static void run_camera_task() {
     } else {
       low_dma_headroom_since_ms = 0;
     }
-    const int available = stream->available();
-    if (available <= 0) {
-      vTaskDelay(pdMS_TO_TICKS(2));
-      continue;
-    }
-    const size_t wanted =
-        std::min(sizeof(raw), static_cast<size_t>(available));
-    const int received = stream->read(raw, wanted);
-    if (received <= 0) {
-      vTaskDelay(pdMS_TO_TICKS(1));
+    const int received = recv(socket_fd, raw, sizeof(raw), 0);
+    if (received == 0) break;
+    if (received < 0) {
+      if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
+        stream_ok = false;
+        Serial.printf("[CameraStream] TCP-Empfangsfehler: errno=%d\n", errno);
+        break;
+      }
+      taskYIELD();
       continue;
     }
     if (chunked) {
@@ -680,12 +927,12 @@ static void run_camera_task() {
     portEXIT_CRITICAL(&g_state_mux);
     if (!had_error) set_status(camera_text().camera_connection_ended, true);
   }
-  finish_camera_task(&http, input);
+  finish_camera_task(socket_fd, input);
 }
 
 static void camera_task(void*) {
-  // Keep all C++ objects inside this scope. Their destructors must run before
-  // FreeRTOS deletes the task stack, especially HTTPClient/NetworkClient.
+  // Keep all worker-owned objects inside this scope so cleanup completes
+  // before FreeRTOS releases the PSRAM-backed task stack.
   run_camera_task();
 
   bool release_buffers = false;
@@ -796,9 +1043,16 @@ void camera_stream_process_ui(lv_obj_t* image,
   }
 
   if (ready >= 0) {
+    // Keep normal LVGL clipping/rounded corners, but align this one complete
+    // image refresh with the Waveshare 8 panel scan. The large PSRAM draw
+    // buffer lets LVGL emit the 752x424 image as one PPA operation.
+    Device::displayWaitFrameStart();
     lv_image_set_src(image, &g_images[ready]);
     lv_obj_clear_flag(image, LV_OBJ_FLAG_HIDDEN);
     if (placeholder) lv_obj_add_flag(placeholder, LV_OBJ_FLAG_HIDDEN);
+    if (lv_display_t* display = lv_obj_get_display(image)) {
+      lv_refr_now(display);
+    }
   }
 
   char status[sizeof(g_status)] = "";

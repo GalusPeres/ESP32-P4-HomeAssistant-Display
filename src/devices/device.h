@@ -39,6 +39,9 @@ bool displayTryFullFramePreview(int32_t x, int32_t y, int32_t w, int32_t h,
                                 bool byte_swap);
 bool ppaCooldownActive();
 void displayWaitDMA();
+// Best-effort wait for the beginning of a physical panel frame. Devices
+// without a refresh callback implement this as a no-op.
+void displayWaitFrameStart();
 void displayFillScreen(uint16_t color);
 void displaySetRotation(uint8_t rotation);
 

@@ -339,7 +339,12 @@ bool DisplayManager::setSinglePsramBufferLines(size_t lines) {
 
   const size_t bytes =
       static_cast<size_t>(SCREEN_WIDTH) * lines * g_bytes_per_pixel;
-  const uint32_t psram_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA;
+  // On ESP32-P4 the PPA can read cache-synchronised external RAM, but the
+  // generic heap does not advertise PSRAM as MALLOC_CAP_DMA. Requiring both
+  // capabilities therefore reports zero available bytes and silently kept the
+  // camera on the small band buffer. Allocate ordinary byte-addressable PSRAM;
+  // the device flush path performs the required cache write-back before PPA.
+  const uint32_t psram_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
   const size_t free_psram = heap_caps_get_free_size(psram_caps);
   const size_t largest_psram =
       heap_caps_get_largest_free_block(psram_caps);
