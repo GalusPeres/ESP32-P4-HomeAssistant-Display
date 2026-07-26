@@ -315,7 +315,10 @@ static void camera_task(void*) {
   secure_client.setInsecure();
   HTTPClient http;
   http.setConnectTimeout(4000);
-  http.setTimeout(250);
+  // Starting the HA route also starts FFmpeg. Give that route enough time to
+  // return its HTTP headers; 250 ms here surfaced as HTTPC READ_TIMEOUT (-11)
+  // on otherwise healthy BambuLab A1 sessions.
+  http.setTimeout(5000);
   http.setReuse(false);
 
   const bool secure = url.startsWith("https://");
@@ -357,6 +360,9 @@ static void camera_task(void*) {
     return;
   }
 
+  // Once the response is established, short socket waits keep close/stop
+  // responsive. The read loop only requests bytes reported by available().
+  http.setTimeout(250);
   NetworkClient* stream = http.getStreamPtr();
   size_t buffered = 0;
   uint32_t frame_count = 0;

@@ -21,7 +21,7 @@
 
 namespace {
 
-constexpr int kVideoWidth = 640;
+constexpr int kVideoFrameWidth = popup_layout::kContentWidth;
 constexpr int kVideoHeight = 480;
 constexpr int kVideoTop = popup_layout::scale480(104);
 constexpr int kStatusTop =
@@ -194,7 +194,7 @@ static CameraPopupContext* create_popup() {
   lv_obj_center(close_icon);
 
   lv_obj_t* video = lv_obj_create(ctx->card);
-  lv_obj_set_size(video, kVideoWidth, kVideoHeight);
+  lv_obj_set_size(video, kVideoFrameWidth, kVideoHeight);
   lv_obj_align(video, LV_ALIGN_TOP_MID, 0, kVideoTop);
   lv_obj_set_style_bg_color(video, lv_color_black(), 0);
   lv_obj_set_style_bg_opa(video, LV_OPA_COVER, 0);
@@ -207,7 +207,11 @@ static CameraPopupContext* create_popup() {
   lv_obj_clear_flag(video, LV_OBJ_FLAG_CLICKABLE);
 
   ctx->image = lv_image_create(video);
-  lv_obj_set_size(ctx->image, kVideoWidth, kVideoHeight);
+  // Keep the source at its native 640x480, but invalidate/draw the known-safe
+  // 752 px popup band on Waveshare 8. A 640 px flush sits just above the PPA
+  // gate and can trigger the driver's short CPU-render cooldown.
+  lv_obj_set_size(ctx->image, kVideoFrameWidth, kVideoHeight);
+  lv_image_set_inner_align(ctx->image, LV_IMAGE_ALIGN_CENTER);
   lv_obj_center(ctx->image);
   lv_obj_add_flag(ctx->image, LV_OBJ_FLAG_HIDDEN);
 
@@ -220,7 +224,7 @@ static CameraPopupContext* create_popup() {
   lv_obj_center(ctx->placeholder);
 
   ctx->status = lv_label_create(ctx->card);
-  lv_obj_set_width(ctx->status, kVideoWidth);
+  lv_obj_set_width(ctx->status, kVideoFrameWidth);
   lv_obj_set_style_text_align(ctx->status, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_text_font(ctx->status, popup_layout::font20(), 0);
   lv_obj_set_style_text_color(ctx->status, lv_color_hex(0xD8DEE9), 0);
