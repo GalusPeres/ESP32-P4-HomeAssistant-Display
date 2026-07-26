@@ -2349,7 +2349,16 @@ void WebAdminServer::handleGetEntityOptions() {
   appendHumanizedList(json, "weathers", parseSensorList(ha.weathers_text));
   json += ",";
   appendHumanizedList(json, "climates", parseSensorList(ha.climates_text));
-  json += ",";
+  json += ",\"cameras\":[";
+  {
+    bool first = true;
+    for (const auto& id : parseSensorList(ha.cameras_text)) {
+      String name = haBridgeConfig.findSensorName(id);
+      if (!name.length()) name = humanizeIdentifier(id, true);
+      appendPair(json, id, name + " - " + id, first);
+    }
+  }
+  json += "],";
 
   json += "\"energy\":[";
   {

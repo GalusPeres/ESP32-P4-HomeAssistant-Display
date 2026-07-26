@@ -12,6 +12,7 @@
 #include "src/tiles/tile_renderer.h"
 #include "src/core/config_manager.h"
 #include "src/core/display_manager.h"
+#include "src/core/i18n.h"
 #include "src/core/device_entities.h"
 #include "src/core/power_manager.h"
 #include "src/core/battery_state.h"
@@ -2273,14 +2274,15 @@ void mqttServicePostConnect() {
 
 void mqttPublishCameraCommand(const char* entity_id, const char* command) {
   if (!entity_id || !*entity_id) return;
+  const auto& text = i18n::strings(configManager.getConfig().language);
   if (!networkManager.isMqttConnected()) {
-    camera_popup_set_status("MQTT nicht verbunden", true);
+    camera_popup_set_status(text.camera_mqtt_disconnected, true);
     return;
   }
 
   const char* topic = mqttTopics.topic(TopicKey::CAMERA_CMND);
   if (!topic || !*topic) {
-    camera_popup_set_status("Kamera-Topic fehlt", true);
+    camera_popup_set_status(text.camera_mqtt_topic_missing, true);
     return;
   }
 
@@ -2293,5 +2295,5 @@ void mqttPublishCameraCommand(const char* entity_id, const char* command) {
       networkManager.mqttEnqueuePublishPriority(topic, payload, false);
   Serial.printf("[Camera] command %s -> %s (%s)\n", action, topic,
                 queued ? "queued" : "queue-full");
-  if (!queued) camera_popup_set_status("MQTT Queue voll", true);
+  if (!queued) camera_popup_set_status(text.camera_mqtt_queue_full, true);
 }

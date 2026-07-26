@@ -1,5 +1,7 @@
 #include "src/types/camera/renderer.h"
 
+#include "src/core/config_manager.h"
+#include "src/core/i18n.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/tiles/tile_renderer_fonts.h"
@@ -7,6 +9,10 @@
 #include "src/ui/camera_popup.h"
 
 namespace {
+
+static const i18n::Strings& camera_text() {
+  return i18n::strings(configManager.getConfig().language);
+}
 
 struct CameraEventData {
   String entity_id;
@@ -70,44 +76,45 @@ lv_obj_t* render_camera_tile(lv_obj_t* parent,
   lv_obj_set_style_radius(card, tile_layout::scale_480(22), 0);
   lv_obj_set_style_border_width(card, 0, 0);
   lv_obj_set_style_shadow_width(card, 0, 0);
-  lv_obj_set_style_pad_all(card, tile_layout::scale_480(18), 0);
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
   disable_pressed_button_animation(card);
   set_tile_grid_cell(card, col, row, tile.span_w, tile.span_h);
 
-  String icon_name = normalizeMdiIconName(tile.icon_name);
-  if (!icon_name.length() && tile.sensor_entity.length()) {
+  String icon_name = tile.icon_name;
+  const bool icon_disabled = isMdiIconDisabled(icon_name);
+  icon_name = normalizeMdiIconName(icon_name);
+  if (!icon_disabled && !icon_name.length() && tile.sensor_entity.length()) {
     icon_name =
         normalizeMdiIconName(haBridgeConfig.findEntityIcon(tile.sensor_entity));
   }
-  if (!icon_name.length()) icon_name = "video";
-
-  lv_obj_t* icon = lv_label_create(card);
-  set_label_style(icon, lv_color_white(), FONT_MDI_ICONS);
-  const String icon_char = getMdiChar(icon_name);
-  lv_label_set_text(icon, icon_char.c_str());
-  lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 0, 0);
+  if (!icon_disabled && !icon_name.length()) icon_name = "video";
 
   String title = tile.title;
   title.trim();
   if (!title.length()) title = friendly_camera_name(tile.sensor_entity);
-  if (!title.length()) title = "Kamera";
+  if (!title.length()) title = camera_text().camera_tile_type;
+
+  lv_obj_t* icon = nullptr;
+  String icon_char;
+  if (icon_name.length() && FONT_MDI_ICONS != nullptr) {
+    icon_char = getMdiChar(icon_name);
+  }
+  if (icon_char.length()) {
+    icon = lv_label_create(card);
+    set_label_style(icon, lv_color_white(), FONT_MDI_ICONS);
+    lv_label_set_text(icon, icon_char.c_str());
+    lv_obj_align(icon, LV_ALIGN_CENTER, 0, tile_layout::scale_i16(-20));
+  }
 
   lv_obj_t* title_label = lv_label_create(card);
   set_label_style(title_label, lv_color_white(),
                   tile_layout::header_title_font());
-  lv_label_set_long_mode(title_label, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(title_label, LV_PCT(72));
-  lv_obj_set_style_text_align(title_label, LV_TEXT_ALIGN_RIGHT, 0);
   lv_label_set_text(title_label, title.c_str());
-  lv_obj_align(title_label, LV_ALIGN_TOP_RIGHT, 0, 0);
-
-  lv_obj_t* live_label = lv_label_create(card);
-  set_label_style(live_label, lv_color_hex(0xD8DEE9),
-                  tile_layout::content_font_20());
-  lv_label_set_text(live_label, "LIVE");
-  lv_obj_align(live_label, LV_ALIGN_CENTER, 0,
-               tile_layout::scale_480(18));
+  if (icon) {
+    lv_obj_align(title_label, LV_ALIGN_CENTER, 0, tile_layout::scale(35));
+  } else {
+    lv_obj_center(title_label);
+  }
 
   if (grid_type != GridType::SCREENSAVER && tile.sensor_entity.length()) {
     CameraEventData* event_data = new CameraEventData{

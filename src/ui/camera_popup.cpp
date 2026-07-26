@@ -4,6 +4,7 @@
 
 #include "src/core/config_manager.h"
 #include "src/core/display_manager.h"
+#include "src/core/i18n.h"
 #include "src/core/power_manager.h"
 #include "src/fonts/ui_fonts.h"
 #include "src/network/mqtt_handlers.h"
@@ -14,15 +15,24 @@
 #include "src/ui/media_popup.h"
 #include "src/ui/popup_layout.h"
 #include "src/ui/sensor_popup.h"
+#include "src/ui/ui_surface_style.h"
 #include "src/ui/weather_popup.h"
 #include "src/video/camera_stream.h"
 
 namespace {
 
+constexpr int kVideoWidth = 640;
+constexpr int kVideoHeight = 480;
+constexpr int kVideoTop = popup_layout::scale480(104);
+constexpr int kStatusTop =
+    kVideoTop + kVideoHeight + popup_layout::scale480(22);
+
 struct CameraPopupContext {
   String entity_id;
   lv_obj_t* overlay = nullptr;
   lv_obj_t* card = nullptr;
+  lv_obj_t* icon_label = nullptr;
+  lv_obj_t* title_label = nullptr;
   lv_obj_t* image = nullptr;
   lv_obj_t* placeholder = nullptr;
   lv_obj_t* status = nullptr;
@@ -30,6 +40,49 @@ struct CameraPopupContext {
 };
 
 CameraPopupContext* g_camera_popup = nullptr;
+
+static const i18n::Strings& camera_text() {
+  return i18n::strings(configManager.getConfig().language);
+}
+
+static const char* localize_camera_error(const char* error_code) {
+  const auto& text = camera_text();
+  if (!error_code || !*error_code) return text.camera_unavailable;
+  if (strcmp(error_code, "unknown_camera") == 0) return text.camera_unknown;
+  if (strcmp(error_code, "camera_has_no_stream_source") == 0 ||
+      strcmp(error_code, "camera_image_unavailable") == 0) {
+    return text.camera_no_source;
+  }
+  if (strcmp(error_code, "home_assistant_url_unavailable") == 0) {
+    return text.camera_ha_url_unavailable;
+  }
+  if (strcmp(error_code, "camera_setup_failed") == 0) {
+    return text.camera_setup_failed;
+  }
+  return text.camera_unavailable;
+}
+
+static void align_header_row(CameraPopupContext* ctx) {
+  if (!ctx || !ctx->card) return;
+  lv_obj_update_layout(ctx->card);
+  lv_coord_t center_y =
+      popup_layout::kHeaderCenterY -
+      lv_obj_get_style_pad_top(ctx->card, LV_PART_MAIN);
+  if (center_y < 0) center_y = 0;
+
+  if (ctx->icon_label) {
+    lv_coord_t y = center_y - (lv_obj_get_height(ctx->icon_label) / 2);
+    if (y < 0) y = 0;
+    lv_obj_align(ctx->icon_label, LV_ALIGN_TOP_LEFT,
+                 popup_layout::kHeaderIconX, y);
+  }
+  if (ctx->title_label) {
+    lv_coord_t y = center_y - (lv_obj_get_height(ctx->title_label) / 2);
+    if (y < 0) y = 0;
+    lv_obj_align(ctx->title_label, LV_ALIGN_TOP_LEFT,
+                 popup_layout::kHeaderTitleX, y);
+  }
+}
 
 static void set_status_label(const char* text, bool error) {
   if (!g_camera_popup || !g_camera_popup->status) return;
@@ -43,7 +96,15 @@ static void close_camera_popup() {
   if (!g_camera_popup || !g_camera_popup->visible) return;
   const String entity_id = g_camera_popup->entity_id;
   g_camera_popup->visible = false;
+
+  // LVGL must no longer reference a PSRAM frame before the decoder task is
+  // asked to release its frame buffers.
+  if (g_camera_popup->image) {
+    lv_image_set_src(g_camera_popup->image, nullptr);
+    lv_obj_add_flag(g_camera_popup->image, LV_OBJ_FLAG_HIDDEN);
+  }
   camera_stream_stop();
+
   if (entity_id.length()) {
     mqttPublishCameraCommand(entity_id.c_str(), "close");
   }
@@ -52,107 +113,133 @@ static void close_camera_popup() {
 }
 
 static void close_event_cb(lv_event_t* event) {
-  if (lv_event_get_code(event) == LV_EVENT_SHORT_CLICKED) {
+  const lv_event_code_t code = lv_event_get_code(event);
+  if (code == LV_EVENT_CLICKED || code == LV_EVENT_RELEASED) {
     close_camera_popup();
   }
 }
 
+static void overlay_event_cb(lv_event_t* event) {
+  if (lv_event_get_code(event) != LV_EVENT_CLICKED) return;
+  (void)event;
+}
+
 static CameraPopupContext* create_popup() {
   CameraPopupContext* ctx = new CameraPopupContext();
+
   ctx->overlay = lv_obj_create(lv_layer_top());
   lv_obj_set_size(ctx->overlay, LV_PCT(100), LV_PCT(100));
-  lv_obj_align(ctx->overlay, LV_ALIGN_CENTER, 0, 0);
-  lv_obj_set_style_bg_color(ctx->overlay, lv_color_black(), 0);
-  lv_obj_set_style_bg_opa(ctx->overlay, LV_OPA_60, 0);
+  lv_obj_set_style_bg_opa(ctx->overlay, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(ctx->overlay, 0, 0);
   lv_obj_set_style_pad_all(ctx->overlay, 0, 0);
   lv_obj_remove_flag(ctx->overlay, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(ctx->overlay, overlay_event_cb, LV_EVENT_CLICKED, ctx);
 
   ctx->card = lv_obj_create(ctx->overlay);
-  lv_obj_set_size(ctx->card, 760, 740);
-  lv_obj_align(ctx->card, LV_ALIGN_CENTER, 0, 0);
-  lv_obj_set_style_bg_color(ctx->card, lv_color_hex(0x171717), 0);
+  lv_obj_set_size(ctx->card, popup_layout::kCardWidth,
+                  popup_layout::kCardHeight);
+  lv_obj_center(ctx->card);
+  lv_obj_set_style_bg_color(ctx->card, lv_color_hex(0x2A2A2A), 0);
   lv_obj_set_style_bg_opa(ctx->card, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(ctx->card, 24, 0);
+  lv_obj_set_style_radius(ctx->card, popup_layout::kCardRadius, 0);
   lv_obj_set_style_border_width(ctx->card, 0, 0);
-  lv_obj_set_style_shadow_width(ctx->card, 24, 0);
+  ui_surface_style::apply_global_tile_border(ctx->card);
+  lv_obj_set_style_pad_all(ctx->card, popup_layout::kCardPad, 0);
+  lv_obj_set_style_shadow_width(ctx->card, popup_layout::scale480(28), 0);
+  lv_obj_set_style_shadow_color(ctx->card, lv_color_hex(0x000000), 0);
   lv_obj_set_style_shadow_opa(ctx->card, LV_OPA_40, 0);
-  lv_obj_set_style_pad_all(ctx->card, 0, 0);
+  lv_obj_set_style_shadow_spread(ctx->card, popup_layout::scale480(2), 0);
   lv_obj_remove_flag(ctx->card, LV_OBJ_FLAG_SCROLLABLE);
 
-  lv_obj_t* header_icon = lv_label_create(ctx->card);
-  lv_obj_set_style_text_font(header_icon, FONT_MDI_ICONS, 0);
-  lv_obj_set_style_text_color(header_icon, lv_color_white(), 0);
-  lv_obj_align(header_icon, LV_ALIGN_TOP_LEFT, 28, 24);
-  lv_obj_add_flag(header_icon, LV_OBJ_FLAG_USER_1);
+  ctx->title_label = lv_label_create(ctx->card);
+  lv_obj_set_style_text_font(ctx->title_label,
+                             popup_layout::headerTitleFont(), 0);
+  lv_obj_set_style_text_color(ctx->title_label, lv_color_white(), 0);
+  lv_obj_set_width(ctx->title_label, LV_PCT(62));
+  lv_label_set_long_mode(ctx->title_label, LV_LABEL_LONG_DOT);
 
-  lv_obj_t* title = lv_label_create(ctx->card);
-  lv_obj_set_style_text_font(title, &ui_font_32, 0);
-  lv_obj_set_style_text_color(title, lv_color_white(), 0);
-  lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(title, 520);
-  lv_obj_align(title, LV_ALIGN_TOP_LEFT, 92, 28);
-  lv_obj_add_flag(title, LV_OBJ_FLAG_USER_2);
+  ctx->icon_label = lv_label_create(ctx->card);
+  lv_obj_set_style_text_font(ctx->icon_label, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(ctx->icon_label);
+  lv_obj_set_style_text_color(ctx->icon_label, lv_color_white(), 0);
 
-  lv_obj_t* close = lv_button_create(ctx->card);
-  lv_obj_set_size(close, 56, 56);
-  lv_obj_align(close, LV_ALIGN_TOP_RIGHT, -20, 16);
-  lv_obj_set_style_radius(close, LV_RADIUS_CIRCLE, 0);
-  lv_obj_set_style_bg_color(close, lv_color_hex(0x303030), 0);
-  lv_obj_set_style_shadow_width(close, 0, 0);
-  lv_obj_add_event_cb(close, close_event_cb, LV_EVENT_SHORT_CLICKED, nullptr);
-  lv_obj_t* close_icon = lv_label_create(close);
+  lv_obj_t* close_button = lv_button_create(ctx->card);
+  lv_obj_set_size(close_button, popup_layout::kCloseButtonSize,
+                  popup_layout::kCloseButtonSize);
+  lv_obj_set_style_bg_opa(close_button, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_bg_color(close_button, lv_color_hex(0xFFFFFF),
+                            LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(close_button, LV_OPA_20, LV_STATE_PRESSED);
+  lv_obj_set_style_border_opa(close_button, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_outline_opa(close_button, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_shadow_opa(close_button, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_radius(close_button,
+                          popup_layout::kCloseButtonRadius, 0);
+  lv_obj_set_style_pad_all(close_button, 0, 0);
+  lv_obj_align(close_button, LV_ALIGN_TOP_RIGHT,
+               popup_layout::kCloseButtonOffsetX,
+               popup_layout::kCloseButtonOffsetY);
+  lv_obj_set_ext_click_area(close_button,
+                            popup_layout::kCloseButtonClickArea);
+  lv_obj_add_flag(close_button, LV_OBJ_FLAG_PRESS_LOCK);
+  lv_obj_clear_flag(close_button, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(close_button, close_event_cb, LV_EVENT_CLICKED, ctx);
+  lv_obj_add_event_cb(close_button, close_event_cb, LV_EVENT_RELEASED, ctx);
+
+  lv_obj_t* close_icon = lv_label_create(close_button);
   lv_obj_set_style_text_font(close_icon, FONT_MDI_ICONS, 0);
+  popup_layout::applyIconScale(close_icon);
   lv_obj_set_style_text_color(close_icon, lv_color_white(), 0);
-  const String close_char = getMdiChar("close");
-  lv_label_set_text(close_icon, close_char.c_str());
+  lv_label_set_text(close_icon, getMdiChar("window-close").c_str());
   lv_obj_center(close_icon);
 
   lv_obj_t* video = lv_obj_create(ctx->card);
-  lv_obj_set_size(video, 640, 480);
-  lv_obj_align(video, LV_ALIGN_TOP_MID, 0, 92);
+  lv_obj_set_size(video, kVideoWidth, kVideoHeight);
+  lv_obj_align(video, LV_ALIGN_TOP_MID, 0, kVideoTop);
   lv_obj_set_style_bg_color(video, lv_color_black(), 0);
   lv_obj_set_style_bg_opa(video, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(video, 12, 0);
+  lv_obj_set_style_radius(video, popup_layout::scale480(18), 0);
   lv_obj_set_style_clip_corner(video, true, 0);
   lv_obj_set_style_border_width(video, 0, 0);
+  lv_obj_set_style_shadow_width(video, 0, 0);
   lv_obj_set_style_pad_all(video, 0, 0);
   lv_obj_remove_flag(video, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(video, LV_OBJ_FLAG_CLICKABLE);
 
   ctx->image = lv_image_create(video);
-  lv_obj_set_size(ctx->image, 640, 480);
+  lv_obj_set_size(ctx->image, kVideoWidth, kVideoHeight);
   lv_obj_center(ctx->image);
   lv_obj_add_flag(ctx->image, LV_OBJ_FLAG_HIDDEN);
 
   ctx->placeholder = lv_label_create(video);
-  lv_obj_set_style_text_font(ctx->placeholder, &ui_font_24, 0);
-  lv_obj_set_style_text_color(ctx->placeholder, lv_color_hex(0xB7C1D6), 0);
-  lv_label_set_text(ctx->placeholder, "Kamerastream wird vorbereitet ...");
+  lv_obj_set_style_text_font(ctx->placeholder, popup_layout::font24(), 0);
+  lv_obj_set_style_text_color(ctx->placeholder, lv_color_hex(0xD8DEE9), 0);
+  lv_obj_set_width(ctx->placeholder, LV_PCT(90));
+  lv_obj_set_style_text_align(ctx->placeholder, LV_TEXT_ALIGN_CENTER, 0);
+  lv_label_set_text(ctx->placeholder, camera_text().camera_preparing);
   lv_obj_center(ctx->placeholder);
 
   ctx->status = lv_label_create(ctx->card);
-  lv_obj_set_style_text_font(ctx->status, &ui_font_20, 0);
+  lv_obj_set_width(ctx->status, kVideoWidth);
+  lv_obj_set_style_text_align(ctx->status, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_style_text_font(ctx->status, popup_layout::font20(), 0);
   lv_obj_set_style_text_color(ctx->status, lv_color_hex(0xD8DEE9), 0);
-  lv_label_set_text(ctx->status, "Bereit");
-  lv_obj_align(ctx->status, LV_ALIGN_TOP_MID, 0, 600);
+  lv_label_set_long_mode(ctx->status, LV_LABEL_LONG_DOT);
+  lv_label_set_text(ctx->status, camera_text().camera_ready);
+  lv_obj_align(ctx->status, LV_ALIGN_TOP_MID, 0, kStatusTop);
 
+  lv_obj_move_foreground(ctx->icon_label);
+  lv_obj_move_foreground(ctx->title_label);
+  lv_obj_move_foreground(close_button);
   lv_obj_add_flag(ctx->card, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
   return ctx;
 }
 
-static lv_obj_t* find_flagged_child(lv_obj_t* parent, lv_obj_flag_t flag) {
-  const uint32_t count = lv_obj_get_child_count(parent);
-  for (uint32_t i = 0; i < count; ++i) {
-    lv_obj_t* child = lv_obj_get_child(parent, static_cast<int32_t>(i));
-    if (child && lv_obj_has_flag(child, flag)) return child;
-  }
-  return nullptr;
-}
-
 }  // namespace
 
 void show_camera_popup(const CameraPopupInit& init) {
+  if (!init.entity_id.length()) return;
   hide_sensor_popup();
   hide_weather_popup();
   hide_energy_popup();
@@ -165,21 +252,27 @@ void show_camera_popup(const CameraPopupInit& init) {
 
   g_camera_popup->entity_id = init.entity_id;
   g_camera_popup->visible = true;
-  lv_obj_t* icon =
-      find_flagged_child(g_camera_popup->card, LV_OBJ_FLAG_USER_1);
-  lv_obj_t* title =
-      find_flagged_child(g_camera_popup->card, LV_OBJ_FLAG_USER_2);
+  lv_obj_set_style_bg_color(
+      g_camera_popup->card,
+      lv_color_hex(init.bg_color != 0 ? init.bg_color : 0x2A2A2A), 0);
+
+  String title = init.title;
+  title.trim();
+  if (!title.length()) title = init.entity_id;
+  lv_label_set_text(g_camera_popup->title_label, title.c_str());
+
   String icon_name = normalizeMdiIconName(init.icon_name);
   if (!icon_name.length()) icon_name = "video";
-  const String icon_char = getMdiChar(icon_name);
-  if (icon) lv_label_set_text(icon, icon_char.c_str());
-  if (title) lv_label_set_text(title, init.title.c_str());
+  lv_label_set_text(g_camera_popup->icon_label,
+                    getMdiChar(icon_name).c_str());
+  align_header_row(g_camera_popup);
 
+  lv_image_set_src(g_camera_popup->image, nullptr);
   lv_obj_add_flag(g_camera_popup->image, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_camera_popup->placeholder, LV_OBJ_FLAG_HIDDEN);
   lv_label_set_text(g_camera_popup->placeholder,
-                    "Kamerastream wird vorbereitet ...");
-  set_status_label("Bridge wird angefragt ...", false);
+                    camera_text().camera_preparing);
+  camera_popup_set_status(camera_text().camera_bridge_requesting, false);
   lv_obj_clear_flag(g_camera_popup->card, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(g_camera_popup->overlay, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_move_foreground(g_camera_popup->overlay);
@@ -210,7 +303,7 @@ void camera_popup_handle_mqtt_status(const char* payload) {
 
   DynamicJsonDocument doc(1024);
   if (deserializeJson(doc, payload)) {
-    set_status_label("Ungueltige Kamera-Antwort", true);
+    camera_popup_set_status(camera_text().camera_invalid_response, true);
     return;
   }
   const char* entity = doc["entity_id"] | "";
@@ -222,20 +315,19 @@ void camera_popup_handle_mqtt_status(const char* payload) {
   if (strcmp(status, "ready") == 0) {
     const char* url = doc["url"] | "";
     if (!*url) {
-      set_status_label("Bridge lieferte keine Stream-URL", true);
+      camera_popup_set_status(camera_text().camera_no_stream_url, true);
       return;
     }
-    set_status_label("Stream wird verbunden ...", false);
+    camera_popup_set_status(camera_text().camera_connecting, false);
     camera_stream_start(url);
     return;
   }
   if (strcmp(status, "error") == 0) {
-    const char* error = doc["error"] | "Stream nicht verfuegbar";
-    set_status_label(error, true);
+    camera_popup_set_status(localize_camera_error(doc["error"] | ""), true);
     return;
   }
   if (strcmp(status, "stopped") == 0) {
-    set_status_label("Stream beendet", false);
+    camera_popup_set_status(camera_text().camera_stream_stopped, false);
   }
 }
 

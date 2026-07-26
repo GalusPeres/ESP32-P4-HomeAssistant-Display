@@ -590,10 +590,10 @@ const TileTypeDescriptor kTileTypes[] = {
   },
   {
     TILE_CAMERA,
-    "Kamera",
+    "Camera",
     "camera",
     "camera",
-    "none",
+    "camera",
     nullptr,
     "loadCameraFields",
     "saveCameraFields",
@@ -783,7 +783,7 @@ void append_tile_type_select_options(String& html) {
       case TILE_FOLDER: label = tr.tile_type_folder; break;
       case TILE_SWITCH: label = tr.tile_type_switch; break;
       case TILE_MEDIA: label = tr.tile_type_media; break;
-      case TILE_CAMERA: label = "Kamera"; break;
+      case TILE_CAMERA: label = tr.camera_tile_type; break;
       case TILE_CLIMATE:
         label = i18n::climate_tile_type_label(
             configManager.getConfig().language);
@@ -818,7 +818,7 @@ void append_tile_type_registry_js(String& html) {
       case TILE_FOLDER: label = tr.tile_type_folder; break;
       case TILE_SWITCH: label = tr.tile_type_switch; break;
       case TILE_MEDIA: label = tr.tile_type_media; break;
-      case TILE_CAMERA: label = "Kamera"; break;
+      case TILE_CAMERA: label = tr.camera_tile_type; break;
       case TILE_CLIMATE:
         label = i18n::climate_tile_type_label(
             configManager.getConfig().language);

@@ -363,6 +363,41 @@ struct Strings {
   const char* media_state_off;
   const char* media_no_playback;
 
+  // Kamera-Kachel/-Popup und H.264-Laufzeitstatus
+  const char* camera_tile_type;
+  const char* camera_entity;
+  const char* camera_ready;
+  const char* camera_preparing;
+  const char* camera_bridge_requesting;
+  const char* camera_invalid_response;
+  const char* camera_no_stream_url;
+  const char* camera_connecting;
+  const char* camera_unavailable;
+  const char* camera_stream_stopped;
+  const char* camera_empty_url;
+  const char* camera_already_running;
+  const char* camera_task_start_failed;
+  const char* camera_frame_memory_failed;
+  const char* camera_decoder_error;
+  const char* camera_http_connecting;
+  const char* camera_url_open_failed;
+  const char* camera_decoder_start_failed;
+  const char* camera_input_memory_failed;
+  const char* camera_buffering;
+  const char* camera_connection_ended;
+  const char* camera_resolution_error_fmt;  // %u = dekodierte Framegroesse
+  const char* camera_http_error_fmt;        // %d = HTTP-Status
+  const char* camera_device_only;
+  const char* camera_unknown;
+  const char* camera_no_source;
+  const char* camera_ha_url_unavailable;
+  const char* camera_setup_failed;
+  const char* camera_input_buffer_full;
+  const char* camera_fps_fmt;  // %.1f = gemessene FPS
+  const char* camera_mqtt_disconnected;
+  const char* camera_mqtt_topic_missing;
+  const char* camera_mqtt_queue_full;
+
 };
 
 // Sprachabhaengige Darstellungsregeln und kurze Laufzeittexte, die sowohl
