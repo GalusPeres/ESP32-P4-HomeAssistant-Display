@@ -6,6 +6,7 @@
 
 #include "src/core/config_manager.h"
 #include "src/core/i18n.h"
+#include "src/network/network_manager.h"
 
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
 
@@ -27,15 +28,15 @@
 
 namespace {
 
-constexpr uint16_t kWidth = 640;
-constexpr uint16_t kHeight = 480;
+constexpr uint16_t kWidth = 752;
+constexpr uint16_t kHeight = 424;
 constexpr size_t kPixelBytes =
     static_cast<size_t>(kWidth) * kHeight * sizeof(uint16_t);
 constexpr size_t kMaxJpegBytes = 256U * 1024U;
 constexpr uint8_t kFrameBufferCount = 2;
 constexpr uint32_t kHttpHeaderTimeoutMs = 5000;
 constexpr int kHttpReceiveBufferBytes = 8 * 1024;
-constexpr size_t kMinCameraDmaFreeBytes = 24 * 1024;
+constexpr size_t kMinCameraDmaHeadroomBytes = 24 * 1024;
 constexpr char kJpegFraming[] = "be32-jpeg";
 
 enum class FrameState : uint8_t {
@@ -538,7 +539,7 @@ static void run_camera_task() {
   HTTPClient http;
   http.setConnectTimeout(4000);
   // Home Assistant may still be scheduling the route while a camera
-  // integration finishes its first snapshot request.
+  // integration finishes its first source request.
   http.setTimeout(kHttpHeaderTimeoutMs);
   http.setReuse(false);
   const char* response_headers[] = {
@@ -617,11 +618,15 @@ static void run_camera_task() {
          (http.connected() || stream->available() > 0)) {
     const size_t dma_free = heap_caps_get_free_size(
         MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
-    if (dma_free < kMinCameraDmaFreeBytes) {
+    const size_t mqtt_dma_reserve = networkManager.mqttDmaReserveBytes();
+    const size_t dma_headroom = dma_free + mqtt_dma_reserve;
+    if (dma_headroom < kMinCameraDmaHeadroomBytes) {
       Serial.printf(
-          "[CameraStream] Sicherheitsstopp: DMA frei nur %u KB; "
-          "MQTT/WLAN bleiben aktiv\n",
-          static_cast<unsigned>(dma_free / 1024U));
+          "[CameraStream] Sicherheitsstopp: DMA frei=%u KB Reserve=%u KB "
+          "Headroom=%u KB; MQTT/WLAN bleiben aktiv\n",
+          static_cast<unsigned>(dma_free / 1024U),
+          static_cast<unsigned>(mqtt_dma_reserve / 1024U),
+          static_cast<unsigned>(dma_headroom / 1024U));
       set_status(camera_text().camera_connection_ended, true);
       stream_ok = false;
       break;
@@ -751,8 +756,8 @@ void camera_stream_process_ui(lv_obj_t* image,
   if (!image) return;
   int8_t ready = -1;
   // If the display PPA has entered its short self-healing cooldown, keep the
-  // last frame. Repainting 640x480 through the CPU fallback would make every
-  // other LVGL interaction sluggish and would fight the driver's recovery.
+  // last frame. Repainting the full video area through the CPU fallback would
+  // make every other LVGL interaction sluggish and fight the recovery.
   if (!DeviceWaveshareTouchLCD8::ppaCooldownActive()) {
     portENTER_CRITICAL(&g_state_mux);
     for (uint8_t i = 0; i < kFrameBufferCount; ++i) {

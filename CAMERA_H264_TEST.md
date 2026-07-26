@@ -1,4 +1,4 @@
-# H.264 camera popup test (Waveshare 8")
+# Camera popup video test (Waveshare 8")
 
 This branch is an experimental end-to-end camera test. It does not change or
 flash a connected device automatically.
@@ -11,18 +11,19 @@ flash a connected device automatically.
    repository and restart Home Assistant.
 3. Open the HomeTiles integration options. Under entity configuration, add the
    desired `camera.*` entity.
-4. Flash the Waveshare 8" OTA image:
-   `build/camera-h264-test-waveshare-8-b8-http/HomeTiles.ino.bin`.
+4. Flash the current Waveshare 8" test image.
 5. In the HomeTiles web admin, create a `Kamera` tile and select the configured
    camera entity.
-6. Tap the tile. A 760x740 popup opens with a 640x480 video area.
+6. Tap the tile. The regular project popup opens with a 752x424 video area.
 
 The bridge resolves the Home Assistant camera stream and starts FFmpeg only
-while the popup is open. It outputs access-unit-framed H.264 using constrained
-baseline at 640x480. MQTT carries only the open/close commands and the
-short-lived stream URL; video bytes do not pass through MQTT. The bridge opens
-a dedicated plain-HTTP LAN listener on the first free port from 8124 through
-8131. Camera transport never uses TLS on the ESP32-P4.
+while the popup is open. Real video sources are converted to a 10 FPS,
+752x424 JPEG-frame stream; still-image cameras remain at 2 FPS. The image is
+cropped to fill the widescreen area without stretching or letterboxing. MQTT
+carries only the open/close commands and the short-lived stream URL; video
+bytes do not pass through MQTT. The bridge opens a dedicated plain-HTTP LAN
+listener on the first free port from 8124 through 8131. Camera transport never
+uses TLS on the ESP32-P4.
 
 ## MQTT diagnostics
 
@@ -39,12 +40,14 @@ consumed.
 
 ## Memory and recovery behavior
 
-- Two fixed 640x480 RGB565 frame buffers use about 1.2 MB of P4 PSRAM.
-- The H.264 input buffer uses 192 KB of P4 PSRAM.
+- Two fixed 752x424 RGB565 frame buffers use about 1.22 MB of P4 PSRAM.
+- The framed-JPEG input buffer uses 256 KB of P4 PSRAM.
 - Frame buffers remain allocated after their first use to avoid repeated large
   allocations and PSRAM fragmentation.
-- The decoder, HTTP input buffer and FFmpeg process are released when the popup
-  closes or the connection ends.
+- The decoder engine remains available across popup opens to avoid DMA-memory
+  churn. Frame buffers and the HTTP input buffer are released after closing.
+- If a camera source briefly ends, the bridge restarts FFmpeg while keeping the
+  display connection and MQTT session alive.
 - If memory, HTTP or decoder setup fails, the popup shows an error instead of
   retrying indefinitely.
 

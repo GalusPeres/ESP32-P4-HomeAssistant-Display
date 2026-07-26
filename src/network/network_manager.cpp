@@ -119,6 +119,7 @@ static uint32_t g_mqtt_outbound_dropped = 0;
 static uint32_t g_mqtt_last_tx_guard_log_ms = 0;
 static uint32_t g_mqtt_sdio_control_quiet_until = 0;
 static void* g_mqtt_dma_reserve = nullptr;
+static volatile bool g_mqtt_dma_reserve_held = false;
 static uint32_t g_mqtt_dma_reserve_rearm_since = 0;
 static uint32_t g_mqtt_dma_low_since = 0;
 static uint32_t g_mqtt_dma_recovery_cooldown_until = 0;
@@ -130,6 +131,7 @@ static void initMqttDmaReserve() {
       kMqttDmaReserveBytes,
       MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
   if (g_mqtt_dma_reserve) {
+    g_mqtt_dma_reserve_held = true;
     Serial.printf("[MQTT] DMA-Reserve angelegt: %u KB\n",
                   static_cast<unsigned>(kMqttDmaReserveBytes / 1024));
   } else {
@@ -141,6 +143,7 @@ static void initMqttDmaReserve() {
 static void releaseMqttDmaReserve(const char* reason) {
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
   if (!g_mqtt_dma_reserve) return;
+  g_mqtt_dma_reserve_held = false;
   heap_caps_free(g_mqtt_dma_reserve);
   g_mqtt_dma_reserve = nullptr;
   g_mqtt_dma_reserve_rearm_since = 0;
@@ -169,6 +172,7 @@ static size_t serviceMqttDmaHeadroom(uint32_t now_ms) {
       heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
   if (largest < kMqttMinDmaLargestBeforeTx && g_mqtt_dma_reserve) {
     const size_t largest_before_release = largest;
+    g_mqtt_dma_reserve_held = false;
     heap_caps_free(g_mqtt_dma_reserve);
     g_mqtt_dma_reserve = nullptr;
     g_mqtt_dma_reserve_rearm_since = 0;
@@ -191,6 +195,7 @@ static size_t serviceMqttDmaHeadroom(uint32_t now_ms) {
             MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
         if (reserve) {
           g_mqtt_dma_reserve = reserve;
+          g_mqtt_dma_reserve_held = true;
           largest = heap_caps_get_largest_free_block(
               MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
           Serial.printf("[MQTT] DMA-Reserve wieder angelegt, largest=%u KB\n",
@@ -889,6 +894,14 @@ void HomeTilesNetworkManager::beginMqttWorker() {
     }
   }
   initMqttDmaReserve();
+}
+
+size_t HomeTilesNetworkManager::mqttDmaReserveBytes() const {
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  return g_mqtt_dma_reserve_held ? kMqttDmaReserveBytes : 0;
+#else
+  return 0;
+#endif
 }
 
 // Worker-Task-Body: die EINZIGE Stelle, die mqtt_client nach init() anfasst.

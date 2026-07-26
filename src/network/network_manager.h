@@ -44,6 +44,9 @@ public:
   // andere Task darf es jederzeit lesen (ein Schreiber, viele Leser).
   bool isMqttConnected() const { return mqtt_connected_flag; }
   uint16_t getMqttBufferSize() const { return mqtt_buffer_size; }
+  // Reclaimable ESP-Hosted DMA reserve currently held by the MQTT worker.
+  // Camera/network guards count it as protected headroom without freeing it.
+  size_t mqttDmaReserveBytes() const;
 
   // Von JEDEM Task sicher aufrufbar: kopiert Topic+Payload in einen (PSRAM-)
   // Block und reiht ihn nicht-blockierend in die passende Outbound-Queue ein.

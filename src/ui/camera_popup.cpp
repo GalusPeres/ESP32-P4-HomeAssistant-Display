@@ -22,7 +22,7 @@
 namespace {
 
 constexpr int kVideoFrameWidth = popup_layout::kContentWidth;
-constexpr int kVideoHeight = 480;
+constexpr int kVideoHeight = 424;
 constexpr int kVideoTop = popup_layout::scale480(104);
 constexpr int kStatusTop =
     kVideoTop + kVideoHeight + popup_layout::scale480(22);
@@ -207,9 +207,8 @@ static CameraPopupContext* create_popup() {
   lv_obj_clear_flag(video, LV_OBJ_FLAG_CLICKABLE);
 
   ctx->image = lv_image_create(video);
-  // Keep the source at its native 640x480, but invalidate/draw the known-safe
-  // 752 px popup band on Waveshare 8. A 640 px flush sits just above the PPA
-  // gate and can trigger the driver's short CPU-render cooldown.
+  // The bridge delivers native 752x424 frames, matching the popup content
+  // width. No LVGL scaling or letterboxing is needed on Waveshare 8.
   lv_obj_set_size(ctx->image, kVideoFrameWidth, kVideoHeight);
   lv_image_set_inner_align(ctx->image, LV_IMAGE_ALIGN_CENTER);
   lv_obj_center(ctx->image);
