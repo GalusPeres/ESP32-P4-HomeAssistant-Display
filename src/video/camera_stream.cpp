@@ -14,6 +14,7 @@
 #include <NetworkClientSecure.h>
 #include <esp_h264_dec.h>
 #include <esp_h264_dec_sw.h>
+#include <mbedtls/platform.h>
 
 #include <algorithm>
 #include <cstring>
@@ -30,8 +31,9 @@ constexpr size_t kI420Bytes =
     static_cast<size_t>(kWidth) * kHeight * 3U / 2U;
 constexpr size_t kInputBytes = 192U * 1024U;
 constexpr uint8_t kFrameBufferCount = 2;
-constexpr size_t kReadChunkBytes = 32U * 1024U;
 constexpr uint32_t kHttpHeaderTimeoutMs = 5000;
+constexpr uint8_t kBridgeFlushAud[] = {0x00, 0x00, 0x00,
+                                       0x01, 0x09, 0xF0};
 
 enum class FrameState : uint8_t {
   Free,
@@ -54,11 +56,41 @@ uint32_t g_ui_status_sequence = 0;
 char g_status[96] = "";
 bool g_status_error = false;
 uint32_t g_worker_frame_count = 0;
-// These clients deliberately outlive the worker task. close() can therefore
-// stop the socket from the UI task and immediately unblock an in-progress
-// HTTP GET instead of leaving the decoder worker active until its timeout.
-NetworkClient g_plain_client;
-NetworkClientSecure g_secure_client;
+
+static void* camera_tls_internal_calloc(size_t count, size_t size) {
+  return heap_caps_calloc(count, size,
+                          MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+}
+
+static void* camera_tls_psram_calloc(size_t count, size_t size) {
+  void* ptr = heap_caps_calloc(count, size,
+                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  return ptr ? ptr : camera_tls_internal_calloc(count, size);
+}
+
+static void camera_tls_free(void* ptr) {
+  heap_caps_free(ptr);
+}
+
+class ScopedCameraTlsPsramAllocator {
+ public:
+  ScopedCameraTlsPsramAllocator()
+      : active_(mbedtls_platform_set_calloc_free(
+                    camera_tls_psram_calloc, camera_tls_free) == 0) {
+    Serial.printf("[CameraStream] TLS-Allokator: %s\n",
+                  active_ ? "PSRAM bevorzugt" : "Core-Standard");
+  }
+
+  ~ScopedCameraTlsPsramAllocator() {
+    if (active_) {
+      mbedtls_platform_set_calloc_free(camera_tls_internal_calloc,
+                                       camera_tls_free);
+    }
+  }
+
+ private:
+  bool active_;
+};
 
 // BT.601 limited-range lookup tables remove five multiplications per output
 // pixel. Four pixels share one U/V pair, which keeps the software conversion
@@ -307,6 +339,86 @@ static bool decode_buffer(esp_h264_dec_handle_t decoder,
   return true;
 }
 
+// HTTPClient::getStreamPtr() exposes the raw socket, including HTTP/1.1 chunk
+// framing. writeToStream() removes that framing first and forwards only H.264
+// payload bytes to this sink.
+class H264DecodeStream final : public Stream {
+ public:
+  H264DecodeStream(esp_h264_dec_handle_t decoder, uint8_t* input)
+      : decoder_(decoder),
+        input_(input),
+        last_fps_ms_(millis()) {}
+
+  size_t write(uint8_t value) override {
+    return write(&value, 1);
+  }
+
+  size_t write(const uint8_t* data, size_t len) override {
+    if (!data || len == 0) return 0;
+    if (g_stop_requested || failed_) return 0;
+    const size_t accepted = len;
+    if (at_stream_start_) {
+      at_stream_start_ = false;
+      if (len >= sizeof(kBridgeFlushAud) &&
+          memcmp(data, kBridgeFlushAud, sizeof(kBridgeFlushAud)) == 0) {
+        data += sizeof(kBridgeFlushAud);
+        len -= sizeof(kBridgeFlushAud);
+        Serial.println("[CameraStream] Bridge-Flush-AUD entfernt");
+        if (len == 0) return accepted;
+      }
+    }
+    if (len > kInputBytes - buffered_) {
+      set_status(camera_text().camera_input_buffer_full, true);
+      failed_ = true;
+      return 0;
+    }
+
+    memcpy(input_ + buffered_, data, len);
+    buffered_ += len;
+    if (!received_first_bytes_) {
+      received_first_bytes_ = true;
+      Serial.printf("[CameraStream] Erste reine H.264-Daten: %u Bytes\n",
+                    static_cast<unsigned>(len));
+    }
+
+    const uint32_t frames_before = g_worker_frame_count;
+    if (!decode_buffer(decoder_, input_, buffered_)) {
+      failed_ = true;
+      return 0;
+    }
+    frame_count_ += g_worker_frame_count - frames_before;
+
+    const uint32_t now = millis();
+    if (now - last_fps_ms_ >= 2000) {
+      const float fps =
+          static_cast<float>(frame_count_) * 1000.0f /
+          static_cast<float>(now - last_fps_ms_);
+      char message[64];
+      snprintf(message, sizeof(message), camera_text().camera_fps_fmt, fps);
+      set_status(message);
+      frame_count_ = 0;
+      last_fps_ms_ = now;
+    }
+    taskYIELD();
+    return accepted;
+  }
+
+  int available() override { return 0; }
+  int read() override { return -1; }
+  int peek() override { return -1; }
+  void flush() override {}
+
+ private:
+  esp_h264_dec_handle_t decoder_;
+  uint8_t* input_;
+  size_t buffered_ = 0;
+  uint32_t frame_count_ = 0;
+  uint32_t last_fps_ms_ = 0;
+  bool received_first_bytes_ = false;
+  bool failed_ = false;
+  bool at_stream_start_ = true;
+};
+
 static void finish_camera_task(HTTPClient* http,
                                esp_h264_dec_handle_t decoder,
                                uint8_t* input) {
@@ -327,22 +439,15 @@ static void finish_camera_task(HTTPClient* http,
     esp_h264_dec_del(decoder);
   }
   if (http) http->end();
-
-  bool release_buffers = false;
-  portENTER_CRITICAL(&g_state_mux);
-  g_task = nullptr;
-  release_buffers = g_release_buffers;
-  portEXIT_CRITICAL(&g_state_mux);
-  if (release_buffers) release_frame_buffers();
-  vTaskDelete(nullptr);
 }
 
-static void camera_task(void*) {
+static void run_camera_task() {
   set_status(camera_text().camera_http_connecting);
   const String url = g_url;
-  g_plain_client.stop();
-  g_secure_client.stop();
-  g_secure_client.setInsecure();
+  ScopedCameraTlsPsramAllocator tls_allocator;
+  NetworkClient plain_client;
+  NetworkClientSecure secure_client;
+  secure_client.setInsecure();
   HTTPClient http;
   http.setConnectTimeout(4000);
   // Home Assistant may still be scheduling the route while the BambuLab
@@ -363,8 +468,8 @@ static void camera_task(void*) {
           heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024U),
       static_cast<unsigned>(
           heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
-  const bool began = secure ? http.begin(g_secure_client, url)
-                            : http.begin(g_plain_client, url);
+  const bool began = secure ? http.begin(secure_client, url)
+                            : http.begin(plain_client, url);
   if (!began) {
     Serial.println("[CameraStream] HTTP begin() fehlgeschlagen");
     set_status(camera_text().camera_url_open_failed, true);
@@ -409,62 +514,14 @@ static void camera_task(void*) {
     return;
   }
 
-  // Once the response is established, short socket waits keep close/stop
-  // responsive. The read loop only requests bytes reported by available().
-  http.setTimeout(250);
-  NetworkClient* stream = http.getStreamPtr();
-  size_t buffered = 0;
-  uint32_t frame_count = 0;
-  uint32_t last_fps_ms = millis();
-  bool received_first_bytes = false;
+  // Let HTTPClient remove HTTP/1.1 chunk framing before bytes reach the H.264
+  // decoder. A bounded per-chunk wait keeps close responsive without touching
+  // the TLS socket from another task.
+  http.setTimeout(1500);
   set_status(camera_text().camera_buffering);
-
-  while (!g_stop_requested && http.connected()) {
-    const int available = stream ? stream->available() : 0;
-    if (available <= 0) {
-      vTaskDelay(pdMS_TO_TICKS(2));
-      continue;
-    }
-
-    const size_t room = kInputBytes - buffered;
-    if (room == 0) {
-      set_status(camera_text().camera_input_buffer_full, true);
-      break;
-    }
-    const size_t wanted =
-        std::min(std::min(room, static_cast<size_t>(available)),
-                 kReadChunkBytes);
-    const int received = stream->read(input + buffered, wanted);
-    if (received <= 0) {
-      vTaskDelay(pdMS_TO_TICKS(1));
-      continue;
-    }
-    buffered += static_cast<size_t>(received);
-    if (!received_first_bytes) {
-      received_first_bytes = true;
-      Serial.printf("[CameraStream] Erste H.264-Daten: %d Bytes nach %ums\n",
-                    received,
-                    static_cast<unsigned>(millis() - get_started_ms));
-    }
-
-    const uint32_t frames_before = g_worker_frame_count;
-    if (!decode_buffer(decoder, input, buffered)) break;
-    frame_count += g_worker_frame_count - frames_before;
-
-    const uint32_t now = millis();
-    if (now - last_fps_ms >= 2000) {
-      const float fps =
-          static_cast<float>(frame_count) * 1000.0f /
-          static_cast<float>(now - last_fps_ms);
-      char message[64];
-      snprintf(message, sizeof(message), camera_text().camera_fps_fmt,
-               fps);
-      set_status(message);
-      frame_count = 0;
-      last_fps_ms = now;
-    }
-    taskYIELD();
-  }
+  H264DecodeStream decode_stream(decoder, input);
+  const int stream_result = http.writeToStream(&decode_stream);
+  Serial.printf("[CameraStream] HTTP-Stream beendet: %d\n", stream_result);
 
   if (g_stop_requested) {
     set_status(camera_text().camera_stream_stopped);
@@ -476,6 +533,21 @@ static void camera_task(void*) {
     if (!had_error) set_status(camera_text().camera_connection_ended, true);
   }
   finish_camera_task(&http, decoder, input);
+}
+
+static void camera_task(void*) {
+  // Keep all C++ objects inside this scope. Their destructors must run before
+  // FreeRTOS deletes the task stack, especially HTTPClient/NetworkClientSecure
+  // and the temporary global mbedTLS allocator override.
+  run_camera_task();
+
+  bool release_buffers = false;
+  portENTER_CRITICAL(&g_state_mux);
+  g_task = nullptr;
+  release_buffers = g_release_buffers;
+  portEXIT_CRITICAL(&g_state_mux);
+  if (release_buffers) release_frame_buffers();
+  vTaskDelete(nullptr);
 }
 
 }  // namespace
@@ -533,11 +605,6 @@ bool camera_stream_start(const char* url) {
 void camera_stream_stop() {
   const bool was_active = task_is_active();
   g_stop_requested = true;
-  // Also interrupt the header wait. The normal stream loop already observes
-  // g_stop_requested every few milliseconds, but HTTPClient::GET() otherwise
-  // remains blocking until its read timeout.
-  g_plain_client.stop();
-  g_secure_client.stop();
   Serial.printf("[CameraStream] Stop angefordert (aktiv=%s)\n",
                 was_active ? "ja" : "nein");
   bool active = false;
