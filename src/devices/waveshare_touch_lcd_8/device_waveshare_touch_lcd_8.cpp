@@ -454,6 +454,27 @@ void invalidate_framebuffer_rect(uint16_t* fb, int32_t x, int32_t y, int32_t w, 
   }
 }
 
+bool invalidate_framebuffer_span(uint16_t* fb, int32_t x, int32_t y,
+                                 int32_t w, int32_t h) {
+  if (!fb || w <= 0 || h <= 0) return false;
+  const size_t stride = display_cfg.width;
+  uint16_t* first =
+      fb + (static_cast<size_t>(y) * stride) + static_cast<size_t>(x);
+  const size_t span_pixels =
+      (static_cast<size_t>(h - 1) * stride) + static_cast<size_t>(w);
+  const uintptr_t start = reinterpret_cast<uintptr_t>(first);
+  const uintptr_t aligned_start = start & ~(kCacheLineSize - 1);
+  const uintptr_t end = start + span_pixels * sizeof(uint16_t);
+  const uintptr_t aligned_end =
+      (end + kCacheLineSize - 1) & ~(kCacheLineSize - 1);
+  return esp_cache_msync(
+             reinterpret_cast<void*>(aligned_start),
+             aligned_end - aligned_start,
+             ESP_CACHE_MSYNC_FLAG_DIR_M2C |
+                 ESP_CACHE_MSYNC_FLAG_INVALIDATE |
+                 ESP_CACHE_MSYNC_FLAG_TYPE_DATA) == ESP_OK;
+}
+
 void copy_rect_to_fb(uint16_t* dst, int32_t x, int32_t y, int32_t w, int32_t h,
                      const uint16_t* src) {
   if (!dst || !src || w <= 0 || h <= 0) {
@@ -1034,8 +1055,7 @@ bool DeviceWaveshareTouchLCD8::displayTryFullFramePreview(
   // Dieser Pfad ist absichtlich komplett getrennt vom normalen Flush: Bei
   // jedem Problem zeichnet LVGL wie bisher weiter. Insbesondere gibt es hier
   // KEINEN CPU-Fallback fuer das rund 2 MB grosse Vollbild.
-  static bool preview_disabled_after_fault = false;
-  if (preview_disabled_after_fault || !data ||
+  if (!data ||
       (reinterpret_cast<uintptr_t>(data) & (kCacheLineSize - 1)) != 0 ||
       w < kPpaMinRotateWidth || h <= 0 || !g_panel_fb_ready ||
       !g_ppa_handle || !g_ppa_async_ready || !g_ppa_done ||
@@ -1111,19 +1131,26 @@ bool DeviceWaveshareTouchLCD8::displayTryFullFramePreview(
   xSemaphoreTake(g_ppa_done, 0);
   const esp_err_t err = ppa_do_scale_rotate_mirror(g_ppa_handle, &oper);
   if (err != ESP_OK) {
-    preview_disabled_after_fault = true;
     Serial.printf("[Screensaver/PPA] Preview submit fehlgeschlagen: %d\n",
                   static_cast<int>(err));
     note_ppa_fault();
     return false;
   }
   if (xSemaphoreTake(g_ppa_done, pdMS_TO_TICKS(kPpaRotateTimeoutMs)) != pdTRUE) {
-    preview_disabled_after_fault = true;
     Serial.println("[Screensaver/PPA] Preview timeout, normaler LVGL-Pfad");
     note_ppa_fault();
     return false;
   }
 
+  // PPA wrote the panel framebuffer behind the CPU cache. Discard cached
+  // lines for exactly this destination before a later LVGL/CPU partial update
+  // can write stale pixels back and create persistent rectangular artifacts.
+  // All CPU framebuffer writers flush their touched rows immediately, so one
+  // contiguous invalidate is safe here and avoids hundreds of cache API calls.
+  if (!invalidate_framebuffer_span(fb, dst_x, dst_y, dst_w, dst_h)) {
+    Serial.println("[Screensaver/PPA] Framebuffer-Cache-Sync fehlgeschlagen");
+    return false;
+  }
   g_ppa_consecutive_faults = 0;
   mark_dirty_rect(dst_x, dst_y, dst_w, dst_h);
   return true;

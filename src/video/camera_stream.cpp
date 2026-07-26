@@ -51,6 +51,7 @@ enum class FrameState : uint8_t {
   Free,
   Writing,
   Ready,
+  Presenting,
   Displayed,
 };
 
@@ -70,7 +71,12 @@ bool g_status_error = false;
 uint32_t g_worker_frame_count = 0;
 uint32_t g_presented_frame_count = 0;
 uint32_t g_presented_fps_ms = 0;
+uint64_t g_present_wait_total_us = 0;
+uint64_t g_present_copy_total_us = 0;
+uint32_t g_present_timed_frames = 0;
 uint16_t g_corner_fill_swapped = 0;
+bool g_direct_preview_logged = false;
+bool g_direct_fallback_logged = false;
 
 // Keep the engine alive across popup opens. Creating/deleting JPEG engines
 // repeatedly churns the 2D-DMA pool shared with the display PPA.
@@ -187,6 +193,33 @@ static void release_write_buffer(int8_t index) {
     g_frame_states[index] = FrameState::Free;
   }
   portEXIT_CRITICAL(&g_state_mux);
+}
+
+static void note_presented_frame() {
+  ++g_presented_frame_count;
+  const uint32_t now = millis();
+  if (now - g_presented_fps_ms < 2000) return;
+
+  const float fps =
+      static_cast<float>(g_presented_frame_count) * 1000.0f /
+      static_cast<float>(now - g_presented_fps_ms);
+  char message[64];
+  snprintf(message, sizeof(message), camera_text().camera_fps_fmt, fps);
+  set_status(message);
+  if (g_present_timed_frames > 0) {
+    Serial.printf(
+        "[CameraStream] Present: %.1f FPS wait=%.1fms ppa+cache=%.1fms\n",
+        fps,
+        static_cast<double>(g_present_wait_total_us) /
+            static_cast<double>(g_present_timed_frames) / 1000.0,
+        static_cast<double>(g_present_copy_total_us) /
+            static_cast<double>(g_present_timed_frames) / 1000.0);
+  }
+  g_presented_frame_count = 0;
+  g_presented_fps_ms = now;
+  g_present_wait_total_us = 0;
+  g_present_copy_total_us = 0;
+  g_present_timed_frames = 0;
 }
 
 static bool ensure_jpeg_decoder() {
@@ -1022,6 +1055,11 @@ bool camera_stream_start(const char* url, uint32_t corner_rgb) {
   g_worker_frame_count = 0;
   g_presented_frame_count = 0;
   g_presented_fps_ms = millis();
+  g_present_wait_total_us = 0;
+  g_present_copy_total_us = 0;
+  g_present_timed_frames = 0;
+  g_direct_preview_logged = false;
+  g_direct_fallback_logged = false;
   const BaseType_t task_core = (ARDUINO_RUNNING_CORE == 0) ? 1 : 0;
   if (xTaskCreatePinnedToCoreWithCaps(
           camera_task, "cameraJpeg", 16384, nullptr, tskIDLE_PRIORITY,
@@ -1055,6 +1093,9 @@ void camera_stream_process_ui(lv_obj_t* image,
                               lv_obj_t* status_label) {
   if (!image) return;
   int8_t ready = -1;
+  bool direct_preview = false;
+  bool can_try_direct_preview = false;
+  bool drop_failed_direct_frame = false;
   // If the display PPA has entered its short self-healing cooldown, keep the
   // last frame. Repainting the full video area through the CPU fallback would
   // make every other LVGL interaction sluggish and fight the recovery.
@@ -1066,16 +1107,63 @@ void camera_stream_process_ui(lv_obj_t* image,
       }
     }
     if (ready >= 0) {
-      if (g_displayed_index >= 0 &&
-          g_displayed_index < static_cast<int8_t>(kFrameBufferCount) &&
-          g_frame_states[g_displayed_index] == FrameState::Displayed) {
-        g_frame_states[g_displayed_index] = FrameState::Free;
-      }
       for (uint8_t i = 0; i < kFrameBufferCount; ++i) {
         if (static_cast<int8_t>(i) != ready &&
             g_frame_states[i] == FrameState::Ready) {
           g_frame_states[i] = FrameState::Free;
         }
+      }
+      // Claim the source before dropping the lock. Otherwise the decoder may
+      // select this Ready buffer for its next frame while PPA is still reading
+      // it, which previously produced intermittent square corruption.
+      g_frame_states[ready] = FrameState::Presenting;
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+      can_try_direct_preview =
+          g_displayed_index >= 0 && kDecodedWidth == kWidth;
+#endif
+    }
+    portEXIT_CRITICAL(&g_state_mux);
+  }
+
+  if (ready >= 0 && can_try_direct_preview) {
+    lv_area_t area{};
+    lv_obj_get_coords(image, &area);
+    const uint32_t wait_started_us = micros();
+    Device::displayWaitFrameStart();
+    const uint32_t copy_started_us = micros();
+    direct_preview = Device::displayTryFullFramePreview(
+        area.x1, area.y1, kWidth, kHeight,
+        g_pixels[ready], kPixelBytes,
+        true);  // JPEG output is RGB565 byte-swapped for LVGL.
+    if (direct_preview) {
+      const uint32_t copy_finished_us = micros();
+      g_present_wait_total_us += copy_started_us - wait_started_us;
+      g_present_copy_total_us += copy_finished_us - copy_started_us;
+      ++g_present_timed_frames;
+    }
+    if (direct_preview && !g_direct_preview_logged) {
+      g_direct_preview_logged = true;
+      Serial.println(
+          "[CameraStream] Present-Pfad: direct-ppa "
+          "(Puffer geschuetzt, Cache synchronisiert)");
+    } else if (!direct_preview && !g_direct_fallback_logged) {
+      g_direct_fallback_logged = true;
+      Serial.println(
+          "[CameraStream] Direct-PPA nicht verfuegbar; "
+          "Frame wird ausgelassen");
+    }
+    drop_failed_direct_frame = !direct_preview;
+  }
+
+  if (ready >= 0) {
+    portENTER_CRITICAL(&g_state_mux);
+    if (direct_preview || drop_failed_direct_frame) {
+      g_frame_states[ready] = FrameState::Free;
+    } else {
+      if (g_displayed_index >= 0 &&
+          g_displayed_index < static_cast<int8_t>(kFrameBufferCount) &&
+          g_frame_states[g_displayed_index] == FrameState::Displayed) {
+        g_frame_states[g_displayed_index] = FrameState::Free;
       }
       g_frame_states[ready] = FrameState::Displayed;
       g_displayed_index = ready;
@@ -1083,30 +1171,17 @@ void camera_stream_process_ui(lv_obj_t* image,
     portEXIT_CRITICAL(&g_state_mux);
   }
 
-  if (ready >= 0) {
-    // Keep normal LVGL clipping/rounded corners, but align this one complete
-    // image refresh with the Waveshare 8 panel scan. The large PSRAM draw
-    // buffer lets LVGL emit the 752x424 image as one PPA operation.
-    Device::displayWaitFrameStart();
+  if (ready >= 0 && !direct_preview && !drop_failed_direct_frame) {
+    // Establish the first cache-coherent LVGL image. Do not force
+    // lv_refr_now() here: a synchronous refresh blocked the UI for 130-150 ms.
     lv_image_set_src(image, &g_images[ready]);
     lv_obj_clear_flag(image, LV_OBJ_FLAG_HIDDEN);
     if (placeholder) lv_obj_add_flag(placeholder, LV_OBJ_FLAG_HIDDEN);
-    if (lv_display_t* display = lv_obj_get_display(image)) {
-      lv_refr_now(display);
-    }
-    ++g_presented_frame_count;
-    const uint32_t now = millis();
-    if (now - g_presented_fps_ms >= 2000) {
-      const float fps =
-          static_cast<float>(g_presented_frame_count) * 1000.0f /
-          static_cast<float>(now - g_presented_fps_ms);
-      char message[64];
-      snprintf(message, sizeof(message), camera_text().camera_fps_fmt, fps);
-      set_status(message);
-      g_presented_frame_count = 0;
-      g_presented_fps_ms = now;
-    }
+  } else if (direct_preview) {
+    lv_obj_clear_flag(image, LV_OBJ_FLAG_HIDDEN);
+    if (placeholder) lv_obj_add_flag(placeholder, LV_OBJ_FLAG_HIDDEN);
   }
+  if (ready >= 0 && !drop_failed_direct_frame) note_presented_frame();
 
   char status[sizeof(g_status)] = "";
   bool status_error = false;
