@@ -35,6 +35,12 @@ bool displayTryFullFramePreview(int32_t x, int32_t y, int32_t w, int32_t h,
       x, y, w, h, data, data_size, byte_swap);
 }
 
+void displayEndFullFramePreview() {
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+  DeviceImpl::displayEndFullFramePreview();
+#endif
+}
+
 bool ppaCooldownActive() {
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_GUITION_JC1060P470C)

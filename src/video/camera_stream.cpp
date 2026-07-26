@@ -208,7 +208,7 @@ static void note_presented_frame() {
   set_status(message);
   if (g_present_timed_frames > 0) {
     Serial.printf(
-        "[CameraStream] Present: %.1f FPS wait=%.1fms ppa+cache=%.1fms\n",
+        "[CameraStream] Present: %.1f FPS wait=%.1fms ppa+cache+swap=%.1fms\n",
         fps,
         static_cast<double>(g_present_wait_total_us) /
             static_cast<double>(g_present_timed_frames) / 1000.0,
@@ -1078,6 +1078,7 @@ bool camera_stream_start(const char* url, uint32_t corner_rgb) {
 void camera_stream_stop() {
   const bool was_active = task_is_active();
   g_stop_requested = true;
+  Device::displayEndFullFramePreview();
   Serial.printf("[CameraStream] Stop angefordert (aktiv=%s)\n",
                 was_active ? "ja" : "nein");
   bool active = false;
@@ -1144,8 +1145,8 @@ void camera_stream_process_ui(lv_obj_t* image,
     if (direct_preview && !g_direct_preview_logged) {
       g_direct_preview_logged = true;
       Serial.println(
-          "[CameraStream] Present-Pfad: direct-ppa "
-          "(Puffer geschuetzt, Cache synchronisiert)");
+          "[CameraStream] Present-Pfad: direct-ppa-vsync-double-buffer "
+          "(Quellpuffer geschuetzt, Cache synchronisiert)");
     } else if (!direct_preview && !g_direct_fallback_logged) {
       g_direct_fallback_logged = true;
       Serial.println(
