@@ -31,6 +31,7 @@ constexpr size_t kI420Bytes =
 constexpr size_t kInputBytes = 192U * 1024U;
 constexpr uint8_t kFrameBufferCount = 2;
 constexpr size_t kReadChunkBytes = 32U * 1024U;
+constexpr uint32_t kHttpHeaderTimeoutMs = 5000;
 
 enum class FrameState : uint8_t {
   Free,
@@ -53,6 +54,11 @@ uint32_t g_ui_status_sequence = 0;
 char g_status[96] = "";
 bool g_status_error = false;
 uint32_t g_worker_frame_count = 0;
+// These clients deliberately outlive the worker task. close() can therefore
+// stop the socket from the UI task and immediately unblock an in-progress
+// HTTP GET instead of leaving the decoder worker active until its timeout.
+NetworkClient g_plain_client;
+NetworkClientSecure g_secure_client;
 
 // BT.601 limited-range lookup tables remove five multiplications per output
 // pixel. Four pixels share one U/V pair, which keeps the software conversion
@@ -104,6 +110,9 @@ static uint16_t rgb565_swapped(uint8_t y_value,
 }
 
 static void set_status(const char* text, bool error = false) {
+  Serial.printf("[CameraStream] Status%s: %s\n",
+                error ? " FEHLER" : "",
+                text ? text : "");
   portENTER_CRITICAL(&g_state_mux);
   snprintf(g_status, sizeof(g_status), "%s", text ? text : "");
   g_status_error = error;
@@ -256,6 +265,10 @@ static bool output_frame(const esp_h264_dec_out_frame_t& output) {
   }
   publish_write_buffer(index);
   ++g_worker_frame_count;
+  if (g_worker_frame_count == 1) {
+    Serial.printf("[CameraStream] Erstes Bild dekodiert (%u Bytes I420)\n",
+                  static_cast<unsigned>(output.out_size));
+  }
   return true;
 }
 
@@ -272,6 +285,12 @@ static bool decode_buffer(esp_h264_dec_handle_t decoder,
     const esp_h264_err_t result =
         esp_h264_dec_process(decoder, &in_frame, &out_frame);
     if (result != ESP_H264_ERR_OK) {
+      Serial.printf(
+          "[CameraStream] Decoderfehler=%d buffered=%u offset=%u consume=%u\n",
+          static_cast<int>(result),
+          static_cast<unsigned>(buffered),
+          static_cast<unsigned>(offset),
+          static_cast<unsigned>(in_frame.consume));
       set_status(camera_text().camera_decoder_error, true);
       return false;
     }
@@ -291,6 +310,17 @@ static bool decode_buffer(esp_h264_dec_handle_t decoder,
 static void finish_camera_task(HTTPClient* http,
                                esp_h264_dec_handle_t decoder,
                                uint8_t* input) {
+  Serial.printf(
+      "[CameraStream] Task-Ende: stop=%s frames=%u int=%uKB "
+      "largest=%uKB psram=%uKB\n",
+      g_stop_requested ? "ja" : "nein",
+      static_cast<unsigned>(g_worker_frame_count),
+      static_cast<unsigned>(
+          heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024U),
+      static_cast<unsigned>(
+          heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024U),
+      static_cast<unsigned>(
+          heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
   if (input) heap_caps_free(input);
   if (decoder) {
     esp_h264_dec_close(decoder);
@@ -310,27 +340,43 @@ static void finish_camera_task(HTTPClient* http,
 static void camera_task(void*) {
   set_status(camera_text().camera_http_connecting);
   const String url = g_url;
-  NetworkClient plain_client;
-  NetworkClientSecure secure_client;
-  secure_client.setInsecure();
+  g_plain_client.stop();
+  g_secure_client.stop();
+  g_secure_client.setInsecure();
   HTTPClient http;
   http.setConnectTimeout(4000);
-  // Starting the HA route also starts FFmpeg. Give that route enough time to
-  // return its HTTP headers; 250 ms here surfaced as HTTPC READ_TIMEOUT (-11)
-  // on otherwise healthy BambuLab A1 sessions.
-  http.setTimeout(5000);
+  // Home Assistant may still be scheduling the route while the BambuLab
+  // integration finishes a snapshot request. Keep this timeout separate from
+  // the short streaming read waits configured after the response arrives.
+  http.setTimeout(kHttpHeaderTimeoutMs);
   http.setReuse(false);
 
   const bool secure = url.startsWith("https://");
-  const bool began = secure ? http.begin(secure_client, url)
-                            : http.begin(plain_client, url);
+  Serial.printf(
+      "[CameraStream] Start: https=%s url_len=%u int=%uKB largest=%uKB "
+      "psram=%uKB\n",
+      secure ? "ja" : "nein",
+      static_cast<unsigned>(url.length()),
+      static_cast<unsigned>(
+          heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024U),
+      static_cast<unsigned>(
+          heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024U),
+      static_cast<unsigned>(
+          heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
+  const bool began = secure ? http.begin(g_secure_client, url)
+                            : http.begin(g_plain_client, url);
   if (!began) {
+    Serial.println("[CameraStream] HTTP begin() fehlgeschlagen");
     set_status(camera_text().camera_url_open_failed, true);
     finish_camera_task(&http, nullptr, nullptr);
     return;
   }
 
+  const uint32_t get_started_ms = millis();
   const int code = http.GET();
+  Serial.printf("[CameraStream] HTTP GET=%d nach %ums\n",
+                code,
+                static_cast<unsigned>(millis() - get_started_ms));
   if (code != HTTP_CODE_OK) {
     char message[64];
     snprintf(message, sizeof(message), camera_text().camera_http_error_fmt,
@@ -346,6 +392,7 @@ static void camera_task(void*) {
   if (esp_h264_dec_sw_new(&decoder_cfg, &decoder) != ESP_H264_ERR_OK ||
       !decoder ||
       esp_h264_dec_open(decoder) != ESP_H264_ERR_OK) {
+    Serial.println("[CameraStream] H.264-Decoder konnte nicht starten");
     set_status(camera_text().camera_decoder_start_failed, true);
     if (decoder) esp_h264_dec_del(decoder);
     finish_camera_task(&http, nullptr, nullptr);
@@ -355,6 +402,8 @@ static void camera_task(void*) {
   uint8_t* input = static_cast<uint8_t*>(heap_caps_malloc(
       kInputBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   if (!input) {
+    Serial.printf("[CameraStream] Eingangspuffer (%u Bytes) fehlt\n",
+                  static_cast<unsigned>(kInputBytes));
     set_status(camera_text().camera_input_memory_failed, true);
     finish_camera_task(&http, decoder, nullptr);
     return;
@@ -367,6 +416,7 @@ static void camera_task(void*) {
   size_t buffered = 0;
   uint32_t frame_count = 0;
   uint32_t last_fps_ms = millis();
+  bool received_first_bytes = false;
   set_status(camera_text().camera_buffering);
 
   while (!g_stop_requested && http.connected()) {
@@ -390,6 +440,12 @@ static void camera_task(void*) {
       continue;
     }
     buffered += static_cast<size_t>(received);
+    if (!received_first_bytes) {
+      received_first_bytes = true;
+      Serial.printf("[CameraStream] Erste H.264-Daten: %d Bytes nach %ums\n",
+                    received,
+                    static_cast<unsigned>(millis() - get_started_ms));
+    }
 
     const uint32_t frames_before = g_worker_frame_count;
     if (!decode_buffer(decoder, input, buffered)) break;
@@ -434,6 +490,17 @@ bool camera_stream_start(const char* url) {
     return false;
   }
   if (!ensure_frame_buffers()) return false;
+  Serial.printf(
+      "[CameraStream] Bildpuffer bereit: %u x %u Bytes, int=%uKB "
+      "largest=%uKB psram=%uKB\n",
+      static_cast<unsigned>(kFrameBufferCount),
+      static_cast<unsigned>(kPixelBytes),
+      static_cast<unsigned>(
+          heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024U),
+      static_cast<unsigned>(
+          heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024U),
+      static_cast<unsigned>(
+          heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
 
   portENTER_CRITICAL(&g_state_mux);
   for (uint8_t i = 0; i < kFrameBufferCount; ++i) {
@@ -464,7 +531,15 @@ bool camera_stream_start(const char* url) {
 }
 
 void camera_stream_stop() {
+  const bool was_active = task_is_active();
   g_stop_requested = true;
+  // Also interrupt the header wait. The normal stream loop already observes
+  // g_stop_requested every few milliseconds, but HTTPClient::GET() otherwise
+  // remains blocking until its read timeout.
+  g_plain_client.stop();
+  g_secure_client.stop();
+  Serial.printf("[CameraStream] Stop angefordert (aktiv=%s)\n",
+                was_active ? "ja" : "nein");
   bool active = false;
   portENTER_CRITICAL(&g_state_mux);
   g_release_buffers = true;

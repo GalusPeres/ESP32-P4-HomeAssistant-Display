@@ -316,17 +316,24 @@ void camera_popup_handle_mqtt_status(const char* payload) {
     return;
   }
   const char* status = doc["status"] | "";
+  Serial.printf("[Camera] Bridge-Status: entity=%s status=%s\n",
+                entity,
+                status);
   if (strcmp(status, "ready") == 0) {
     const char* url = doc["url"] | "";
     if (!*url) {
       camera_popup_set_status(camera_text().camera_no_stream_url, true);
       return;
     }
+    Serial.printf("[Camera] Stream-URL empfangen (%u Zeichen)\n",
+                  static_cast<unsigned>(strlen(url)));
     camera_popup_set_status(camera_text().camera_connecting, false);
     camera_stream_start(url);
     return;
   }
   if (strcmp(status, "error") == 0) {
+    Serial.printf("[Camera] Bridge-Fehler: %s\n",
+                  static_cast<const char*>(doc["error"] | ""));
     camera_popup_set_status(localize_camera_error(doc["error"] | ""), true);
     return;
   }
