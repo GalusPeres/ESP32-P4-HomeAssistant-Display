@@ -3,42 +3,41 @@
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <soc/soc_caps.h>
 
 #include "src/core/config_manager.h"
 #include "src/core/i18n.h"
 #include "src/network/network_manager.h"
 
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4) && \
+    defined(SOC_JPEG_DECODE_SUPPORTED) && SOC_JPEG_DECODE_SUPPORTED
 
 #include <HTTPClient.h>
 #include <NetworkClient.h>
 #include <driver/jpeg_decode.h>
 #include <lwip/sockets.h>
-#include <soc/soc_caps.h>
 
 #include <algorithm>
 #include <cstring>
 
 #include "src/core/dma2d_arbiter.h"
-#include "src/devices/waveshare_touch_lcd_8/device_waveshare_touch_lcd_8.h"
-
-#if !defined(CONFIG_IDF_TARGET_ESP32P4) || !SOC_JPEG_DECODE_SUPPORTED
-#error "Waveshare 8 camera video requires the ESP32-P4 JPEG decoder"
-#endif
+#include "src/devices/device.h"
+#include "src/video/camera_geometry.h"
 
 namespace {
 
-constexpr uint16_t kWidth = 752;
-constexpr uint16_t kHeight = 424;
-constexpr uint16_t kDecodedWidth = (kWidth + 15U) & ~15U;
-constexpr uint16_t kDecodedHeight = (kHeight + 15U) & ~15U;
+constexpr uint16_t kWidth = camera_geometry::kWidth;
+constexpr uint16_t kHeight = camera_geometry::kHeight;
+constexpr uint16_t kDecodedWidth = camera_geometry::kDecodedWidth;
+constexpr uint16_t kDecodedHeight = camera_geometry::kDecodedHeight;
 constexpr size_t kPixelBytes =
     static_cast<size_t>(kDecodedWidth) * kDecodedHeight * sizeof(uint16_t);
 constexpr size_t kMaxJpegBytes = 256U * 1024U;
 constexpr uint8_t kFrameBufferCount = 2;
 constexpr uint32_t kHttpHeaderTimeoutMs = 5000;
-constexpr int kHttpReceiveBufferBytes = 8 * 1024;
+constexpr int kHttpReceiveBufferBytes = 4 * 1024;
 constexpr size_t kMinCameraDmaHeadroomBytes = 24 * 1024;
+constexpr uint32_t kDmaHeadroomGraceMs = 250;
 constexpr char kJpegFraming[] = "be32-jpeg";
 
 enum class FrameState : uint8_t {
@@ -616,6 +615,7 @@ static void run_camera_task() {
   NetworkClient* stream = http.getStreamPtr();
   uint8_t raw[2048];
   bool stream_ok = true;
+  uint32_t low_dma_headroom_since_ms = 0;
   while (!g_stop_requested && stream &&
          (http.connected() || stream->available() > 0)) {
     const size_t dma_free = heap_caps_get_free_size(
@@ -623,15 +623,25 @@ static void run_camera_task() {
     const size_t mqtt_dma_reserve = networkManager.mqttDmaReserveBytes();
     const size_t dma_headroom = dma_free + mqtt_dma_reserve;
     if (dma_headroom < kMinCameraDmaHeadroomBytes) {
-      Serial.printf(
-          "[CameraStream] Sicherheitsstopp: DMA frei=%u KB Reserve=%u KB "
-          "Headroom=%u KB; MQTT/WLAN bleiben aktiv\n",
-          static_cast<unsigned>(dma_free / 1024U),
-          static_cast<unsigned>(mqtt_dma_reserve / 1024U),
-          static_cast<unsigned>(dma_headroom / 1024U));
-      set_status(camera_text().camera_connection_ended, true);
-      stream_ok = false;
-      break;
+      const uint32_t now = millis();
+      if (low_dma_headroom_since_ms == 0) {
+        low_dma_headroom_since_ms = now ? now : 1;
+      } else if (
+          static_cast<uint32_t>(now - low_dma_headroom_since_ms) >=
+          kDmaHeadroomGraceMs) {
+        Serial.printf(
+            "[CameraStream] Sicherheitsstopp: DMA frei=%u KB Reserve=%u KB "
+            "Headroom=%u KB seit %u ms; MQTT/WLAN bleiben aktiv\n",
+            static_cast<unsigned>(dma_free / 1024U),
+            static_cast<unsigned>(mqtt_dma_reserve / 1024U),
+            static_cast<unsigned>(dma_headroom / 1024U),
+            static_cast<unsigned>(now - low_dma_headroom_since_ms));
+        set_status(camera_text().camera_connection_ended, true);
+        stream_ok = false;
+        break;
+      }
+    } else {
+      low_dma_headroom_since_ms = 0;
     }
     const int available = stream->available();
     if (available <= 0) {
@@ -757,36 +767,61 @@ void camera_stream_process_ui(lv_obj_t* image,
                               lv_obj_t* status_label) {
   if (!image) return;
   int8_t ready = -1;
+  bool direct_preview = false;
   // If the display PPA has entered its short self-healing cooldown, keep the
   // last frame. Repainting the full video area through the CPU fallback would
   // make every other LVGL interaction sluggish and fight the recovery.
-  if (!DeviceWaveshareTouchLCD8::ppaCooldownActive()) {
+  if (!Device::ppaCooldownActive()) {
     portENTER_CRITICAL(&g_state_mux);
     for (uint8_t i = 0; i < kFrameBufferCount; ++i) {
       if (g_frame_states[i] == FrameState::Ready) {
         ready = static_cast<int8_t>(i);
       }
     }
+    portEXIT_CRITICAL(&g_state_mux);
+
+    // After the first LVGL frame established the clipped popup surface, update
+    // subsequent packed frames straight into the physical framebuffer. The
+    // device implementation synchronizes this PPA copy to the next panel
+    // refresh, avoiding the visible band-by-band rebuild of a large LVGL image.
+    if (ready >= 0 && g_displayed_index >= 0 &&
+        kDecodedWidth == kWidth) {
+      lv_area_t area{};
+      lv_obj_get_coords(image, &area);
+      direct_preview = Device::displayTryFullFramePreview(
+          area.x1, area.y1, kWidth, kHeight,
+          g_pixels[ready], kPixelBytes,
+          true);  // JPEG decoder output is RGB565 byte-swapped for LVGL.
+    }
+
+    portENTER_CRITICAL(&g_state_mux);
     if (ready >= 0) {
-      if (g_displayed_index >= 0 &&
-          g_displayed_index < static_cast<int8_t>(kFrameBufferCount) &&
-          g_frame_states[g_displayed_index] == FrameState::Displayed) {
-        g_frame_states[g_displayed_index] = FrameState::Free;
-      }
       for (uint8_t i = 0; i < kFrameBufferCount; ++i) {
         if (static_cast<int8_t>(i) != ready &&
             g_frame_states[i] == FrameState::Ready) {
           g_frame_states[i] = FrameState::Free;
         }
       }
-      g_frame_states[ready] = FrameState::Displayed;
-      g_displayed_index = ready;
+      if (direct_preview) {
+        g_frame_states[ready] = FrameState::Free;
+      } else {
+        if (g_displayed_index >= 0 &&
+            g_displayed_index < static_cast<int8_t>(kFrameBufferCount) &&
+            g_frame_states[g_displayed_index] == FrameState::Displayed) {
+          g_frame_states[g_displayed_index] = FrameState::Free;
+        }
+        g_frame_states[ready] = FrameState::Displayed;
+        g_displayed_index = ready;
+      }
     }
     portEXIT_CRITICAL(&g_state_mux);
   }
 
-  if (ready >= 0) {
+  if (ready >= 0 && !direct_preview) {
     lv_image_set_src(image, &g_images[ready]);
+    lv_obj_clear_flag(image, LV_OBJ_FLAG_HIDDEN);
+    if (placeholder) lv_obj_add_flag(placeholder, LV_OBJ_FLAG_HIDDEN);
+  } else if (direct_preview) {
     lv_obj_clear_flag(image, LV_OBJ_FLAG_HIDDEN);
     if (placeholder) lv_obj_add_flag(placeholder, LV_OBJ_FLAG_HIDDEN);
   }

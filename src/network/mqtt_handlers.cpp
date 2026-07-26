@@ -6,6 +6,7 @@
 #include "src/ui/screensaver_config.h"
 #include "src/ui/sensor_popup.h"
 #include "src/ui/camera_popup.h"
+#include "src/video/camera_geometry.h"
 #include "src/ui/tab_settings.h"
 #include "src/types/energy/energy_data.h"
 #include "src/tiles/tile_config.h"
@@ -2287,10 +2288,20 @@ void mqttPublishCameraCommand(const char* entity_id, const char* command) {
   }
 
   const char* action = (command && *command) ? command : "open";
-  char payload[320];
-  snprintf(payload, sizeof(payload),
-           "{\"entity_id\":\"%s\",\"command\":\"%s\"}",
-           entity_id, action);
+  char payload[384];
+  if (strcmp(action, "open") == 0) {
+    snprintf(payload, sizeof(payload),
+             "{\"entity_id\":\"%s\",\"command\":\"%s\","
+             "\"width\":%u,\"height\":%u,\"fps\":%u}",
+             entity_id, action,
+             camera_geometry::kWidth,
+             camera_geometry::kHeight,
+             camera_geometry::kFps);
+  } else {
+    snprintf(payload, sizeof(payload),
+             "{\"entity_id\":\"%s\",\"command\":\"%s\"}",
+             entity_id, action);
+  }
   const bool queued =
       networkManager.mqttEnqueuePublishPriority(topic, payload, false);
   Serial.printf("[Camera] command %s -> %s (%s)\n", action, topic,

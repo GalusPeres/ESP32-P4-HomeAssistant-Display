@@ -35,6 +35,15 @@ bool displayTryFullFramePreview(int32_t x, int32_t y, int32_t w, int32_t h,
       x, y, w, h, data, data_size, byte_swap);
 }
 
+bool ppaCooldownActive() {
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
+    defined(DEVICE_GUITION_JC1060P470C)
+  return DeviceImpl::ppaCooldownActive();
+#else
+  return false;
+#endif
+}
+
 void displayWaitDMA() {
   DeviceImpl::displayWaitDMA();
 }

@@ -17,12 +17,13 @@
 #include "src/ui/sensor_popup.h"
 #include "src/ui/ui_surface_style.h"
 #include "src/ui/weather_popup.h"
+#include "src/video/camera_geometry.h"
 #include "src/video/camera_stream.h"
 
 namespace {
 
-constexpr int kVideoFrameWidth = popup_layout::kContentWidth;
-constexpr int kVideoHeight = 424;
+constexpr int kVideoFrameWidth = camera_geometry::kWidth;
+constexpr int kVideoHeight = camera_geometry::kHeight;
 constexpr int kVideoTop = popup_layout::scale480(104);
 constexpr int kStatusTop =
     kVideoTop + kVideoHeight + popup_layout::scale480(22);
@@ -207,8 +208,8 @@ static CameraPopupContext* create_popup() {
   lv_obj_clear_flag(video, LV_OBJ_FLAG_CLICKABLE);
 
   ctx->image = lv_image_create(video);
-  // The bridge delivers native 752x424 frames, matching the popup content
-  // width. No LVGL scaling or letterboxing is needed on Waveshare 8.
+  // The bridge delivers the native frame size requested by this device.
+  // No LVGL scaling or letterboxing is needed.
   lv_obj_set_size(ctx->image, kVideoFrameWidth, kVideoHeight);
   lv_image_set_inner_align(ctx->image, LV_IMAGE_ALIGN_CENTER);
   lv_obj_center(ctx->image);
@@ -322,6 +323,23 @@ void camera_popup_handle_mqtt_status(const char* payload) {
     const char* url = doc["url"] | "";
     if (!*url) {
       camera_popup_set_status(camera_text().camera_no_stream_url, true);
+      return;
+    }
+    const uint16_t width = doc["width"] | 0;
+    const uint16_t height = doc["height"] | 0;
+    const uint8_t fps = doc["fps"] | 0;
+    const char* framing = doc["framing"] | "";
+    if (width != camera_geometry::kWidth ||
+        height != camera_geometry::kHeight ||
+        fps < 1 || fps > camera_geometry::kFps ||
+        strcmp(framing, "be32-jpeg") != 0) {
+      Serial.printf(
+          "[Camera] Ungueltiges Streamformat: %ux%u@%u framing=%s "
+          "(erwartet %ux%u@<=%u be32-jpeg)\n",
+          width, height, fps, framing,
+          camera_geometry::kWidth, camera_geometry::kHeight,
+          camera_geometry::kFps);
+      camera_popup_set_status(camera_text().camera_invalid_response, true);
       return;
     }
     Serial.printf("[Camera] Stream-URL empfangen (%u Zeichen)\n",
