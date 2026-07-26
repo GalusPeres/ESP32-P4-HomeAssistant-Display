@@ -32,8 +32,7 @@ constexpr size_t kI420Bytes =
 constexpr size_t kInputBytes = 192U * 1024U;
 constexpr uint8_t kFrameBufferCount = 2;
 constexpr uint32_t kHttpHeaderTimeoutMs = 5000;
-constexpr uint8_t kBridgeFlushAud[] = {0x00, 0x00, 0x00,
-                                       0x01, 0x09, 0xF0};
+constexpr char kAccessUnitFraming[] = "be32-access-unit";
 
 enum class FrameState : uint8_t {
   Free,
@@ -304,46 +303,48 @@ static bool output_frame(const esp_h264_dec_out_frame_t& output) {
   return true;
 }
 
-static bool decode_buffer(esp_h264_dec_handle_t decoder,
-                          uint8_t* input,
-                          size_t& buffered) {
+static bool decode_access_unit(esp_h264_dec_handle_t decoder,
+                               uint8_t* input,
+                               size_t access_unit_size) {
   size_t offset = 0;
-  while (offset < buffered && !g_stop_requested) {
+  while (offset < access_unit_size && !g_stop_requested) {
     esp_h264_dec_in_frame_t in_frame{};
     in_frame.raw_data.buffer = input + offset;
     in_frame.raw_data.len =
-        static_cast<uint32_t>(buffered - offset);
+        static_cast<uint32_t>(access_unit_size - offset);
     esp_h264_dec_out_frame_t out_frame{};
     const esp_h264_err_t result =
         esp_h264_dec_process(decoder, &in_frame, &out_frame);
     if (result != ESP_H264_ERR_OK) {
       Serial.printf(
-          "[CameraStream] Decoderfehler=%d buffered=%u offset=%u consume=%u\n",
+          "[CameraStream] Decoderfehler=%d au=%u offset=%u consume=%u\n",
           static_cast<int>(result),
-          static_cast<unsigned>(buffered),
+          static_cast<unsigned>(access_unit_size),
           static_cast<unsigned>(offset),
           static_cast<unsigned>(in_frame.consume));
       set_status(camera_text().camera_decoder_error, true);
       return false;
     }
     if (!output_frame(out_frame)) return false;
-    if (in_frame.consume == 0) break;
+    if (in_frame.consume == 0) {
+      Serial.printf(
+          "[CameraStream] Decoder verbrauchte keine Daten: au=%u offset=%u\n",
+          static_cast<unsigned>(access_unit_size),
+          static_cast<unsigned>(offset));
+      set_status(camera_text().camera_decoder_error, true);
+      return false;
+    }
     offset += in_frame.consume;
-  }
-
-  if (offset > 0) {
-    const size_t remaining = buffered - offset;
-    if (remaining) memmove(input, input + offset, remaining);
-    buffered = remaining;
   }
   return true;
 }
 
-// Receives only H.264 payload bytes after HttpChunkedBodyDecoder has removed
-// HTTP/1.1 chunk framing from the raw socket.
-class H264DecodeStream final : public Stream {
+// Receives the HomeTiles record stream after HttpChunkedBodyDecoder has
+// removed HTTP/1.1 chunk framing. Each record is a big-endian uint32 length
+// followed by exactly one complete Annex-B H.264 access unit.
+class H264AccessUnitStream final : public Stream {
  public:
-  H264DecodeStream(esp_h264_dec_handle_t decoder, uint8_t* input)
+  H264AccessUnitStream(esp_h264_dec_handle_t decoder, uint8_t* input)
       : decoder_(decoder),
         input_(input),
         last_fps_ms_(millis()) {}
@@ -356,50 +357,89 @@ class H264DecodeStream final : public Stream {
     if (!data || len == 0) return 0;
     if (g_stop_requested || failed_) return 0;
     const size_t accepted = len;
-    if (at_stream_start_) {
-      at_stream_start_ = false;
-      if (len >= sizeof(kBridgeFlushAud) &&
-          memcmp(data, kBridgeFlushAud, sizeof(kBridgeFlushAud)) == 0) {
-        data += sizeof(kBridgeFlushAud);
-        len -= sizeof(kBridgeFlushAud);
-        Serial.println("[CameraStream] Bridge-Flush-AUD entfernt");
-        if (len == 0) return accepted;
+
+    while (len > 0 && !failed_ && !g_stop_requested) {
+      if (length_bytes_ < sizeof(length_header_)) {
+        const size_t take =
+            std::min(len, sizeof(length_header_) - length_bytes_);
+        memcpy(length_header_ + length_bytes_, data, take);
+        length_bytes_ += take;
+        data += take;
+        len -= take;
+        if (length_bytes_ < sizeof(length_header_)) continue;
+
+        expected_bytes_ =
+            (static_cast<size_t>(length_header_[0]) << 24) |
+            (static_cast<size_t>(length_header_[1]) << 16) |
+            (static_cast<size_t>(length_header_[2]) << 8) |
+            static_cast<size_t>(length_header_[3]);
+        buffered_ = 0;
+        if (expected_bytes_ == 0) {
+          length_bytes_ = 0;
+          if (!received_flush_record_) {
+            received_flush_record_ = true;
+            Serial.println("[CameraStream] Bridge-Flush-Record empfangen");
+          }
+          continue;
+        }
+        if (expected_bytes_ > kInputBytes) {
+          Serial.printf(
+              "[CameraStream] H.264 Access Unit zu gross: %u > %u Bytes\n",
+              static_cast<unsigned>(expected_bytes_),
+              static_cast<unsigned>(kInputBytes));
+          set_status(camera_text().camera_input_buffer_full, true);
+          failed_ = true;
+          break;
+        }
       }
-    }
-    if (len > kInputBytes - buffered_) {
-      set_status(camera_text().camera_input_buffer_full, true);
-      failed_ = true;
-      return 0;
-    }
 
-    memcpy(input_ + buffered_, data, len);
-    buffered_ += len;
-    if (!received_first_bytes_) {
-      received_first_bytes_ = true;
-      Serial.printf("[CameraStream] Erste reine H.264-Daten: %u Bytes\n",
-                    static_cast<unsigned>(len));
-    }
+      const size_t take =
+          std::min(len, expected_bytes_ - buffered_);
+      memcpy(input_ + buffered_, data, take);
+      buffered_ += take;
+      data += take;
+      len -= take;
+      if (buffered_ < expected_bytes_) continue;
 
-    const uint32_t frames_before = g_worker_frame_count;
-    if (!decode_buffer(decoder_, input_, buffered_)) {
-      failed_ = true;
-      return 0;
-    }
-    frame_count_ += g_worker_frame_count - frames_before;
+      if (!received_first_access_unit_) {
+        received_first_access_unit_ = true;
+        Serial.printf(
+            "[CameraStream] Erste vollstaendige H.264 Access Unit: %u Bytes "
+            "int=%uKB largest=%uKB psram=%uKB\n",
+            static_cast<unsigned>(expected_bytes_),
+            static_cast<unsigned>(
+                heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024U),
+            static_cast<unsigned>(
+                heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) /
+                1024U),
+            static_cast<unsigned>(
+                heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
+      }
 
-    const uint32_t now = millis();
-    if (now - last_fps_ms_ >= 2000) {
-      const float fps =
-          static_cast<float>(frame_count_) * 1000.0f /
-          static_cast<float>(now - last_fps_ms_);
-      char message[64];
-      snprintf(message, sizeof(message), camera_text().camera_fps_fmt, fps);
-      set_status(message);
-      frame_count_ = 0;
-      last_fps_ms_ = now;
+      const uint32_t frames_before = g_worker_frame_count;
+      if (!decode_access_unit(decoder_, input_, expected_bytes_)) {
+        failed_ = true;
+        break;
+      }
+      frame_count_ += g_worker_frame_count - frames_before;
+      length_bytes_ = 0;
+      expected_bytes_ = 0;
+      buffered_ = 0;
+
+      const uint32_t now = millis();
+      if (now - last_fps_ms_ >= 2000) {
+        const float fps =
+            static_cast<float>(frame_count_) * 1000.0f /
+            static_cast<float>(now - last_fps_ms_);
+        char message[64];
+        snprintf(message, sizeof(message), camera_text().camera_fps_fmt, fps);
+        set_status(message);
+        frame_count_ = 0;
+        last_fps_ms_ = now;
+      }
+      taskYIELD();
     }
-    taskYIELD();
-    return accepted;
+    return failed_ ? 0 : accepted;
   }
 
   int available() override { return 0; }
@@ -410,17 +450,21 @@ class H264DecodeStream final : public Stream {
  private:
   esp_h264_dec_handle_t decoder_;
   uint8_t* input_;
+  uint8_t length_header_[4] = {};
+  size_t length_bytes_ = 0;
+  size_t expected_bytes_ = 0;
   size_t buffered_ = 0;
   uint32_t frame_count_ = 0;
   uint32_t last_fps_ms_ = 0;
-  bool received_first_bytes_ = false;
+  bool received_flush_record_ = false;
+  bool received_first_access_unit_ = false;
   bool failed_ = false;
-  bool at_stream_start_ = true;
 };
 
 class HttpChunkedBodyDecoder {
  public:
-  bool feed(const uint8_t* raw, size_t len, H264DecodeStream& output) {
+  bool feed(const uint8_t* raw, size_t len,
+            H264AccessUnitStream& output) {
     size_t offset = 0;
     while (offset < len && state_ != State::Done) {
       switch (state_) {
@@ -554,8 +598,11 @@ static void run_camera_task() {
   // the short streaming read waits configured after the response arrives.
   http.setTimeout(kHttpHeaderTimeoutMs);
   http.setReuse(false);
-  const char* response_headers[] = {"Transfer-Encoding"};
-  http.collectHeaders(response_headers, 1);
+  const char* response_headers[] = {
+      "Transfer-Encoding",
+      "X-HomeTiles-Framing",
+  };
+  http.collectHeaders(response_headers, 2);
 
   const bool secure = url.startsWith("https://");
   Serial.printf(
@@ -594,8 +641,16 @@ static void run_camera_task() {
   const String transfer_encoding = http.header("Transfer-Encoding");
   const bool chunked =
       transfer_encoding.equalsIgnoreCase("chunked");
+  const String framing = http.header("X-HomeTiles-Framing");
   Serial.printf("[CameraStream] HTTP-Transfer: %s\n",
                 chunked ? "chunked" : "identity");
+  Serial.printf("[CameraStream] H.264-Framing: %s\n", framing.c_str());
+  if (!framing.equalsIgnoreCase(kAccessUnitFraming)) {
+    Serial.println("[CameraStream] Bridge liefert kein Access-Unit-Framing");
+    set_status(camera_text().camera_invalid_response, true);
+    finish_camera_task(&http, nullptr, nullptr);
+    return;
+  }
 
   esp_h264_dec_cfg_sw_t decoder_cfg{};
   decoder_cfg.pic_type = ESP_H264_RAW_FMT_I420;
@@ -621,7 +676,7 @@ static void run_camera_task() {
   }
 
   set_status(camera_text().camera_buffering);
-  H264DecodeStream decode_stream(decoder, input);
+  H264AccessUnitStream decode_stream(decoder, input);
   HttpChunkedBodyDecoder chunk_decoder;
   NetworkClient* stream = http.getStreamPtr();
   uint8_t raw[2048];
