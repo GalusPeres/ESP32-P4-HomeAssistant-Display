@@ -86,6 +86,21 @@ static const i18n::Strings& camera_text() {
   return i18n::strings(configManager.getConfig().language);
 }
 
+static void set_image_source_without_redraw(lv_obj_t* image,
+                                            const lv_image_dsc_t* source) {
+  if (!image || !source) return;
+  lv_display_t* display = lv_obj_get_display(image);
+  const bool invalidation_was_enabled =
+      display && lv_display_is_invalidation_enabled(display);
+  if (invalidation_was_enabled) {
+    lv_display_enable_invalidation(display, false);
+  }
+  lv_image_set_src(image, source);
+  if (invalidation_was_enabled) {
+    lv_display_enable_invalidation(display, true);
+  }
+}
+
 static void set_status(const char* text, bool error = false) {
   Serial.printf("[CameraStream] Status%s: %s\n",
                 error ? " FEHLER" : "",
@@ -1146,7 +1161,7 @@ void camera_stream_process_ui(lv_obj_t* image,
       g_direct_preview_logged = true;
       Serial.println(
           "[CameraStream] Present-Pfad: direct-ppa-vsync-double-buffer "
-          "(Quellpuffer geschuetzt, Cache synchronisiert)");
+          "(Quellpuffer und LVGL-Fallback synchron)");
     } else if (!direct_preview && !g_direct_fallback_logged) {
       g_direct_fallback_logged = true;
       Serial.println(
@@ -1156,9 +1171,18 @@ void camera_stream_process_ui(lv_obj_t* image,
     drop_failed_direct_frame = !direct_preview;
   }
 
+  // Direct PPA bypasses LVGL, but LVGL can still repaint the popup after a
+  // Bridge/UI update. Point it at this exact presented frame without scheduling
+  // another expensive image redraw. The buffer then stays Displayed/protected
+  // until the next successful presentation, so an incidental LVGL repaint can
+  // never copy pieces of the old first frame over the live camera picture.
+  if (ready >= 0 && direct_preview) {
+    set_image_source_without_redraw(image, &g_images[ready]);
+  }
+
   if (ready >= 0) {
     portENTER_CRITICAL(&g_state_mux);
-    if (direct_preview || drop_failed_direct_frame) {
+    if (drop_failed_direct_frame) {
       g_frame_states[ready] = FrameState::Free;
     } else {
       if (g_displayed_index >= 0 &&
