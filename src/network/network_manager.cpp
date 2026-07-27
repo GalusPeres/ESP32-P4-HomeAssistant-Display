@@ -1046,6 +1046,8 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
                                     : kMqttOutboundDrainNormal);
   mqtt_client.loop();
   if (!mqtt_client.connected()) {
+    Serial.printf("[MQTT] Verbindung in loop verloren, State=%d\n",
+                  mqtt_client.state());
     mqtt_connected_flag = false;
   }
 }

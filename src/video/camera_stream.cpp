@@ -1305,6 +1305,12 @@ static void run_camera_task() {
         stream_ok = false;
         break;
       }
+
+      // Kamera und MQTT teilen sich auf dem P4 den zweiten Core. Nach jedem
+      // bestaetigten 8-KB-Block bekommt der gleich priorisierte MQTT-Worker
+      // sofort eine Scheduling-Chance; so bleibt dessen Socket auch bei einem
+      // dauerhaft gefuellten Kamerastream aktiv.
+      taskYIELD();
     }
     if (!stream_ok || g_stop_requested) break;
 
@@ -1338,7 +1344,10 @@ static void run_camera_task() {
       frame_count = 0;
       last_fps_ms = now;
     }
-    taskYIELD();
+    // Mindestens einen Tick wirklich blockieren. Ein reines taskYIELD() gibt
+    // niemals an niedriger priorisierte Tasks ab und hatte im 24-FPS-Test nach
+    // einem langen Kameralauf den MQTT-Keepalive verhungern lassen.
+    vTaskDelay(1);
   }
 
   Serial.printf("[CameraStream] TCP-ACK-Stream beendet: ok=%s\n",
@@ -1415,7 +1424,10 @@ bool camera_stream_start(const char* url, uint32_t corner_rgb) {
   g_direct_preview_logged = false;
   g_direct_fallback_logged = false;
   const BaseType_t task_core = (ARDUINO_RUNNING_CORE == 0) ? 1 : 0;
-  constexpr UBaseType_t kCameraTaskPriority = tskIDLE_PRIORITY + 1;
+  // Darf den MQTT-Worker auf demselben Core niemals ueberholen. Beide laufen
+  // auf Idle-Prioritaet; die expliziten Yield-Punkte oben verteilen die Zeit
+  // innerhalb jedes Frames, ohne den JPEG-/PPA-Pfad auszubremsen.
+  constexpr UBaseType_t kCameraTaskPriority = tskIDLE_PRIORITY;
   if (xTaskCreatePinnedToCoreWithCaps(
           camera_task, "cameraJpeg", 16384, nullptr, kCameraTaskPriority,
           &g_task, task_core, MALLOC_CAP_SPIRAM) != pdPASS) {
