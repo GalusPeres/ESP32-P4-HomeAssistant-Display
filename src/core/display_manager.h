@@ -40,6 +40,7 @@ public:
   bool restoreBufferLinesAfterOta(size_t lines);
   bool isUsingFastInternalBuffer() const;
   size_t getBufferLines() const;
+  size_t getRequestedBufferLines() const;
   lv_display_render_mode_t getRenderMode() const;
   uint32_t getFullScreenFlushSeq() const;
 

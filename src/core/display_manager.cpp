@@ -439,6 +439,10 @@ size_t DisplayManager::getBufferLines() const {
   return g_buffer_lines;
 }
 
+size_t DisplayManager::getRequestedBufferLines() const {
+  return g_requested_buffer_lines;
+}
+
 lv_display_render_mode_t DisplayManager::getRenderMode() const {
   return g_render_mode;
 }

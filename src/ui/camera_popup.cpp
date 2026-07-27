@@ -38,9 +38,11 @@ struct CameraPopupContext {
   lv_obj_t* image = nullptr;
   lv_obj_t* placeholder = nullptr;
   lv_obj_t* status = nullptr;
-  size_t previous_draw_buffer_lines = 0;
+  size_t previous_draw_buffer_requested_lines = 0;
+  bool previous_draw_buffer_fast = false;
   bool large_draw_buffer_active = false;
   bool draw_buffer_restore_pending = false;
+  uint32_t draw_buffer_restore_retry_at_ms = 0;
   bool visible = false;
 };
 
@@ -97,6 +99,40 @@ static void set_status_label(const char* text, bool error) {
       error ? lv_color_hex(0xFF6B6B) : lv_color_hex(0xD8DEE9), 0);
 }
 
+static bool restore_previous_draw_buffer(CameraPopupContext* ctx) {
+  if (!ctx || !ctx->large_draw_buffer_active) return true;
+  const size_t requested_lines =
+      ctx->previous_draw_buffer_requested_lines;
+  if (requested_lines == 0) return false;
+
+  bool restored = false;
+  if (ctx->previous_draw_buffer_fast) {
+    restored = displayManager.restoreBufferLinesAfterOta(requested_lines);
+    if (!restored) {
+      Serial.println(
+          "[Camera] SRAM-Puffer derzeit fragmentiert; "
+          "normaler PSRAM-Puffer wird wiederhergestellt");
+    }
+  }
+  if (!restored) {
+    // If the UI was already using PSRAM before opening the camera, or the
+    // previous SRAM band cannot be reallocated without touching the network
+    // reserve, restore the ordinary smaller PSRAM buffer immediately. Staying
+    // in the 424-line camera buffer makes every later UI rebuild slower.
+    restored = displayManager.setBufferLines(requested_lines);
+  }
+  if (!restored) return false;
+
+  ctx->draw_buffer_restore_pending = false;
+  ctx->large_draw_buffer_active = false;
+  ctx->previous_draw_buffer_requested_lines = 0;
+  ctx->previous_draw_buffer_fast = false;
+  ctx->draw_buffer_restore_retry_at_ms = 0;
+  Serial.printf("[Camera] Display-Puffer wiederhergestellt (%u Zeilen angefordert)\n",
+                static_cast<unsigned>(requested_lines));
+  return true;
+}
+
 static void close_camera_popup() {
   if (!g_camera_popup || !g_camera_popup->visible) return;
   const String entity_id = g_camera_popup->entity_id;
@@ -121,6 +157,7 @@ static void close_camera_popup() {
   // Defer the swap to process_camera_popup() in the next normal loop pass.
   if (g_camera_popup->large_draw_buffer_active) {
     g_camera_popup->draw_buffer_restore_pending = true;
+    g_camera_popup->draw_buffer_restore_retry_at_ms = 0;
   }
 }
 
@@ -310,17 +347,18 @@ void process_camera_popup() {
   if (!g_camera_popup) return;
   if (g_camera_popup->draw_buffer_restore_pending &&
       !g_camera_popup->visible) {
-    const size_t restore_lines =
-        g_camera_popup->previous_draw_buffer_lines;
-    g_camera_popup->draw_buffer_restore_pending = false;
-    g_camera_popup->large_draw_buffer_active = false;
-    g_camera_popup->previous_draw_buffer_lines = 0;
-    if (restore_lines > 0 &&
-        !displayManager.restoreBufferLinesAfterOta(restore_lines)) {
-      Serial.printf(
-          "[Camera] Schneller Display-Puffer konnte nicht sofort "
-          "wiederhergestellt werden (%u Zeilen)\n",
-          static_cast<unsigned>(restore_lines));
+    const uint32_t now = millis();
+    if (g_camera_popup->draw_buffer_restore_retry_at_ms == 0 ||
+        static_cast<int32_t>(
+            now - g_camera_popup->draw_buffer_restore_retry_at_ms) >= 0) {
+      if (!restore_previous_draw_buffer(g_camera_popup)) {
+        g_camera_popup->draw_buffer_restore_retry_at_ms = now + 2000;
+        const size_t restore_lines =
+            g_camera_popup->previous_draw_buffer_requested_lines;
+        Serial.printf(
+            "[Camera] Display-Puffer-Restore wird wiederholt (%u Zeilen)\n",
+            static_cast<unsigned>(restore_lines));
+      }
     }
   }
   if (!g_camera_popup->visible) return;
@@ -380,9 +418,16 @@ void camera_popup_handle_mqtt_status(const char* payload) {
                   static_cast<unsigned>(strlen(url)));
     camera_popup_set_status(camera_text().camera_connecting, false);
     if (!g_camera_popup->large_draw_buffer_active) {
-      const size_t previous_lines = displayManager.getBufferLines();
+      const size_t previous_requested_lines =
+          displayManager.getRequestedBufferLines() != 0
+              ? displayManager.getRequestedBufferLines()
+              : displayManager.getBufferLines();
+      const bool previous_fast =
+          displayManager.isUsingFastInternalBuffer();
       if (displayManager.setSinglePsramBufferLines(kVideoHeight)) {
-        g_camera_popup->previous_draw_buffer_lines = previous_lines;
+        g_camera_popup->previous_draw_buffer_requested_lines =
+            previous_requested_lines;
+        g_camera_popup->previous_draw_buffer_fast = previous_fast;
         g_camera_popup->large_draw_buffer_active = true;
       } else {
         Serial.println(
@@ -392,12 +437,9 @@ void camera_popup_handle_mqtt_status(const char* payload) {
     }
     if (!camera_stream_start(url, g_camera_popup->surface_color) &&
         g_camera_popup->large_draw_buffer_active) {
-      const size_t restore_lines =
-          g_camera_popup->previous_draw_buffer_lines;
-      g_camera_popup->large_draw_buffer_active = false;
-      g_camera_popup->previous_draw_buffer_lines = 0;
-      if (restore_lines > 0) {
-        displayManager.restoreBufferLinesAfterOta(restore_lines);
+      if (!restore_previous_draw_buffer(g_camera_popup)) {
+        g_camera_popup->draw_buffer_restore_pending = true;
+        g_camera_popup->draw_buffer_restore_retry_at_ms = millis() + 2000;
       }
     }
     return;

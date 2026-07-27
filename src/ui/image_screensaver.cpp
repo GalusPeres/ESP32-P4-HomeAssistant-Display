@@ -221,6 +221,9 @@ bool present_composited_screensaver_frame(ScreensaverState* st) {
       reinterpret_cast<const uint16_t*>(st->composite_draw_buf.data),
       st->composite_draw_buf.data_size,
       false);  // Snapshot ist natives RGB565, nicht RGB565_SWAPPED.
+  // A slideshow frame needs one atomic swap only. Do not leave the persistent
+  // camera mirroring state active while the normal UI resumes underneath it.
+  Device::displayEndFullFramePreview();
   Serial.printf("[Screensaver] Composite-Preview %s in %u ms\n",
                 preview_ok ? "OK" : "übersprungen",
                 static_cast<unsigned>(millis() - snapshot_started));
