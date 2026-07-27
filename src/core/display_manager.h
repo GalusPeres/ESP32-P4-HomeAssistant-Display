@@ -30,13 +30,13 @@ public:
   bool setBufferLines(size_t lines);
   bool setBufferLines(size_t lines, lv_display_render_mode_t render_mode);
   // Temporary large single-buffer mode for full-frame content such as the
-  // camera popup. The buffer lives exclusively in PSRAM, so the internal
-  // DMA reserve used by WiFi/MQTT remains untouched.
+  // camera popup. The buffer lives exclusively in PSRAM. The current UI draw
+  // buffer remains allocated so it can be restored without fragmenting the
+  // internal DMA heap.
   bool setSinglePsramBufferLines(size_t lines);
-  // Nach OTA-Vorbereitung (setBufferLines(8)) zurueck zum schnellen Band:
-  // nutzt eine kleinere interne Reserve als beim Boot, weil WLAN/MQTT ihr
-  // RAM zur Laufzeit schon besitzen - sonst faellt der Puffer nach jedem
-  // fehlgeschlagenen Update bis zum Reboot ins langsame PSRAM zurueck.
+  bool restoreDrawBufferAfterSinglePsram();
+  // Legacy restore for targets that still reduce the draw buffer during OTA.
+  // P4 builds retain the original fast buffer instead of reallocating it.
   bool restoreBufferLinesAfterOta(size_t lines);
   bool isUsingFastInternalBuffer() const;
   size_t getBufferLines() const;

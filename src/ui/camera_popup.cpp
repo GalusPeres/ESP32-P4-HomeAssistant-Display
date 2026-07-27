@@ -105,8 +105,11 @@ static bool restore_previous_draw_buffer(CameraPopupContext* ctx) {
       ctx->previous_draw_buffer_requested_lines;
   if (requested_lines == 0) return false;
 
-  bool restored = false;
-  if (ctx->previous_draw_buffer_fast) {
+  // The normal UI buffer is retained while the temporary camera buffer is
+  // active. Restoring it directly avoids reallocating and progressively
+  // fragmenting the internal DMA heap.
+  bool restored = displayManager.restoreDrawBufferAfterSinglePsram();
+  if (!restored && ctx->previous_draw_buffer_fast) {
     restored = displayManager.restoreBufferLinesAfterOta(requested_lines);
     if (!restored) {
       Serial.println(

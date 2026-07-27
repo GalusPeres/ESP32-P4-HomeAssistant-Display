@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
+
 #include "src/core/firmware_metadata.h"
 #include "src/core/firmware_version.h"
 #include "src/devices/device.h"
@@ -23,6 +25,8 @@ constexpr size_t kInstallReadChunk = 2048;
 constexpr size_t kInstallWriteSliceBytes = 16 * 1024;
 constexpr size_t kSocketRxBufferBytes = 4 * 1024;
 constexpr size_t kStageRangeBytes = 512 * 1024;
+constexpr size_t kStageBlockBytes = kStageRangeBytes;
+constexpr size_t kMaxStageBlocks = 32;
 constexpr uint8_t kStageRangeAttempts = 3;
 // Feldtest v0.5.4->v0.5.5: Nach ~4 MB Dauerempfang lief die ESP-Hosted
 // RX-Queue voll ("Failed to push data to rx queue") und der C6 kippte um.
@@ -33,6 +37,64 @@ constexpr size_t kMaxHttpLineLen = 4096;
 constexpr uint32_t kConnectTimeoutMs = 10000;
 constexpr uint32_t kReadTimeoutMs = 20000;
 constexpr uint32_t kReadPaceMs = 2;
+
+class PsramStageBuffer {
+ public:
+  ~PsramStageBuffer() { release(); }
+
+  bool allocate(size_t capacity) {
+    release();
+    if (capacity == 0) return true;
+
+    const size_t required_blocks =
+        capacity / kStageBlockBytes +
+        ((capacity % kStageBlockBytes) != 0 ? 1 : 0);
+    if (required_blocks == 0 || required_blocks > kMaxStageBlocks) {
+      return false;
+    }
+
+    capacity_ = capacity;
+    for (size_t i = 0; i < required_blocks; ++i) {
+      const size_t offset = i * kStageBlockBytes;
+      const size_t block_bytes =
+          std::min(kStageBlockBytes, capacity - offset);
+      blocks_[i] = static_cast<uint8_t*>(heap_caps_malloc(
+          block_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+      if (!blocks_[i]) {
+        release();
+        return false;
+      }
+      ++block_count_;
+    }
+    return true;
+  }
+
+  void release() {
+    for (size_t i = 0; i < block_count_; ++i) {
+      heap_caps_free(blocks_[i]);
+      blocks_[i] = nullptr;
+    }
+    block_count_ = 0;
+    capacity_ = 0;
+  }
+
+  uint8_t* block(size_t index) const {
+    return index < block_count_ ? blocks_[index] : nullptr;
+  }
+
+  size_t blockSize(size_t index) const {
+    if (index >= block_count_) return 0;
+    const size_t offset = index * kStageBlockBytes;
+    return std::min(kStageBlockBytes, capacity_ - offset);
+  }
+
+  size_t blockCount() const { return block_count_; }
+
+ private:
+  uint8_t* blocks_[kMaxStageBlocks] = {};
+  size_t block_count_ = 0;
+  size_t capacity_ = 0;
+};
 
 // Der vorgebaute ESP32-P4-Arduino-Core ist mit
 // CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC gebaut. Dadurch landen selbst die grossen,
@@ -671,7 +733,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
   uint8_t* net_buf = static_cast<uint8_t*>(
       heap_caps_malloc(kInstallReadChunk, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   if (!net_buf) net_buf = static_cast<uint8_t*>(malloc(kInstallReadChunk));
-  uint8_t* stage_buf = nullptr;
+  PsramStageBuffer stage;
   if (!net_buf) {
     error_out = "alloc failed";
     return false;
@@ -751,23 +813,30 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
   size_t stage_capacity = 0;
   size_t staged_len = 0;
   if (!failed) {
-    // Kein Teil-Stage-Fallback: Er wuerde Download und Flash-Schreiben wieder
-    // verschachteln und damit genau den SDIO-RX-Crash ermoeglichen, den das
-    // Staging verhindern soll. Alle unterstuetzten Geraete besitzen genug
-    // PSRAM fuer das derzeit etwa 6 MB grosse OTA-Image. Fehlt dieser freie
-    // Block ausnahmsweise, brechen wir sicher ab und veraendern das Flash nicht.
+    // Download und Flash-Schreiben bleiben strikt getrennt. Mehrere feste
+    // PSRAM-Bloecke entfernen jedoch die unnoetige Forderung nach einem
+    // einzelnen zusammenhaengenden ~6-MB-Block, die nach langer Laufzeit trotz
+    // genuegend freiem PSRAM scheitern konnte.
     stage_capacity = total_sz - head_ctx.len;
-    stage_buf = static_cast<uint8_t*>(
-        heap_caps_malloc(stage_capacity, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    if (!stage_buf) {
-      error_out = "not enough contiguous PSRAM for safe OTA staging";
+    if (!stage.allocate(stage_capacity)) {
+      error_out = "not enough PSRAM for safe OTA staging";
+      Serial.printf(
+          "[Update] PSRAM staging failed: need=%uKB free=%uKB "
+          "largest=%uKB block=%uKB\n",
+          static_cast<unsigned>(stage_capacity / 1024),
+          static_cast<unsigned>(
+              heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024),
+          static_cast<unsigned>(
+              heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) / 1024),
+          static_cast<unsigned>(kStageBlockBytes / 1024));
       failed = true;
     } else {
-      Serial.printf("[Update] Safe staged download: %uB TCP RX, %uB Lesechunk, %uKB Ranges, %uKB PSRAM\n",
+      Serial.printf("[Update] Safe staged download: %uB TCP RX, %uB Lesechunk, %uKB Ranges, %uKB PSRAM in %u Bloecken\n",
                     static_cast<unsigned>(kSocketRxBufferBytes),
                     static_cast<unsigned>(kInstallReadChunk),
                     static_cast<unsigned>(kStageRangeBytes / 1024),
-                    static_cast<unsigned>(stage_capacity / 1024));
+                    static_cast<unsigned>(stage_capacity / 1024),
+                    static_cast<unsigned>(stage.blockCount()));
     }
   }
 
@@ -782,10 +851,17 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
       if (range_len > kStageRangeBytes) range_len = kStageRangeBytes;
       const size_t range_end = range_start + range_len - 1;
       bool range_ok = false;
+      const size_t block_index = staged_len / kStageBlockBytes;
+      uint8_t* const stage_block = stage.block(block_index);
+      if (!stage_block || range_len > stage.blockSize(block_index)) {
+        error_out = "invalid OTA staging block";
+        failed = true;
+        break;
+      }
 
       for (uint8_t attempt = 1; attempt <= kStageRangeAttempts; ++attempt) {
         size_t range_total = 0;
-        HeadBufferCtx stage_ctx{stage_buf + staged_len, range_len, 0};
+        HeadBufferCtx stage_ctx{stage_block, range_len, 0};
         stage_ctx.progress_base = range_start;
         stage_ctx.progress_total = total_sz;
         stage_ctx.progress = progress;
@@ -869,15 +945,17 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
         reportInstallProgress(write_ctx, true);
       }
 
-      if (!failed &&
-          !writeUpdateBytes(stage_buf, staged_len, &write_ctx)) {
-        if (!error_out.length()) error_out = Update.errorString();
-        failed = true;
+      for (size_t i = 0; !failed && i < stage.blockCount(); ++i) {
+        if (!writeUpdateBytes(stage.block(i), stage.blockSize(i),
+                              &write_ctx)) {
+          if (!error_out.length()) error_out = Update.errorString();
+          failed = true;
+        }
       }
     }
   }
 
-  if (stage_buf) free(stage_buf);
+  stage.release();
   if (net_buf) free(net_buf);
 
   if (failed) {

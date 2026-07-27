@@ -39,6 +39,15 @@ static volatile uint32_t g_fullscreen_flush_seq = 0;
 static size_t g_requested_buffer_lines = 0;
 static bool g_fast_internal_draw_buffer = false;
 static bool g_single_psram_draw_buffer = false;
+static lv_color_t* g_preserved_buf1 = nullptr;
+static lv_color_t* g_preserved_buf2 = nullptr;
+static size_t g_preserved_buffer_lines = 0;
+static size_t g_preserved_requested_buffer_lines = 0;
+static lv_display_render_mode_t g_preserved_render_mode =
+    LV_DISPLAY_RENDER_MODE_PARTIAL;
+static bool g_preserved_fast_internal_draw_buffer = false;
+static bool g_preserved_single_psram_draw_buffer = false;
+static bool g_preserved_draw_buffer_active = false;
 
 #if defined(DEVICE_M5STACKS_TAB5)
 struct Tab5FlushStats {
@@ -223,6 +232,11 @@ bool DisplayManager::allocDrawBuffers(size_t requested_lines, lv_display_render_
                                       size_t internal_reserve_bytes,
                                       bool require_fast_internal) {
   if (!disp || requested_lines == 0) return false;
+  if (g_preserved_draw_buffer_active) {
+    Serial.println(
+        "[Display] Pufferwechsel abgelehnt: Kamera-Puffer ist noch aktiv");
+    return false;
+  }
   if (g_bytes_per_pixel == 0) {
     g_bytes_per_pixel = lv_color_format_get_size(lv_display_get_color_format(disp));
     if (g_bytes_per_pixel == 0) g_bytes_per_pixel = 2;
@@ -327,8 +341,16 @@ bool DisplayManager::setBufferLines(size_t lines) {
 
 bool DisplayManager::setSinglePsramBufferLines(size_t lines) {
   if (!disp || lines == 0 || lines > SCREEN_HEIGHT) return false;
-  if (g_single_psram_draw_buffer && g_buffer_lines == lines && buf1 &&
-      !buf2) {
+  if (g_preserved_draw_buffer_active) {
+    if (g_single_psram_draw_buffer && g_buffer_lines == lines && buf1 &&
+        !buf2) {
+      return true;
+    }
+    Serial.println(
+        "[Display] Temporaerer PSRAM-Zeichenpuffer bereits aktiv");
+    return false;
+  }
+  if (g_single_psram_draw_buffer && g_buffer_lines == lines && buf1 && !buf2) {
     return true;
   }
   if (g_bytes_per_pixel == 0) {
@@ -371,11 +393,23 @@ bool DisplayManager::setSinglePsramBufferLines(size_t lines) {
   // swapping it out. A single buffer is sufficient because every P4 flush is
   // synchronous and calls lv_display_flush_ready() only after PPA completion.
   lv_refr_now(disp);
+
+  // Keep the normal UI draw buffer allocated while the camera is open. Freeing
+  // and reallocating the fast SRAM band fragmented the internal DMA heap after
+  // repeated camera sessions. Eventually only the slower PSRAM fallback could
+  // be restored, making every later folder switch about 80 ms slower.
+  g_preserved_buf1 = buf1;
+  g_preserved_buf2 = buf2;
+  g_preserved_buffer_lines = g_buffer_lines;
+  g_preserved_requested_buffer_lines = g_requested_buffer_lines;
+  g_preserved_render_mode = g_render_mode;
+  g_preserved_fast_internal_draw_buffer = g_fast_internal_draw_buffer;
+  g_preserved_single_psram_draw_buffer = g_single_psram_draw_buffer;
+  g_preserved_draw_buffer_active = true;
+
   lv_display_set_buffers(disp, next, nullptr, bytes,
                          LV_DISPLAY_RENDER_MODE_PARTIAL);
 
-  if (buf1) heap_caps_free(buf1);
-  if (buf2) heap_caps_free(buf2);
   buf1 = next;
   buf2 = nullptr;
   g_buffer_lines = lines;
@@ -391,6 +425,57 @@ bool DisplayManager::setSinglePsramBufferLines(size_t lines) {
       static_cast<unsigned>(bytes / 1024U),
       static_cast<unsigned>(
           heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
+  return true;
+}
+
+bool DisplayManager::restoreDrawBufferAfterSinglePsram() {
+  if (!disp || !g_preserved_draw_buffer_active || !g_preserved_buf1 ||
+      g_preserved_buffer_lines == 0 || g_bytes_per_pixel == 0) {
+    return false;
+  }
+
+  // Complete rendering through the temporary camera buffer before LVGL is
+  // pointed back at the retained UI buffer.
+  lv_refr_now(disp);
+
+  lv_color_t* temporary_buf1 = buf1;
+  lv_color_t* temporary_buf2 = buf2;
+  const size_t restored_bytes =
+      static_cast<size_t>(SCREEN_WIDTH) * g_preserved_buffer_lines *
+      g_bytes_per_pixel;
+  lv_display_set_buffers(disp, g_preserved_buf1, g_preserved_buf2,
+                         restored_bytes, g_preserved_render_mode);
+
+  buf1 = g_preserved_buf1;
+  buf2 = g_preserved_buf2;
+  g_buffer_lines = g_preserved_buffer_lines;
+  g_requested_buffer_lines = g_preserved_requested_buffer_lines;
+  g_render_mode = g_preserved_render_mode;
+  g_fast_internal_draw_buffer = g_preserved_fast_internal_draw_buffer;
+  g_single_psram_draw_buffer = g_preserved_single_psram_draw_buffer;
+
+  g_preserved_buf1 = nullptr;
+  g_preserved_buf2 = nullptr;
+  g_preserved_buffer_lines = 0;
+  g_preserved_requested_buffer_lines = 0;
+  g_preserved_render_mode = LV_DISPLAY_RENDER_MODE_PARTIAL;
+  g_preserved_fast_internal_draw_buffer = false;
+  g_preserved_single_psram_draw_buffer = false;
+  g_preserved_draw_buffer_active = false;
+
+  if (temporary_buf1 && temporary_buf1 != buf1) {
+    heap_caps_free(temporary_buf1);
+  }
+  if (temporary_buf2 && temporary_buf2 != buf2) {
+    heap_caps_free(temporary_buf2);
+  }
+
+  Serial.printf(
+      "[Display] Reservierter UI-Zeichenpuffer wieder aktiv: %s, "
+      "%u Zeilen, %u Bytes\n",
+      g_fast_internal_draw_buffer ? "SRAM(schnell)" : "PSRAM",
+      static_cast<unsigned>(g_buffer_lines),
+      static_cast<unsigned>(restored_bytes));
   return true;
 }
 

@@ -341,6 +341,10 @@ void resetFileManagerUploadState() {
 constexpr const char* kScreenshotPath = "/ui_screenshot.jpg";
 constexpr const char* kLegacyScreenshotPath = "/ui_screenshot.bmp";
 constexpr uint32_t kScreenshotJpegQuality = 92;
+constexpr size_t kOtaStagingBlockBytes = 256 * 1024;
+constexpr size_t kOtaMaxStagingBlocks = 64;
+static_assert(kOtaStagingBlockBytes >=
+              firmware_meta::kDeviceDescriptorImageBytes);
 struct OtaUploadState {
   bool upload_started = false;
   bool upload_success = false;
@@ -356,7 +360,8 @@ struct OtaUploadState {
   size_t install_total_bytes = 0;
   size_t install_written_bytes = 0;
   size_t next_progress_log = 0;
-  uint8_t* staging_buffer = nullptr;
+  uint8_t* staging_blocks[kOtaMaxStagingBlocks] = {};
+  size_t staging_block_count = 0;
   size_t staging_capacity = 0;
   size_t staged_bytes = 0;
   uint8_t buffered_bytes[firmware_meta::kDeviceDescriptorImageBytes] = {0};
@@ -404,12 +409,16 @@ void prepareDisplayForOtaInstall() {
   displayManager.setInputEnabled(false);
   BoardHAL::displayPowerSaveOn();
 
-  // OTA is heavy SDIO/WiFi RX traffic. The fast 8-inch SRAM draw band can hold
-  // ~70 KB of internal DMA RAM, exactly the pool esp-hosted needs for RX
-  // buffers. During OTA, trade UI redraw speed for transport stability.
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  // The ESP32-P4 build backports ESP-Hosted's PSRAM-first transport allocator.
+  // Keep the fast UI band alive across OTA: freeing and reallocating its large
+  // internal DMA block fragmented the heap and could permanently leave the UI
+  // on the slow PSRAM fallback after an otherwise failed upload.
+  g_ota_display_reduced = false;
+#else
+  // On targets without the P4 ESP-Hosted patch, temporarily reduce the draw
+  // buffer while the OTA connection is active.
   if (!g_ota_display_reduced) {
-    // Unterhalb des SRAM-Minimums entsteht bewusst ein kleiner PSRAM-Puffer;
-    // der bisherige schnelle SRAM-Block wird dadurch fuer WiFi/SDIO frei.
     if (displayManager.setBufferLines(8)) {
       g_ota_display_reduced = true;
     } else {
@@ -417,6 +426,7 @@ void prepareDisplayForOtaInstall() {
           "[OTA] WARNUNG: Display-Puffer konnte nicht fuer OTA verkleinert werden");
     }
   }
+#endif
   g_ota_display_restore_pending = false;
   g_ota_display_restore_retry_at = 0;
   g_ota_display_restore_attempts = 0;
@@ -480,12 +490,46 @@ void restoreDisplayAfterOtaFailure() {
 }
 
 void releaseOtaStagingBuffer() {
-  if (g_ota_upload_state.staging_buffer) {
-    heap_caps_free(g_ota_upload_state.staging_buffer);
-    g_ota_upload_state.staging_buffer = nullptr;
+  for (size_t i = 0; i < g_ota_upload_state.staging_block_count; ++i) {
+    if (g_ota_upload_state.staging_blocks[i]) {
+      heap_caps_free(g_ota_upload_state.staging_blocks[i]);
+      g_ota_upload_state.staging_blocks[i] = nullptr;
+    }
   }
+  g_ota_upload_state.staging_block_count = 0;
   g_ota_upload_state.staging_capacity = 0;
   g_ota_upload_state.staged_bytes = 0;
+}
+
+bool hasOtaStagingBuffer() {
+  return g_ota_upload_state.staging_block_count > 0 &&
+         g_ota_upload_state.staging_blocks[0] != nullptr;
+}
+
+bool copyToOtaStagingBuffer(size_t offset, const uint8_t* data, size_t len) {
+  if (!data || len == 0) return true;
+  if (!hasOtaStagingBuffer() ||
+      offset > g_ota_upload_state.staging_capacity ||
+      len > g_ota_upload_state.staging_capacity - offset) {
+    return false;
+  }
+
+  size_t copied = 0;
+  while (copied < len) {
+    const size_t absolute_offset = offset + copied;
+    const size_t block_index = absolute_offset / kOtaStagingBlockBytes;
+    const size_t offset_in_block = absolute_offset % kOtaStagingBlockBytes;
+    if (block_index >= g_ota_upload_state.staging_block_count ||
+        !g_ota_upload_state.staging_blocks[block_index]) {
+      return false;
+    }
+    const size_t chunk =
+        std::min(len - copied, kOtaStagingBlockBytes - offset_in_block);
+    memcpy(g_ota_upload_state.staging_blocks[block_index] + offset_in_block,
+           data + copied, chunk);
+    copied += chunk;
+  }
+  return true;
 }
 
 bool allocateOtaStagingBuffer(size_t size) {
@@ -494,31 +538,54 @@ bool allocateOtaStagingBuffer(size_t size) {
     g_ota_upload_state.error = "Firmware size is missing";
     return false;
   }
-  if (g_ota_upload_state.staging_buffer &&
+  if (hasOtaStagingBuffer() &&
       g_ota_upload_state.staging_capacity == size) {
     return true;
   }
 
   releaseOtaStagingBuffer();
-  g_ota_upload_state.staging_buffer = static_cast<uint8_t*>(
-      heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-  if (!g_ota_upload_state.staging_buffer) {
-    g_ota_upload_state.error =
-        "Not enough contiguous PSRAM for safe firmware upload";
-    Serial.printf(
-        "[OTA] PSRAM staging allocation failed: need=%u KB, largest=%u KB\n",
-        static_cast<unsigned>(size / 1024),
-        static_cast<unsigned>(
-            heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) / 1024));
+  const size_t required_blocks =
+      size / kOtaStagingBlockBytes +
+      ((size % kOtaStagingBlockBytes) != 0 ? 1 : 0);
+  if (required_blocks == 0 || required_blocks > kOtaMaxStagingBlocks) {
+    g_ota_upload_state.error = "Firmware is too large for safe upload";
     return false;
+  }
+
+  for (size_t i = 0; i < required_blocks; ++i) {
+    const size_t allocated_before = i * kOtaStagingBlockBytes;
+    const size_t block_size =
+        std::min(kOtaStagingBlockBytes, size - allocated_before);
+    uint8_t* block = static_cast<uint8_t*>(
+        heap_caps_malloc(block_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (!block) {
+      g_ota_upload_state.error =
+          "Not enough PSRAM for safe firmware upload";
+      Serial.printf(
+          "[OTA] PSRAM staging block allocation failed: block=%u/%u "
+          "size=%u KB free=%u KB largest=%u KB\n",
+          static_cast<unsigned>(i + 1),
+          static_cast<unsigned>(required_blocks),
+          static_cast<unsigned>(block_size / 1024),
+          static_cast<unsigned>(
+              heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024),
+          static_cast<unsigned>(
+              heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) / 1024));
+      releaseOtaStagingBuffer();
+      return false;
+    }
+    g_ota_upload_state.staging_blocks[i] = block;
+    g_ota_upload_state.staging_block_count = i + 1;
   }
 
   g_ota_upload_state.staging_capacity = size;
   g_ota_upload_state.staged_bytes = 0;
   Serial.printf(
-      "[OTA] Safe Web-Upload staging ready: %u KB PSRAM "
-      "(flash starts after complete RX)\n",
-      static_cast<unsigned>(size / 1024));
+      "[OTA] Safe Web-Upload staging ready: %u KB in %u PSRAM blocks "
+      "(max %u KB/block, flash starts after complete RX)\n",
+      static_cast<unsigned>(size / 1024),
+      static_cast<unsigned>(required_blocks),
+      static_cast<unsigned>(kOtaStagingBlockBytes / 1024));
   return true;
 }
 
@@ -3021,7 +3088,7 @@ void WebAdminServer::handleOtaUpdate() {
     if (!allocateOtaStagingBuffer(g_ota_upload_state.upload_total_bytes)) {
       return;
     }
-    if (g_ota_upload_state.staging_buffer) {
+    if (hasOtaStagingBuffer()) {
       g_ota_upload_state.next_progress_log = 512 * 1024;
     }
     Serial.printf("[OTA] Upload started: %s\n", upload.filename.c_str());
@@ -3034,7 +3101,7 @@ void WebAdminServer::handleOtaUpdate() {
   }
 
   if (upload.status == UPLOAD_FILE_WRITE) {
-    if (g_ota_upload_state.staging_buffer) {
+    if (hasOtaStagingBuffer()) {
       const size_t chunk_len = static_cast<size_t>(upload.currentSize);
       if (g_ota_upload_state.staged_bytes >
               g_ota_upload_state.staging_capacity ||
@@ -3051,10 +3118,11 @@ void WebAdminServer::handleOtaUpdate() {
         return;
       }
 
-      memcpy(
-          g_ota_upload_state.staging_buffer +
-              g_ota_upload_state.staged_bytes,
-          upload.buf, chunk_len);
+      if (!copyToOtaStagingBuffer(g_ota_upload_state.staged_bytes,
+                                  upload.buf, chunk_len)) {
+        g_ota_upload_state.error = "Firmware staging write failed";
+        return;
+      }
       g_ota_upload_state.staged_bytes += chunk_len;
 
       if (!g_ota_upload_state.image_validated &&
@@ -3062,8 +3130,10 @@ void WebAdminServer::handleOtaUpdate() {
               firmware_meta::kDeviceDescriptorImageBytes) {
         firmware_meta::DeviceDescriptor incoming_desc{};
         if (!firmware_meta::parseDeviceDescriptorFromImage(
-                g_ota_upload_state.staging_buffer,
-                g_ota_upload_state.staged_bytes, incoming_desc)) {
+                g_ota_upload_state.staging_blocks[0],
+                std::min(g_ota_upload_state.staged_bytes,
+                         kOtaStagingBlockBytes),
+                incoming_desc)) {
           g_ota_upload_state.error =
               "Firmware metadata missing or invalid";
           return;
@@ -3164,7 +3234,7 @@ void WebAdminServer::handleOtaUpdate() {
     Serial.printf(
         "[OTA] Upload aborted: received=%u / %u bytes, flash_written=%u\n",
         static_cast<unsigned>(
-            g_ota_upload_state.staging_buffer
+            hasOtaStagingBuffer()
                 ? g_ota_upload_state.staged_bytes
                 : upload.totalSize),
         static_cast<unsigned>(g_ota_upload_state.upload_total_bytes),
@@ -3174,7 +3244,10 @@ void WebAdminServer::handleOtaUpdate() {
       Update.abort();
     }
     releaseOtaStagingBuffer();
-    if (g_ota_upload_state.install_started || g_ota_display_reduced) {
+    if (g_ota_upload_state.upload_started ||
+        g_ota_upload_state.upload_prepared ||
+        g_ota_upload_state.install_started ||
+        g_ota_display_reduced) {
       restoreDisplayAfterOtaFailure();
       g_ota_upload_state.install_started = false;
     }
@@ -3187,7 +3260,7 @@ void WebAdminServer::handleOtaUpdate() {
       g_ota_upload_state.install_total_bytes = upload.totalSize;
     }
 
-    if (g_ota_upload_state.staging_buffer) {
+    if (hasOtaStagingBuffer()) {
       if (g_ota_upload_state.staged_bytes != upload.totalSize ||
           g_ota_upload_state.staged_bytes !=
               g_ota_upload_state.staging_capacity) {
@@ -3222,12 +3295,24 @@ void WebAdminServer::handleOtaUpdate() {
 
       size_t offset = 0;
       while (offset < g_ota_upload_state.staged_bytes) {
+        const size_t block_index = offset / kOtaStagingBlockBytes;
+        const size_t offset_in_block = offset % kOtaStagingBlockBytes;
+        if (block_index >= g_ota_upload_state.staging_block_count ||
+            !g_ota_upload_state.staging_blocks[block_index]) {
+          g_ota_upload_state.error = "Firmware staging read failed";
+          releaseOtaStagingBuffer();
+          return;
+        }
         const size_t remaining =
             g_ota_upload_state.staged_bytes - offset;
         const size_t chunk =
-            std::min(remaining, kOtaFlashWriteChunk);
+            std::min(
+                std::min(remaining, kOtaFlashWriteChunk),
+                kOtaStagingBlockBytes - offset_in_block);
         if (!writeDirectOtaChunk(
-                g_ota_upload_state.staging_buffer + offset, chunk)) {
+                g_ota_upload_state.staging_blocks[block_index] +
+                    offset_in_block,
+                chunk)) {
           releaseOtaStagingBuffer();
           return;
         }

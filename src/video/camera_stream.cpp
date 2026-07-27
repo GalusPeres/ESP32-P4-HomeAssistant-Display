@@ -915,7 +915,10 @@ static void run_camera_task() {
   read_http_header_value(header, "X-HomeTiles-Framing", framing,
                          sizeof(framing));
   const bool chunked = strcasecmp(transfer_encoding, "chunked") == 0;
-  Serial.printf("[CameraStream] HTTP RX-Puffer: %d Bytes (fest)\n",
+  // lwIP treats SO_RCVBUF only as a socket hint for TCP; the SDK-wide TCP
+  // window remains independent. ESP-Hosted transport blocks therefore live
+  // in DMA-capable PSRAM instead of relying on this value as a RAM limit.
+  Serial.printf("[CameraStream] HTTP RX-Puffer-Hinweis: %d Bytes\n",
                 kHttpReceiveBufferBytes);
   Serial.printf("[CameraStream] HTTP-Transfer: %s\n",
                 chunked ? "chunked" : "identity");

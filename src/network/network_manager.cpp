@@ -871,6 +871,11 @@ void HomeTilesNetworkManager::connectMqtt() {
 
 // ========== Single-Owner MQTT: Worker ==========
 void HomeTilesNetworkManager::beginMqttWorker() {
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  Serial.println(
+      "[Network] ESP-Hosted SDIO-Puffer: DMA-PSRAM bevorzugt, "
+      "interner DMA-Fallback aktiv");
+#endif
   if (!g_mqtt_publish_queue) {
     g_mqtt_publish_queue =
         xQueueCreate(kMqttPublishQueueDepth, sizeof(MqttOutboundCmd*));

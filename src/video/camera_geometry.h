@@ -20,9 +20,9 @@ inline constexpr uint16_t kHeight = evenCeil(
     static_cast<uint32_t>(kWidth) * 9U, 16U);
 inline constexpr uint16_t kCornerRadius =
     static_cast<uint16_t>(popup_layout::scale480(18));
-// Experimental target for the bounded low-latency camera path. Frames may be
-// dropped locally when display/DMA work cannot keep up; MQTT is never paused
-// and its internal-memory reserve is not reduced.
+// Target for the bounded low-latency camera path. The ESP-Hosted transport
+// buffers are allocated from DMA-capable PSRAM on ESP32-P4, so 30 FPS does not
+// have to consume the internal DMA reserve kept for WiFi/MQTT.
 inline constexpr uint8_t kFps = 30;
 
 // ESP32-P4's JPEG hardware decoder writes in 16-pixel-aligned dimensions.
