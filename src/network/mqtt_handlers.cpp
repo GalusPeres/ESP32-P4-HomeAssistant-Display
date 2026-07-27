@@ -2292,7 +2292,8 @@ void mqttPublishCameraCommand(const char* entity_id, const char* command) {
   if (strcmp(action, "open") == 0) {
     snprintf(payload, sizeof(payload),
              "{\"entity_id\":\"%s\",\"command\":\"%s\","
-             "\"width\":%u,\"height\":%u,\"fps\":%u}",
+             "\"width\":%u,\"height\":%u,\"fps\":%u,"
+             "\"transport\":\"tcp-ack-v1\"}",
              entity_id, action,
              camera_geometry::kWidth,
              camera_geometry::kHeight,

@@ -403,15 +403,17 @@ void camera_popup_handle_mqtt_status(const char* payload) {
     const uint16_t width = doc["width"] | 0;
     const uint16_t height = doc["height"] | 0;
     const uint8_t fps = doc["fps"] | 0;
+    const char* transport = doc["transport"] | "";
     const char* framing = doc["framing"] | "";
     if (width != camera_geometry::kWidth ||
         height != camera_geometry::kHeight ||
         fps < 1 || fps > camera_geometry::kFps ||
-        strcmp(framing, "be32-jpeg") != 0) {
+        strcmp(transport, "tcp-ack-v1") != 0 ||
+        strcmp(framing, "ack-jpeg-v1") != 0) {
       Serial.printf(
-          "[Camera] Ungueltiges Streamformat: %ux%u@%u framing=%s "
-          "(erwartet %ux%u@<=%u be32-jpeg)\n",
-          width, height, fps, framing,
+          "[Camera] Ungueltiges Streamformat: %ux%u@%u transport=%s "
+          "framing=%s (erwartet %ux%u@<=%u tcp-ack-v1/ack-jpeg-v1)\n",
+          width, height, fps, transport, framing,
           camera_geometry::kWidth, camera_geometry::kHeight,
           camera_geometry::kFps);
       camera_popup_set_status(camera_text().camera_invalid_response, true);

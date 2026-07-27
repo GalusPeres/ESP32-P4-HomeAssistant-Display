@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <lwip/netdb.h>
 #include <lwip/sockets.h>
+#include <lwip/tcp.h>
 
 #include <algorithm>
 #include <cerrno>
@@ -38,14 +39,23 @@ constexpr size_t kPixelBytes =
     static_cast<size_t>(kDecodedWidth) * kDecodedHeight * sizeof(uint16_t);
 constexpr size_t kMaxJpegBytes = 256U * 1024U;
 constexpr uint8_t kFrameBufferCount = 2;
-constexpr uint32_t kHttpHeaderTimeoutMs = 5000;
-constexpr int kHttpReceiveBufferBytes = 4 * 1024;
-constexpr uint32_t kHttpConnectTimeoutMs = 4000;
+constexpr int kCameraReceiveBufferBytes = 4 * 1024;
+constexpr size_t kCameraChunkBytes = 4 * 1024;
+constexpr uint32_t kCameraConnectTimeoutMs = 4000;
 constexpr uint32_t kSocketPollTimeoutMs = 250;
-constexpr size_t kHttpHeaderBytes = 4 * 1024;
 constexpr size_t kMinCameraDmaHeadroomBytes = 24 * 1024;
 constexpr uint32_t kDmaHeadroomGraceMs = 250;
-constexpr char kJpegFraming[] = "be32-jpeg";
+constexpr char kCameraScheme[] = "tcp://";
+constexpr char kCameraRequestPrefix[] = "HTCAM/1 ";
+constexpr uint8_t kCameraHelloMagic[] = {'H', 'T', 'C', '1'};
+constexpr uint8_t kCameraFrameMagic[] = {'H', 'T', 'F', '1'};
+constexpr uint8_t kCameraAckMagic[] = {'H', 'T', 'A', '1'};
+constexpr uint8_t kCameraMessageFrame = 1;
+constexpr uint8_t kCameraMessageFlush = 2;
+constexpr uint8_t kCameraMessageEnd = 3;
+constexpr size_t kCameraHelloBytes = 8;
+constexpr size_t kCameraFrameHeaderBytes = 16;
+constexpr size_t kCameraAckBytes = 12;
 
 enum class FrameState : uint8_t {
   Free,
@@ -384,6 +394,9 @@ static bool decode_jpeg_frame(const uint8_t* jpeg, size_t jpeg_bytes) {
   return true;
 }
 
+// Kept out of the binary for reference while the bridge/firmware transition
+// is tested. The acknowledged TCP protocol below replaces HTTP chunking.
+#if 0
 // Receives the HomeTiles record stream after HttpChunkedBodyDecoder has
 // removed HTTP/1.1 chunk framing. Each record is a big-endian uint32 length
 // followed by exactly one complete JPEG frame.
@@ -601,17 +614,20 @@ class HttpChunkedBodyDecoder {
   size_t size_line_len_ = 0;
   size_t chunk_remaining_ = 0;
 };
+#endif
 
-struct HttpEndpoint {
+struct CameraEndpoint {
   char host[128] = {};
-  char path[320] = {};
-  uint16_t port = 80;
+  char token[128] = {};
+  uint16_t port = 0;
 };
 
-static bool parse_http_url(const char* url, HttpEndpoint& endpoint) {
-  constexpr char kScheme[] = "http://";
-  if (!url || strncmp(url, kScheme, sizeof(kScheme) - 1) != 0) return false;
-  const char* authority = url + sizeof(kScheme) - 1;
+static bool parse_camera_url(const char* url, CameraEndpoint& endpoint) {
+  if (!url ||
+      strncmp(url, kCameraScheme, sizeof(kCameraScheme) - 1) != 0) {
+    return false;
+  }
+  const char* authority = url + sizeof(kCameraScheme) - 1;
   const char* path = strchr(authority, '/');
   const char* authority_end = path ? path : authority + strlen(authority);
   if (authority == authority_end ||
@@ -661,13 +677,17 @@ static bool parse_http_url(const char* url, HttpEndpoint& endpoint) {
     endpoint.port = static_cast<uint16_t>(parsed);
   }
 
-  const char* source_path = path ? path : "/";
-  if (strlen(source_path) >= sizeof(endpoint.path)) return false;
-  snprintf(endpoint.path, sizeof(endpoint.path), "%s", source_path);
+  if (!path || path[0] != '/' || path[1] == '\0') return false;
+  const char* token = path + 1;
+  if (strchr(token, '/') || strchr(token, '?') || strchr(token, '#') ||
+      strlen(token) >= sizeof(endpoint.token)) {
+    return false;
+  }
+  snprintf(endpoint.token, sizeof(endpoint.token), "%s", token);
   return true;
 }
 
-static int connect_http_socket(const HttpEndpoint& endpoint) {
+static int connect_camera_socket(const CameraEndpoint& endpoint) {
   char port_text[8] = {};
   snprintf(port_text, sizeof(port_text), "%u",
            static_cast<unsigned>(endpoint.port));
@@ -678,7 +698,7 @@ static int connect_http_socket(const HttpEndpoint& endpoint) {
   addrinfo* addresses = nullptr;
   const int lookup = getaddrinfo(endpoint.host, port_text, &hints, &addresses);
   if (lookup != 0 || !addresses) {
-    Serial.printf("[CameraStream] HTTP DNS fehlgeschlagen: %d\n", lookup);
+    Serial.printf("[CameraStream] TCP DNS fehlgeschlagen: %d\n", lookup);
     return -1;
   }
 
@@ -688,8 +708,11 @@ static int connect_http_socket(const HttpEndpoint& endpoint) {
         socket(address->ai_family, address->ai_socktype, address->ai_protocol);
     if (fd < 0) continue;
 
-    setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &kHttpReceiveBufferBytes,
-               sizeof(kHttpReceiveBufferBytes));
+    setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &kCameraReceiveBufferBytes,
+               sizeof(kCameraReceiveBufferBytes));
+    const int tcp_no_delay = 1;
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &tcp_no_delay,
+               sizeof(tcp_no_delay));
     const int original_flags = fcntl(fd, F_GETFL, 0);
     if (original_flags < 0 ||
         fcntl(fd, F_SETFL, original_flags | O_NONBLOCK) < 0) {
@@ -704,9 +727,9 @@ static int connect_http_socket(const HttpEndpoint& endpoint) {
       FD_ZERO(&writable);
       FD_SET(fd, &writable);
       timeval timeout{
-          static_cast<time_t>(kHttpConnectTimeoutMs / 1000U),
+          static_cast<time_t>(kCameraConnectTimeoutMs / 1000U),
           static_cast<suseconds_t>(
-              (kHttpConnectTimeoutMs % 1000U) * 1000U)};
+              (kCameraConnectTimeoutMs % 1000U) * 1000U)};
       const int selected =
           select(fd + 1, nullptr, &writable, nullptr, &timeout);
       if (selected > 0) {
@@ -737,7 +760,8 @@ static int connect_http_socket(const HttpEndpoint& endpoint) {
   return connected_fd;
 }
 
-static bool socket_send_all(int fd, const char* data, size_t bytes) {
+static bool socket_send_all(int fd, const void* source, size_t bytes) {
+  const uint8_t* data = static_cast<const uint8_t*>(source);
   while (bytes > 0 && !g_stop_requested) {
     const int sent = send(fd, data, bytes, 0);
     if (sent > 0) {
@@ -751,6 +775,58 @@ static bool socket_send_all(int fd, const char* data, size_t bytes) {
   return bytes == 0;
 }
 
+enum class SocketReadResult : uint8_t {
+  Ok,
+  Closed,
+  Error,
+  Stopped,
+};
+
+static SocketReadResult socket_receive_exact(int fd,
+                                             void* destination,
+                                             size_t bytes) {
+  uint8_t* output = static_cast<uint8_t*>(destination);
+  size_t received_bytes = 0;
+  while (received_bytes < bytes) {
+    if (g_stop_requested) return SocketReadResult::Stopped;
+    const int received =
+        recv(fd, output + received_bytes, bytes - received_bytes, 0);
+    if (received > 0) {
+      received_bytes += static_cast<size_t>(received);
+      continue;
+    }
+    if (received == 0) return SocketReadResult::Closed;
+    if (errno == EINTR) continue;
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      taskYIELD();
+      continue;
+    }
+    return SocketReadResult::Error;
+  }
+  return SocketReadResult::Ok;
+}
+
+static uint16_t read_be16(const uint8_t* data) {
+  return static_cast<uint16_t>(
+      (static_cast<uint16_t>(data[0]) << 8) |
+      static_cast<uint16_t>(data[1]));
+}
+
+static uint32_t read_be32(const uint8_t* data) {
+  return (static_cast<uint32_t>(data[0]) << 24) |
+         (static_cast<uint32_t>(data[1]) << 16) |
+         (static_cast<uint32_t>(data[2]) << 8) |
+         static_cast<uint32_t>(data[3]);
+}
+
+static void write_be32(uint8_t* data, uint32_t value) {
+  data[0] = static_cast<uint8_t>(value >> 24);
+  data[1] = static_cast<uint8_t>(value >> 16);
+  data[2] = static_cast<uint8_t>(value >> 8);
+  data[3] = static_cast<uint8_t>(value);
+}
+
+#if 0
 static size_t find_http_header_end(const char* data, size_t bytes) {
   if (!data || bytes < 4) return SIZE_MAX;
   for (size_t i = 0; i + 3 < bytes; ++i) {
@@ -795,6 +871,7 @@ static bool read_http_header_value(const char* header,
   }
   return false;
 }
+#endif
 
 static void finish_camera_task(int socket_fd, uint8_t* input) {
   Serial.printf(
@@ -815,7 +892,8 @@ static void finish_camera_task(int socket_fd, uint8_t* input) {
   }
 }
 
-static void run_camera_task() {
+#if 0
+static void run_camera_task_http_legacy() {
   set_status(camera_text().camera_http_connecting);
   const String url = g_url;
   HttpEndpoint endpoint;
@@ -1007,6 +1085,264 @@ static void run_camera_task() {
   Serial.printf("[CameraStream] HTTP-Stream beendet: ok=%s\n",
                 stream_ok ? "ja" : "nein");
 
+  if (g_stop_requested) {
+    set_status(camera_text().camera_stream_stopped);
+  } else {
+    bool had_error = false;
+    portENTER_CRITICAL(&g_state_mux);
+    had_error = g_status_error;
+    portEXIT_CRITICAL(&g_state_mux);
+    if (!had_error) set_status(camera_text().camera_connection_ended, true);
+  }
+  finish_camera_task(socket_fd, input);
+}
+#endif
+
+static void run_camera_task() {
+  set_status(camera_text().camera_http_connecting);
+  const String url = g_url;
+  CameraEndpoint endpoint;
+  if (!parse_camera_url(url.c_str(), endpoint)) {
+    Serial.println(
+        "[CameraStream] Abgelehnt: Kamera-Transport muss tcp-ack-v1 sein");
+    set_status(camera_text().camera_invalid_response, true);
+    return;
+  }
+
+  Serial.printf(
+      "[CameraStream] Start: transport=tcp-ack-v1 url_len=%u "
+      "int=%uKB largest=%uKB psram=%uKB\n",
+      static_cast<unsigned>(url.length()),
+      static_cast<unsigned>(
+          heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024U),
+      static_cast<unsigned>(
+          heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024U),
+      static_cast<unsigned>(
+          heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
+
+  const uint32_t connect_started_ms = millis();
+  int socket_fd = connect_camera_socket(endpoint);
+  if (socket_fd < 0) {
+    Serial.printf("[CameraStream] TCP-Verbindung fehlgeschlagen: errno=%d\n",
+                  errno);
+    set_status(camera_text().camera_url_open_failed, true);
+    return;
+  }
+
+  char request[192] = {};
+  const int request_bytes = snprintf(
+      request, sizeof(request), "%s%s\n",
+      kCameraRequestPrefix, endpoint.token);
+  if (request_bytes <= 0 ||
+      static_cast<size_t>(request_bytes) >= sizeof(request) ||
+      !socket_send_all(socket_fd, request,
+                       static_cast<size_t>(request_bytes))) {
+    Serial.printf("[CameraStream] TCP-Anmeldung fehlgeschlagen: errno=%d\n",
+                  errno);
+    set_status(camera_text().camera_url_open_failed, true);
+    finish_camera_task(socket_fd, nullptr);
+    return;
+  }
+
+  uint8_t hello[kCameraHelloBytes] = {};
+  const SocketReadResult hello_result =
+      socket_receive_exact(socket_fd, hello, sizeof(hello));
+  const uint16_t hello_status = read_be16(hello + 4);
+  const uint16_t chunk_bytes = read_be16(hello + 6);
+  if (hello_result != SocketReadResult::Ok ||
+      memcmp(hello, kCameraHelloMagic, sizeof(kCameraHelloMagic)) != 0 ||
+      hello_status != 0 ||
+      chunk_bytes == 0 ||
+      chunk_bytes > kCameraChunkBytes) {
+    Serial.printf(
+        "[CameraStream] TCP-Anmeldung ungueltig: result=%u status=%u "
+        "chunk=%u\n",
+        static_cast<unsigned>(hello_result),
+        static_cast<unsigned>(hello_status),
+        static_cast<unsigned>(chunk_bytes));
+    set_status(camera_text().camera_invalid_response, true);
+    finish_camera_task(socket_fd, nullptr);
+    return;
+  }
+  Serial.printf(
+      "[CameraStream] TCP-ACK verbunden nach %ums, Block=%u Bytes\n",
+      static_cast<unsigned>(millis() - connect_started_ms),
+      static_cast<unsigned>(chunk_bytes));
+
+  uint8_t* input = static_cast<uint8_t*>(heap_caps_aligned_alloc(
+      64, kMaxJpegBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  if (!input) {
+    Serial.printf("[CameraStream] JPEG-Eingangspuffer (%u Bytes) fehlt\n",
+                  static_cast<unsigned>(kMaxJpegBytes));
+    set_status(camera_text().camera_input_memory_failed, true);
+    finish_camera_task(socket_fd, nullptr);
+    return;
+  }
+
+  set_status(camera_text().camera_buffering);
+  bool stream_ok = true;
+  bool received_first_frame = false;
+  uint32_t frame_count = 0;
+  uint32_t last_fps_ms = millis();
+  uint32_t low_dma_headroom_since_ms = 0;
+
+  auto dma_headroom_available = [&]() -> bool {
+    const size_t dma_free = heap_caps_get_free_size(
+        MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+    const size_t mqtt_dma_reserve = networkManager.mqttDmaReserveBytes();
+    const size_t dma_headroom = dma_free + mqtt_dma_reserve;
+    if (dma_headroom >= kMinCameraDmaHeadroomBytes) {
+      low_dma_headroom_since_ms = 0;
+      return true;
+    }
+
+    const uint32_t now = millis();
+    if (low_dma_headroom_since_ms == 0) {
+      low_dma_headroom_since_ms = now ? now : 1;
+      return true;
+    }
+    if (static_cast<uint32_t>(now - low_dma_headroom_since_ms) <
+        kDmaHeadroomGraceMs) {
+      return true;
+    }
+
+    Serial.printf(
+        "[CameraStream] Sicherheitsstopp: DMA frei=%u KB Reserve=%u KB "
+        "Headroom=%u KB seit %u ms; MQTT/WLAN bleiben aktiv\n",
+        static_cast<unsigned>(dma_free / 1024U),
+        static_cast<unsigned>(mqtt_dma_reserve / 1024U),
+        static_cast<unsigned>(dma_headroom / 1024U),
+        static_cast<unsigned>(now - low_dma_headroom_since_ms));
+    set_status(camera_text().camera_connection_ended, true);
+    return false;
+  };
+
+  while (!g_stop_requested && stream_ok) {
+    if (!dma_headroom_available()) {
+      stream_ok = false;
+      break;
+    }
+
+    uint8_t header[kCameraFrameHeaderBytes] = {};
+    const SocketReadResult header_result =
+        socket_receive_exact(socket_fd, header, sizeof(header));
+    if (header_result != SocketReadResult::Ok) {
+      if (header_result == SocketReadResult::Error) {
+        Serial.printf("[CameraStream] TCP-Empfangsfehler: errno=%d\n", errno);
+      }
+      stream_ok = header_result == SocketReadResult::Stopped;
+      break;
+    }
+    if (memcmp(header, kCameraFrameMagic,
+               sizeof(kCameraFrameMagic)) != 0) {
+      Serial.println("[CameraStream] TCP-Nachrichtenkennung ungueltig");
+      set_status(camera_text().camera_invalid_response, true);
+      stream_ok = false;
+      break;
+    }
+
+    const uint8_t message_type = header[4];
+    const uint32_t sequence = read_be32(header + 8);
+    const uint32_t jpeg_bytes = read_be32(header + 12);
+    if (message_type == kCameraMessageFlush) {
+      if (jpeg_bytes != 0) {
+        set_status(camera_text().camera_invalid_response, true);
+        stream_ok = false;
+        break;
+      }
+      Serial.println("[CameraStream] Bridge-Flush-Nachricht empfangen");
+      continue;
+    }
+    if (message_type == kCameraMessageEnd) {
+      break;
+    }
+    if (message_type != kCameraMessageFrame ||
+        jpeg_bytes == 0 ||
+        jpeg_bytes > kMaxJpegBytes) {
+      Serial.printf(
+          "[CameraStream] TCP-Bildkopf ungueltig: typ=%u bytes=%u\n",
+          static_cast<unsigned>(message_type),
+          static_cast<unsigned>(jpeg_bytes));
+      set_status(
+          jpeg_bytes > kMaxJpegBytes
+              ? camera_text().camera_input_buffer_full
+              : camera_text().camera_invalid_response,
+          true);
+      stream_ok = false;
+      break;
+    }
+
+    size_t received_bytes = 0;
+    while (received_bytes < jpeg_bytes &&
+           !g_stop_requested && stream_ok) {
+      if (!dma_headroom_available()) {
+        stream_ok = false;
+        break;
+      }
+      const size_t receive_now = std::min(
+          static_cast<size_t>(chunk_bytes),
+          static_cast<size_t>(jpeg_bytes) - received_bytes);
+      const SocketReadResult chunk_result = socket_receive_exact(
+          socket_fd, input + received_bytes, receive_now);
+      if (chunk_result != SocketReadResult::Ok) {
+        if (chunk_result == SocketReadResult::Error) {
+          Serial.printf(
+              "[CameraStream] TCP-Blockfehler: errno=%d offset=%u\n",
+              errno, static_cast<unsigned>(received_bytes));
+        }
+        stream_ok = false;
+        break;
+      }
+      received_bytes += receive_now;
+
+      uint8_t ack[kCameraAckBytes] = {};
+      memcpy(ack, kCameraAckMagic, sizeof(kCameraAckMagic));
+      write_be32(ack + 4, sequence);
+      write_be32(ack + 8, static_cast<uint32_t>(received_bytes));
+      if (!socket_send_all(socket_fd, ack, sizeof(ack))) {
+        Serial.printf("[CameraStream] TCP-ACK senden fehlgeschlagen: errno=%d\n",
+                      errno);
+        stream_ok = false;
+        break;
+      }
+    }
+    if (!stream_ok || g_stop_requested) break;
+
+    if (!received_first_frame) {
+      received_first_frame = true;
+      Serial.printf(
+          "[CameraStream] Erster bestaetigter JPEG-Frame: %u Bytes "
+          "int=%uKB largest=%uKB psram=%uKB\n",
+          static_cast<unsigned>(jpeg_bytes),
+          static_cast<unsigned>(
+              heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024U),
+          static_cast<unsigned>(
+              heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) /
+              1024U),
+          static_cast<unsigned>(
+              heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024U));
+    }
+
+    const uint32_t frames_before = g_worker_frame_count;
+    if (!decode_jpeg_frame(input, jpeg_bytes)) {
+      stream_ok = false;
+      break;
+    }
+    frame_count += g_worker_frame_count - frames_before;
+    const uint32_t now = millis();
+    if (now - last_fps_ms >= 2000) {
+      const float fps =
+          static_cast<float>(frame_count) * 1000.0f /
+          static_cast<float>(now - last_fps_ms);
+      Serial.printf("[CameraStream] Decode: %.1f FPS\n", fps);
+      frame_count = 0;
+      last_fps_ms = now;
+    }
+    taskYIELD();
+  }
+
+  Serial.printf("[CameraStream] TCP-ACK-Stream beendet: ok=%s\n",
+                stream_ok ? "ja" : "nein");
   if (g_stop_requested) {
     set_status(camera_text().camera_stream_stopped);
   } else {

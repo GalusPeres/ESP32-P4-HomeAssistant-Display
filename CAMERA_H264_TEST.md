@@ -5,8 +5,8 @@ flash a connected device automatically.
 
 ## Test setup
 
-1. Use branch `codex/camera-h264-test` in both repositories:
-   `HomeTiles` and `HomeTiles_Bridge`.
+1. Use firmware branch `feature/camera-view` and bridge branch
+   `feature/camera-stream`.
 2. Install/update the Home Assistant custom component from the bridge
    repository and restart Home Assistant.
 3. Open the HomeTiles integration options. Under entity configuration, add the
@@ -17,25 +17,27 @@ flash a connected device automatically.
 6. Tap the tile. The regular project popup opens with a 752x424 video area.
 
 The bridge resolves the Home Assistant camera stream and starts FFmpeg only
-while the popup is open. Real video sources are converted to a 10 FPS,
+while the popup is open. Real video sources are converted to an up-to-30 FPS,
 752x424 JPEG-frame stream; still-image cameras remain at 2 FPS. The image is
 cropped to fill the widescreen area without stretching or letterboxing. MQTT
 carries only the open/close commands and the short-lived stream URL; video
-bytes do not pass through MQTT. The bridge opens a dedicated plain-HTTP LAN
-listener on the first free port from 8124 through 8131. Camera transport never
-uses TLS on the ESP32-P4.
+bytes do not pass through MQTT. The bridge opens a dedicated local TCP listener
+on the first free port from 8124 through 8131. Every JPEG is sent in 4 KiB
+blocks and the bridge waits for an application-level acknowledgement from the
+display after each block. This bounds camera data in flight without pausing
+MQTT. Camera transport does not use HTTP or TLS on the ESP32-P4.
 
 ## MQTT diagnostics
 
 - Request: `<base_topic>/cmnd/camera`
 - Status: `<base_topic>/stat/camera`
 - Open payload:
-  `{"command":"open","entity_id":"camera.example"}`
+  `{"command":"open","entity_id":"camera.example","width":752,"height":424,"fps":30,"transport":"tcp-ack-v1"}`
 - Close payload:
   `{"command":"close","entity_id":"camera.example"}`
 
 The bridge replies with `ready`, `error`, or `stopped`. A `ready` message
-contains a single-use HTTP URL that expires after 30 seconds if it is not
+contains a single-use `tcp://` URL that expires after 30 seconds if it is not
 consumed.
 
 ## Memory and recovery behavior
@@ -43,13 +45,13 @@ consumed.
 - Two fixed 752x424 RGB565 frame buffers use about 1.24 MiB of P4 PSRAM,
   including the hardware decoder's required 16-pixel height alignment.
 - The framed-JPEG input buffer uses 256 KB of P4 PSRAM.
-- Frame buffers remain allocated after their first use to avoid repeated large
-  allocations and PSRAM fragmentation.
+- Frame buffers are allocated for the active popup and released after the
+  worker has stopped.
 - The decoder engine remains available across popup opens to avoid DMA-memory
-  churn. Frame buffers and the HTTP input buffer are released after closing.
+  churn. Frame buffers and the TCP input buffer are released after closing.
 - If a camera source briefly ends, the bridge restarts FFmpeg while keeping the
   display connection and MQTT session alive.
-- If memory, HTTP or decoder setup fails, the popup shows an error instead of
+- If memory, TCP or decoder setup fails, the popup shows an error instead of
   retrying indefinitely.
 
 Useful serial messages are prefixed with `[Camera]` where available. For a
