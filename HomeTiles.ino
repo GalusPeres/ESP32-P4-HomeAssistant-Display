@@ -1186,8 +1186,12 @@ void loop() {
   // schon laeuft, nur das Display anschalten.
   uint32_t t_wake = millis();
 
+  const bool camera_popup_busy = camera_popup_is_busy();
   const bool admin_busy = webAdminRecentlyActive(20000);
-  const bool ui_idle_for_background_refresh = !powerManager.isHighPerformance() && !admin_busy;
+  const bool ui_idle_for_background_refresh =
+      !camera_popup_busy &&
+      !powerManager.isHighPerformance() &&
+      !admin_busy;
   service_background_state_refresh(ui_idle_for_background_refresh);
   uint32_t t_bg_refresh = millis();
   tiles_process_bridge_cache_refresh(ui_idle_for_background_refresh);
@@ -1201,16 +1205,20 @@ void loop() {
   uint32_t t_local_sensors = millis();
 
   if (first_run) Serial.println("[Loop] process_sensor_update_queue()...");
-  // Popup-Queues immer sofort verarbeiten (User wartet auf Inhalt)
-  process_sensor_popup_queue();
-  process_weather_popup_queue();
-  process_energy_response_queue();
-  process_energy_popup_queue();
+  // Die Kamera verdeckt alle anderen Popups. Deren Daten bleiben in ihren
+  // zusammenfassenden Queues erhalten und werden direkt nach dem Schliessen
+  // verarbeitet; so unterbrechen z.B. Wetter-JSON und Graph-Aufbau kein Bild.
+  if (!camera_popup_busy) {
+    process_sensor_popup_queue();
+    process_weather_popup_queue();
+    process_energy_response_queue();
+    process_energy_popup_queue();
+  }
   process_camera_popup();
   uint32_t t_popup_queues = millis();
 
   // Im Idle nur alle 2s tile/sensor Queues verarbeiten (spart CPU bei 10 FPS)
-  {
+  if (!camera_popup_busy) {
     static uint32_t last_queue_ms = 0;
     bool idle = !powerManager.isHighPerformance();
     if (!idle || (millis() - last_queue_ms >= 2000)) {
@@ -1233,7 +1241,12 @@ void loop() {
     }
   }
   uint32_t t_update_queues = millis();
-  tiles_process_reload_requests();
+  // Navigation/Layout/Style-Reloads bleiben als Pending-Flags erhalten. Hinter
+  // dem vollflächigen Kamera-Popup wären sie unsichtbar, könnten aber einen
+  // kompletten Frame kosten.
+  if (!camera_popup_busy) {
+    tiles_process_reload_requests();
+  }
   uint32_t t_reload_requests = millis();
 
   if ((t_reload_requests - t_loop0) >= 80) {
@@ -1276,8 +1289,13 @@ void loop() {
     // anfassen: das Post-Connect-Hochfahren (Subscribes/Discovery) und das
     // Verarbeiten eingegangener Nachrichten.
     mqttServicePostConnect();
-    mqtt_process_inbound_queue();
-    mqttServiceDynamicSlotsReload();
+    // Kamera: kleine MQTT-Bursts gleichmaessig ueber die Frames verteilen.
+    // Vier Nachrichten pro Loop reichen bei 24 FPS fuer bis zu 96/s; der
+    // Empfangs-Worker und die 64er PSRAM-Queue laufen dabei unveraendert weiter.
+    mqtt_process_inbound_queue(camera_popup_is_busy() ? 4 : 0);
+    if (!camera_popup_is_busy()) {
+      mqttServiceDynamicSlotsReload();
+    }
     static uint8_t net_tick = 0;
     if (++net_tick % 5 == 0) {
       if (first_run) Serial.println("[Loop] networkManager.update()...");

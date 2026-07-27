@@ -346,6 +346,17 @@ void hide_camera_popup() {
   close_camera_popup();
 }
 
+bool camera_popup_is_visible() {
+  return g_camera_popup && g_camera_popup->visible;
+}
+
+bool camera_popup_is_busy() {
+  return g_camera_popup &&
+         (g_camera_popup->visible ||
+          g_camera_popup->draw_buffer_restore_pending ||
+          g_camera_popup->large_draw_buffer_active);
+}
+
 void process_camera_popup() {
   if (!g_camera_popup) return;
   if (g_camera_popup->draw_buffer_restore_pending &&

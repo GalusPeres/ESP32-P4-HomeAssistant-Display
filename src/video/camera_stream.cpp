@@ -40,7 +40,7 @@ constexpr size_t kPixelBytes =
 constexpr size_t kMaxJpegBytes = 256U * 1024U;
 constexpr uint8_t kFrameBufferCount = 2;
 constexpr int kCameraReceiveBufferBytes = 4 * 1024;
-constexpr size_t kCameraChunkBytes = 4 * 1024;
+constexpr size_t kCameraChunkBytes = 8 * 1024;
 constexpr uint32_t kCameraConnectTimeoutMs = 4000;
 constexpr uint32_t kSocketPollTimeoutMs = 250;
 constexpr size_t kMinCameraDmaHeadroomBytes = 24 * 1024;
@@ -1415,8 +1415,9 @@ bool camera_stream_start(const char* url, uint32_t corner_rgb) {
   g_direct_preview_logged = false;
   g_direct_fallback_logged = false;
   const BaseType_t task_core = (ARDUINO_RUNNING_CORE == 0) ? 1 : 0;
+  constexpr UBaseType_t kCameraTaskPriority = tskIDLE_PRIORITY + 1;
   if (xTaskCreatePinnedToCoreWithCaps(
-          camera_task, "cameraJpeg", 16384, nullptr, tskIDLE_PRIORITY,
+          camera_task, "cameraJpeg", 16384, nullptr, kCameraTaskPriority,
           &g_task, task_core, MALLOC_CAP_SPIRAM) != pdPASS) {
     portENTER_CRITICAL(&g_state_mux);
     g_task = nullptr;
@@ -1426,6 +1427,9 @@ bool camera_stream_start(const char* url, uint32_t corner_rgb) {
     set_status(camera_text().camera_task_start_failed, true);
     return false;
   }
+  Serial.printf("[CameraStream] Task gestartet: Core=%d Prioritaet=%u\n",
+                static_cast<int>(task_core),
+                static_cast<unsigned>(kCameraTaskPriority));
   return true;
 }
 

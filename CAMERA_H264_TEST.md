@@ -17,12 +17,12 @@ flash a connected device automatically.
 6. Tap the tile. The regular project popup opens with a 752x424 video area.
 
 The bridge resolves the Home Assistant camera stream and starts FFmpeg only
-while the popup is open. Real video sources are converted to an up-to-30 FPS,
+while the popup is open. Real video sources are converted to an up-to-24 FPS,
 752x424 JPEG-frame stream; still-image cameras remain at 2 FPS. The image is
 cropped to fill the widescreen area without stretching or letterboxing. MQTT
 carries only the open/close commands and the short-lived stream URL; video
 bytes do not pass through MQTT. The bridge opens a dedicated local TCP listener
-on the first free port from 8124 through 8131. Every JPEG is sent in 4 KiB
+on the first free port from 8124 through 8131. Every JPEG is sent in 8 KiB
 blocks and the bridge waits for an application-level acknowledgement from the
 display after each block. This bounds camera data in flight without pausing
 MQTT. Camera transport does not use HTTP or TLS on the ESP32-P4.
@@ -32,7 +32,7 @@ MQTT. Camera transport does not use HTTP or TLS on the ESP32-P4.
 - Request: `<base_topic>/cmnd/camera`
 - Status: `<base_topic>/stat/camera`
 - Open payload:
-  `{"command":"open","entity_id":"camera.example","width":752,"height":424,"fps":30,"transport":"tcp-ack-v1"}`
+  `{"command":"open","entity_id":"camera.example","width":752,"height":424,"fps":24,"transport":"tcp-ack-v1"}`
 - Close payload:
   `{"command":"close","entity_id":"camera.example"}`
 
@@ -49,6 +49,9 @@ consumed.
   worker has stopped.
 - The decoder engine remains available across popup opens to avoid DMA-memory
   churn. Frame buffers and the TCP input buffer are released after closing.
+- MQTT continues receiving while the camera is open. Hidden tile redraws and
+  full bridge configuration applies are coalesced and run after the popup
+  closes.
 - If a camera source briefly ends, the bridge restarts FFmpeg while keeping the
   display connection and MQTT session alive.
 - If memory, TCP or decoder setup fails, the popup shows an error instead of

@@ -1371,6 +1371,7 @@ struct MqttInboundMsg {
 // aufgenommen werden.
 static constexpr size_t kMqttInboundQueueDepth = 64;
 static QueueHandle_t g_mqtt_inbound_queue = nullptr;
+static MqttInboundMsg* g_deferred_bridge_apply = nullptr;
 
 static void processMqttMessage(char* topic, uint8_t* payload, unsigned int length);
 
@@ -1404,11 +1405,44 @@ static MqttInboundMsg* mqttAllocInbound(const char* topic, const uint8_t* payloa
 
 void mqtt_process_inbound_queue(uint8_t max_msgs) {
   QueueHandle_t q = g_mqtt_inbound_queue;  // do NOT lazily create here -- nothing to drain if never used
-  if (!q) return;
   uint8_t processed = 0;
+
+  // A bridge/apply payload rebuilds several indexes and schedules hidden tile
+  // cache work. Keep MQTT receiving while the camera popup is visible, but
+  // retain only the newest full bridge snapshot in PSRAM and apply it after
+  // the popup closes. Normal sensor/switch/media messages continue below.
+  const bool camera_busy = camera_popup_is_busy();
+  if (!camera_busy && g_deferred_bridge_apply &&
+      (max_msgs == 0 || processed < max_msgs)) {
+    MqttInboundMsg* deferred = g_deferred_bridge_apply;
+    g_deferred_bridge_apply = nullptr;
+    Serial.printf(
+        "[Bridge] Aufgeschobenen Vollabgleich nach Kamera anwenden (%u Bytes)\n",
+        deferred->length);
+    processMqttMessage(
+        deferred->topic, deferred->payload, deferred->length);
+    heap_caps_free(deferred);
+    ++processed;
+  }
+
+  if (!q) return;
   MqttInboundMsg* msg = nullptr;
   while ((max_msgs == 0 || processed < max_msgs) && xQueueReceive(q, &msg, 0) == pdTRUE) {
     if (msg) {
+      const char* apply_topic = networkManager.getBridgeApplyTopic();
+      if (camera_busy && apply_topic &&
+          strcmp(msg->topic, apply_topic) == 0) {
+        if (g_deferred_bridge_apply) {
+          heap_caps_free(g_deferred_bridge_apply);
+        }
+        g_deferred_bridge_apply = msg;
+        Serial.printf(
+            "[Bridge] Vollabgleich waehrend Kamera aufgeschoben (%u Bytes)\n",
+            msg->length);
+        msg = nullptr;
+        ++processed;
+        continue;
+      }
       processMqttMessage(msg->topic, msg->payload, msg->length);
       heap_caps_free(msg);
       ++processed;
