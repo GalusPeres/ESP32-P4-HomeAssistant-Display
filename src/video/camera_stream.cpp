@@ -38,7 +38,10 @@ constexpr uint16_t kCornerRadius = camera_geometry::kCornerRadius;
 constexpr size_t kPixelBytes =
     static_cast<size_t>(kDecodedWidth) * kDecodedHeight * sizeof(uint16_t);
 constexpr size_t kMaxJpegBytes = 256U * 1024U;
-constexpr uint8_t kFrameBufferCount = 2;
+// One buffer remains the protected LVGL fallback while PPA presents a second.
+// A third buffer lets the decoder reserve the next frame instead of silently
+// dropping it during that ~25 ms presentation window.
+constexpr uint8_t kFrameBufferCount = 3;
 constexpr int kCameraReceiveBufferBytes = 4 * 1024;
 constexpr size_t kCameraChunkBytes = 8 * 1024;
 constexpr uint32_t kCameraConnectTimeoutMs = 4000;
@@ -79,6 +82,7 @@ uint32_t g_ui_status_sequence = 0;
 char g_status[96] = "";
 bool g_status_error = false;
 uint32_t g_worker_frame_count = 0;
+uint32_t g_no_write_buffer_drops = 0;
 uint32_t g_presented_frame_count = 0;
 uint32_t g_presented_fps_ms = 0;
 uint64_t g_present_wait_total_us = 0;
@@ -327,7 +331,10 @@ static bool decode_jpeg_frame(const uint8_t* jpeg, size_t jpeg_bytes) {
 
   if (!ensure_jpeg_decoder()) return false;
   const int8_t index = acquire_write_buffer();
-  if (index < 0) return true;
+  if (index < 0) {
+    ++g_no_write_buffer_drops;
+    return true;
+  }
 
   jpeg_decode_cfg_t decode_config{};
   decode_config.output_format = JPEG_DECODE_OUT_FORMAT_RGB565;
@@ -1340,8 +1347,12 @@ static void run_camera_task() {
       const float fps =
           static_cast<float>(frame_count) * 1000.0f /
           static_cast<float>(now - last_fps_ms);
-      Serial.printf("[CameraStream] Decode: %.1f FPS\n", fps);
+      Serial.printf(
+          "[CameraStream] Decode: %.1f FPS (buffer_drops=%u)\n",
+          fps,
+          static_cast<unsigned>(g_no_write_buffer_drops));
       frame_count = 0;
+      g_no_write_buffer_drops = 0;
       last_fps_ms = now;
     }
     // Mindestens einen Tick wirklich blockieren. Ein reines taskYIELD() gibt
@@ -1416,6 +1427,7 @@ bool camera_stream_start(const char* url, uint32_t corner_rgb) {
   g_corner_fill_swapped = rgb888_to_swapped_rgb565(corner_rgb);
   g_stop_requested = false;
   g_worker_frame_count = 0;
+  g_no_write_buffer_drops = 0;
   g_presented_frame_count = 0;
   g_presented_fps_ms = millis();
   g_present_wait_total_us = 0;
