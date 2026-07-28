@@ -38,8 +38,6 @@
 #include "src/ui/tab_tiles_unified.h"
 #include "src/ui/image_screensaver.h"
 #include "src/ui/screensaver_config.h"
-#include "src/game/game_controls_config.h"
-#include "src/game/game_ws_server.h"
 #include "src/tiles/tile_config.h"
 #include "src/tiles/tile_renderer.h"  // Für process_sensor_update_queue()
 #include "src/tiles/mdi_icons.h"      // MDI Icon Mapping
@@ -641,7 +639,6 @@ void setup() {
   Serial.flush();
   bool has_config = configManager.load();
   haBridgeConfig.load();
-  gameControlsConfig.load();
   tileConfig.load();
   screensaverConfig.load();
   if (has_config) {
@@ -852,12 +849,6 @@ void setup() {
     log_memory_status("after-network-init");
     Serial.flush();
 
-    Serial.println("[Setup] Game WebSocket Server...");
-    Serial.flush();
-    gameWSServer.init(8081);
-    Serial.println("[Setup] Game WebSocket OK");
-    Serial.flush();
-
     Serial.println("[Setup] MQTT-Worker...");
     Serial.flush();
     networkManager.beginMqttWorker();
@@ -877,7 +868,7 @@ void setup() {
     log_memory_status("after-mqtt-worker");
     Serial.flush();
   } else {
-    Serial.println("[Setup] Ueberspringe Network/Game WS (keine Config)");
+    Serial.println("[Setup] Ueberspringe Netzwerk (keine Config)");
   }
 
   // last_activity_time wurde schon ganz am Anfang in displayManager.init()
@@ -1277,9 +1268,6 @@ void loop() {
 
   if (first_run) Serial.println("[Loop] webAdminServer.handle()...");
   if (webAdminServer.isRunning()) webAdminServer.handle();
-
-  if (first_run) Serial.println("[Loop] gameWSServer.handle()...");
-  gameWSServer.handle();
 
   if (first_run) Serial.println("[Loop] Network check...");
   if (configManager.isConfigured()) {

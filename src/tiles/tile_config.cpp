@@ -2675,9 +2675,9 @@ bool TileConfig::loadGrid(uint16_t folder_id, TileGridConfig& grid,
   applyImagePathsFromSd(folder_id, grid);
   applyLongEntityIdsFromSd(folder_id, grid);
 
-  // Migration: removed tile types → TILE_EMPTY
+  // Retired tile types become empty without renumbering the persisted enum.
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
-    if (grid.tiles[i].type == TILE_IMAGE || grid.tiles[i].type == TILE_RADAR) {
+    if (isRetiredTileType(grid.tiles[i].type)) {
       grid.tiles[i] = Tile{};
       changed = true;
     }
@@ -2697,6 +2697,11 @@ bool TileConfig::saveGrid(uint16_t folder_id, const TileGridConfig& grid,
   }
 
   TileGridConfig working = grid;
+  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+    if (isRetiredTileType(working.tiles[i].type)) {
+      working.tiles[i] = Tile{};
+    }
+  }
   if (ensure_navigation_tile) {
     if (folder_id == kRootFolderId) {
       ensureSettingsTile(working);

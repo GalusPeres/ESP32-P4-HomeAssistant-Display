@@ -8,8 +8,6 @@
 #include "src/network/network_transport.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/ui/tab_settings.h"
-#include "src/game/game_controls_config.h"
-#include "src/game/key_parsing.h"
 #include "src/tiles/tile_config.h"
 #include "src/ui/tab_tiles_unified.h"
 #include "src/ui/ui_manager.h"
@@ -1597,79 +1595,6 @@ void WebAdminServer::handleSaveBridge() {
   }
 }
 
-void WebAdminServer::handleSaveGameControls() {
-  GameControlsConfigData updated = gameControlsConfig.get();
-  bool changed = false;
-
-  for (size_t i = 0; i < GAME_BUTTON_COUNT; ++i) {
-    // Name
-    String name_field = "game_name";
-    name_field += String((int)i);
-    String name = server.hasArg(name_field) ? server.arg(name_field) : "";
-    name.trim();
-    if (updated.buttons[i].name != name) {
-      updated.buttons[i].name = name;
-      changed = true;
-    }
-
-    // Makro-String parsen (z.B. "g" oder "ctrl+g" oder "ctrl+shift+a")
-    String macro_field = "game_macro";
-    macro_field += String((int)i);
-    String macro = server.hasArg(macro_field) ? server.arg(macro_field) : "";
-    macro.trim();
-    macro.toLowerCase();
-
-    // Parse Makro → key_code + modifier
-    uint8_t key_code = 0;
-    uint8_t modifier = 0;
-
-    parseKeyMacro(macro, key_code, modifier);
-
-    if (updated.buttons[i].key_code != key_code) {
-      updated.buttons[i].key_code = key_code;
-      changed = true;
-    }
-
-    if (updated.buttons[i].modifier != modifier) {
-      updated.buttons[i].modifier = modifier;
-      changed = true;
-    }
-
-    // Farbe parsen (z.B. "#353535" → 0x353535)
-    String color_field = "game_color";
-    color_field += String((int)i);
-    String colorStr = server.hasArg(color_field) ? server.arg(color_field) : "";
-    colorStr.trim();
-
-    uint32_t color = 0;
-    if (colorStr.length() > 0 && colorStr[0] == '#') {
-      colorStr = colorStr.substring(1); // "#" entfernen
-      color = strtoul(colorStr.c_str(), nullptr, 16);
-    }
-
-    if (updated.buttons[i].color != color) {
-      updated.buttons[i].color = color;
-      changed = true;
-    }
-  }
-
-  if (!changed) {
-    server.sendHeader("Location", "/");
-    server.send(303, "text/plain", "");
-    return;
-  }
-
-  if (gameControlsConfig.save(updated)) {
-    // Reload im Loop (nicht im Web-Handler)
-    tiles_request_reload_if_loaded(GridType::TAB1);
-    server.sendHeader("Location", "/");
-    server.send(303, "text/plain", "");
-  } else {
-    const auto& tr = i18n::strings(configManager.getConfig().language);
-    server.send(500, "text/html", String("<h1>") + tr.save_failed + "</h1>");
-  }
-}
-
 void WebAdminServer::handleBridgeRefresh() {
   if (!networkManager.isMqttConnected()) {
     server.send(503, "text/html",
@@ -1855,6 +1780,13 @@ void WebAdminServer::handleSaveTiles() {
 
   int index = server.arg("index").toInt();
   int type = server.arg("type").toInt();
+
+  if (!get_tile_type_descriptor(static_cast<TileType>(type))) {
+    server.send(
+        400, "application/json",
+        "{\"success\":false,\"error\":\"Tile type not supported\"}");
+    return;
+  }
 
   if (screensaver_grid && type != TILE_EMPTY && type != TILE_SENSOR &&
       type != TILE_ENERGY && type != TILE_SCENE && type != TILE_SWITCH &&

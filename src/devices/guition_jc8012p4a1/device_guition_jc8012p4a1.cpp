@@ -45,6 +45,7 @@ constexpr uint32_t kPanelLaneCount = 2;
 constexpr uint32_t kPanelFrameBufferCount = 1;
 constexpr size_t kFillChunkRows = 40;
 constexpr uintptr_t kCacheLineSize = 64;
+constexpr uint32_t kPpaPreviewTimeoutMs = 200;
 constexpr uint8_t kTouchReleaseDebounceReads = 0;
 constexpr int32_t kTouchJitterThresholdPx = 2;
 constexpr uint8_t kTouchSamplePointCount = 2;
@@ -58,6 +59,8 @@ esp_ldo_channel_handle_t g_mipi_phy_ldo = nullptr;
 ppa_client_handle_t g_ppa_handle = nullptr;
 SemaphoreHandle_t g_transfer_done = nullptr;
 SemaphoreHandle_t g_refresh_done = nullptr;
+SemaphoreHandle_t g_ppa_done = nullptr;
+bool g_ppa_async_ready = false;
 
 bool g_pmic_ready = false;
 uint16_t* g_rotate_buf = nullptr;
@@ -107,6 +110,19 @@ bool IRAM_ATTR on_refresh_done(esp_lcd_panel_handle_t, esp_lcd_dpi_panel_event_d
 
   BaseType_t high_task_woken = pdFALSE;
   xSemaphoreGiveFromISR(g_refresh_done, &high_task_woken);
+  return high_task_woken == pdTRUE;
+}
+
+bool IRAM_ATTR on_ppa_trans_done(ppa_client_handle_t,
+                                ppa_event_data_t*,
+                                void* user_data) {
+  SemaphoreHandle_t sem = static_cast<SemaphoreHandle_t>(user_data);
+  if (!sem) {
+    return false;
+  }
+
+  BaseType_t high_task_woken = pdFALSE;
+  xSemaphoreGiveFromISR(sem, &high_task_woken);
   return high_task_woken == pdTRUE;
 }
 
@@ -672,6 +688,18 @@ bool init_display() {
     g_ppa_handle = nullptr;
   } else {
     log_step("PPA client registered");
+    g_ppa_done = xSemaphoreCreateBinary();
+    if (g_ppa_done) {
+      ppa_event_callbacks_t ppa_cbs = {};
+      ppa_cbs.on_trans_done = on_ppa_trans_done;
+      if (ppa_client_register_event_callbacks(g_ppa_handle, &ppa_cbs) == ESP_OK) {
+        g_ppa_async_ready = true;
+        log_step("PPA timeout-safe mode ready");
+      }
+    }
+    if (!g_ppa_async_ready) {
+      Serial.println("[Device/Guition JC8012P4A1] PPA event callback unavailable");
+    }
   }
 
   return true;
@@ -756,8 +784,105 @@ void DeviceGuitionJC8012P4A1::displayPushPixelsDMA(int32_t x, int32_t y, int32_t
 
 bool DeviceGuitionJC8012P4A1::displayTryFullFramePreview(
     int32_t x, int32_t y, int32_t w, int32_t h,
-    const uint16_t* data, size_t data_size, bool byte_swap) {
-  return false;
+    int32_t source_stride, const uint16_t* data, size_t data_size,
+    bool byte_swap) {
+  static bool preview_disabled_after_fault = false;
+  if (preview_disabled_after_fault || !data || source_stride < w || h <= 0 ||
+      (reinterpret_cast<uintptr_t>(data) & (kCacheLineSize - 1)) != 0 ||
+      !g_panel_fb_ready || !g_ppa_handle || !g_ppa_async_ready ||
+      !g_ppa_done) {
+    return false;
+  }
+
+  const size_t required_bytes =
+      ((static_cast<size_t>(h - 1) * static_cast<size_t>(source_stride)) +
+       static_cast<size_t>(w)) * sizeof(uint16_t);
+  if (data_size < required_bytes) {
+    return false;
+  }
+
+  const int32_t logical_w = display_cfg.height;
+  const int32_t logical_h = display_cfg.width;
+  if (x < 0 || y < 0 || (x + w) > logical_w || (y + h) > logical_h) {
+    return false;
+  }
+
+  uint16_t* fb = panel_fb();
+  if (!fb) {
+    return false;
+  }
+
+  Dma2dArbiterGuard dma2d_guard(25);
+  if (!dma2d_guard.locked()) {
+    return false;
+  }
+
+  int32_t dst_x = 0;
+  int32_t dst_y = 0;
+  const int32_t dst_w = h;
+  const int32_t dst_h = w;
+  ppa_srm_rotation_angle_t rotation_angle;
+  if (g_rotation & 0x02) {
+    dst_x = y;
+    dst_y = logical_w - x - w;
+    rotation_angle = PPA_SRM_ROTATION_ANGLE_90;
+  } else {
+    dst_x = logical_h - y - h;
+    dst_y = x;
+    rotation_angle = PPA_SRM_ROTATION_ANGLE_270;
+  }
+  if (dst_x < 0 || dst_y < 0 ||
+      (dst_x + dst_w) > display_cfg.width ||
+      (dst_y + dst_h) > display_cfg.height) {
+    return false;
+  }
+
+  flush_cache_for_dma(data, required_bytes);
+
+  ppa_srm_oper_config_t oper = {};
+  oper.in.buffer = data;
+  oper.in.pic_w = source_stride;
+  oper.in.pic_h = h;
+  oper.in.block_w = w;
+  oper.in.block_h = h;
+  oper.in.block_offset_x = 0;
+  oper.in.block_offset_y = 0;
+  oper.in.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
+
+  oper.out.buffer = fb;
+  oper.out.buffer_size = panel_frame_bytes();
+  oper.out.pic_w = display_cfg.width;
+  oper.out.pic_h = display_cfg.height;
+  oper.out.block_offset_x = dst_x;
+  oper.out.block_offset_y = dst_y;
+  oper.out.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
+
+  oper.rotation_angle = rotation_angle;
+  oper.scale_x = 1.0f;
+  oper.scale_y = 1.0f;
+  oper.rgb_swap = false;
+  oper.byte_swap = byte_swap;
+  oper.mode = PPA_TRANS_MODE_NON_BLOCKING;
+  oper.user_data = g_ppa_done;
+
+  xSemaphoreTake(g_ppa_done, 0);
+  const esp_err_t err =
+      ppa_do_scale_rotate_mirror(g_ppa_handle, &oper);
+  if (err != ESP_OK) {
+    preview_disabled_after_fault = true;
+    Serial.printf("[CameraStream/PPA] JC8012 preview submit failed: %d\n",
+                  static_cast<int>(err));
+    return false;
+  }
+  if (xSemaphoreTake(g_ppa_done,
+                     pdMS_TO_TICKS(kPpaPreviewTimeoutMs)) != pdTRUE) {
+    preview_disabled_after_fault = true;
+    Serial.println("[CameraStream/PPA] JC8012 preview timeout; direct preview disabled");
+    return false;
+  }
+
+  mark_dirty_rect(dst_x, dst_y, dst_w, dst_h);
+  return true;
 }
 
 void DeviceGuitionJC8012P4A1::displayWaitDMA() {

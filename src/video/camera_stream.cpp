@@ -1478,10 +1478,10 @@ void camera_stream_process_ui(lv_obj_t* image,
   int8_t ready = -1;
   bool direct_preview = false;
   bool can_try_direct_preview = false;
-  bool drop_failed_direct_frame = false;
+  bool drop_unpresented_frame = false;
   // If the display PPA has entered its short self-healing cooldown, keep the
-  // last frame. Repainting the full video area through the CPU fallback would
-  // make every other LVGL interaction sluggish and fight the recovery.
+  // last frame. Repainting the full video area during recovery would make
+  // every other LVGL interaction sluggish and fight the recovery.
   if (!Device::ppaCooldownActive()) {
     portENTER_CRITICAL(&g_state_mux);
     for (uint8_t i = 0; i < kFrameBufferCount; ++i) {
@@ -1500,10 +1500,7 @@ void camera_stream_process_ui(lv_obj_t* image,
       // select this Ready buffer for its next frame while PPA is still reading
       // it, which previously produced intermittent square corruption.
       g_frame_states[ready] = FrameState::Presenting;
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
-      can_try_direct_preview =
-          g_displayed_index >= 0 && kDecodedWidth == kWidth;
-#endif
+      can_try_direct_preview = true;
     }
     portEXIT_CRITICAL(&g_state_mux);
   }
@@ -1515,7 +1512,7 @@ void camera_stream_process_ui(lv_obj_t* image,
     Device::displayWaitFrameStart();
     const uint32_t copy_started_us = micros();
     direct_preview = Device::displayTryFullFramePreview(
-        area.x1, area.y1, kWidth, kHeight,
+        area.x1, area.y1, kWidth, kHeight, kDecodedWidth,
         g_pixels[ready], kPixelBytes,
         true);  // JPEG output is RGB565 byte-swapped for LVGL.
     if (direct_preview) {
@@ -1527,15 +1524,15 @@ void camera_stream_process_ui(lv_obj_t* image,
     if (direct_preview && !g_direct_preview_logged) {
       g_direct_preview_logged = true;
       Serial.println(
-          "[CameraStream] Present-Pfad: direct-ppa-vsync-double-buffer "
-          "(Quellpuffer und LVGL-Fallback synchron)");
+          "[CameraStream] Present-Pfad: direkte Geraeteausgabe "
+          "(Quellpuffer und LVGL synchron)");
     } else if (!direct_preview && !g_direct_fallback_logged) {
       g_direct_fallback_logged = true;
       Serial.println(
-          "[CameraStream] Direct-PPA nicht verfuegbar; "
-          "Frame wird ausgelassen");
+          "[CameraStream] Direkte Geraeteausgabe nicht verfuegbar; "
+          "Frame wird ausgelassen, LVGL bleibt reaktionsschnell");
     }
-    drop_failed_direct_frame = !direct_preview;
+    drop_unpresented_frame = !direct_preview;
   }
 
   // Direct PPA bypasses LVGL, but LVGL can still repaint the popup after a
@@ -1547,9 +1544,14 @@ void camera_stream_process_ui(lv_obj_t* image,
     set_image_source_without_redraw(image, &g_images[ready]);
   }
 
+  if (direct_preview) {
+    lv_obj_clear_flag(image, LV_OBJ_FLAG_HIDDEN);
+    if (placeholder) lv_obj_add_flag(placeholder, LV_OBJ_FLAG_HIDDEN);
+  }
+
   if (ready >= 0) {
     portENTER_CRITICAL(&g_state_mux);
-    if (drop_failed_direct_frame) {
+    if (drop_unpresented_frame) {
       g_frame_states[ready] = FrameState::Free;
     } else {
       if (g_displayed_index >= 0 &&
@@ -1563,17 +1565,7 @@ void camera_stream_process_ui(lv_obj_t* image,
     portEXIT_CRITICAL(&g_state_mux);
   }
 
-  if (ready >= 0 && !direct_preview && !drop_failed_direct_frame) {
-    // Establish the first cache-coherent LVGL image. Do not force
-    // lv_refr_now() here: a synchronous refresh blocked the UI for 130-150 ms.
-    lv_image_set_src(image, &g_images[ready]);
-    lv_obj_clear_flag(image, LV_OBJ_FLAG_HIDDEN);
-    if (placeholder) lv_obj_add_flag(placeholder, LV_OBJ_FLAG_HIDDEN);
-  } else if (direct_preview) {
-    lv_obj_clear_flag(image, LV_OBJ_FLAG_HIDDEN);
-    if (placeholder) lv_obj_add_flag(placeholder, LV_OBJ_FLAG_HIDDEN);
-  }
-  if (ready >= 0 && !drop_failed_direct_frame) note_presented_frame();
+  if (ready >= 0 && !drop_unpresented_frame) note_presented_frame();
 
   char status[sizeof(g_status)] = "";
   bool status_error = false;

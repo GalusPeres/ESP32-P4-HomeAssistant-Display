@@ -129,11 +129,6 @@ the formats.
 A static text tile with selectable font size — useful for headings and labels on
 the grid.
 
-### Counter
-
-A simple tap counter: tap to count up, long-press to reset. The start value is
-configurable.
-
 ### Folder
 
 Opens a sub-page with its own tile grid; a back tile is placed there automatically.
@@ -150,13 +145,6 @@ admin guide.
 Plays a low-res pixel-art animation from a `.panim` file in the `/animations` folder
 of the microSD card — a purely decorative element. Frame rate, fit, and zoom are
 configurable.
-
-### Key
-
-Sends a key/button command to PC clients connected to the display's built-in WebSocket
-server (port 8081). This works together with the desktop companion app
-(`electron-app/`) to trigger keyboard input or commands on a Windows PC — it is not
-related to Home Assistant.
 
 ### Empty
 

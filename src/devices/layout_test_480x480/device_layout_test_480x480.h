@@ -36,6 +36,7 @@ void displayPushPixelsDMA(int32_t x, int32_t y, int32_t w, int32_t h,
 // falls back to a full CPU rotation. false leaves the normal LVGL path in
 // charge, which completes or replaces any partial preview.
 bool displayTryFullFramePreview(int32_t x, int32_t y, int32_t w, int32_t h,
+                                int32_t source_stride,
                                 const uint16_t* data, size_t data_size,
                                 bool byte_swap);
 void displayWaitDMA();

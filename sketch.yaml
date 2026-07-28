@@ -13,7 +13,6 @@ profiles:
       - M5Unified (0.2.14)
       - OneWire (2.3.8)
       - PubSubClient (2.8)
-      - WebSockets (2.7.2)
 
   waveshare_b4:
     fqbn: esp32:esp32:esp32p4:UploadSpeed=921600,USBMode=default,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,FlashFreq=80,FlashMode=qio,FlashSize=32M,PartitionScheme=app13M_data7M_32MB,DebugLevel=none,PSRAM=enabled,EraseFlash=none,JTAGAdapter=default
@@ -29,7 +28,6 @@ profiles:
       - M5Unified (0.2.14)
       - OneWire (2.3.8)
       - PubSubClient (2.8)
-      - WebSockets (2.7.2)
 
   waveshare_7:
     fqbn: esp32:esp32:esp32p4:UploadSpeed=921600,USBMode=default,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,FlashFreq=80,FlashMode=qio,FlashSize=32M,PartitionScheme=app13M_data7M_32MB,DebugLevel=none,PSRAM=enabled,EraseFlash=none,JTAGAdapter=default,ChipVariant=prev3
@@ -45,7 +43,6 @@ profiles:
       - M5Unified (0.2.14)
       - OneWire (2.3.8)
       - PubSubClient (2.8)
-      - WebSockets (2.7.2)
 
   waveshare_8:
     fqbn: esp32:esp32:esp32p4:UploadSpeed=921600,USBMode=default,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,FlashFreq=80,FlashMode=qio,FlashSize=32M,PartitionScheme=app13M_data7M_32MB,DebugLevel=none,PSRAM=enabled,EraseFlash=none,JTAGAdapter=default,ChipVariant=prev3
@@ -61,7 +58,6 @@ profiles:
       - M5Unified (0.2.14)
       - OneWire (2.3.8)
       - PubSubClient (2.8)
-      - WebSockets (2.7.2)
 
   waveshare_10_1:
     fqbn: esp32:esp32:esp32p4:UploadSpeed=921600,USBMode=default,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,FlashFreq=80,FlashMode=qio,FlashSize=32M,PartitionScheme=app13M_data7M_32MB,DebugLevel=none,PSRAM=enabled,EraseFlash=none,JTAGAdapter=default,ChipVariant=prev3
@@ -77,7 +73,6 @@ profiles:
       - M5Unified (0.2.14)
       - OneWire (2.3.8)
       - PubSubClient (2.8)
-      - WebSockets (2.7.2)
 
   layout_test_1024x600:
     fqbn: esp32:esp32:esp32p4:UploadSpeed=921600,USBMode=default,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,FlashFreq=80,FlashMode=qio,FlashSize=32M,PartitionScheme=app13M_data7M_32MB,DebugLevel=none,PSRAM=enabled,EraseFlash=none,JTAGAdapter=default,ChipVariant=prev3
@@ -93,7 +88,6 @@ profiles:
       - M5Unified (0.2.14)
       - OneWire (2.3.8)
       - PubSubClient (2.8)
-      - WebSockets (2.7.2)
 
   layout_test_480x480:
     fqbn: esp32:esp32:esp32p4:UploadSpeed=921600,USBMode=default,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,FlashFreq=80,FlashMode=qio,FlashSize=32M,PartitionScheme=app13M_data7M_32MB,DebugLevel=none,PSRAM=enabled,EraseFlash=none,JTAGAdapter=default,ChipVariant=prev3
@@ -109,7 +103,6 @@ profiles:
       - M5Unified (0.2.14)
       - OneWire (2.3.8)
       - PubSubClient (2.8)
-      - WebSockets (2.7.2)
 
   guition_jc8012p4a1:
     fqbn: esp32:esp32:esp32p4:UploadSpeed=921600,USBMode=default,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,FlashFreq=80,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,DebugLevel=none,PSRAM=enabled,EraseFlash=none,JTAGAdapter=default,ChipVariant=prev3
@@ -125,7 +118,6 @@ profiles:
       - M5Unified (0.2.14)
       - OneWire (2.3.8)
       - PubSubClient (2.8)
-      - WebSockets (2.7.2)
 
   guition_jc1060p470c:
     fqbn: esp32:esp32:esp32p4:UploadSpeed=921600,USBMode=default,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,FlashFreq=80,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,DebugLevel=none,PSRAM=enabled,EraseFlash=none,JTAGAdapter=default,ChipVariant=prev3
@@ -141,7 +133,6 @@ profiles:
       - M5Unified (0.2.14)
       - OneWire (2.3.8)
       - PubSubClient (2.8)
-      - WebSockets (2.7.2)
 
   guition_esp32_4848s040:
     fqbn: esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,DebugLevel=none,PSRAM=opi,LoopCore=1,EventsCore=1,EraseFlash=none,JTAGAdapter=default,ZigbeeMode=default
@@ -157,6 +148,5 @@ profiles:
       - M5Unified (0.2.14)
       - OneWire (2.3.8)
       - PubSubClient (2.8)
-      - WebSockets (2.7.2)
 
 default_profile: waveshare_8

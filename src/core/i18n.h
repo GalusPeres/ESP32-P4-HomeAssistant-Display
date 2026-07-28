@@ -133,13 +133,11 @@ struct Strings {
   const char* tile_type_energy;
   const char* tile_type_weather;
   const char* tile_type_scene;
-  const char* tile_type_key;
   const char* tile_type_folder;
   const char* tile_type_switch;
   const char* tile_type_media;
   const char* tile_type_clock;
   const char* tile_type_text;
-  const char* tile_type_counter;
   const char* tile_type_settings;
   const char* tile_type_back;
 
@@ -180,10 +178,6 @@ struct Strings {
   const char* target_folder;
   const char* new_folder;
   const char* scene_label;
-  const char* macro_label;
-  const char* macro_examples;
-  const char* counter_start_value;
-  const char* counter_hint;
 
   const char* js_select_tile_first;
   const char* js_tile_copied;

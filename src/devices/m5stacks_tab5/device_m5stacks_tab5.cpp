@@ -305,7 +305,8 @@ bool rect_inside_logical_bounds(int32_t x, int32_t y, int32_t w, int32_t h) {
 }
 
 bool ppa_rotate_to_panel(int32_t x, int32_t y, int32_t w, int32_t h,
-                         const uint16_t* data, bool byte_swap) {
+                         int32_t source_stride, const uint16_t* data,
+                         bool byte_swap) {
   if (g_ppa_wedged) {
     // Spaete Fertigmeldung der verklemmten Transaktion? Dann ist die Engine
     // wieder frei und der Client laesst sich sauber neu aufsetzen. Dieses
@@ -355,7 +356,8 @@ bool ppa_rotate_to_panel(int32_t x, int32_t y, int32_t w, int32_t h,
       return false;
     }
   }
-  if (!g_panel_fb || ppa_cooldown_active() || w < kPpaMinRotateWidth ||
+  if (!g_panel_fb || source_stride < w || ppa_cooldown_active() ||
+      w < kPpaMinRotateWidth ||
       h < kPpaMinRotateHeight) {
     return false;
   }
@@ -388,11 +390,14 @@ bool ppa_rotate_to_panel(int32_t x, int32_t y, int32_t w, int32_t h,
     return false;
   }
 
-  flush_cache_for_dma(data, static_cast<size_t>(w) * static_cast<size_t>(h) * sizeof(uint16_t));
+  const size_t source_bytes =
+      ((static_cast<size_t>(h - 1) * static_cast<size_t>(source_stride)) +
+       static_cast<size_t>(w)) * sizeof(uint16_t);
+  flush_cache_for_dma(data, source_bytes);
 
   ppa_srm_oper_config_t oper = {};
   oper.in.buffer = data;
-  oper.in.pic_w = w;
+  oper.in.pic_w = source_stride;
   oper.in.pic_h = h;
   oper.in.block_w = w;
   oper.in.block_h = h;
@@ -482,7 +487,7 @@ bool ppa_rotate_to_panel(int32_t x, int32_t y, int32_t w, int32_t h,
 void push_pixels_with_ppa_fallback(int32_t x, int32_t y, int32_t w, int32_t h,
                                    const uint16_t* data, bool dma) {
   // LVGL uses RGB565_SWAPPED on Tab5, der Panel-Framebuffer RGB565.
-  if (ppa_rotate_to_panel(x, y, w, h, data, true)) {
+  if (ppa_rotate_to_panel(x, y, w, h, w, data, true)) {
     return;
   }
 
@@ -542,19 +547,21 @@ void DeviceM5StacksTab5::displayPushPixelsDMA(int32_t x, int32_t y, int32_t w, i
 
 bool DeviceM5StacksTab5::displayTryFullFramePreview(
     int32_t x, int32_t y, int32_t w, int32_t h,
-    const uint16_t* data, size_t data_size, bool byte_swap) {
+    int32_t source_stride, const uint16_t* data, size_t data_size,
+    bool byte_swap) {
   if (!g_display_ready || !data || !rect_inside_logical_bounds(x, y, w, h) ||
       !g_ppa_async_ready || !g_ppa_done ||
+      source_stride < w ||
       (reinterpret_cast<uintptr_t>(data) & (kCacheLineSize - 1)) != 0) {
     return false;
   }
   const size_t required_bytes =
-      static_cast<size_t>(w) * static_cast<size_t>(h) * sizeof(uint16_t);
+      ((static_cast<size_t>(h - 1) * static_cast<size_t>(source_stride)) +
+       static_cast<size_t>(w)) * sizeof(uint16_t);
   if (data_size < required_bytes) return false;
 
-  // Kein M5GFX-/CPU-Fallback an dieser Stelle: false bedeutet, dass LVGL den
-  // identischen vorbereiteten Puffer auf seinem normalen Weg zeichnet.
-  return ppa_rotate_to_panel(x, y, w, h, data, byte_swap);
+  return ppa_rotate_to_panel(
+      x, y, w, h, source_stride, data, byte_swap);
 }
 
 void DeviceM5StacksTab5::displayWaitDMA() {

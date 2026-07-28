@@ -1,7 +1,6 @@
 #include "src/tiles/tile_renderer.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/network/mqtt_handlers.h"
-#include "src/game/game_ws_server.h"
 #include "src/tiles/tile_config.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/types/climate/visuals.h"

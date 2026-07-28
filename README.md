@@ -273,8 +273,9 @@ More screenshots and how everything works: [Web Admin Panel](docs/web-admin.md) 
 - microSD file manager in the web admin (upload, download, rename, delete, folders)
 - Runtime storage on internal LittleFS; microSD is optional
 - Screenshot export to microSD from the web interface
-- Tile types currently include: sensor, energy, weather, scene, switch, climate, media,
-  folder, clock, text, counter, key, animation, and empty — see [Tile Types](docs/tiles.md)
+- Tile types currently include: sensor, energy, weather, scene, switch, climate,
+  camera, media, folder, clock, text, animation, and empty — see
+  [Tile Types](docs/tiles.md)
 
 ## Installation
 
@@ -343,9 +344,7 @@ Step-by-step instructions (broker, integration, display): [Home Assistant Setup 
 
 - `src/` firmware source code
 - `docs/images/` screenshots and documentation images
-- `electron-app/` desktop companion tooling
 - `mdi-extractor/` icon tooling
-- `simconnect-bridge/` additional companion tooling
 - `BOARD_SETTINGS.md` documented Arduino IDE board settings
 
 ## Known Issues
@@ -357,8 +356,6 @@ Step-by-step instructions (broker, integration, display): [Home Assistant Setup 
 
 - A microSD card is not required for normal operation; it is only used for the web file manager and screenshot export.
 - Board selection and board settings must match the target device.
-- A Windows Electron companion app also exists under `electron-app/`. It can be used to send PC-side data to the device, for example Microsoft Flight Simulator values, system metrics, or simulated keyboard input/commands for Windows. This still needs proper documentation and its own release packaging.
-
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE).

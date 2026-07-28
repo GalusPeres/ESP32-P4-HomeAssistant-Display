@@ -44,7 +44,6 @@ public:
   void handleSaveMQTT();
   void handleSaveBridge();
   void handleBridgeRefresh();
-  void handleSaveGameControls();
   void handleStatus();
   void handleRestart();
   void handleGetTiles();

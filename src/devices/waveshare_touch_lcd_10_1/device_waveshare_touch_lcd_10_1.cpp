@@ -1033,12 +1033,13 @@ void DeviceWaveshareTouchLCD10::displayPushPixelsDMA(int32_t x, int32_t y, int32
 
 bool DeviceWaveshareTouchLCD10::displayTryFullFramePreview(
     int32_t x, int32_t y, int32_t w, int32_t h,
-    const uint16_t* data, size_t data_size, bool byte_swap) {
+    int32_t source_stride, const uint16_t* data, size_t data_size,
+    bool byte_swap) {
   // Dieser Pfad ist absichtlich komplett getrennt vom normalen Flush: Bei
   // jedem Problem zeichnet LVGL wie bisher weiter. Insbesondere gibt es hier
   // KEINEN CPU-Fallback fuer das rund 2 MB grosse Vollbild.
   static bool preview_disabled_after_fault = false;
-  if (preview_disabled_after_fault || !data ||
+  if (preview_disabled_after_fault || !data || source_stride < w ||
       (reinterpret_cast<uintptr_t>(data) & (kCacheLineSize - 1)) != 0 ||
       w < kPpaMinRotateWidth || h <= 0 || !g_panel_fb_ready ||
       !g_ppa_handle || !g_ppa_async_ready || !g_ppa_done ||
@@ -1047,7 +1048,8 @@ bool DeviceWaveshareTouchLCD10::displayTryFullFramePreview(
   }
 
   const size_t required_bytes =
-      static_cast<size_t>(w) * static_cast<size_t>(h) * sizeof(uint16_t);
+      ((static_cast<size_t>(h - 1) * static_cast<size_t>(source_stride)) +
+       static_cast<size_t>(w)) * sizeof(uint16_t);
   if (data_size < required_bytes) return false;
 
   const int32_t logical_w = display_cfg.height;
@@ -1087,7 +1089,7 @@ bool DeviceWaveshareTouchLCD10::displayTryFullFramePreview(
 
   ppa_srm_oper_config_t oper = {};
   oper.in.buffer = data;
-  oper.in.pic_w = w;
+  oper.in.pic_w = source_stride;
   oper.in.pic_h = h;
   oper.in.block_w = w;
   oper.in.block_h = h;

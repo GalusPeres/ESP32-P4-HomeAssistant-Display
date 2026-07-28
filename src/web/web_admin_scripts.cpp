@@ -2341,7 +2341,6 @@ void appendAdminScripts(String& html) {
       const energyPopupModeSelect = document.getElementById(prefix + '_energy_popup_open_mode');
       const energyValueYOffsetInput = document.getElementById(prefix + '_energy_value_y_offset');
       const sceneInput = document.getElementById(prefix + '_scene_alias');
-    const keyInput = document.getElementById(prefix + '_key_macro');
     const textInput = document.getElementById(prefix + '_text_value');
     const textFontInput = document.getElementById(prefix + '_text_value_font');
     const navigateSelect = document.getElementById(prefix + '_navigate_target');
@@ -2370,7 +2369,6 @@ void appendAdminScripts(String& html) {
     const clockDateFontSelect = document.getElementById(prefix + '_clock_date_font');
     const clockTimeFormatSelect = document.getElementById(prefix + '_clock_time_format');
     const clockDateFormatSelect = document.getElementById(prefix + '_clock_date_format');
-    const counterInput = document.getElementById(prefix + '_counter_value');
     const settingsPanel = document.getElementById(prefix + 'Settings');
 
     bindLive(titleInput, 'input', 'tileTitle', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -2434,10 +2432,8 @@ void appendAdminScripts(String& html) {
     bindLive(valueYOffsetInput, 'input', 'sensorValueYOffset', () => { updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(graphHeightInput, 'input', 'sensorGraphHeight', () => { updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(sceneInput, 'input', 'sceneAlias', () => { maybeFillTitleFromScene(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    bindLive(keyInput, 'input', 'keyMacro', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(textInput, 'input', 'textValue', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(textFontInput, 'change', 'textFont', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    bindLive(counterInput, 'input', 'counterValue', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(navigateSelect, 'change', 'navigateTarget', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(switchSelect, 'change', 'switchEntity', () => { maybeFillTitleFromSwitch(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(switchStyleSelect, 'change', 'switchStyle', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -2718,11 +2714,6 @@ void appendAdminScripts(String& html) {
         const textClass = getSensorValueFontClass(textFont);
         html += '<div class="tile-text ' + textClass + '">' + textValue + '</div>';
       }
-    }
-
-    if (previewKind === 'counter') {
-      const counterVal = document.getElementById(prefix + '_counter_value')?.value || '0';
-      html += '<div class="tile-counter-value">' + counterVal + '</div>';
     }
 
     if (previewKind === 'switch' && switchStyle === '1') {
@@ -3555,8 +3546,6 @@ void appendAdminScripts(String& html) {
       }
     } else if (safeType === 2) {
       fd.append('scene_alias', tile.scene_alias || '');
-    } else if (safeType === 3) {
-      fd.append('key_macro', tile.key_macro || '');
     } else if (safeType === 4) {
       const rawTarget = Number(tile.navigate_target);
       let target = 0;
@@ -3585,8 +3574,6 @@ void appendAdminScripts(String& html) {
       fd.append('key_modifier', tile.key_modifier || 20);
       fd.append('clock_time_format', (tile.sensor_gauge_min !== undefined && tile.sensor_gauge_min !== null) ? tile.sensor_gauge_min : 0);
       fd.append('clock_date_format', (tile.sensor_gauge_max !== undefined && tile.sensor_gauge_max !== null) ? tile.sensor_gauge_max : 0);
-    } else if (safeType === 11) {
-      fd.append('counter_value', tile.counter_value || tile.scene_alias || '0');
     } else if (safeType === 12) {
       fd.append('weather_entity', tile.sensor_entity || tile.weather_entity || '');
       if (tile.popup_open_mode !== undefined && tile.popup_open_mode !== null) {
@@ -3833,10 +3820,6 @@ void appendAdminScripts(String& html) {
           const textClass = getSensorValueFontClass(tile.sensor_value_font);
           html += '<div class="tile-text ' + textClass + '">' + textValue + '</div>';
         }
-      }
-      if (previewKind === 'counter') {
-        const counterVal = tile.counter_value || tile.scene_alias || '0';
-        html += '<div class="tile-counter-value">' + counterVal + '</div>';
       }
       if (previewKind === 'switch' && tile.switch_style === 1) {
         html += '<div class="tile-switch" id="' + tab + '-tile-' + index + '-switch"><div class="tile-switch-knob"></div></div>';

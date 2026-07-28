@@ -56,8 +56,6 @@ bool WebAdminServer::start() {
     server.on("/bridge_refresh", HTTP_POST,
               [this]() { this->handleBridgeRefresh(); });
     server.on("/bridge", HTTP_POST, [this]() { this->handleSaveBridge(); });
-    server.on("/game_controls", HTTP_POST,
-              [this]() { this->handleSaveGameControls(); });
     server.on("/restart", HTTP_POST, [this]() { this->handleRestart(); });
     server.on("/api/status", [this]() { this->handleStatus(); });
     server.on("/api/tiles", HTTP_GET, [this]() { this->handleGetTiles(); });

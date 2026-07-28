@@ -6,13 +6,11 @@
 
 #include "src/types/clock/renderer.h"
 #include "src/types/empty/renderer.h"
-#include "src/types/key/renderer.h"
 #include "src/types/navigate/renderer.h"
 #include "src/types/scene/renderer.h"
 #include "src/types/sensor/renderer.h"
 #include "src/types/switch/renderer.h"
 #include "src/types/text/renderer.h"
-#include "src/types/counter/renderer.h"
 #include "src/types/energy/renderer.h"
 #include "src/types/weather/renderer.h"
 #include "src/types/media/renderer.h"
@@ -21,13 +19,11 @@
 #include "src/types/pixelanim/renderer.h"
 
 #include "src/types/clock/web_handler.h"
-#include "src/types/key/web_handler.h"
 #include "src/types/navigate/web_handler.h"
 #include "src/types/scene/web_handler.h"
 #include "src/types/sensor/web_handler.h"
 #include "src/types/switch/web_handler.h"
 #include "src/types/text/web_handler.h"
-#include "src/types/counter/web_handler.h"
 #include "src/types/energy/web_handler.h"
 #include "src/types/weather/web_handler.h"
 #include "src/types/media/web_handler.h"
@@ -36,13 +32,11 @@
 #include "src/types/pixelanim/web_handler.h"
 
 #include "src/types/clock/web_html.h"
-#include "src/types/key/web_html.h"
 #include "src/types/navigate/web_html.h"
 #include "src/types/scene/web_html.h"
 #include "src/types/sensor/web_html.h"
 #include "src/types/switch/web_html.h"
 #include "src/types/text/web_html.h"
-#include "src/types/counter/web_html.h"
 #include "src/types/energy/web_html.h"
 #include "src/types/weather/web_html.h"
 #include "src/types/media/web_html.h"
@@ -51,13 +45,11 @@
 #include "src/types/pixelanim/web_html.h"
 
 #include "src/types/clock/web_scripts.h"
-#include "src/types/key/web_scripts.h"
 #include "src/types/navigate/web_scripts.h"
 #include "src/types/scene/web_scripts.h"
 #include "src/types/sensor/web_scripts.h"
 #include "src/types/switch/web_scripts.h"
 #include "src/types/text/web_scripts.h"
-#include "src/types/counter/web_scripts.h"
 #include "src/types/energy/web_scripts.h"
 #include "src/types/weather/web_scripts.h"
 #include "src/types/media/web_scripts.h"
@@ -66,13 +58,11 @@
 #include "src/types/pixelanim/web_scripts.h"
 
 #include "src/types/clock/web_styles.h"
-#include "src/types/key/web_styles.h"
 #include "src/types/navigate/web_styles.h"
 #include "src/types/scene/web_styles.h"
 #include "src/types/sensor/web_styles.h"
 #include "src/types/switch/web_styles.h"
 #include "src/types/text/web_styles.h"
-#include "src/types/counter/web_styles.h"
 #include "src/types/energy/web_styles.h"
 #include "src/types/weather/web_styles.h"
 #include "src/types/media/web_styles.h"
@@ -122,16 +112,6 @@ lv_obj_t* render_scene_wrapper(lv_obj_t* parent,
   return render_scene_tile(parent, col, row, tile, index, scene_cb);
 }
 
-lv_obj_t* render_key_wrapper(lv_obj_t* parent,
-                             int col,
-                             int row,
-                             const Tile& tile,
-                             uint8_t index,
-                             GridType grid_type,
-                             scene_publish_cb_t) {
-  return render_key_tile(parent, col, row, tile, index, grid_type);
-}
-
 lv_obj_t* render_navigate_wrapper(lv_obj_t* parent,
                                   int col,
                                   int row,
@@ -170,16 +150,6 @@ lv_obj_t* render_text_wrapper(lv_obj_t* parent,
                               GridType,
                               scene_publish_cb_t) {
   return render_text_tile(parent, col, row, tile, index);
-}
-
-lv_obj_t* render_counter_wrapper(lv_obj_t* parent,
-                                 int col,
-                                 int row,
-                                 const Tile& tile,
-                                 uint8_t index,
-                                 GridType grid_type,
-                                 scene_publish_cb_t) {
-  return render_counter_tile(parent, col, row, tile, index, grid_type);
 }
 
 lv_obj_t* render_weather_wrapper(lv_obj_t* parent,
@@ -262,11 +232,6 @@ bool apply_scene_wrapper(WebServer& server, Tile& tile, const TileTypeApplyConte
   return true;
 }
 
-bool apply_key_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
-  apply_key_fields_from_request(server, tile);
-  return true;
-}
-
 bool apply_navigate_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext& ctx) {
   if (!ctx.tile_config || !ctx.error_message) {
     return false;
@@ -286,11 +251,6 @@ bool apply_clock_wrapper(WebServer& server, Tile& tile, const TileTypeApplyConte
 
 bool apply_text_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
   apply_text_fields_from_request(server, tile);
-  return true;
-}
-
-bool apply_counter_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
-  apply_counter_fields_from_request(server, tile);
   return true;
 }
 
@@ -357,10 +317,6 @@ void append_scene_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
   append_scene_fields_html(html, safeString(ctx.tab_id), safeScenes(ctx.scene_options));
 }
 
-void append_key_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
-  append_key_fields_html(html, safeString(ctx.tab_id));
-}
-
 void append_navigate_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
   append_navigate_fields_html(html, safeString(ctx.tab_id), safeString(ctx.navigate_options_html));
 }
@@ -375,10 +331,6 @@ void append_clock_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
 
 void append_text_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
   append_text_fields_html(html, safeString(ctx.tab_id));
-}
-
-void append_counter_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
-  append_counter_fields_html(html, safeString(ctx.tab_id));
 }
 
 void append_weather_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
@@ -497,24 +449,6 @@ const TileTypeDescriptor kTileTypes[] = {
     append_scene_fields_wrapper,
     append_scene_styles,
     append_scene_scripts
-  },
-  {
-    TILE_KEY,
-    "Key",
-    "key",
-    "key",
-    "none",
-    nullptr,
-    "loadKeyFields",
-    "saveKeyFields",
-    "resetKeyFields",
-    0x2A2A2A,
-    false,
-    render_key_wrapper,
-    apply_key_wrapper,
-    append_key_fields_wrapper,
-    append_key_styles,
-    append_key_scripts
   },
   {
     TILE_FOLDER,
@@ -663,24 +597,6 @@ const TileTypeDescriptor kTileTypes[] = {
     append_text_scripts
   },
   {
-    TILE_COUNTER,
-    "Counter",
-    "counter",
-    "counter",
-    "counter",
-    nullptr,
-    "loadCounterFields",
-    "saveCounterFields",
-    "resetCounterFields",
-    0x2A2A2A,
-    false,
-    render_counter_wrapper,
-    apply_counter_wrapper,
-    append_counter_fields_wrapper,
-    append_counter_styles,
-    append_counter_scripts
-  },
-  {
     TILE_SETTINGS,
     "Settings",
     "navigate",
@@ -781,7 +697,6 @@ void append_tile_type_select_options(String& html) {
       case TILE_ENERGY: label = tr.tile_type_energy; break;
       case TILE_WEATHER: label = tr.tile_type_weather; break;
       case TILE_SCENE: label = tr.tile_type_scene; break;
-      case TILE_KEY: label = tr.tile_type_key; break;
       case TILE_FOLDER: label = tr.tile_type_folder; break;
       case TILE_SWITCH: label = tr.tile_type_switch; break;
       case TILE_MEDIA: label = tr.tile_type_media; break;
@@ -792,7 +707,6 @@ void append_tile_type_select_options(String& html) {
         break;
       case TILE_CLOCK: label = tr.tile_type_clock; break;
       case TILE_TEXT: label = tr.tile_type_text; break;
-      case TILE_COUNTER: label = tr.tile_type_counter; break;
       case TILE_SETTINGS: label = tr.tile_type_settings; break;
       case TILE_BACK: label = tr.tile_type_back; break;
       default: break;
@@ -816,7 +730,6 @@ void append_tile_type_registry_js(String& html) {
       case TILE_ENERGY: label = tr.tile_type_energy; break;
       case TILE_WEATHER: label = tr.tile_type_weather; break;
       case TILE_SCENE: label = tr.tile_type_scene; break;
-      case TILE_KEY: label = tr.tile_type_key; break;
       case TILE_FOLDER: label = tr.tile_type_folder; break;
       case TILE_SWITCH: label = tr.tile_type_switch; break;
       case TILE_MEDIA: label = tr.tile_type_media; break;
@@ -827,7 +740,6 @@ void append_tile_type_registry_js(String& html) {
         break;
       case TILE_CLOCK: label = tr.tile_type_clock; break;
       case TILE_TEXT: label = tr.tile_type_text; break;
-      case TILE_COUNTER: label = tr.tile_type_counter; break;
       case TILE_SETTINGS: label = tr.tile_type_settings; break;
       case TILE_BACK: label = tr.tile_type_back; break;
       default: break;

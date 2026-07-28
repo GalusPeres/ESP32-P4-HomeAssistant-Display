@@ -69,7 +69,6 @@ jobs:
           retry 5 arduino-cli lib install "M5Unified@0.2.14"
           retry 5 arduino-cli lib install "OneWire@2.3.8"
           retry 5 arduino-cli lib install "PubSubClient@2.8"
-          retry 5 arduino-cli lib install "WebSockets@2.7.2"
 
   build:
     name: Build ${{ matrix.label }}

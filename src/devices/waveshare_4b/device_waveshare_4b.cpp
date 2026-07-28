@@ -316,18 +316,15 @@ void DeviceWaveshare4B::displayPushPixelsDMA(int32_t x, int32_t y, int32_t w, in
 
 bool DeviceWaveshare4B::displayTryFullFramePreview(
     int32_t x, int32_t y, int32_t w, int32_t h,
-    const uint16_t* data, size_t data_size, bool byte_swap) {
-  // Der B4 braucht keine PPA-Rotation: sein logischer 720x720-Frame entspricht
-  // bei der normalen Ausrichtung direkt dem physischen DSI-Framebuffer. Den
-  // bereits fertig zusammengesetzten Screensaver-Frame deshalb in einem Zug
-  // uebernehmen. So wird nicht erst das Wallpaper streifenweise durch LVGL aus
-  // dem PSRAM aufgebaut und danach Uhr/Kacheln darueber gezeichnet.
-  //
-  // Nur der exakt passende native RGB565-Vollframe nimmt diesen Pfad. Bei
-  // gedrehtem Display, abweichendem Ausschnitt oder Byte-Swap bleibt der
-  // bewaehrte LVGL-Pfad als sicherer Fallback erhalten.
-  if (!g_gfx || !data || byte_swap || x != 0 || y != 0 ||
-      w != display_cfg.width || h != display_cfg.height ||
+    int32_t source_stride, const uint16_t* data, size_t data_size,
+    bool byte_swap) {
+  // The B4's logical coordinates map directly to its DSI framebuffer. Copy
+  // prepared preview rectangles straight into that framebuffer so camera
+  // frames do not trigger a complete LVGL image redraw. The same path still
+  // accepts native full-screen images used by the image screensaver.
+  if (!g_gfx || !data || x < 0 || y < 0 || w <= 0 || h <= 0 ||
+      source_stride != w ||
+      (x + w) > display_cfg.width || (y + h) > display_cfg.height ||
       g_gfx->getRotation() != 0) {
     return false;
   }
@@ -341,11 +338,25 @@ bool DeviceWaveshare4B::displayTryFullFramePreview(
   uint16_t* framebuffer = g_gfx->getFramebuffer();
   if (!framebuffer) return false;
 
-  if (framebuffer != data) memcpy(framebuffer, data, required_bytes);
-  // auto_flush ist beim B4 aktiv. flush(true) erzwingt hier trotzdem genau
-  // einen Cache-Writeback nach der kompletten Kopie, statt hunderte sichtbare
-  // Teil-Flushes waehrend des LVGL-Renderns zu erzeugen.
-  g_gfx->flush(true);
+  if (x == 0 && y == 0 &&
+      w == display_cfg.width && h == display_cfg.height &&
+      !byte_swap) {
+    if (framebuffer != data) memcpy(framebuffer, data, required_bytes);
+    g_gfx->flush(true);
+    return true;
+  }
+
+  if (byte_swap) {
+    g_gfx->draw16bitBeRGBBitmap(
+        static_cast<int16_t>(x), static_cast<int16_t>(y),
+        const_cast<uint16_t*>(data),
+        static_cast<int16_t>(w), static_cast<int16_t>(h));
+  } else {
+    g_gfx->draw16bitRGBBitmap(
+        static_cast<int16_t>(x), static_cast<int16_t>(y),
+        const_cast<uint16_t*>(data),
+        static_cast<int16_t>(w), static_cast<int16_t>(h));
+  }
   return true;
 }
 

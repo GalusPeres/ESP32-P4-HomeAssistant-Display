@@ -311,12 +311,14 @@ void DeviceGuitionESP324848S040::displayPushPixelsDMA(
 }
 
 bool DeviceGuitionESP324848S040::displayTryFullFramePreview(
-    int32_t x, int32_t y, int32_t w, int32_t h, const uint16_t* data,
-    size_t data_size, bool byte_swap) {
+    int32_t x, int32_t y, int32_t w, int32_t h,
+    int32_t source_stride, const uint16_t* data, size_t data_size,
+    bool byte_swap) {
   (void)x;
   (void)y;
   (void)w;
   (void)h;
+  (void)source_stride;
   (void)data;
   (void)data_size;
   (void)byte_swap;

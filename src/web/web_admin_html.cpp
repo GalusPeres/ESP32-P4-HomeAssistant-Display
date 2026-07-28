@@ -9,7 +9,6 @@
 #include "src/network/ha_bridge_config.h"
 #include "src/network/network_transport.h"
 #include "src/network/usb_ethernet_backend.h"
-#include "src/game/game_controls_config.h"
 #include "src/web/web_admin_scripts.h"
 #include "src/web/web_admin_styles.h"
 #include "src/web/web_admin_fonts.h"

@@ -780,7 +780,7 @@ static void style_popup_textarea(lv_obj_t* ta) {
 static void style_popup_dropdown(lv_obj_t* dd) {
   lv_obj_set_height(dd, popup_layout::scale(52));
   lv_obj_set_style_text_font(dd, popup_layout::font20(), LV_PART_MAIN);
-  lv_obj_set_style_text_font(dd, &lv_font_montserrat_20, LV_PART_INDICATOR);
+  lv_obj_set_style_text_font(dd, &ui_symbols_20, LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(dd, lv_color_hex(0x1E1E1E), 0);
   lv_obj_set_style_text_color(dd, lv_color_white(), 0);
   lv_obj_set_style_text_color(dd, lv_color_white(), LV_PART_INDICATOR);
@@ -2361,7 +2361,7 @@ static lv_obj_t* create_locale_dropdown_row(lv_obj_t* form, const char* label_te
   lv_obj_set_style_pad_left(dd, popup_layout::scale(20), 0);
   lv_obj_set_style_radius(dd, popup_layout::scale(18), 0);
   lv_obj_set_style_text_font(dd, popup_layout::font28(), LV_PART_MAIN);
-  lv_obj_set_style_text_font(dd, &lv_font_montserrat_24, LV_PART_INDICATOR);
+  lv_obj_set_style_text_font(dd, &ui_symbols_24, LV_PART_INDICATOR);
   style_locale_dropdown_list(lv_dropdown_get_list(dd));
   lv_obj_add_event_cb(dd, on_locale_dropdown_ready, LV_EVENT_READY, nullptr);
   return dd;

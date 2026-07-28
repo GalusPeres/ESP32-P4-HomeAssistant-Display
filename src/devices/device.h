@@ -32,9 +32,12 @@ void displayPushPixels(int32_t x, int32_t y, int32_t w, int32_t h,
                        const uint16_t* data);
 void displayPushPixelsDMA(int32_t x, int32_t y, int32_t w, int32_t h,
                           const uint16_t* data);
-// Optionaler beschleunigter Vollbildpfad. Geraete ohne geeigneten direkten
-// Framebuffer geben false zurueck; der Aufrufer bleibt dann beim LVGL-Rendern.
+// Gemeinsamer direkter Frame-Pfad fuer Kamera und Vollbildvorschau. Der
+// Quell-Stride ist explizit, weil der P4-JPEG-Decoder Zeilen auf 16 Pixel
+// ausrichtet. false bedeutet: Frame auslassen, niemals still per LVGL neu
+// zeichnen.
 bool displayTryFullFramePreview(int32_t x, int32_t y, int32_t w, int32_t h,
+                                int32_t source_stride,
                                 const uint16_t* data, size_t data_size,
                                 bool byte_swap);
 // Ends device-specific preview buffering. This is a no-op on devices whose

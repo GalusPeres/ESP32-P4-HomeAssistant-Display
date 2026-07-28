@@ -218,6 +218,7 @@ bool present_composited_screensaver_frame(ScreensaverState* st) {
 
   const bool preview_ok = Device::displayTryFullFramePreview(
       0, 0, Device::kScreenWidth, Device::kScreenHeight,
+      Device::kScreenWidth,
       reinterpret_cast<const uint16_t*>(st->composite_draw_buf.data),
       st->composite_draw_buf.data_size,
       false);  // Snapshot ist natives RGB565, nicht RGB565_SWAPPED.

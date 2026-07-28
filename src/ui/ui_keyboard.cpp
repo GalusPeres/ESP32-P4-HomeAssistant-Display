@@ -108,19 +108,19 @@ void kb_draw_task_cb(lv_event_t* e) {
     label->color = lv_color_hex(kKeyText);
     // Sondertasten (Pfeile, Backspace, Enter, Tastatur-Wechsel, OK) sind
     // LV_SYMBOL_*-Codepoints aus LVGLs privatem Unicode-Bereich (UTF-8-
-    // Leadbyte 0xEF) - unsere ui_font_20/24 haben nur Latein/Umlaute und
-    // zeigen dafuer Platzhalter-Kaestchen. Fuer diese Tasten auf LVGLs
-    // eingebautes Montserrat wechseln, das den Symbolbereich mitbringt.
+    // Leadbyte 0xEF) - unsere ui_font_20/24 haben nur Textzeichen und zeigen
+    // dafuer Platzhalter-Kaestchen. Fuer diese Tasten wird deshalb eine kleine,
+    // ausschliesslich mit den benoetigten Symbolen erzeugte Schrift verwendet.
     if (txt && static_cast<unsigned char>(txt[0]) == 0xEF) {
 #if defined(DEVICE_LAYOUT_1024X600)
-      label->font = &lv_font_montserrat_20;
+      label->font = &ui_symbols_20;
 #elif defined(DEVICE_LAYOUT_480X480)
       label->font = &lv_font_montserrat_14;
 #else
       const bool large =
           lv_display_get_horizontal_resolution(nullptr) >= 1024;
       label->font =
-          large ? &lv_font_montserrat_24 : &lv_font_montserrat_20;
+          large ? &ui_symbols_24 : &ui_symbols_20;
 #endif
     }
     return;
