@@ -65,7 +65,7 @@ constexpr int kBrightnessOffDragThreshold = kVerticalSliderRadius;
 constexpr uint32_t kDefaultColor = 0xFFD54F;
 constexpr uint32_t kSwitchOnColor = 0x3B82F6;
 constexpr uint32_t kRemoteBlockMs = 3000;
-constexpr uint32_t kLivePublishIntervalMs = 80;
+constexpr uint32_t kLivePublishIntervalMs = 500;
 constexpr uint32_t kControlButtonBg = 0x2A2A2A;
 constexpr uint32_t kControlButtonIndicatorBg = 0xFFFFFF;
 constexpr lv_opa_t kControlButtonIndicatorOpa = LV_OPA_20;
@@ -120,8 +120,8 @@ struct LightPopupContext {
   uint8_t sat = 0;
   uint8_t val = 100;
   uint16_t color_temp_kelvin = 4000;
-  uint16_t min_color_temp_kelvin = 2200;
-  uint16_t max_color_temp_kelvin = 6500;
+  uint16_t min_color_temp_kelvin = 2000;
+  uint16_t max_color_temp_kelvin = 6535;
   uint8_t last_brightness = 100;
   bool supports_color = false;
   bool supports_brightness = false;
@@ -140,6 +140,9 @@ struct LightPopupContext {
   bool color_field_ready = false;
   bool use_color_temperature = false;
   bool switch_drag_dirty = false;
+  bool brightness_draw_active = false;
+  int16_t brightness_draw_center_y = -1;
+  uint32_t brightness_draw_color = kDefaultColor;
   uint8_t* color_field_buf = nullptr;
   uint32_t color_field_stride = 0;
   LightPopupMode mode = LightPopupMode::Color;
@@ -150,9 +153,15 @@ static LightPopupContext* g_light_popup_ctx = nullptr;
 // Forward declarations
 static void update_preview(LightPopupContext* ctx);
 static void update_brightness_fill(LightPopupContext* ctx);
+static void on_brightness_slider_draw(lv_event_t* e);
 static void update_temperature_handle(LightPopupContext* ctx);
 static void commit_popup_state(LightPopupContext* ctx);
-static void maybe_live_publish_during_drag(LightPopupContext* ctx);
+static void commit_brightness(LightPopupContext* ctx);
+static void maybe_live_publish_brightness(LightPopupContext* ctx);
+static void commit_color(LightPopupContext* ctx);
+static void maybe_live_publish_color(LightPopupContext* ctx);
+static void commit_color_temperature(LightPopupContext* ctx);
+static void maybe_live_publish_color_temperature(LightPopupContext* ctx);
 static void on_overlay_click(lv_event_t* e);
 
 static void on_close_click(lv_event_t* e) {
@@ -212,17 +221,9 @@ static uint16_t normalize_hue(int value) {
   return static_cast<uint16_t>(value);
 }
 
-static uint16_t clamp_color_temp_kelvin(int kelvin) {
-  if (kelvin < 2200) return 2200;
-  if (kelvin > 6500) return 6500;
-  return static_cast<uint16_t>(kelvin);
-}
-
 static void normalize_color_temp_range(uint16_t& min_kelvin, uint16_t& max_kelvin) {
-  if (min_kelvin < 1500) min_kelvin = 1500;
-  if (min_kelvin > 9000) min_kelvin = 9000;
-  if (max_kelvin < 1500) max_kelvin = 1500;
-  if (max_kelvin > 9000) max_kelvin = 9000;
+  if (min_kelvin == 0) min_kelvin = 2000;
+  if (max_kelvin == 0) max_kelvin = 6535;
   if (min_kelvin > max_kelvin) {
     const uint16_t tmp = min_kelvin;
     min_kelvin = max_kelvin;
@@ -257,7 +258,11 @@ static uint32_t color_from_hsv(uint16_t h, uint8_t s, uint8_t v) {
 }
 
 static lv_color_t color_from_temperature_kelvin(uint16_t kelvin) {
-  const float temp = static_cast<float>(clamp_color_temp_kelvin_to_range(kelvin, 1500, 9000)) / 100.0f;
+  // This clamp affects only the RGB preview. The command itself retains the
+  // exact range and Kelvin value reported by Home Assistant.
+  const float temp =
+      static_cast<float>(clamp_color_temp_kelvin_to_range(kelvin, 1000, 40000)) /
+      100.0f;
 
   float red = 255.0f;
   float green = 255.0f;
@@ -540,9 +545,25 @@ static void update_header_and_power_visuals(LightPopupContext* ctx, uint32_t ico
   }
 }
 
+static void update_live_accent_visuals(LightPopupContext* ctx,
+                                       uint32_t icon_rgb) {
+  if (!ctx) return;
+  if (ctx->icon_label && !ctx->keep_icon_white) {
+    lv_obj_set_style_text_color(ctx->icon_label, lv_color_hex(icon_rgb), 0);
+  }
+  if (ctx->power_button && ctx->is_on) {
+    const lv_color_t power_color = lv_color_hex(icon_rgb);
+    lv_obj_set_style_bg_color(ctx->power_button, power_color, 0);
+    lv_obj_set_style_bg_color(
+        ctx->power_button, power_color, LV_STATE_PRESSED);
+  }
+}
+
 static void update_switch_slider_visuals(LightPopupContext* ctx, uint32_t icon_rgb, bool invalidate) {
   if (!ctx || !ctx->val_slider || !ctx->val_cap) return;
 
+  ctx->brightness_draw_active = false;
+  ctx->brightness_draw_center_y = -1;
   const lv_color_t accent_color = lv_color_hex(icon_rgb);
   const lv_color_t thumb_color = ctx->is_on ? accent_color : lv_color_hex(0x8A8D96);
 
@@ -587,16 +608,15 @@ static void update_brightness_slider_visuals(LightPopupContext* ctx, uint32_t ic
   lv_obj_set_style_bg_color(ctx->val_slider, base_color, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(ctx->val_slider, LV_OPA_30, LV_PART_MAIN);
   lv_obj_set_style_border_width(ctx->val_slider, 0, LV_PART_MAIN);
+  ctx->brightness_draw_color = icon_rgb;
   if (ctx->val_fill) {
-    lv_obj_set_style_bg_color(ctx->val_fill, base_color, 0);
-    lv_obj_set_style_bg_opa(ctx->val_fill, LV_OPA_COVER, 0);
+    lv_obj_add_flag(ctx->val_fill, LV_OBJ_FLAG_HIDDEN);
   }
   if (ctx->val_cap) {
-    lv_obj_set_style_bg_color(ctx->val_cap, base_color, 0);
-    lv_obj_set_style_bg_opa(ctx->val_cap, LV_OPA_COVER, 0);
+    lv_obj_add_flag(ctx->val_cap, LV_OBJ_FLAG_HIDDEN);
   }
   if (ctx->val_dash) {
-    lv_obj_clear_flag(ctx->val_dash, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ctx->val_dash, LV_OBJ_FLAG_HIDDEN);
   }
   if (ctx->val_switch_icon) {
     lv_obj_add_flag(ctx->val_switch_icon, LV_OBJ_FLAG_HIDDEN);
@@ -605,52 +625,162 @@ static void update_brightness_slider_visuals(LightPopupContext* ctx, uint32_t ic
   if (invalidate) lv_obj_invalidate(ctx->val_slider);
 }
 
-static void update_brightness_fill(LightPopupContext* ctx) {
-  if (!ctx || !ctx->val_slider || !ctx->val_fill || !ctx->val_cap || !ctx->val_dash) return;
+static int brightness_center_y_for_value(int track_height, uint8_t value) {
+  if (track_height <= 1 || value == 0) return -1;
 
-  lv_obj_update_layout(ctx->val_slider);
+  const int min_center_y = kVerticalSliderRadius;
+  const int max_center_y = track_height - kVerticalSliderRadius;
+  const int usable_range = max_center_y - min_center_y;
+  if (value >= 100 || usable_range <= 0) return min_center_y;
+  if (value <= 1) return max_center_y;
+
+  const float progress = static_cast<float>(100 - value) / 99.0f;
+  return min_center_y +
+         static_cast<int>(lroundf(progress * static_cast<float>(usable_range)));
+}
+
+static void invalidate_brightness_change(LightPopupContext* ctx,
+                                         bool old_active,
+                                         int old_center_y,
+                                         bool new_active,
+                                         int new_center_y) {
+  if (!ctx || !ctx->val_slider) return;
+
+  lv_area_t slider_area;
+  lv_obj_get_coords(ctx->val_slider, &slider_area);
+  const int track_height = lv_area_get_height(&slider_area);
+  if (track_height <= 0) return;
+
+  int local_y1 = 0;
+  int local_y2 = track_height - 1;
+  if (old_active && new_active) {
+    const int upper_center =
+        old_center_y < new_center_y ? old_center_y : new_center_y;
+    const int lower_center =
+        old_center_y > new_center_y ? old_center_y : new_center_y;
+    local_y1 = upper_center - kVerticalSliderRadius;
+    local_y2 = lower_center + kVerticalSliderRadius - 1;
+  } else if (old_active) {
+    local_y1 = old_center_y - kVerticalSliderRadius;
+  } else if (new_active) {
+    local_y1 = new_center_y - kVerticalSliderRadius;
+  }
+
+  if (local_y1 < 0) local_y1 = 0;
+  if (local_y2 >= track_height) local_y2 = track_height - 1;
+
+  lv_area_t dirty = {
+      slider_area.x1,
+      static_cast<lv_coord_t>(slider_area.y1 + local_y1),
+      slider_area.x2,
+      static_cast<lv_coord_t>(slider_area.y1 + local_y2),
+  };
+  lv_obj_invalidate_area(ctx->val_slider, &dirty);
+}
+
+static void update_brightness_fill(LightPopupContext* ctx) {
+  if (!ctx || !ctx->val_slider) return;
+
   lv_area_t track_area;
   lv_obj_get_coords(ctx->val_slider, &track_area);
   const int track_height = lv_area_get_height(&track_area);
   if (track_height <= 1) return;
 
   const uint8_t value = (ctx->is_on || ctx->val > 0) ? ctx->val : 0;
-  if (value == 0) {
-    lv_obj_add_flag(ctx->val_fill, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(ctx->val_cap, LV_OBJ_FLAG_HIDDEN);
+  const bool new_active = value > 0;
+  const int new_center_y =
+      new_active ? brightness_center_y_for_value(track_height, value) : -1;
+  const bool old_active = ctx->brightness_draw_active;
+  const int old_center_y = ctx->brightness_draw_center_y;
+
+  if (old_active == new_active && old_center_y == new_center_y) return;
+
+  ctx->brightness_draw_active = new_active;
+  ctx->brightness_draw_center_y = static_cast<int16_t>(new_center_y);
+  invalidate_brightness_change(
+      ctx, old_active, old_center_y, new_active, new_center_y);
+}
+
+static void on_brightness_slider_draw(lv_event_t* e) {
+  if (lv_event_get_code(e) != LV_EVENT_DRAW_MAIN) return;
+  LightPopupContext* ctx =
+      static_cast<LightPopupContext*>(lv_event_get_user_data(e));
+  if (!ctx || !ctx->val_slider || is_simple_switch_popup(ctx) ||
+      !ctx->brightness_draw_active || ctx->brightness_draw_center_y < 0) {
     return;
   }
 
-  lv_obj_clear_flag(ctx->val_fill, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(ctx->val_cap, LV_OBJ_FLAG_HIDDEN);
+  lv_layer_t* layer = lv_event_get_layer(e);
+  if (!layer) return;
 
-  const int radius = kVerticalSliderRadius;
-  const int min_center_y = track_area.y1 + radius;
-  const int max_center_y = track_area.y2 - radius + 1;
-  const int usable_range = max_center_y - min_center_y;
-  int dash_center_y = max_center_y;
-  if (value >= 100) {
-    dash_center_y = min_center_y;
-  } else if (value > 1 && usable_range > 0) {
-    const float progress = static_cast<float>(100 - value) / 99.0f;
-    dash_center_y = min_center_y +
-                    static_cast<int>(lroundf(progress * static_cast<float>(usable_range)));
-  }
-  const int cap_top = dash_center_y - kVerticalSliderRadius;
-  const int body_top = dash_center_y;
-  const int body_height = track_area.y2 - body_top + 1;
+  lv_area_t slider_area;
+  lv_obj_get_coords(ctx->val_slider, &slider_area);
+  const lv_coord_t center_y = static_cast<lv_coord_t>(
+      slider_area.y1 + ctx->brightness_draw_center_y);
+  const lv_color_t fill_color =
+      lv_color_hex(ctx->brightness_draw_color);
 
-  lv_obj_set_pos(ctx->val_cap, 0, cap_top - track_area.y1);
-  lv_obj_set_size(ctx->val_cap, kVerticalSliderWidth, kVerticalSliderRadius * 2);
+  lv_draw_rect_dsc_t rect_dsc;
+  lv_draw_rect_dsc_init(&rect_dsc);
+  rect_dsc.base.layer = layer;
+  rect_dsc.bg_color = fill_color;
+  rect_dsc.bg_opa = LV_OPA_COVER;
+  rect_dsc.border_opa = LV_OPA_TRANSP;
 
-  lv_obj_set_pos(ctx->val_fill, 0, body_top - track_area.y1);
-  lv_obj_set_size(ctx->val_fill, kVerticalSliderWidth, body_height);
+  // Draw one compound fill with fixed radii:
+  //   1. the moving top cap contributes only its upper half,
+  //   2. a square middle section hides all internal rounded corners,
+  //   3. the fixed bottom cap contributes only its lower half.
+  // This keeps both outer radii stable at every brightness value.
+  lv_area_t top_cap_area = {
+      slider_area.x1,
+      static_cast<lv_coord_t>(center_y - kVerticalSliderRadius),
+      slider_area.x2,
+      static_cast<lv_coord_t>(center_y + kVerticalSliderRadius - 1),
+  };
+  rect_dsc.radius = kVerticalSliderRadius;
+  lv_draw_rect(layer, &rect_dsc, &top_cap_area);
 
-  const int dash_local_y = kVerticalSliderRadius - (kBrightnessDashHeight / 2);
-  lv_obj_set_pos(ctx->val_dash,
-                 (kVerticalSliderWidth - kBrightnessDashWidth) / 2,
-                 dash_local_y);
-  lv_obj_move_foreground(ctx->val_cap);
+  const lv_coord_t bottom_center_y = static_cast<lv_coord_t>(
+      slider_area.y2 - kVerticalSliderRadius + 1);
+  lv_area_t bottom_cap_area = {
+      slider_area.x1,
+      static_cast<lv_coord_t>(bottom_center_y - kVerticalSliderRadius),
+      slider_area.x2,
+      static_cast<lv_coord_t>(bottom_center_y + kVerticalSliderRadius - 1),
+  };
+  lv_draw_rect(layer, &rect_dsc, &bottom_cap_area);
+
+  lv_area_t middle_area = {
+      slider_area.x1,
+      center_y,
+      slider_area.x2,
+      bottom_center_y,
+  };
+  rect_dsc.radius = 0;
+  lv_draw_rect(layer, &rect_dsc, &middle_area);
+
+  lv_draw_rect_dsc_t dash_dsc;
+  lv_draw_rect_dsc_init(&dash_dsc);
+  dash_dsc.base.layer = layer;
+  dash_dsc.bg_color = lv_color_hex(0x2A2A2A);
+  dash_dsc.bg_opa = LV_OPA_COVER;
+  dash_dsc.border_opa = LV_OPA_TRANSP;
+  dash_dsc.radius = LV_RADIUS_CIRCLE;
+
+  const lv_coord_t dash_x1 = static_cast<lv_coord_t>(
+      slider_area.x1 + ((lv_area_get_width(&slider_area) -
+                         kBrightnessDashWidth) /
+                        2));
+  const lv_coord_t dash_y1 = static_cast<lv_coord_t>(
+      center_y - (kBrightnessDashHeight / 2));
+  lv_area_t dash_area = {
+      dash_x1,
+      dash_y1,
+      static_cast<lv_coord_t>(dash_x1 + kBrightnessDashWidth - 1),
+      static_cast<lv_coord_t>(dash_y1 + kBrightnessDashHeight - 1),
+  };
+  lv_draw_rect(layer, &dash_dsc, &dash_area);
 }
 
 static void update_temperature_slider_visuals(LightPopupContext* ctx, bool invalidate) {
@@ -671,8 +801,6 @@ static void update_temperature_slider_visuals(LightPopupContext* ctx, bool inval
 
 static void update_temperature_handle(LightPopupContext* ctx) {
   if (!ctx || !ctx->temp_slider || !ctx->temp_slider_handle || !ctx->temp_slider_wrap) return;
-
-  lv_obj_update_layout(ctx->temp_slider_wrap);
 
   lv_area_t track_area;
   lv_area_t wrap_area;
@@ -709,7 +837,6 @@ static void update_temperature_handle(LightPopupContext* ctx) {
   const int local_y = center_y - wrap_area.y1 - (kTempHandleHeight / 2);
 
   lv_obj_set_pos(ctx->temp_slider_handle, local_x, local_y);
-  lv_obj_move_foreground(ctx->temp_slider_handle);
 }
 
 static bool is_mode_available(const LightPopupContext* ctx, LightPopupMode mode) {
@@ -898,15 +1025,96 @@ static void commit_popup_state(LightPopupContext* ctx) {
   ctx->last_live_publish_ms = millis();
 }
 
-static void maybe_live_publish_during_drag(LightPopupContext* ctx) {
-  if (!ctx || !ctx->user_dragging || !ctx->is_light || !ctx->entity_id.length()) return;
+static bool begin_live_publish(LightPopupContext* ctx) {
+  if (!ctx || !ctx->user_dragging || !ctx->is_light ||
+      !ctx->entity_id.length()) {
+    return false;
+  }
   const uint32_t now = millis();
   if (ctx->last_live_publish_ms != 0 &&
       (now - ctx->last_live_publish_ms) < kLivePublishIntervalMs) {
-    return;
+    return false;
   }
   ctx->last_live_publish_ms = now;
-  publish_light_popup(ctx);
+  return true;
+}
+
+static void publish_brightness(LightPopupContext* ctx) {
+  if (!ctx || !ctx->is_light || !ctx->supports_brightness ||
+      !ctx->entity_id.length()) {
+    return;
+  }
+  if (!ctx->is_on || ctx->val == 0) {
+    mqttPublishLightCommand(
+        ctx->entity_id.c_str(), "off", -1, false, 0, -1);
+    return;
+  }
+  mqttPublishLightCommand(
+      ctx->entity_id.c_str(), "on", ctx->val, false, 0, -1);
+}
+
+static void commit_brightness(LightPopupContext* ctx) {
+  if (!ctx) return;
+  sync_bound_tile_from_popup(ctx);
+  publish_brightness(ctx);
+  ctx->last_live_publish_ms = millis();
+}
+
+static void maybe_live_publish_brightness(LightPopupContext* ctx) {
+  if (!begin_live_publish(ctx)) return;
+  publish_brightness(ctx);
+}
+
+static void publish_color(LightPopupContext* ctx) {
+  if (!ctx || !ctx->is_light || !ctx->supports_color ||
+      !ctx->entity_id.length()) {
+    return;
+  }
+  mqttPublishLightCommand(
+      ctx->entity_id.c_str(),
+      "on",
+      -1,
+      true,
+      color_from_hsv(ctx->hue, ctx->sat, 100),
+      -1);
+}
+
+static void commit_color(LightPopupContext* ctx) {
+  if (!ctx) return;
+  sync_bound_tile_from_popup(ctx);
+  publish_color(ctx);
+  ctx->last_live_publish_ms = millis();
+}
+
+static void maybe_live_publish_color(LightPopupContext* ctx) {
+  if (!begin_live_publish(ctx)) return;
+  publish_color(ctx);
+}
+
+static void publish_color_temperature(LightPopupContext* ctx) {
+  if (!ctx || !ctx->is_light || !ctx->supports_temperature ||
+      !ctx->entity_id.length()) {
+    return;
+  }
+  mqttPublishLightCommand(
+      ctx->entity_id.c_str(),
+      "on",
+      -1,
+      false,
+      0,
+      static_cast<int>(ctx->color_temp_kelvin));
+}
+
+static void commit_color_temperature(LightPopupContext* ctx) {
+  if (!ctx) return;
+  sync_bound_tile_from_popup(ctx);
+  publish_color_temperature(ctx);
+  ctx->last_live_publish_ms = millis();
+}
+
+static void maybe_live_publish_color_temperature(LightPopupContext* ctx) {
+  if (!begin_live_publish(ctx)) return;
+  publish_color_temperature(ctx);
 }
 
 static void update_preview(LightPopupContext* ctx) {
@@ -1084,6 +1292,10 @@ static lv_obj_t* create_vertical_slider_panel(lv_obj_t* parent,
     lv_obj_set_style_shadow_width(dash, 0, 0);
     lv_obj_clear_flag(dash, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(dash, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_pos(
+        dash,
+        (kVerticalSliderWidth - kBrightnessDashWidth) / 2,
+        kVerticalSliderRadius - (kBrightnessDashHeight / 2));
 
     switch_icon = lv_label_create(cap);
     lv_obj_set_style_text_font(switch_icon, FONT_MDI_ICONS, 0);
@@ -1278,8 +1490,8 @@ static void apply_init_to_context(LightPopupContext* ctx, const LightPopupInit& 
     }
   } else {
     ctx->color_temp_kelvin = 4000;
-    ctx->min_color_temp_kelvin = 2200;
-    ctx->max_color_temp_kelvin = 6500;
+    ctx->min_color_temp_kelvin = 2000;
+    ctx->max_color_temp_kelvin = 6535;
     ctx->use_color_temperature = false;
   }
   if (ctx->supports_temperature && !ctx->supports_color) {
@@ -1409,10 +1621,16 @@ static void apply_brightness_point(LightPopupContext* ctx, const lv_point_t& poi
   lv_area_t area;
   lv_obj_get_coords(ctx->val_slider, &area);
   const uint8_t value = brightness_value_from_point(area, point);
+  const bool next_is_on = value > 0;
+  if (value == ctx->val && next_is_on == ctx->is_on) {
+    mark_user_action(ctx);
+    if (commit) commit_brightness(ctx);
+    return;
+  }
 
   const bool was_on = ctx->is_on;
   ctx->val = value;
-  ctx->is_on = value > 0;
+  ctx->is_on = next_is_on;
   if (value > 0) ctx->last_brightness = value;
 
   mark_user_action(ctx);
@@ -1427,8 +1645,8 @@ static void apply_brightness_point(LightPopupContext* ctx, const lv_point_t& poi
     update_header_and_power_visuals(ctx, icon_rgb);
   }
 
-  if (commit) commit_popup_state(ctx);
-  else maybe_live_publish_during_drag(ctx);
+  if (commit) commit_brightness(ctx);
+  else maybe_live_publish_brightness(ctx);
 }
 
 static void on_brightness_track_event(lv_event_t* e) {
@@ -1447,7 +1665,7 @@ static void on_brightness_track_event(lv_event_t* e) {
   lv_indev_t* indev = lv_indev_get_act();
   if (!indev) {
     if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
-      commit_popup_state(ctx);
+      commit_brightness(ctx);
     }
     return;
   }
@@ -1464,8 +1682,17 @@ static void apply_temperature_point(LightPopupContext* ctx, const lv_point_t& po
 
   lv_area_t area;
   lv_obj_get_coords(ctx->temp_slider, &area);
-  ctx->color_temp_kelvin = temperature_from_point(
+  const uint16_t next_color_temp_kelvin = temperature_from_point(
       area, point, ctx->min_color_temp_kelvin, ctx->max_color_temp_kelvin);
+  const bool value_changed =
+      next_color_temp_kelvin != ctx->color_temp_kelvin ||
+      !ctx->use_color_temperature || !ctx->is_on;
+  if (!value_changed) {
+    mark_user_action(ctx);
+    if (commit) commit_color_temperature(ctx);
+    return;
+  }
+  ctx->color_temp_kelvin = next_color_temp_kelvin;
   ctx->use_color_temperature = true;
   ctx->is_on = true;
   if (ctx->supports_brightness && ctx->val == 0) {
@@ -1475,14 +1702,18 @@ static void apply_temperature_point(LightPopupContext* ctx, const lv_point_t& po
   mark_user_action(ctx);
   update_temperature_handle(ctx);
   const uint32_t icon_rgb = get_preview_icon_rgb(ctx);
-  update_top_value_label(ctx);
-  update_header_and_power_visuals(ctx, icon_rgb);
+  if (was_on != ctx->is_on || restored_brightness) {
+    update_top_value_label(ctx);
+    update_header_and_power_visuals(ctx, icon_rgb);
+  } else {
+    update_live_accent_visuals(ctx, icon_rgb);
+  }
   if ((was_on != ctx->is_on || restored_brightness) &&
       is_visible_obj(ctx->brightness_panel)) {
     update_brightness_slider_visuals(ctx, icon_rgb, true);
   }
-  if (!commit) maybe_live_publish_during_drag(ctx);
-  if (commit) commit_popup_state(ctx);
+  if (!commit) maybe_live_publish_color_temperature(ctx);
+  if (commit) commit_color_temperature(ctx);
 }
 
 static void on_temp_track_event(lv_event_t* e) {
@@ -1501,7 +1732,7 @@ static void on_temp_track_event(lv_event_t* e) {
   lv_indev_t* indev = lv_indev_get_act();
   if (!indev) {
     if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
-      commit_popup_state(ctx);
+      commit_color_temperature(ctx);
     }
     return;
   }
@@ -1543,8 +1774,20 @@ static void apply_color_field_point(LightPopupContext* ctx,
 
   float angle = atan2f(dy, dx) * 180.0f / kPi;
   if (angle < 0.0f) angle += 360.0f;
-  ctx->hue = normalize_hue(static_cast<int>(lroundf(angle)));
-  ctx->sat = static_cast<uint8_t>(lroundf((dist / radius) * 100.0f));
+  const uint16_t next_hue =
+      normalize_hue(static_cast<int>(lroundf(angle)));
+  const uint8_t next_sat =
+      static_cast<uint8_t>(lroundf((dist / radius) * 100.0f));
+  const bool value_changed =
+      next_hue != ctx->hue || next_sat != ctx->sat ||
+      ctx->use_color_temperature || !ctx->is_on;
+  if (!value_changed) {
+    mark_user_action(ctx);
+    if (commit) commit_color(ctx);
+    return;
+  }
+  ctx->hue = next_hue;
+  ctx->sat = next_sat;
   ctx->use_color_temperature = false;
 
   if (ctx->supports_brightness && !ctx->is_on) {
@@ -1557,8 +1800,12 @@ static void apply_color_field_point(LightPopupContext* ctx,
 
   mark_user_action(ctx);
   const uint32_t icon_rgb = get_preview_icon_rgb(ctx);
-  update_top_value_label(ctx);
-  update_header_and_power_visuals(ctx, icon_rgb);
+  if (was_on != ctx->is_on || restored_brightness) {
+    update_top_value_label(ctx);
+    update_header_and_power_visuals(ctx, icon_rgb);
+  } else {
+    update_live_accent_visuals(ctx, icon_rgb);
+  }
   if (is_visible_obj(ctx->color_panel)) {
     update_color_field_cursor(ctx);
   }
@@ -1566,8 +1813,8 @@ static void apply_color_field_point(LightPopupContext* ctx,
       is_visible_obj(ctx->brightness_panel)) {
     update_brightness_slider_visuals(ctx, icon_rgb, true);
   }
-  if (!commit) maybe_live_publish_during_drag(ctx);
-  if (commit) commit_popup_state(ctx);
+  if (!commit) maybe_live_publish_color(ctx);
+  if (commit) commit_color(ctx);
 }
 
 static void on_color_field_event(lv_event_t* e) {
@@ -1579,7 +1826,12 @@ static void on_color_field_event(lv_event_t* e) {
   else if (code != LV_EVENT_PRESSING) return;
 
   lv_indev_t* indev = lv_indev_get_act();
-  if (!indev) return;
+  if (!indev) {
+    if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+      commit_color(ctx);
+    }
+    return;
+  }
   lv_point_t point;
   lv_indev_get_point(indev, &point);
   lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
@@ -1733,6 +1985,8 @@ void show_light_popup(const LightPopupInit& init) {
                                    &ctx->val_switch_icon,
                                    &ctx->val_value,
                                    false);
+  lv_obj_add_event_cb(
+      ctx->val_slider, on_brightness_slider_draw, LV_EVENT_DRAW_MAIN, ctx);
   ctx->color_panel = create_color_field_panel(ctx->main_panel,
                                               &ctx->color_field_frame,
                                               &ctx->color_field_canvas,

@@ -1171,21 +1171,28 @@ static SwitchState parse_switch_payload(const char* payload) {
   if (!text.length()) return out;
 
   auto set_color_temp_kelvin = [&out](float raw_kelvin) {
+    if (!isfinite(raw_kelvin) || raw_kelvin <= 0.0f) return;
     int kelvin = static_cast<int>(roundf(raw_kelvin));
-    if (kelvin < 1500) kelvin = 1500;
-    if (kelvin > 9000) kelvin = 9000;
+    if (kelvin < 1) kelvin = 1;
+    if (kelvin > 65535) kelvin = 65535;
     out.has_color_temp = true;
     out.color_temp_kelvin = static_cast<uint16_t>(kelvin);
     if (!out.supported_modes_known) out.supports_temperature = true;
   };
 
   auto set_color_temp_range = [&out](float raw_min_kelvin, float raw_max_kelvin) {
+    if (!isfinite(raw_min_kelvin) || raw_min_kelvin <= 0.0f) {
+      raw_min_kelvin = 2000.0f;
+    }
+    if (!isfinite(raw_max_kelvin) || raw_max_kelvin <= 0.0f) {
+      raw_max_kelvin = 6535.0f;
+    }
     int min_kelvin = static_cast<int>(roundf(raw_min_kelvin));
     int max_kelvin = static_cast<int>(roundf(raw_max_kelvin));
-    if (min_kelvin < 1500) min_kelvin = 1500;
-    if (max_kelvin > 9000) max_kelvin = 9000;
-    if (max_kelvin < 1500) max_kelvin = 1500;
-    if (min_kelvin > 9000) min_kelvin = 9000;
+    if (min_kelvin < 1) min_kelvin = 1;
+    if (max_kelvin < 1) max_kelvin = 1;
+    if (min_kelvin > 65535) min_kelvin = 65535;
+    if (max_kelvin > 65535) max_kelvin = 65535;
     if (min_kelvin > max_kelvin) {
       const int tmp = min_kelvin;
       min_kelvin = max_kelvin;
@@ -1210,7 +1217,7 @@ static SwitchState parse_switch_payload(const char* payload) {
     if (extract_json_number_field(source, "color_temp", color_temp_mired) ||
         extract_json_number_or_string_field(source, "color_temp", color_temp_mired)) {
       if (color_temp_mired > 0.0f) {
-        set_color_temp_kelvin(1000000.0f / color_temp_mired);
+        set_color_temp_kelvin(floorf(1000000.0f / color_temp_mired));
         return true;
       }
     }
@@ -1219,18 +1226,14 @@ static SwitchState parse_switch_payload(const char* payload) {
   };
 
   auto try_extract_color_temp_range = [&set_color_temp_range](const String& source) {
-    float min_kelvin = 0.0f;
-    float max_kelvin = 0.0f;
-    const bool has_min_kelvin =
+    float min_kelvin = 2000.0f;
+    float max_kelvin = 6535.0f;
+    bool has_min_kelvin =
         extract_json_number_field(source, "min_color_temp_kelvin", min_kelvin) ||
         extract_json_number_or_string_field(source, "min_color_temp_kelvin", min_kelvin);
-    const bool has_max_kelvin =
+    bool has_max_kelvin =
         extract_json_number_field(source, "max_color_temp_kelvin", max_kelvin) ||
         extract_json_number_or_string_field(source, "max_color_temp_kelvin", max_kelvin);
-    if (has_min_kelvin && has_max_kelvin) {
-      set_color_temp_range(min_kelvin, max_kelvin);
-      return true;
-    }
 
     float min_mired = 0.0f;
     float max_mired = 0.0f;
@@ -1240,8 +1243,16 @@ static SwitchState parse_switch_payload(const char* payload) {
     const bool has_max_mired =
         extract_json_number_field(source, "max_mireds", max_mired) ||
         extract_json_number_or_string_field(source, "max_mireds", max_mired);
-    if (has_min_mired && has_max_mired && min_mired > 0.0f && max_mired > 0.0f) {
-      set_color_temp_range(1000000.0f / max_mired, 1000000.0f / min_mired);
+    if (!has_min_kelvin && has_max_mired && max_mired > 0.0f) {
+      min_kelvin = floorf(1000000.0f / max_mired);
+      has_min_kelvin = true;
+    }
+    if (!has_max_kelvin && has_min_mired && min_mired > 0.0f) {
+      max_kelvin = floorf(1000000.0f / min_mired);
+      has_max_kelvin = true;
+    }
+    if (has_min_kelvin || has_max_kelvin) {
+      set_color_temp_range(min_kelvin, max_kelvin);
       return true;
     }
 
