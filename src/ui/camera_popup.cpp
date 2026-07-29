@@ -27,6 +27,8 @@ constexpr int kVideoHeight = camera_geometry::kHeight;
 constexpr int kVideoTop = popup_layout::scale480(104);
 constexpr int kStatusTop =
     kVideoTop + kVideoHeight + popup_layout::scale480(22);
+constexpr uint8_t kRequiredBridgeCameraProtocol = 1;
+constexpr uint32_t kBridgeResponseTimeoutMs = 8000;
 
 struct CameraPopupContext {
   String entity_id;
@@ -43,6 +45,8 @@ struct CameraPopupContext {
   bool large_draw_buffer_active = false;
   bool draw_buffer_restore_pending = false;
   uint32_t draw_buffer_restore_retry_at_ms = 0;
+  uint32_t bridge_response_deadline_ms = 0;
+  bool waiting_for_bridge = false;
   bool visible = false;
 };
 
@@ -335,6 +339,9 @@ void show_camera_popup(const CameraPopupInit& init) {
   lv_label_set_text(g_camera_popup->placeholder,
                     camera_text().camera_preparing);
   camera_popup_set_status(camera_text().camera_bridge_requesting, false);
+  g_camera_popup->waiting_for_bridge = true;
+  g_camera_popup->bridge_response_deadline_ms =
+      millis() + kBridgeResponseTimeoutMs;
   lv_obj_clear_flag(g_camera_popup->card, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(g_camera_popup->overlay, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_move_foreground(g_camera_popup->overlay);
@@ -376,6 +383,17 @@ void process_camera_popup() {
     }
   }
   if (!g_camera_popup->visible) return;
+  if (g_camera_popup->waiting_for_bridge &&
+      static_cast<int32_t>(
+          millis() - g_camera_popup->bridge_response_deadline_ms) >= 0) {
+    g_camera_popup->waiting_for_bridge = false;
+    g_camera_popup->bridge_response_deadline_ms = 0;
+    Serial.println(
+        "[Camera] Keine kompatible Bridge-Antwort; "
+        "HomeTiles Bridge v0.6.28+ erforderlich");
+    camera_popup_set_status(
+        camera_text().camera_bridge_update_required, true);
+  }
   if (powerManager.isInSleep()) {
     close_camera_popup();
     return;
@@ -399,6 +417,18 @@ void camera_popup_handle_mqtt_status(const char* payload) {
   const char* entity = doc["entity_id"] | "";
   if (*entity &&
       !g_camera_popup->entity_id.equalsIgnoreCase(String(entity))) {
+    return;
+  }
+  const uint8_t protocol_version = doc["protocol_version"] | 0;
+  g_camera_popup->waiting_for_bridge = false;
+  g_camera_popup->bridge_response_deadline_ms = 0;
+  if (protocol_version != kRequiredBridgeCameraProtocol) {
+    Serial.printf(
+        "[Camera] Bridge-Kameraprotokoll %u ist inkompatibel "
+        "(erwartet %u; Bridge v0.6.28+)\n",
+        protocol_version, kRequiredBridgeCameraProtocol);
+    camera_popup_set_status(
+        camera_text().camera_bridge_update_required, true);
     return;
   }
   const char* status = doc["status"] | "";

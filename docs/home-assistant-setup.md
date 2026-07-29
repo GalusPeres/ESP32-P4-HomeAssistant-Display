@@ -24,6 +24,8 @@ The display never talks to Home Assistant directly. Everything goes through MQTT
   and energy data to the display.
 - The display sends commands back (light/switch/media/scene control), which the bridge
   executes in Home Assistant.
+- Experimental camera popups use MQTT only for setup and control; display-sized
+  JPEG frames travel directly over the local network.
 
 So you need three things: an **MQTT broker**, the **bridge integration**, and the
 **display firmware**. This guide covers all supported devices.
@@ -114,7 +116,7 @@ Open the integration entry and click **Configure**. There are three sections:
 
 - **Panel Settings** — base topic, HA prefix, and device metadata.
 - **Entity Configuration** — pick the sensors, weather entities, lights, switches,
-  media players, and scenes/scripts the display should have access to. Scene aliases are
+  media players, cameras, and scenes/scripts the display should have access to. Scene aliases are
   generated automatically; you can also map them manually (one `alias=entity_id` per line).
 - **Energy Dashboard** — enable electricity, gas, and/or water. This requires the
   Home Assistant [Energy Dashboard](https://my.home-assistant.io/redirect/energy/) to be
@@ -128,6 +130,11 @@ pick here.
 Open the display's [web admin panel](web-admin.md) and add tiles for the entities you
 exposed in Step 6 — sensors, lights, weather, energy, media, scenes, and so on.
 Changes appear on the display immediately.
+
+For a Camera tile, install HomeTiles Bridge v0.6.28 or newer, select the camera
+in Step 6, and ensure the display can reach the Home Assistant host on TCP
+ports `8124`–`8131`. Camera support is experimental and available on ESP32-P4
+targets only.
 
 ## Multiple Displays
 

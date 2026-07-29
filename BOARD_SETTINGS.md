@@ -75,6 +75,9 @@ Used for:
 - build profiles `waveshare_7`, `waveshare_8`, and `waveshare_10_1`
 
 Important:
+- The 8-inch profile is hardware-confirmed. The 7-inch and 10.1-inch profiles
+  are experimental and still need complete real-device validation in
+  [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7).
 - The 7-inch model renders at `1280x720` and uses the Tab5 dashboard layout.
 - The 8-inch and 10.1-inch models render at `1280x800` and share the same
   dashboard layout.
@@ -139,6 +142,39 @@ Arduino IDE:
 - Upload Speed: `921600`
 - USB Mode: `USB-OTG (TinyUSB)`
 
+## Guition JC1060P470C_I_W_Y (experimental)
+
+Used for:
+- `src/devices/guition_jc1060p470c`
+- build profile `guition_jc1060p470c`
+
+Important:
+- This target is only for the exact `JC1060P470C_I_W_Y` variant. The `_I_W`
+  variant uses different touch coordinates and is not covered.
+- The profile is published for community testing and is not yet hardware-confirmed;
+  report results in [issue #8](https://github.com/GalusPeres/HomeTiles/issues/8).
+- ESP32-P4 with `16MB` flash and `32MB` PSRAM.
+- Native `1024x600` JD9165 MIPI-DSI panel with GT911 touch.
+- Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.
+
+Arduino IDE:
+- Board: `ESP32P4 Dev Module`
+- USB CDC On Boot: `Disabled`
+- Chip Variant: `Before v3.00`
+- Core Debug Level: `None`
+- USB DFU On Boot: `Disabled`
+- Erase All Flash Before Sketch Upload: `Disabled`
+- Flash Frequency: `80MHz`
+- Flash Mode: `QIO`
+- Flash Size: `16MB (128Mb)`
+- JTAG Adapter: `Disabled`
+- USB Firmware MSC On Boot: `Disabled`
+- Partition Scheme: `Custom`
+- PSRAM: `Enabled`
+- Upload Mode: `UART0 / Hardware CDC`
+- Upload Speed: `921600`
+- USB Mode: `USB-OTG (TinyUSB)`
+
 ## GUITION ESP32-4848S040
 
 Used for:
@@ -146,6 +182,9 @@ Used for:
 - build profile `guition_esp32_4848s040`
 
 Important:
+- This profile is experimental and still needs complete real-device validation
+  in [issue #9](https://github.com/GalusPeres/HomeTiles/issues/9).
+- Camera tiles are intentionally unavailable on this ESP32-S3 target.
 - This is the ESP32-S3 `ESP32-4848S040C_I` family with `16MB` flash and
   `8MB` octal PSRAM.
 - The panel is a `480x480` ST7701 RGB display. The initial test profile uses a

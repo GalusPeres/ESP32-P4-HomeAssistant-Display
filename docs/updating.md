@@ -61,15 +61,16 @@ intentional (it frees memory for the transfer) and the device restarts when done
 
 Use the asset matching your device from the release page:
 
-| Device | OTA update file |
-| --- | --- |
-| M5Stack Tab5 | `hometiles_<version>_m5stacks_tab5.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-4B | `hometiles_<version>_waveshare_4b.bin` |
-| Waveshare ESP32-P4-86-Panel-ETH-2RO | `hometiles_<version>_waveshare_4b.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | `hometiles_<version>_waveshare_touch_lcd_7.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-8 | `hometiles_<version>_waveshare_touch_lcd_8.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | `hometiles_<version>_waveshare_touch_lcd_10_1.bin` |
-| Guition JC8012P4A1C_I_W_Y | `hometiles_<version>_guition_jc8012p4a1.bin` |
+| Device | Status | OTA update file |
+| --- | --- | --- |
+| M5Stack Tab5 | Supported | `hometiles_<version>_m5stacks_tab5.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-4B / 86 Panel | Supported | `hometiles_<version>_waveshare_4b.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-8 | Supported | `hometiles_<version>_waveshare_touch_lcd_8.bin` |
+| Guition JC8012P4A1C_I_W_Y | Supported | `hometiles_<version>_guition_jc8012p4a1.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Experimental | `hometiles_<version>_waveshare_touch_lcd_7.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Experimental | `hometiles_<version>_waveshare_touch_lcd_10_1.bin` |
+| Guition JC1060P470C_I_W_Y | Experimental, exact suffix required | `hometiles_<version>_guition_jc1060p470c.bin` |
+| Guition ESP32-4848S040C_I | Experimental | `hometiles_<version>_guition_esp32_4848s040.bin` |
 
 Older devices still running v0.2.9 or earlier look for the previous
 `esp32-p4-homeassistant-display-<version>-<device>-update.bin` naming; the on-device

@@ -58,34 +58,45 @@ Looking for something specific? [Tile Types](tiles.md) ·
 [FAQ & Troubleshooting](faq.md) ·
 [GitHub](https://github.com/GalusPeres/HomeTiles)
 
-## New In v0.6.2
+## New In v0.6.3
 
-The 10.1-inch Guition JC8012P4A1C_I_W_Y is now officially supported with factory and
-OTA release binaries. Display, brightness, touch, microSD, WiFi, Home Assistant
-Bridge data and automatic discovery are integrated.
+HomeTiles v0.6.3 adds an experimental ESP32-P4 camera popup, smoother and more
+accurate light controls, Cyrillic tile-title glyphs, network and memory
+hardening, and a smaller codebase after removal of the unfinished PC companion
+features.
 
-This release also fixes Bridge setup for newly added devices. Thanks to
-[@brmo](https://github.com/brmo) for the original display work, hardware testing
-and detailed feedback.
+Camera tiles require **HomeTiles Bridge v0.6.28 or newer**. The bridge converts
+the selected Home Assistant camera into display-sized JPEG frames and sends
+them over a receiver-paced local TCP connection.
 
-[Read the v0.6.2 release notes :octicons-arrow-right-24:](releases/v0.6.2.md)
+[Read the v0.6.3 release notes :octicons-arrow-right-24:](releases/v0.6.3.md)
 
-## Supported Devices
+## Device Support
 
 ![HomeTiles running on three ESP32-P4 displays](images/hometiles-supported-devices.png){ width="100%" .ht-hero }
 
-| Device | Display |
-| --- | --- |
-| [M5Stack Tab5](https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4) | 5" 1280×720 |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-4B](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm) | 4" 720×720 |
-| [Waveshare ESP32-P4-86-Panel-ETH-2RO](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-4B) | 4" 720×720, native Ethernet; uses the 4B firmware |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 7" 1280×720 |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-8](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 8" 1280×800 |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 10.1" 1280×800 |
-| [Guition JC8012P4A1C_I_W_Y](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | 10.1" 1280×800 |
+### Hardware-confirmed
 
-The same HomeTiles codebase runs on all devices; every release ships a matching
-prebuilt binary for each.
+| Device | Display | Status |
+| --- | --- | --- |
+| [M5Stack Tab5](https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4) | 5" 1280×720 | Supported |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-4B](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm) | 4" 720×720 | Supported |
+| [Waveshare ESP32-P4-86-Panel-ETH-2RO](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-4B) | 4" 720×720 | Supported, native Ethernet; uses the 4B firmware |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-8](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 8" 1280×800 | Supported |
+| [Guition JC8012P4A1C_I_W_Y](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | 10.1" 1280×800 | Supported |
+
+### Experimental builds awaiting hardware confirmation
+
+| Exact device | Display | Test status |
+| --- | --- | --- |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 7" 1280×720 | [Testing requested in #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 10.1" 1280×800 | [Testing requested in #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
+| [Guition JC1060P470C_I_W_Y](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | 7" 1024×600 | `_I_W_Y` only; [testing requested in #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
+| [Guition ESP32-4848S040C_I](https://www.guition.com/esp32-display-module/4-inch-esp32s3-display-module) | 4" 480×480 | ESP32-S3, no camera tile; [testing requested in #9](https://github.com/GalusPeres/HomeTiles/issues/9) |
+
+Every release provides factory and OTA images for all eight build targets.
+Experimental means the image compiles and is published for community testing,
+not that the complete device has already passed real-hardware validation.
 
 ## How It Works
 

@@ -88,7 +88,7 @@ jobs:
             key: waveshare_4b
             define: DEVICE_WAVESHARE_4B
             publish: true
-          - label: Waveshare 7 inch
+          - label: Waveshare 7 inch (experimental)
             profile: waveshare_7
             key: waveshare_touch_lcd_7
             define: DEVICE_WAVESHARE_TOUCH_LCD_7
@@ -98,7 +98,7 @@ jobs:
             key: waveshare_touch_lcd_8
             define: DEVICE_WAVESHARE_TOUCH_LCD_8
             publish: true
-          - label: Waveshare 10.1 inch
+          - label: Waveshare 10.1 inch (experimental)
             profile: waveshare_10_1
             key: waveshare_touch_lcd_10_1
             define: DEVICE_WAVESHARE_TOUCH_LCD_10_1
@@ -112,12 +112,12 @@ jobs:
             profile: guition_jc1060p470c
             key: guition_jc1060p470c
             define: DEVICE_GUITION_JC1060P470C
-            publish: false
+            publish: true
           - label: GUITION ESP32-4848S040 (experimental)
             profile: guition_esp32_4848s040
             key: guition_esp32_4848s040
             define: DEVICE_GUITION_ESP32_4848S040
-            publish: false
+            publish: true
 
     steps:
       - name: Check out repository
@@ -338,7 +338,7 @@ jobs:
         shell: bash
         run: |
           ls -la build/release-assets
-          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 12
+          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 16
 
       - name: Upload assets to GitHub release
         env:

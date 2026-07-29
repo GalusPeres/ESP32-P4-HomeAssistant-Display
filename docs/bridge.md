@@ -3,7 +3,9 @@
 The [HomeTiles Bridge](https://github.com/GalusPeres/HomeTiles-Bridge)
 is the Home Assistant side of the project: a custom integration that pushes entity
 states, icons, sensor history, weather forecasts, and energy data to the displays via
-MQTT, and executes the light/switch/media/scene commands coming back.
+MQTT, and executes the light/switch/media/scene commands coming back. Bridge
+v0.6.28 also provides the experimental local camera transport used by HomeTiles
+v0.6.3 and newer.
 
 Every display appears as its own device under the integration — with its base topic
 and status entities — no matter how many panels you run:
@@ -14,6 +16,7 @@ and status entities — no matter how many panels you run:
 
 - Home Assistant 2025.11 or newer
 - An MQTT broker configured in Home Assistant (see the [setup guide](home-assistant-setup.md))
+- HomeTiles Bridge v0.6.28 or newer when Camera tiles are used
 
 ## Installation
 
@@ -64,6 +67,7 @@ Select which entities the displays may use:
 - **Sensors** — any entity whose state you want on sensor tiles
 - **Weather** — `weather` entities for weather tiles/forecasts
 - **Lights / Switches / Climate / Media players** — controllable from the displays
+- **Cameras** — sources for the experimental ESP32-P4 Camera tile
 - **Scenes & scripts** — each selected entry gets an auto-generated **alias**
   (used by scene tiles); you can also map aliases manually in the text box,
   one `alias=entity_id` per line
@@ -95,6 +99,21 @@ For debugging with an MQTT client (topic layout, `{id}` = panel device id):
 | `<base>/cmnd/media` | Display → HA | Media player commands |
 | `<base>/cmnd/climate` | Display → HA | Climate temperature/range, humidity, mode, preset, fan, and swing controls |
 | `<base>/cmnd/scene` | Display → HA | Scene/script activation |
+| `<base>/cmnd/camera` | Display → HA | Open/close an experimental camera session |
+| `<base>/stat/camera` | HA → Display | Camera protocol, endpoint and status |
 
 Entity states are published under `<HA prefix>/<entity>/...` by the bridge itself —
 Home Assistant's MQTT Statestream integration is **not** required.
+
+## Experimental Camera Transport
+
+When a Camera tile opens, the bridge resolves the selected Home Assistant
+camera. Direct sources are transcoded with FFmpeg; snapshot-only cameras are
+re-fetched and converted at their actual refresh rate. The resulting
+display-sized JPEG frames use a local acknowledged TCP transport on the first
+available port from `8124` through `8131`. MQTT remains active for entity
+updates and camera control, but video bytes are not sent through MQTT.
+
+Allow the display to reach that port on the Home Assistant host. CPU usage
+depends on the input codec/resolution, requested frame rate and number of
+simultaneously open panels. Camera support is currently experimental.

@@ -114,6 +114,31 @@ separate controls.
 ![Full Climate popup](images/8in-climate-popup-1.png){ width="49.5%" }
 ![Heat-only Climate popup](images/8in-climate-popup-2.png){ width="49.5%" }
 
+### Camera (experimental)
+
+Opens a 16:9 camera popup on supported ESP32-P4 displays. Select the `camera`
+entity in **HomeTiles Bridge → Configure → Entity Configuration** first, then
+assign it to a Camera tile in the web admin.
+
+Camera tiles require:
+
+- HomeTiles firmware v0.6.3 or newer
+- HomeTiles Bridge v0.6.28 or newer
+- Home Assistant's FFmpeg and camera integrations
+- local TCP access from the display to the Home Assistant host on one port in
+  the range `8124`–`8131`
+
+The bridge accepts either a direct stream source or a still-image camera. It
+transcodes the source into display-sized JPEG frames and sends only as quickly
+as the panel acknowledges them. Direct sources can reach up to 24 FPS; actual
+frame rate is limited by the camera source, Home Assistant host, network and
+display profile. Snapshot-only cameras update at their own image refresh rate.
+
+The feature is experimental. Video transcoding consumes CPU on the Home
+Assistant host, and opening camera popups on several panels starts several
+transcoding sessions. Camera tiles are intentionally unavailable on the
+ESP32-S3 Guition ESP32-4848S040C_I target.
+
 ## Local Tiles
 
 These tiles work without Home Assistant.

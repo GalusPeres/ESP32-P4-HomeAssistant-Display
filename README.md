@@ -28,8 +28,11 @@ The project supports multiple ESP32-P4 touch displays and combines:
 
 - Home Assistant
 - MQTT broker
-- The Home Assistant bridge/integration:
+- The current Home Assistant bridge/integration:
   [HomeTiles Bridge](https://github.com/GalusPeres/HomeTiles-Bridge)
+
+Camera tiles require **HomeTiles Bridge v0.6.28 or newer**. Other tile types do
+not depend on the camera protocol.
 
 New to this? The [Home Assistant Setup Guide](docs/home-assistant-setup.md) walks through
 the whole chain: MQTT broker, bridge integration, and connecting the display.
@@ -49,7 +52,29 @@ the whole chain: MQTT broker, bridge integration, and connecting the display.
 - [FAQ & Troubleshooting](docs/faq.md) — common questions and known quirks
 - [BOARD_SETTINGS.md](BOARD_SETTINGS.md) — Arduino IDE build settings per device
 
-## Highlights Of v0.6.2
+## Highlights Of v0.6.3
+
+- Added an experimental camera tile and popup for ESP32-P4 displays. The bridge
+  converts Home Assistant camera sources into receiver-paced, display-sized
+  JPEG video over the local network.
+- Added an explicit camera protocol check: incompatible Bridge versions now
+  produce a clear update message instead of an indefinite loading state.
+- Improved light brightness, color-wheel and color-temperature controls,
+  including correct CCT endpoints and smoother local slider feedback.
+- Added Cyrillic glyphs to tile titles while keeping the selectable interface
+  languages English and German.
+- Removed the unfinished PC WebSocket/Stream Deck path, Key tiles and Counter
+  tiles so the firmware stays focused on Home Assistant.
+- Hardened ESP-Hosted network buffering and camera/UI memory restoration.
+
+Camera support requires
+[HomeTiles Bridge v0.6.28 or newer](https://github.com/GalusPeres/HomeTiles-Bridge/releases/tag/v0.6.28)
+and is currently experimental.
+
+See the [v0.6.3 release notes](docs/releases/v0.6.3.md) for details.
+
+<details>
+<summary>Highlights of v0.6.2</summary>
 
 - Added official factory and OTA binaries for the 10.1-inch
   **Guition JC8012P4A1C_I_W_Y**.
@@ -63,6 +88,8 @@ Many thanks to [@brmo](https://github.com/brmo) for the original working display
 code, real-device testing and detailed feedback.
 
 See the [v0.6.2 release notes](docs/releases/v0.6.2.md) for details.
+
+</details>
 
 <details>
 <summary>Highlights of v0.6.0</summary>
@@ -183,22 +210,37 @@ Everything visible on the dashboard is tile-based and managed from the built-in 
 - create folders and navigation structures
 - manage WiFi, MQTT, language, and time zone settings without changing code
 
-## Supported Devices
+## Device Support
 
-- [M5Stack Tab5](https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4)
-- [Waveshare ESP32-P4-WIFI6-Touch-LCD-4B](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm)
-- [Waveshare ESP32-P4-86-Panel-ETH-2RO](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-4B)
-  (uses the Waveshare 4B firmware; native Ethernet is supported)
-- [Waveshare ESP32-P4-WIFI6-Touch-LCD-7 (7 inch)](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm)
-- [Waveshare ESP32-P4-WIFI6-Touch-LCD-8 (8 inch)](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm)
-- [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 (10.1 inch)](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm)
-- [Guition JC8012P4A1C_I_W_Y (10.1 inch)](https://www.guition.com/esp32p4-display-module/hmi-display-panel)
+### Hardware-confirmed
+
+| Device | Status |
+| --- | --- |
+| [M5Stack Tab5](https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4) | Supported |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-4B](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm) | Supported |
+| [Waveshare ESP32-P4-86-Panel-ETH-2RO](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-4B) | Supported, including native Ethernet; uses the 4B firmware |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-8](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Supported |
+| [Guition JC8012P4A1C_I_W_Y](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | Supported |
+
+### Experimental builds awaiting hardware confirmation
+
+These binaries are included on the release page so owners can test them. A
+successful compile does not mean that display, touch, brightness, storage,
+networking and OTA have been confirmed on the physical device.
+
+| Exact device | Test status |
+| --- | --- |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Experimental; feedback in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Experimental; feedback in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
+| [Guition JC1060P470C_I_W_Y](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | Experimental; only the `_I_W_Y` variant, see [issue #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
+| [Guition ESP32-4848S040C_I](https://www.guition.com/esp32-display-module/4-inch-esp32s3-display-module) | Experimental ESP32-S3 target; see [issue #9](https://github.com/GalusPeres/HomeTiles/issues/9). Camera tiles are not available on this target. |
 
 Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
 
 ## Screenshots
 
-Captured on the Waveshare 8" — the same firmware and web admin panel run on all supported devices.
+Captured on the Waveshare 8". All targets share the HomeTiles UI and web admin,
+with a hardware-specific firmware image for each display profile.
 
 ### On The Device
 
@@ -267,7 +309,7 @@ More screenshots and how everything works: [Web Admin Panel](docs/web-admin.md) 
 - MQTT-based Home Assistant communication
 - On-device WiFi setup: network scan with on-screen keyboard, or Access Point mode with QR code
 - On-device settings for display brightness, sleep, orientation, language, time zone, and time format
-- English and German UI/admin support, 12h/24h time formats
+- English and German UI/admin support, Cyrillic tile-title glyphs, and 12h/24h time formats
 - Home Assistant energy statistics tile with day and week popup charts
 - Media player tile with cover art and playback controls
 - microSD file manager in the web admin (upload, download, rename, delete, folders)
@@ -283,15 +325,16 @@ More screenshots and how everything works: [Web Admin Panel](docs/web-admin.md) 
 
 Download the files matching your device from the [latest release](https://github.com/GalusPeres/HomeTiles/releases/latest):
 
-| Device | First flash | OTA update file |
-| --- | --- | --- |
-| M5Stack Tab5 | `..._m5stacks_tab5_factory.bin` | `..._m5stacks_tab5.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-4B | `..._waveshare_4b_factory.bin` | `..._waveshare_4b.bin` |
-| Waveshare ESP32-P4-86-Panel-ETH-2RO | `..._waveshare_4b_factory.bin` | `..._waveshare_4b.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | `..._waveshare_touch_lcd_7_factory.bin` | `..._waveshare_touch_lcd_7.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-8 | `..._waveshare_touch_lcd_8_factory.bin` | `..._waveshare_touch_lcd_8.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | `..._waveshare_touch_lcd_10_1_factory.bin` | `..._waveshare_touch_lcd_10_1.bin` |
-| Guition JC8012P4A1C_I_W_Y | `..._guition_jc8012p4a1_factory.bin` | `..._guition_jc8012p4a1.bin` |
+| Device | Status | First flash | OTA update file |
+| --- | --- | --- | --- |
+| M5Stack Tab5 | Supported | `..._m5stacks_tab5_factory.bin` | `..._m5stacks_tab5.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-4B / 86 Panel | Supported | `..._waveshare_4b_factory.bin` | `..._waveshare_4b.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-8 | Supported | `..._waveshare_touch_lcd_8_factory.bin` | `..._waveshare_touch_lcd_8.bin` |
+| Guition JC8012P4A1C_I_W_Y | Supported | `..._guition_jc8012p4a1_factory.bin` | `..._guition_jc8012p4a1.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Experimental | `..._waveshare_touch_lcd_7_factory.bin` | `..._waveshare_touch_lcd_7.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Experimental | `..._waveshare_touch_lcd_10_1_factory.bin` | `..._waveshare_touch_lcd_10_1.bin` |
+| Guition JC1060P470C_I_W_Y | Experimental | `..._guition_jc1060p470c_factory.bin` | `..._guition_jc1060p470c.bin` |
+| Guition ESP32-4848S040C_I | Experimental | `..._guition_esp32_4848s040_factory.bin` | `..._guition_esp32_4848s040.bin` |
 
 Use:
 - `factory.bin` for a clean first flash (ESP Flash Download Tool at address `0x00000`)
@@ -337,6 +380,7 @@ This firmware expects the Home Assistant side to be provided by the MQTT bridge/
 
 That integration handles the Home Assistant-side MQTT communication and entity bridge.
 For Energy tiles, Home Assistant energy statistics, live icon updates, and popup history, use the current bridge release.
+Camera tiles specifically require HomeTiles Bridge v0.6.28 or newer.
 
 Step-by-step instructions (broker, integration, display): [Home Assistant Setup Guide](docs/home-assistant-setup.md)
 
@@ -351,6 +395,9 @@ Step-by-step instructions (broker, integration, display): [Home Assistant Setup 
 
 - M5Stack Tab5: Access Point mode is currently only reliable with a battery installed. Without a battery, keep brightness at the lowest available level; otherwise the device can crash. (Since v0.2.9 the firmware automatically caps the backlight around AP start and WiFi reconnects to prevent brownouts.)
 - Waveshare 4B / 8": the display can briefly flash blue whenever the firmware writes to internal flash (saving tile edits, OTA installs). This is a cosmetic MIPI-DSI underrun — the panel framebuffer lives in PSRAM, and flash writes stall PSRAM access. The precompiled Arduino core does not enable `CONFIG_SPIRAM_XIP_FROM_PSRAM`, which would fix this; it cannot be enabled from the sketch.
+- Camera tiles are experimental and available only on ESP32-P4 targets. The
+  Bridge transcodes video in Home Assistant, so CPU use increases with source
+  resolution, requested frame rate and the number of simultaneously open panels.
 
 ## Notes
 

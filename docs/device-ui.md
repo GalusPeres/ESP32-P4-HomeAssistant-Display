@@ -78,6 +78,18 @@ The second entity only supports heating, so the popup automatically stays compac
 ![Full Climate popup with HVAC modes, target range, humidity, preset, fan, and swing controls](images/8in-climate-popup-1.png){ width="49.5%" }
 ![Capability-aware heat-only Climate popup](images/8in-climate-popup-2.png){ width="49.5%" }
 
+### Camera (experimental)
+
+Camera tiles open a 16:9 video popup on ESP32-P4 targets. The stream is prepared
+by HomeTiles Bridge and sent over the local network. HomeTiles Bridge v0.6.28
+or newer is required; the popup reports this requirement directly when an
+older bridge does not provide the camera protocol.
+
+Direct camera streams can reach up to 24 FPS. Snapshot-only entities, including
+cameras that expose periodically refreshed still images, update at the source's
+actual image rate. See [Camera tiles](tiles.md#camera-experimental) for setup,
+network ports and host CPU considerations.
+
 ## Settings
 
 The settings tile (gear icon) opens the on-device settings menu:
@@ -118,6 +130,9 @@ shows the current IP address — that's the address of the
 Language (English/German), time zone, time and date format, and the on-screen
 keyboard layout. Everything follows the language automatically unless overridden —
 the whole UI switches, including the settings and all popups.
+
+Tile titles also include modern Cyrillic glyphs. This extends user-provided
+names; it does not add a complete Russian interface translation.
 
 ![Localization settings](images/8in-localization-popup.png){ width="49.5%" }
 ![Settings menu in German](images/8in-settings-de.png){ width="49.5%" }

@@ -13,6 +13,26 @@ Work through this checklist:
 
 More details in the [Home Assistant Setup Guide](home-assistant-setup.md).
 
+## The Camera tile asks for a newer Bridge or never shows video
+
+Camera tiles require HomeTiles firmware v0.6.3 and HomeTiles Bridge v0.6.28 or
+newer. Update the bridge through HACS, restart Home Assistant, and verify the
+installed integration version before testing again.
+
+Then check:
+
+1. The camera is selected under **HomeTiles Bridge → Configure → Entity
+   Configuration**.
+2. The display can reach the Home Assistant host on TCP ports `8124`–`8131`;
+   these are local camera data ports, not MQTT ports.
+3. The camera itself works in Home Assistant.
+4. The Home Assistant log does not show an FFmpeg or camera-source error.
+
+Direct video sources can reach up to 24 FPS. Snapshot-only cameras update at
+the source's actual refresh rate. Transcoding uses Home Assistant host CPU and
+each simultaneously open panel creates its own experimental stream session.
+Camera tiles are not available on the ESP32-S3 Guition ESP32-4848S040C_I.
+
 ## The display is missing in Home Assistant / I deleted it there
 
 Tap **Settings → System → Pairing** on the display: it reconnects MQTT and republishes
