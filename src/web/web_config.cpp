@@ -42,6 +42,14 @@ const char* apSsidForDevice() {
 #endif
 }
 
+void applyWifiAutoReconnectPolicy() {
+#if defined(CONFIG_ESP_WIFI_REMOTE_ENABLED) && CONFIG_ESP_WIFI_REMOTE_ENABLED
+  WiFi.setAutoReconnect(false);
+#else
+  WiFi.setAutoReconnect(true);
+#endif
+}
+
 }  // namespace
 
 const char* webConfigApSsid() {
@@ -53,8 +61,9 @@ const char* webConfigApPassword() {
 }
 
 static void restoreStaModeAfterAp() {
+  applyWifiAutoReconnectPolicy();
   WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
+  applyWifiAutoReconnectPolicy();
   WiFi.persistent(false);
 }
 
@@ -71,6 +80,7 @@ bool WebConfigServer::start() {
   Serial.println("\n🌐 Starte WiFi-Konfigurationsmodus...");
 
   // Stoppe bisherige WiFi-Verbindung (hilft beim Captive Portal)
+  applyWifiAutoReconnectPolicy();
   WiFi.disconnect();
   delay(100);
 

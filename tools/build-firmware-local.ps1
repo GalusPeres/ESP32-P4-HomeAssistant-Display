@@ -118,10 +118,16 @@ if (-not $stringsTool) {
 }
 
 if ($Profile -ne 'guition_esp32_4848s040') {
-    $fatalAssertions = & $stringsTool $firmwareBin |
+    $firmwareStrings = & $stringsTool $firmwareBin
+    $fatalAssertions = $firmwareStrings |
         Select-String -Pattern 'pkt_rxbuff|copy_buff'
     if ($fatalAssertions) {
         throw "Stock ESP-Hosted allocation assert found in $firmwareBin"
+    }
+    $rpcSerializationMarker = $firmwareStrings |
+        Select-String -SimpleMatch 'HomeTiles RPC sync serialization active'
+    if (-not $rpcSerializationMarker) {
+        throw "ESP-Hosted RPC serialization marker missing from $firmwareBin"
     }
 }
 

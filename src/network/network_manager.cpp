@@ -76,6 +76,17 @@ static constexpr uint32_t kMqttDmaRecoveryCooldownMs = 30000;
 // in die MQTT-Inbound-Queue weiterzureichen und seinen DMA-Puffer freizugeben.
 static constexpr uint32_t kMqttSdioControlQuietMs = 50;
 
+static void applyWifiAutoReconnectPolicy() {
+#if defined(CONFIG_ESP_WIFI_REMOTE_ENABLED) && CONFIG_ESP_WIFI_REMOTE_ENABLED
+  // ESP32-P4 uses ESP-Hosted control RPCs. HomeTiles owns normal reconnects;
+  // this reduces repeated reconnect RPCs from the Arduino event task. Its
+  // first retry is unconditional, so RPC serialization remains mandatory.
+  WiFi.setAutoReconnect(false);
+#else
+  WiFi.setAutoReconnect(true);
+#endif
+}
+
 // Waehrend dieses Fensters direkt nach dem Connect bleibt der MQTT-Empfangs-
 // puffer klein. Er liegt inzwischen im PSRAM; das Ruhefenster verhindert aber
 // weiterhin, dass eine grosse History-/Bridge-Antwort mit dem retained-
@@ -392,6 +403,7 @@ bool HomeTilesNetworkManager::isWifiStationEnabled() const {
 
 bool HomeTilesNetworkManager::ensureWifiStationStarted() {
   wifi_suspended_for_wired = false;
+  applyWifiAutoReconnectPolicy();
   if (!isWifiStationEnabled()) {
     if (!WiFi.mode(WIFI_STA)) {
       networkTransport.setWifiDriverActive(false);
@@ -402,7 +414,7 @@ bool HomeTilesNetworkManager::ensureWifiStationStarted() {
   }
 
   networkTransport.setWifiDriverActive(true);
-  WiFi.setAutoReconnect(true);
+  applyWifiAutoReconnectPolicy();
   WiFi.persistent(false);
   return true;
 }
@@ -585,7 +597,7 @@ void HomeTilesNetworkManager::connectWifi() {
   // vorheriges manuelles Trennen wieder auf.
   if (wifi_manual_disconnect) {
     wifi_manual_disconnect = false;
-    WiFi.setAutoReconnect(true);
+    applyWifiAutoReconnectPolicy();
   }
 
   networkTransport.update();
