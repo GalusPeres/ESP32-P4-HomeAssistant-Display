@@ -10,6 +10,9 @@ struct WeatherPopupInit {
 };
 
 void show_weather_popup(const WeatherPopupInit& init);
+// True only when the hidden, prebuilt popup already represents the newest
+// cached payload for this entity in the currently selected language.
+bool weather_popup_has_current_cached_payload(const char* entity_id);
 void preload_weather_popup();
 void hide_weather_popup();
 void weather_popup_refresh_language();

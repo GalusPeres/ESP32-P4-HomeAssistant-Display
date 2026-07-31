@@ -7,6 +7,7 @@
 #include "src/tiles/tile_renderer_shared.h"
 #include "src/ui/sensor_popup.h"
 #include "src/ui/weather_popup.h"
+#include "src/ui/image_screensaver.h"
 #include "src/ui/ui_surface_style.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/types/energy/energy_data.h"
@@ -35,12 +36,21 @@ static bool g_tiles_release_requested[3] = {false, false, false};
 static bool g_tiles_icon_refresh_requested = false;
 
 static constexpr uint16_t kInvalidFolderId = 0xFFFF;
-// Keep a small, bounded working set. Four slots cover root + three recent
-// folders; growth beyond three is allowed only with healthy internal-heap
-// headroom. The old unrestricted seven-grid cache reduced the largest block
-// from 87 KB to 39 KB and made interaction progressively slower until reboot.
+// The Waveshare 8 keeps the visible folder plus up to four direct navigation
+// targets. Other devices retain the previous root + three recent working set.
+// FolderCacheEntry storage itself lives in PSRAM; slots beyond the guaranteed
+// first three are still admitted only while the measured internal-heap guard
+// below remains healthy.
 static constexpr size_t kMinResidentFolderUiCaches = 3;
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+static constexpr size_t kMaxResidentFolderUiCaches = 5;
+static constexpr size_t kMaxNavigationPreloadTargets = 4;
+static constexpr uint32_t kNavigationPreloadIdleMs = 750;
+static constexpr uint32_t kNavigationPreloadInitialDelayMs = 3000;
+static constexpr uint32_t kNavigationPreloadStepGapMs = 250;
+#else
 static constexpr size_t kMaxResidentFolderUiCaches = 4;
+#endif
 static constexpr uint32_t kFolderCacheGrowMinInternalFreeBytes = 112UL * 1024UL;
 static constexpr uint32_t kFolderCacheGrowMinLargestInternalBytes = 72UL * 1024UL;
 
@@ -70,6 +80,13 @@ static volatile bool g_folder_cache_invalidate_requested = false;
 static TileWidgetCache* g_cache_build_saved_widgets = nullptr;
 static bool g_folder_switch_pending = false;
 static uint16_t g_pending_folder_id = kInvalidFolderId;
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+static uint16_t g_navigation_preload_targets[kMaxNavigationPreloadTargets] = {
+    kInvalidFolderId, kInvalidFolderId, kInvalidFolderId, kInvalidFolderId};
+static size_t g_navigation_preload_target_count = 0;
+static size_t g_navigation_preload_cursor = 0;
+static uint32_t g_navigation_preload_not_before_ms = 0;
+#endif
 static bool g_visible_cache_refresh_requested = false;
 static bool g_bridge_cache_refresh_requested = false;
 static uint32_t g_bridge_cache_refresh_snapshot_ms = 0;
@@ -166,6 +183,82 @@ static bool can_preload_more_folders() {
   }
   return true;
 }
+
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+static void clear_navigation_preload_plan() {
+  for (size_t i = 0; i < kMaxNavigationPreloadTargets; ++i) {
+    g_navigation_preload_targets[i] = kInvalidFolderId;
+  }
+  g_navigation_preload_target_count = 0;
+  g_navigation_preload_cursor = 0;
+  g_navigation_preload_not_before_ms = 0;
+}
+
+static bool navigation_preload_add_target(uint16_t source_folder_id,
+                                          uint16_t target_folder_id) {
+  if (target_folder_id == kInvalidFolderId ||
+      target_folder_id == source_folder_id ||
+      !tileConfig.folderExists(target_folder_id)) {
+    return false;
+  }
+  for (size_t i = 0; i < g_navigation_preload_target_count; ++i) {
+    if (g_navigation_preload_targets[i] == target_folder_id) return false;
+  }
+  if (g_navigation_preload_target_count >= kMaxNavigationPreloadTargets) {
+    return false;
+  }
+  g_navigation_preload_targets[g_navigation_preload_target_count++] =
+      target_folder_id;
+  return true;
+}
+
+static uint16_t navigation_folder_id_from_tile(const Tile& tile) {
+  return static_cast<uint16_t>(
+      (static_cast<uint16_t>(tile.key_modifier) << 8) | tile.key_code);
+}
+
+static void schedule_navigation_preload(
+    uint16_t source_folder_id, const TileGridConfig& config,
+    uint32_t initial_delay_ms = kNavigationPreloadIdleMs) {
+  clear_navigation_preload_plan();
+
+  // Back is always the most useful warm target and is admitted before normal
+  // folder buttons even if it appears later in the grid layout.
+  for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
+    if (config.tiles[i].type != TILE_BACK) continue;
+    navigation_preload_add_target(
+        source_folder_id, tileConfig.getFolderParent(source_folder_id));
+  }
+  for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
+    const Tile& tile = config.tiles[i];
+    if (tile.type != TILE_FOLDER) continue;
+    navigation_preload_add_target(source_folder_id,
+                                  navigation_folder_id_from_tile(tile));
+    if (g_navigation_preload_target_count >=
+        kMaxNavigationPreloadTargets) {
+      break;
+    }
+  }
+
+  g_navigation_preload_not_before_ms = millis() + initial_delay_ms;
+  Serial.printf("[Tiles] nav-preload plan folder=%u targets=%u",
+                static_cast<unsigned>(source_folder_id),
+                static_cast<unsigned>(g_navigation_preload_target_count));
+  for (size_t i = 0; i < g_navigation_preload_target_count; ++i) {
+    Serial.printf(" %u",
+                  static_cast<unsigned>(g_navigation_preload_targets[i]));
+  }
+  Serial.println();
+}
+
+static bool folder_is_in_navigation_working_set(uint16_t folder_id) {
+  if (g_active_cache && g_active_cache->folder_id == folder_id) return true;
+  for (size_t i = 0; i < g_navigation_preload_target_count; ++i) {
+    if (g_navigation_preload_targets[i] == folder_id) return true;
+  }
+  return false;
+}
+#endif
 
 static void build_grid_track_descriptors(lv_coord_t* dsc, uint8_t count, lv_coord_t cell_size) {
   if (!dsc) return;
@@ -606,6 +699,35 @@ static bool folder_cache_requires_eviction_before_build() {
 
 static FolderCacheEntry* find_folder_cache_eviction_candidate(
     uint16_t requested_folder_id) {
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+  FolderCacheEntry* oldest_outside_working_set = nullptr;
+  FolderCacheEntry* oldest_protected_fallback = nullptr;
+  uint32_t oldest_outside_age = 0;
+  uint32_t oldest_fallback_age = 0;
+  const uint32_t now = millis();
+
+  for (size_t i = 0; i < g_folder_cache_slot_count; ++i) {
+    FolderCacheEntry& entry = g_folder_cache[i];
+    if (!entry.grid || &entry == g_active_cache ||
+        entry.folder_id == requested_folder_id) {
+      continue;
+    }
+    const uint32_t age = now - entry.last_used_ms;
+    if (!folder_is_in_navigation_working_set(entry.folder_id)) {
+      if (!oldest_outside_working_set || age > oldest_outside_age) {
+        oldest_outside_working_set = &entry;
+        oldest_outside_age = age;
+      }
+    } else if (!oldest_protected_fallback || age > oldest_fallback_age) {
+      // Only used on reduced-slot/low-headroom fallbacks. With five healthy
+      // slots, current + four navigation targets never reaches this branch.
+      oldest_protected_fallback = &entry;
+      oldest_fallback_age = age;
+    }
+  }
+  return oldest_outside_working_set ? oldest_outside_working_set
+                                    : oldest_protected_fallback;
+#else
   static constexpr uint16_t kRootFolderId = 0;
   FolderCacheEntry* oldest = nullptr;
   FolderCacheEntry* root_fallback = nullptr;
@@ -629,6 +751,7 @@ static FolderCacheEntry* find_folder_cache_eviction_candidate(
     }
   }
   return oldest ? oldest : root_fallback;
+#endif
 }
 
 static bool evict_folder_cache_before_build(uint16_t requested_folder_id) {
@@ -762,6 +885,85 @@ static void build_folder_cache_entry(FolderCacheEntry& entry, GridType grid_type
   entry.dirty = false;
   entry.last_used_ms = millis();
 }
+
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+static void process_navigation_preload() {
+  if (g_navigation_preload_cursor >= g_navigation_preload_target_count ||
+      g_folder_switch_pending || powerManager.isInSleep() ||
+      is_image_screensaver_visible()) {
+    return;
+  }
+
+  const uint32_t now = millis();
+  if (static_cast<int32_t>(now - g_navigation_preload_not_before_ms) < 0) {
+    return;
+  }
+  if (now - displayManager.getLastActivityTime() < kNavigationPreloadIdleMs) {
+    return;
+  }
+
+  while (g_navigation_preload_cursor < g_navigation_preload_target_count) {
+    const uint16_t folder_id =
+        g_navigation_preload_targets[g_navigation_preload_cursor];
+    FolderCacheEntry* target = find_folder_cache(folder_id);
+    if (target && target->grid && target->loaded && target->widgets_valid &&
+        target->grid_loaded && !target->dirty) {
+      ++g_navigation_preload_cursor;
+      continue;
+    }
+
+    if (!target) target = allocate_folder_cache(folder_id);
+    if (!target) {
+      if (evict_folder_cache_before_build(folder_id)) {
+        g_navigation_preload_not_before_ms =
+            millis() + kNavigationPreloadStepGapMs;
+        return;
+      }
+      Serial.printf("[Tiles] nav-preload no slot for folder=%u\n",
+                    static_cast<unsigned>(folder_id));
+      ++g_navigation_preload_cursor;
+      continue;
+    }
+
+    if (!target->grid && folder_cache_requires_eviction_before_build()) {
+      if (evict_folder_cache_before_build(folder_id)) {
+        g_navigation_preload_not_before_ms =
+            millis() + kNavigationPreloadStepGapMs;
+        return;
+      }
+      Serial.printf(
+          "[Tiles] nav-preload stopped for folder=%u: no safe victim\n",
+          static_cast<unsigned>(folder_id));
+      ++g_navigation_preload_cursor;
+      continue;
+    }
+
+    const uint32_t started_ms = millis();
+    build_folder_cache_entry(*target, GridType::TAB0);
+    if (target->grid && target->loaded && target->widgets_valid) {
+      Serial.printf(
+          "[Tiles] nav-preload built folder=%u in %lu ms | resident=%u/%u "
+          "int=%lu KB largest=%lu KB\n",
+          static_cast<unsigned>(folder_id),
+          static_cast<unsigned long>(millis() - started_ms),
+          static_cast<unsigned>(resident_folder_cache_count()),
+          static_cast<unsigned>(g_folder_cache_slot_count),
+          static_cast<unsigned long>(
+              heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
+          static_cast<unsigned long>(
+              heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024));
+    } else {
+      Serial.printf("[Tiles] nav-preload build failed for folder=%u\n",
+                    static_cast<unsigned>(folder_id));
+      reset_cache_entry(*target);
+    }
+    ++g_navigation_preload_cursor;
+    g_navigation_preload_not_before_ms =
+        millis() + kNavigationPreloadStepGapMs;
+    return;  // At most one expensive hidden-grid build per loop iteration.
+  }
+}
+#endif
 
 /* === Create tiles grid === */
 static lv_obj_t* create_tiles_grid(lv_obj_t* parent) {
@@ -1066,8 +1268,14 @@ void build_tiles_tab(lv_obj_t *parent, GridType grid_type, scene_publish_cb_t sc
         process_media_update_queue();
         g_active_cache->last_used_ms = millis();
         preloaded_folder_count = 1;
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+        schedule_navigation_preload(g_active_cache->folder_id,
+                                    tileConfig.getActiveGrid(),
+                                    kNavigationPreloadInitialDelayMs);
+#endif
       }
     }
+#if !defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
     for (const auto& folder : tileConfig.getFolders()) {
       if (g_active_cache && folder.id == g_active_cache->folder_id) continue;
       // UI setup runs before network/SDIO/MQTT allocations. Preload only the
@@ -1090,6 +1298,7 @@ void build_tiles_tab(lv_obj_t *parent, GridType grid_type, scene_publish_cb_t sc
         ++preloaded_folder_count;
       }
     }
+#endif
     Serial.printf("[Tiles] TAB0 folder preload cached %u/%u folders (heap %lu -> %lu KB, psram %lu -> %lu KB)\n",
                   static_cast<unsigned>(preloaded_folder_count),
                   static_cast<unsigned>(tileConfig.getFolders().size()),
@@ -1210,6 +1419,12 @@ void tiles_reload_layout(GridType grid_type) {
   }
   Serial.printf("[%s] Layout neu geladen\n", getGridName(grid_type));
   schedule_preview_load(grid_type);
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+  if (grid_type == GridType::TAB0 && g_active_cache) {
+    schedule_navigation_preload(g_active_cache->folder_id,
+                                tileConfig.getActiveGrid());
+  }
+#endif
 }
 
 void tiles_release_layout(GridType grid_type) {
@@ -1240,6 +1455,9 @@ void tiles_release_layout(GridType grid_type) {
 }
 
 void tiles_release_all() {
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+  clear_navigation_preload_plan();
+#endif
   for (size_t i = 0; i < g_folder_cache_slot_count; ++i) {
     reset_cache_entry(g_folder_cache[i]);
   }
@@ -1323,6 +1541,9 @@ void tiles_invalidate_folder(uint16_t folder_id) {
 static void process_folder_cache_invalidation() {
   if (!g_folder_cache_invalidate_requested) return;
   g_folder_cache_invalidate_requested = false;
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+  clear_navigation_preload_plan();
+#endif
   for (size_t i = 0; i < g_folder_cache_slot_count; ++i) {
     FolderCacheEntry& entry = g_folder_cache[i];
     entry.dirty = true;
@@ -1435,6 +1656,9 @@ void tiles_process_reload_requests() {
         lv_obj_invalidate(target->grid);
         target->last_used_ms = millis();
         schedule_preview_load(GridType::TAB0);
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+        schedule_navigation_preload(folder_id, tileConfig.getActiveGrid());
+#endif
         log_folder_switch_memory("folder-switch-cached", folder_id);
         return;
       }
@@ -1472,6 +1696,9 @@ void tiles_process_reload_requests() {
         lv_obj_invalidate(target->grid);
         target->last_used_ms = millis();
         schedule_preview_load(GridType::TAB0);
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+        schedule_navigation_preload(folder_id, tileConfig.getActiveGrid());
+#endif
         log_folder_switch_memory("folder-switch-built", folder_id);
       } else if (previous && previous->grid) {
         restore_active_cache(*previous);
@@ -1521,6 +1748,10 @@ void tiles_process_reload_requests() {
       tiles_refresh_icons_for_grid(grid_type);
     }
   }
+
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+  if (!did_reload) process_navigation_preload();
+#endif
 }
 
 static void tiles_refresh_all_image_previews(GridType grid_type, bool only_missing) {

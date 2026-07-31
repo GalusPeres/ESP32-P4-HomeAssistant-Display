@@ -55,6 +55,33 @@ const lv_font_t* weather_unit_font() {
   return FONT_SMALL;
 #endif
 }
+
+void open_current_weather_popup(lv_event_t* event,
+                                const WeatherPopupInit& init) {
+  lv_obj_t* source = event
+                         ? static_cast<lv_obj_t*>(
+                               lv_event_get_current_target(event))
+                         : nullptr;
+  if (!source && event) {
+    source = static_cast<lv_obj_t*>(lv_event_get_target(event));
+  }
+  lv_display_t* display = source ? lv_obj_get_display(source)
+                                 : lv_display_get_default();
+
+  // Release the real button first, then make the already prepared popup part
+  // of the same refresh. This preserves the normal pressed feedback without
+  // paying for a separate full tile frame before the popup frame.
+  const uint32_t refresh_started_ms = millis();
+  if (source) {
+    lv_obj_clear_state(source, LV_STATE_PRESSED);
+  }
+  show_weather_popup(init);
+  if (display) {
+    lv_refr_now(display);
+  }
+  Serial.printf("[WeatherPopup] Fast open: combined-refresh=%lu ms\n",
+                static_cast<unsigned long>(millis() - refresh_started_ms));
+}
 }  // namespace
 
 lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type) {
@@ -366,7 +393,11 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
       init.entity_id = data->entity_id;
       init.title = title;
       init.bg_color = data->bg_color;
-      defer_popup_until_source_refreshed(e, init, show_weather_popup);
+      if (weather_popup_has_current_cached_payload(init.entity_id.c_str())) {
+        open_current_weather_popup(e, init);
+      } else {
+        defer_popup_until_source_refreshed(e, init, show_weather_popup);
+      }
     };
 
     lv_obj_add_event_cb(card, show_popup, popup_event, data);
