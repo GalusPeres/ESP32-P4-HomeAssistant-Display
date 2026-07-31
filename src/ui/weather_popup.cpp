@@ -3963,10 +3963,10 @@ void show_weather_popup(const WeatherPopupInit& init) {
   g_pending_weather.pending_day_nav = -1;
 
   // Apply header immediately (icon, condition, temp) so popup appears populated
-  String cached;
-  if (tiles_get_cached_entity_payload(init.entity_id.c_str(), cached)) {
-    size_t cached_length = 0;
-    const uint32_t cached_hash = hash_weather_payload(cached.c_str(), &cached_length);
+  uint32_t cached_hash = 0;
+  size_t cached_length = 0;
+  if (tiles_get_cached_entity_payload_signature(
+          init.entity_id.c_str(), cached_hash, cached_length)) {
     const bool rendered_payload_is_current =
         same_rendered_entity &&
         g_weather_popup_ctx->rendered_payload_hash == cached_hash &&
@@ -3977,17 +3977,24 @@ void show_weather_popup(const WeatherPopupInit& init) {
       Serial.printf("[WeatherPopup] Sofort aus Cache: %s (%u Bytes)\n",
                     init.entity_id.c_str(),
                     static_cast<unsigned>(cached_length));
-    } else if (matching_refresh_pending) {
-      // Parsing/building may have started while the popup was still hidden.
-      // Keep that work instead of discarding it and parsing the same payload
-      // again after an early user tap.
-      apply_weather_header(g_weather_popup_ctx, cached);
-      Serial.printf("[WeatherPopup] Laufende Vorbereitung uebernommen: %s\n",
-                    init.entity_id.c_str());
     } else {
-      apply_weather_header(g_weather_popup_ctx, cached);
-      // Keep the rendered snapshot visible until fresher content is ready.
-      queue_weather_popup_payload(init.entity_id.c_str(), cached.c_str());
+      String cached;
+      if (!tiles_get_cached_entity_payload(init.entity_id.c_str(), cached)) {
+        request_weather_for_context(g_weather_popup_ctx);
+        return;
+      }
+      if (matching_refresh_pending) {
+        // Parsing/building may have started while the popup was still hidden.
+        // Keep that work instead of discarding it and parsing the same payload
+        // again after an early user tap.
+        apply_weather_header(g_weather_popup_ctx, cached);
+        Serial.printf("[WeatherPopup] Laufende Vorbereitung uebernommen: %s\n",
+                      init.entity_id.c_str());
+      } else {
+        apply_weather_header(g_weather_popup_ctx, cached);
+        // Keep the rendered snapshot visible until fresher content is ready.
+        queue_weather_popup_payload(init.entity_id.c_str(), cached.c_str());
+      }
     }
   } else {
     // No cache — request fresh data via MQTT

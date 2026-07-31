@@ -27,6 +27,9 @@ void tiles_update_tile(GridType grid_type, uint8_t index);
 void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, const char* value);
 void tiles_update_weather_by_entity(GridType grid_type, const char* entity_id, const char* payload);
 bool tiles_get_cached_entity_payload(const char* entity_id, String& out);
+bool tiles_get_cached_entity_payload_signature(const char* entity_id,
+                                               uint32_t& hash_out,
+                                               size_t& length_out);
 void tiles_cache_entity_payload(const char* entity_id, const char* payload);
 void tiles_switch_to_folder(uint16_t folder_id);
 void tiles_invalidate_folder(uint16_t folder_id);
