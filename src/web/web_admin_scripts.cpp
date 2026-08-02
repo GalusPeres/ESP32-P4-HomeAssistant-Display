@@ -6,6 +6,20 @@
 #include "src/core/i18n.h"
 #include "src/ui/screensaver_config.h"
 
+#include <esp_system.h>
+
+namespace {
+
+uint32_t adminWebSessionToken() {
+  // Stable for this device boot, different after reboot/OTA. Browser-side
+  // fragment caches can therefore survive a refresh without ever crossing a
+  // firmware boot boundary.
+  static const uint32_t token = esp_random();
+  return token;
+}
+
+}  // namespace
+
 static void appendJsStringLiteral(String& html, const char* value) {
   html += "'";
   if (value) {
@@ -88,6 +102,8 @@ void appendAdminScripts(String& html) {
   html += "  };\n";
   html += "  const GRID_COLS = " + String(GRID_COLS) + ";\n";
   html += "  const GRID_ROWS = " + String(GRID_ROWS) + ";\n";
+  html += "  const ADMIN_WEB_SESSION_TOKEN = " +
+          String(adminWebSessionToken()) + ";\n";
   html += "  const MEDIA_TILE_TYPE = " +
           String(static_cast<unsigned>(TILE_MEDIA)) + ";\n";
   html += "  const MEDIA_TILE_MIN_SPAN = " +

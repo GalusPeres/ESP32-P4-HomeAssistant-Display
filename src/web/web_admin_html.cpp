@@ -677,6 +677,12 @@ static String buildFolderTabButtonHtml(const FolderEntry& entry) {
   html += R"html(
         <button class="tab-btn folder-tab-btn" data-folder-id=")html";
   html += String(entry.id);
+  html += R"html(" data-folder-parent=")html";
+  html += String(entry.parent_id);
+  html += R"html(" data-folder-name=")html";
+  appendHtmlEscaped(html, name);
+  html += R"html(" data-folder-icon=")html";
+  appendHtmlEscaped(html, icon);
   html += R"html(" data-tab-id=")html";
   html += tab_id;
   html += R"html(" onclick="switchTab('tab-tiles-)html";

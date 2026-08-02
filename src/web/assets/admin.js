@@ -80,18 +80,34 @@ function t(key) {
     const tileTab = isTileTab
       ? tabName.substring('tab-tiles-'.length)
       : '';
+    let needsTileData = false;
     if (isTileTab) {
       // Keep the previous tab interactive until the requested editor has its
       // complete grid. This prevents an index request or edit racing the
       // initial full-grid response.
-      const needsTileData = !tileDataLoadedTabs.has(tileTab);
-      const loaded = await loadSensorValues(needsTileData, false, [tileTab]);
+      needsTileData = !tileDataLoadedTabs.has(tileTab);
+      if (needsTileData) {
+        try {
+          await fetchTileGridData(tileTab, false);
+        } catch (error) {
+          console.error('Tile grid load failed:', error);
+        }
+        if (sequence !== tabSwitchSequence) return;
+        if (!tileDataLoadedTabs.has(tileTab) || dragSource || resizeState) {
+          showNotification(t('networkError'), false);
+          return;
+        }
+      }
       if (sequence !== tabSwitchSequence) return;
-      if (needsTileData &&
-          (!loaded || !tileDataLoadedTabs.has(tileTab) ||
-           dragSource || resizeState)) {
-        showNotification(t('networkError'), false);
-        return;
+      const freshTiles = getTilesData(tileTab);
+      if (sessionRestoredFolderTabs.has(tileTab)) {
+        freshTiles.forEach((tile, index) => {
+          renderTileFromData(tileTab, index, tile, sensorMetaCache);
+        });
+        layoutTiles(tileTab, freshTiles);
+        sessionRestoredFolderTabs.delete(tileTab);
+      } else if (needsTileData) {
+        syncTileGridStructure(tileTab, freshTiles);
       }
     }
 
@@ -106,6 +122,10 @@ function t(key) {
     try { localStorage.setItem('activeAdminTab', tabName); } catch (e) {}
     updateTileSettingsMaxHeight();
     if (isTileTab) {
+      const folderId = getFolderIdForTab(tileTab);
+      if (folderId > 0 && folderId !== SCREENSAVER_FOLDER_ID) {
+        touchFolderTabSessionCache(folderId);
+      }
       if (tileTab === 'screensaver') {
         initScreensaverEditor();
       } else {
@@ -113,6 +133,13 @@ function t(key) {
         selectTile(rememberedIndex === null ? getTopLeftConfiguredTileIndex(tileTab) : rememberedIndex, tileTab);
         window.requestAnimationFrame(restoreCurrentTileSelectionUi);
       }
+      // Let the browser paint the selected tab before cached/live values are
+      // reconciled. This also keeps a cache hit from extending click latency.
+      window.requestAnimationFrame(() => window.setTimeout(() => {
+        if (document.getElementById(tabName)?.classList.contains('active')) {
+          loadSensorValues(false, false, [tileTab]);
+        }
+      }, 0));
     }
     if (tabName === 'tab-network') {
       window.setTimeout(() => {
@@ -1127,6 +1154,7 @@ function t(key) {
   const folderTabLoadPromises = {};
   const tileDataLoadedTabs = new Set();
   const tileDataLoadPromises = {};
+  const sessionRestoredFolderTabs = new Set();
   let currentTileTab = '';
   let currentTileIndex = -1;
   let drafts = {};
@@ -1569,6 +1597,121 @@ function t(key) {
       opt.textContent = label;
     });
   }
+
+  function syncFolderFragmentWithRoot(tabEl) {
+    if (!tabEl) return;
+
+    const sourceBorderToggle = Array.from(
+      document.querySelectorAll('.normal-tile-border-toggle'))
+      .find(toggle => !tabEl.contains(toggle));
+    if (sourceBorderToggle) {
+      tabEl.querySelectorAll('.normal-tile-border-toggle').forEach(toggle => {
+        toggle.checked = sourceBorderToggle.checked;
+      });
+      tabEl.querySelectorAll('.tile-grid:not(.screensaver-tile-grid)')
+        .forEach(grid => {
+          grid.classList.toggle('tiles-bordered', sourceBorderToggle.checked);
+        });
+    }
+
+    const folderOptions = Array.from(
+      document.querySelectorAll('.folder-tab-btn[data-folder-id]'))
+      .map(button => {
+        const folderId = Number(button.dataset.folderId);
+        if (!Number.isInteger(folderId) || folderId <= 0) return null;
+        const buttonLabel = button.querySelector('span')?.textContent || '';
+        return {
+          value: String(folderId),
+          label: String(button.dataset.folderName || buttonLabel ||
+            formatFolderLabel('', folderId)).trim()
+        };
+      })
+      .filter(Boolean);
+
+    tabEl.querySelectorAll('select[id$="_navigate_target"]')
+      .forEach(select => {
+        const selectedValue = select.value;
+        Array.from(select.options).forEach(option => {
+          if (Number(option.value) > 0) option.remove();
+        });
+        folderOptions.forEach(folder => {
+          const option = document.createElement('option');
+          option.value = folder.value;
+          option.textContent = folder.label;
+          select.appendChild(option);
+        });
+        const selectedExists = Array.from(select.options)
+          .some(option => option.value === selectedValue);
+        if (selectedExists) select.value = selectedValue;
+        else if (Array.from(select.options).some(option => option.value === '0')) {
+          select.value = '0';
+        }
+      });
+  }
+
+  function installFolderTabFragment(
+      folderNum, data, name = null, icon = null,
+      bindInteractions = true) {
+    const knownTabId = tabByFolder[folderNum] ||
+      String(data?.tab_id || ('folder' + folderNum));
+    if (document.getElementById('tab-tiles-' + knownTabId)) return true;
+
+    const nav = document.querySelector('.tab-nav');
+    const networkTab = document.getElementById('tab-network');
+    if (!nav || !networkTab || !data?.tab_id || !data?.tab_html) return false;
+
+    let buttonEl = nav.querySelector(
+      '.folder-tab-btn[data-folder-id="' + folderNum + '"]');
+    if (!buttonEl) {
+      const buttonTpl = document.createElement('template');
+      buttonTpl.innerHTML = String(data.button_html || '').trim();
+      buttonEl = buttonTpl.content.firstElementChild;
+      if (!buttonEl) return false;
+      const fixedBtn = Array.from(nav.querySelectorAll('.tab-btn')).find(btn =>
+        btn.getAttribute('onclick')?.includes("'tab-tiles-screensaver'")) ||
+        Array.from(nav.querySelectorAll('.tab-btn')).find(btn =>
+          btn.getAttribute('onclick')?.includes("'tab-network'"));
+      if (fixedBtn) nav.insertBefore(buttonEl, fixedBtn);
+      else nav.appendChild(buttonEl);
+    }
+
+    const expectedTabId = String(
+      buttonEl.dataset.tabId || knownTabId || ('folder' + folderNum));
+    if (String(data.tab_id) !== expectedTabId) return false;
+
+    const tabTpl = document.createElement('template');
+    tabTpl.innerHTML = String(data.tab_html || '').trim();
+    const tabEl = tabTpl.content.firstElementChild;
+    if (!tabEl) return false;
+    if (tabEl.id !== 'tab-tiles-' + expectedTabId ||
+        String(tabEl.dataset.tabId || '') !== expectedTabId ||
+        Number(tabEl.dataset.folderId) !== folderNum) return false;
+    if (buttonEl.dataset.folderParent !== undefined) {
+      tabEl.dataset.folderParent = buttonEl.dataset.folderParent;
+    }
+    if (buttonEl.dataset.folderName !== undefined) {
+      tabEl.dataset.folderName = buttonEl.dataset.folderName;
+    }
+    if (buttonEl.dataset.folderIcon !== undefined) {
+      tabEl.dataset.folderIcon = buttonEl.dataset.folderIcon;
+    }
+    const screensaverTab = document.getElementById('tab-tiles-screensaver');
+    networkTab.parentNode.insertBefore(tabEl, screensaverTab || networkTab);
+    syncFolderFragmentWithRoot(tabEl);
+
+    initTileTabs();
+    if (bindInteractions) {
+      enableTileDrag(String(data.tab_id));
+      enableTileResize(String(data.tab_id));
+    }
+    if (name !== null || icon !== null) {
+      ensureNavigateTargetOption(
+        folderNum, formatFolderLabel(name, folderNum));
+      updateFolderTabUi(folderNum, name || '', icon || '');
+    }
+    return true;
+  }
+
   async function ensureFolderTabUi(folderId, name = null, icon = null) {
     const folderNum = parseInt(folderId, 10);
     if (isNaN(folderNum) || folderNum <= 0) return false;
@@ -1585,6 +1728,17 @@ function t(key) {
       return folderTabLoadPromises[folderNum];
     }
 
+    const cachedFragment = readFolderTabSessionFragment(folderNum);
+    if (cachedFragment) {
+      const installed = installFolderTabFragment(
+        folderNum, cachedFragment, name, icon, true);
+      if (installed) {
+        sessionRestoredFolderTabs.add(String(cachedFragment.tab_id));
+        return true;
+      }
+      forgetFolderTabSessionFragment(folderNum);
+    }
+
     folderTabLoadPromises[folderNum] = (async () => {
       const res = await fetch(
         '/api/folders/tab?folder_id=' + encodeURIComponent(folderNum));
@@ -1592,44 +1746,12 @@ function t(key) {
       if (!res.ok || !data.success || !data.tab_id || !data.tab_html) {
         return false;
       }
-
-      const nav = document.querySelector('.tab-nav');
-      const networkTab = document.getElementById('tab-network');
-      if (!nav || !networkTab) return false;
-
-      let buttonEl = nav.querySelector(
-        '.folder-tab-btn[data-folder-id="' + folderNum + '"]');
-      if (!buttonEl) {
-        const buttonTpl = document.createElement('template');
-        buttonTpl.innerHTML = String(data.button_html || '').trim();
-        buttonEl = buttonTpl.content.firstElementChild;
-        if (!buttonEl) return false;
-        const fixedBtn = Array.from(nav.querySelectorAll('.tab-btn')).find(btn =>
-          btn.getAttribute('onclick')?.includes("'tab-tiles-screensaver'")) ||
-          Array.from(nav.querySelectorAll('.tab-btn')).find(btn =>
-            btn.getAttribute('onclick')?.includes("'tab-network'"));
-        if (fixedBtn) nav.insertBefore(buttonEl, fixedBtn);
-        else nav.appendChild(buttonEl);
+      const installed = installFolderTabFragment(
+        folderNum, data, name, icon, true);
+      if (installed) {
+        window.setTimeout(() => rememberFolderTabSessionFragment(data), 0);
       }
-
-      const tabTpl = document.createElement('template');
-      tabTpl.innerHTML = String(data.tab_html || '').trim();
-      const tabEl = tabTpl.content.firstElementChild;
-      if (!tabEl) return false;
-      const screensaverTab = document.getElementById('tab-tiles-screensaver');
-      networkTab.parentNode.insertBefore(tabEl, screensaverTab || networkTab);
-
-      initTileTabs();
-      enableTileDrag(String(data.tab_id));
-      enableTileResize(String(data.tab_id));
-      // A normal lazy click carries no replacement metadata. Keep the label
-      // and icon rendered by the server; only a folder-tile save updates them.
-      if (name !== null || icon !== null) {
-        ensureNavigateTargetOption(
-          folderNum, formatFolderLabel(name, folderNum));
-        updateFolderTabUi(folderNum, name || '', icon || '');
-      }
-      return true;
+      return installed;
     })();
 
     try {
@@ -1640,6 +1762,190 @@ function t(key) {
     } finally {
       delete folderTabLoadPromises[folderNum];
     }
+  }
+
+  const FOLDER_TAB_SESSION_CACHE_PREFIX = 'hometilesAdminFolderTabs:';
+  const FOLDER_TAB_SESSION_CACHE_VERSION = 2;
+  const FOLDER_TAB_SESSION_CACHE_LIMIT = 4;
+
+  function folderTabSessionCacheNamespace() {
+    return FOLDER_TAB_SESSION_CACHE_PREFIX + 'v' +
+      FOLDER_TAB_SESSION_CACHE_VERSION + ':' +
+      String(ADMIN_WEB_SESSION_TOKEN) + ':' + APP_LOCALE + ':' +
+      GRID_COLS + 'x' + GRID_ROWS;
+  }
+
+  function folderTabSessionIndexKey() {
+    return folderTabSessionCacheNamespace() + ':index';
+  }
+
+  function folderTabSessionEntryKey(folderId) {
+    return folderTabSessionCacheNamespace() + ':folder:' + Number(folderId);
+  }
+
+  function readFolderTabSessionIndex() {
+    try {
+      const raw = sessionStorage.getItem(folderTabSessionIndexKey());
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (parsed?.version !== FOLDER_TAB_SESSION_CACHE_VERSION ||
+          !Array.isArray(parsed.entries)) return [];
+      return parsed.entries.slice(0, FOLDER_TAB_SESSION_CACHE_LIMIT);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function writeFolderTabSessionIndex(entries) {
+    try {
+      sessionStorage.setItem(folderTabSessionIndexKey(), JSON.stringify({
+        version: FOLDER_TAB_SESSION_CACHE_VERSION,
+        entries: entries.slice(0, FOLDER_TAB_SESSION_CACHE_LIMIT)
+      }));
+    } catch (error) {}
+  }
+
+  function rememberFolderTabSessionFragment(data) {
+    const folderId = Number(data?.folder_id);
+    if (!Number.isInteger(folderId) || folderId <= 0 ||
+        !data?.tab_id || !data?.tab_html) return;
+    const entry = {
+      folder_id: folderId,
+      tab_id: String(data.tab_id)
+    };
+    const entries = readFolderTabSessionIndex()
+      .filter(item => Number(item?.folder_id) !== folderId);
+    let stored = false;
+    while (!stored) {
+      try {
+        sessionStorage.setItem(
+          folderTabSessionEntryKey(folderId), String(data.tab_html));
+        stored = true;
+      } catch (error) {
+        const evicted = entries.pop();
+        if (!evicted) break;
+        try {
+          sessionStorage.removeItem(
+            folderTabSessionEntryKey(evicted.folder_id));
+        } catch (removeError) {}
+      }
+    }
+    if (!stored) return;
+
+    const nextEntries = [entry, ...entries];
+    while (nextEntries.length > FOLDER_TAB_SESSION_CACHE_LIMIT) {
+      const evicted = nextEntries.pop();
+      try {
+        sessionStorage.removeItem(
+          folderTabSessionEntryKey(evicted.folder_id));
+      } catch (error) {}
+    }
+    writeFolderTabSessionIndex(nextEntries);
+  }
+
+  function touchFolderTabSessionCache(folderId) {
+    const folderNum = Number(folderId);
+    const entries = readFolderTabSessionIndex();
+    const index = entries.findIndex(
+      item => Number(item?.folder_id) === folderNum);
+    if (index <= 0) return;
+    const [entry] = entries.splice(index, 1);
+    writeFolderTabSessionIndex([entry, ...entries]);
+  }
+
+  function forgetFolderTabSessionFragment(folderId) {
+    const folderNum = Number(folderId);
+    try {
+      sessionStorage.removeItem(folderTabSessionEntryKey(folderNum));
+    } catch (error) {}
+    writeFolderTabSessionIndex(readFolderTabSessionIndex().filter(
+      entry => Number(entry?.folder_id) !== folderNum));
+  }
+
+  function readFolderTabSessionFragment(folderId) {
+    const folderNum = Number(folderId);
+    const entry = readFolderTabSessionIndex().find(
+      item => Number(item?.folder_id) === folderNum);
+    if (!entry) return null;
+    const expectedTabId = String(
+      tabByFolder[folderNum] || ('folder' + folderNum));
+    if (String(entry.tab_id || '') !== expectedTabId) {
+      forgetFolderTabSessionFragment(folderNum);
+      return null;
+    }
+    try {
+      const tabHtml = sessionStorage.getItem(
+        folderTabSessionEntryKey(folderNum));
+      if (!tabHtml) {
+        forgetFolderTabSessionFragment(folderNum);
+        return null;
+      }
+      return {
+        folder_id: folderNum,
+        tab_id: expectedTabId,
+        tab_html: tabHtml
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function prepareFolderTabSessionCache() {
+    const namespace = folderTabSessionCacheNamespace();
+    const storageKeys = [];
+    try {
+      for (let index = 0; index < sessionStorage.length; index += 1) {
+        const key = sessionStorage.key(index) || '';
+        storageKeys.push(key);
+      }
+      storageKeys.filter(key =>
+        key.startsWith(FOLDER_TAB_SESSION_CACHE_PREFIX) &&
+        !key.startsWith(namespace + ':'))
+        .forEach(key => sessionStorage.removeItem(key));
+    } catch (error) {}
+
+    const availableEntryKeys = new Set(storageKeys.filter(key =>
+      key.startsWith(namespace + ':folder:')));
+    const validFolders = new Map();
+    document.querySelectorAll('.folder-tab-btn[data-folder-id]')
+      .forEach(button => {
+        const folderId = Number(button.dataset.folderId);
+        if (!Number.isInteger(folderId) || folderId <= 0) return;
+        validFolders.set(folderId, String(
+          button.dataset.tabId || ('folder' + folderId)));
+      });
+
+    const seenFolderIds = new Set();
+    const validEntries = readFolderTabSessionIndex().filter(entry => {
+      const folderId = Number(entry?.folder_id);
+      const valid = Number.isInteger(folderId) && folderId > 0 &&
+        !seenFolderIds.has(folderId) &&
+        validFolders.get(folderId) === String(entry?.tab_id || '') &&
+        availableEntryKeys.has(folderTabSessionEntryKey(folderId));
+      if (valid) seenFolderIds.add(folderId);
+      return valid;
+    });
+    const validEntryKeys = new Set(validEntries.map(entry =>
+      folderTabSessionEntryKey(entry.folder_id)));
+    availableEntryKeys.forEach(key => {
+      if (!validEntryKeys.has(key)) {
+        try { sessionStorage.removeItem(key); } catch (error) {}
+      }
+    });
+    writeFolderTabSessionIndex(validEntries);
+  }
+
+  function restoreInitialFolderTabSessionFragment(initialTab) {
+    const folderId = folderIdFromAdminTabName(initialTab);
+    if (folderId === null) return false;
+    const entry = readFolderTabSessionFragment(folderId);
+    if (!entry) return false;
+    if (!installFolderTabFragment(folderId, entry, null, null, false)) {
+      forgetFolderTabSessionFragment(folderId);
+      return false;
+    }
+    sessionRestoredFolderTabs.add(String(entry.tab_id));
+    return true;
   }
   function persistSelectedTileState() {
     try {
@@ -1839,6 +2145,17 @@ function t(key) {
         el.style.display = 'none';
       }
     });
+  }
+
+  function syncTileGridStructure(tab, tiles) {
+    if (!Array.isArray(tiles)) return;
+    tiles.forEach((tile, index) => {
+      const el = document.getElementById(tab + '-tile-' + index);
+      if (!el) return;
+      el.dataset.index = String(index);
+      el.dataset.type = String(tile?.type ?? 0);
+    });
+    layoutTiles(tab, tiles);
   }
 
   function normalizeLayoutInputs(tab) {
@@ -5298,13 +5615,15 @@ function t(key) {
     toggleNetworkSettings();
     initAdminSettingsSave();
     initTileTabs();
+    let initialTab = '';
+    try { initialTab = localStorage.getItem('activeAdminTab') || ''; } catch (e) {}
+    prepareFolderTabSessionCache();
+    restoreInitialFolderTabSessionFragment(initialTab);
     loadSelectedTileStates();
     loadDraftsFromStorage();
     loadTileClipboard();
     // Nach einem Browser-Neuladen auf dem zuletzt geoeffneten Admin-Tab
     // bleiben. Nur wenn dieser nicht mehr existiert, auf Home zurueckfallen.
-    let initialTab = '';
-    try { initialTab = localStorage.getItem('activeAdminTab') || ''; } catch (e) {}
     const homeTab = tabByFolder[0] || tileTabs[0];
     const initialFolderId = folderIdFromAdminTabName(initialTab);
     const initialTabKnown = initialTab && (
@@ -5681,6 +6000,8 @@ function normalizeIconName(value) {
         Array.from(document.querySelectorAll('.tab-btn')).find(b =>
           b.getAttribute('onclick')?.includes('tab-tiles-' + tabId));
       if (btn) {
+        btn.dataset.folderName = label;
+        btn.dataset.folderIcon = iconName;
         const labelEl = btn.querySelector('span');
         if (labelEl) labelEl.textContent = label;
         let iconEl = btn.querySelector('i.mdi');

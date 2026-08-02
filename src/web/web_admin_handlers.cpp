@@ -3631,6 +3631,7 @@ void WebAdminServer::handleGetFolders() {
 }
 
 void WebAdminServer::handleGetFolderTab() {
+  webAdminMarkActivity();
   if (!server.hasArg("folder_id")) {
     server.send(400, "application/json", "{\"success\":false,\"error\":\"Missing folder_id\"}");
     return;
@@ -3660,6 +3661,7 @@ void WebAdminServer::handleGetFolderTab() {
   appendJsonEscaped(json, tab_html);
   json += "\"}";
   sendChunkedResponse(server, 200, "application/json", json);
+  webAdminMarkActivity();
 }
 
 void WebAdminServer::handleDeleteFolder() {
