@@ -1,4 +1,5 @@
 #include "src/web/web_admin.h"
+#include "src/web/web_admin_assets.h"
 #include "src/web/web_admin_fonts.h"
 #include "src/web/web_admin_utils.h"
 #include "src/network/network_transport.h"
@@ -51,6 +52,10 @@ bool WebAdminServer::start() {
               [this]() { sendWebFontRegular(this->server); });
     server.on("/assets/inter-4.1-semibold.woff2", HTTP_GET,
               [this]() { sendWebFontSemibold(this->server); });
+    server.on(adminCssAssetPath(), HTTP_GET,
+              [this]() { sendAdminCssAsset(this->server); });
+    server.on(adminJsAssetPath(), HTTP_GET,
+              [this]() { sendAdminJsAsset(this->server); });
     server.on("/mqtt", HTTP_POST, [this]() { this->handleSaveMQTT(); });
     server.on("/status", [this]() { this->handleStatus(); });
     server.on("/bridge_refresh", HTTP_POST,

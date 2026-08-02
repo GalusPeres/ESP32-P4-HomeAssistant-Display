@@ -675,7 +675,11 @@ static String buildFolderTabButtonHtml(const FolderEntry& entry) {
 
   String html;
   html += R"html(
-        <button class="tab-btn" onclick="switchTab('tab-tiles-)html";
+        <button class="tab-btn folder-tab-btn" data-folder-id=")html";
+  html += String(entry.id);
+  html += R"html(" data-tab-id=")html";
+  html += tab_id;
+  html += R"html(" onclick="switchTab('tab-tiles-)html";
   html += tab_id;
   html += R"html(')">)html";
   if (icon.length()) {
@@ -855,7 +859,10 @@ String WebAdminServer::getAdminPage() {
   }
 
   String html;
-  html.reserve(12000);
+  // The shell still contains Home, settings and the screensaver editor. A
+  // realistic reserve avoids repeated reallocations while the other folders
+  // are loaded on demand by the browser.
+  html.reserve(192 * 1024);
   html += "<!DOCTYPE html>\n<html lang=\"";
   html += tr.html_lang;
   html += R"html(">
@@ -901,34 +908,7 @@ String WebAdminServer::getAdminPage() {
 )html";
 
   for (const auto& entry : folders) {
-    String tab_id = "folder" + String(entry.id);
-    String icon = String(entry.icon_name);
-    String name = String(entry.name);
-    icon.trim();
-    icon.toLowerCase();
-    if (icon.startsWith("mdi:")) icon = icon.substring(4);
-    else if (icon.startsWith("mdi-")) icon = icon.substring(4);
-    name.trim();
-    if (!name.length()) {
-      name = (entry.id == 0) ? String(tr.home) : String(tr.folder_prefix) + String(entry.id);
-    }
-
-    html += R"html(
-        <button class="tab-btn" onclick="switchTab('tab-tiles-)html";
-    html += tab_id;
-    html += R"html(')">)html";
-    if (icon.length()) {
-      html += R"html(
-          <i class="mdi mdi-)html";
-      html += icon;
-      html += R"html(" style="font-size:24px;"></i>)html";
-    }
-    html += R"html(
-          <span style="font-size:14px;font-weight:600;">)html";
-    appendHtmlEscaped(html, name);
-    html += R"html(</span>
-        </button>
-)html";
+    html += buildFolderTabButtonHtml(entry);
   }
 
   html += R"html(
@@ -945,8 +925,10 @@ String WebAdminServer::getAdminPage() {
       </div>
 )html";
 
-  // Generate folder tile tabs
+  // Only Home is part of the initial page. Other folder editors are generated
+  // on first use via /api/folders/tab, avoiding synchronous all-folder reads.
   for (const auto& entry : folders) {
+    if (entry.id != 0) continue;
     TileGridConfig grid{};
     tileConfig.loadFolderGrid(entry.id, grid);
     appendTileTabHTML(html, entry.id, entry, grid, sensorOptions, energyOptions,

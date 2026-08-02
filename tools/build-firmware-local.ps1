@@ -27,6 +27,12 @@ if (Test-Path -LiteralPath $hiddenSketchProfiles) {
     throw "Temporary profile file already exists: $hiddenSketchProfiles"
 }
 
+$node = Get-Command node -ErrorAction Stop
+& $node.Source (Join-Path $PSScriptRoot 'generate-web-assets.mjs') --check
+if ($LASTEXITCODE -ne 0) {
+    throw 'Generated WebUI assets are stale. Run tools/generate-web-assets.mjs.'
+}
+
 $defines = @{
     tab5 = 'DEVICE_M5STACKS_TAB5'
     waveshare_b4 = 'DEVICE_WAVESHARE_4B'

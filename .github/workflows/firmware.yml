@@ -131,6 +131,9 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Verify generated WebUI assets
+        run: node tools/generate-web-assets.mjs --check
+
       - name: Restore Arduino cache
         uses: actions/cache@v4
         with:
