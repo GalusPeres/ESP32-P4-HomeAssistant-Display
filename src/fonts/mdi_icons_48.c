@@ -4,21 +4,7 @@
  * Opts: --bpp 4 --size 48 --stride 1 --align 1 --font materialdesignicons-webfont.woff --range 983040-991231 --format lvgl -o mdi_icons_48.c
  ******************************************************************************/
 
-#ifdef __has_include
-    #if __has_include("lvgl.h")
-        #ifndef LV_LVGL_H_INCLUDE_SIMPLE
-            #define LV_LVGL_H_INCLUDE_SIMPLE
-        #endif
-    #endif
-#endif
-
-#ifdef LV_LVGL_H_INCLUDE_SIMPLE
-    #include "lvgl.h"
-#else
-    #include "lvgl/lvgl.h"
-#endif
-
-
+#include "lvgl.h"
 
 #include "src/devices/device_select.h"
 

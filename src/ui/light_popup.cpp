@@ -136,6 +136,9 @@ struct LightPopupContext {
   uint32_t last_user_action_ms = 0;
   uint32_t block_remote_until_ms = 0;
   uint32_t last_live_publish_ms = 0;
+  lv_timer_t* live_publish_timer = nullptr;
+  LightPopupMode pending_live_publish_mode = LightPopupMode::Brightness;
+  bool live_publish_pending = false;
   bool suppress_events = false;
   bool color_field_ready = false;
   bool use_color_temperature = false;
@@ -162,6 +165,7 @@ static void commit_color(LightPopupContext* ctx);
 static void maybe_live_publish_color(LightPopupContext* ctx);
 static void commit_color_temperature(LightPopupContext* ctx);
 static void maybe_live_publish_color_temperature(LightPopupContext* ctx);
+static void cancel_pending_live_publish(LightPopupContext* ctx);
 static void on_overlay_click(lv_event_t* e);
 
 static void on_close_click(lv_event_t* e) {
@@ -169,6 +173,8 @@ static void on_close_click(lv_event_t* e) {
   if (code != LV_EVENT_CLICKED && code != LV_EVENT_RELEASED) return;
   LightPopupContext* ctx = static_cast<LightPopupContext*>(lv_event_get_user_data(e));
   if (!ctx || !ctx->overlay || !ctx->card) return;
+  ctx->user_dragging = false;
+  cancel_pending_live_publish(ctx);
   lv_obj_add_flag(ctx->card, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
 }
@@ -1020,23 +1026,96 @@ static void sync_bound_tile_from_popup(LightPopupContext* ctx) {
 
 static void commit_popup_state(LightPopupContext* ctx) {
   if (!ctx) return;
+  cancel_pending_live_publish(ctx);
   sync_bound_tile_from_popup(ctx);
   publish_light_popup(ctx);
   ctx->last_live_publish_ms = millis();
 }
 
-static bool begin_live_publish(LightPopupContext* ctx) {
+static bool can_live_publish(const LightPopupContext* ctx) {
   if (!ctx || !ctx->user_dragging || !ctx->is_light ||
       !ctx->entity_id.length()) {
     return false;
   }
-  const uint32_t now = millis();
-  if (ctx->last_live_publish_ms != 0 &&
-      (now - ctx->last_live_publish_ms) < kLivePublishIntervalMs) {
-    return false;
+  return !ctx->card || !lv_obj_has_flag(ctx->card, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void publish_brightness(LightPopupContext* ctx);
+static void publish_color(LightPopupContext* ctx);
+static void publish_color_temperature(LightPopupContext* ctx);
+
+static void publish_live_value(LightPopupContext* ctx, LightPopupMode mode) {
+  switch (mode) {
+    case LightPopupMode::Brightness:
+      publish_brightness(ctx);
+      break;
+    case LightPopupMode::Color:
+      publish_color(ctx);
+      break;
+    case LightPopupMode::Temperature:
+      publish_color_temperature(ctx);
+      break;
   }
+}
+
+static void cancel_pending_live_publish(LightPopupContext* ctx) {
+  if (!ctx) return;
+  if (ctx->live_publish_timer) {
+    lv_timer_delete(ctx->live_publish_timer);
+    ctx->live_publish_timer = nullptr;
+  }
+  ctx->live_publish_pending = false;
+}
+
+static void live_publish_timer_cb(lv_timer_t* timer) {
+  LightPopupContext* ctx =
+      static_cast<LightPopupContext*>(lv_timer_get_user_data(timer));
+  if (!ctx) return;
+  if (ctx->live_publish_timer == timer) {
+    ctx->live_publish_timer = nullptr;
+  }
+  if (!ctx->live_publish_pending) return;
+
+  const LightPopupMode mode = ctx->pending_live_publish_mode;
+  ctx->live_publish_pending = false;
+  if (!can_live_publish(ctx)) return;
+
+  publish_live_value(ctx, mode);
+  ctx->last_live_publish_ms = millis();
+}
+
+static void schedule_live_publish(LightPopupContext* ctx,
+                                  LightPopupMode mode) {
+  if (!can_live_publish(ctx)) return;
+  const uint32_t now = millis();
+  const uint32_t elapsed = now - ctx->last_live_publish_ms;
+  if (ctx->last_live_publish_ms == 0 || elapsed >= kLivePublishIntervalMs) {
+    cancel_pending_live_publish(ctx);
+    publish_live_value(ctx, mode);
+    ctx->last_live_publish_ms = now;
+    return;
+  }
+
+  // Preserve the newest value instead of dropping it inside the throttle
+  // window. The one-shot timer publishes the current context value at the
+  // next allowed instant, even when the finger has stopped at an endpoint.
+  ctx->pending_live_publish_mode = mode;
+  ctx->live_publish_pending = true;
+  if (ctx->live_publish_timer) return;
+
+  const uint32_t remaining = kLivePublishIntervalMs - elapsed;
+  ctx->live_publish_timer =
+      lv_timer_create(live_publish_timer_cb, remaining, ctx);
+  if (ctx->live_publish_timer) {
+    lv_timer_set_repeat_count(ctx->live_publish_timer, 1);
+    return;
+  }
+
+  // Extremely unlikely LVGL timer-allocation failure: keep the live control
+  // responsive and rely on the regular final publish on release as backup.
+  ctx->live_publish_pending = false;
+  publish_live_value(ctx, mode);
   ctx->last_live_publish_ms = now;
-  return true;
 }
 
 static void publish_brightness(LightPopupContext* ctx) {
@@ -1055,14 +1134,14 @@ static void publish_brightness(LightPopupContext* ctx) {
 
 static void commit_brightness(LightPopupContext* ctx) {
   if (!ctx) return;
+  cancel_pending_live_publish(ctx);
   sync_bound_tile_from_popup(ctx);
   publish_brightness(ctx);
   ctx->last_live_publish_ms = millis();
 }
 
 static void maybe_live_publish_brightness(LightPopupContext* ctx) {
-  if (!begin_live_publish(ctx)) return;
-  publish_brightness(ctx);
+  schedule_live_publish(ctx, LightPopupMode::Brightness);
 }
 
 static void publish_color(LightPopupContext* ctx) {
@@ -1081,14 +1160,14 @@ static void publish_color(LightPopupContext* ctx) {
 
 static void commit_color(LightPopupContext* ctx) {
   if (!ctx) return;
+  cancel_pending_live_publish(ctx);
   sync_bound_tile_from_popup(ctx);
   publish_color(ctx);
   ctx->last_live_publish_ms = millis();
 }
 
 static void maybe_live_publish_color(LightPopupContext* ctx) {
-  if (!begin_live_publish(ctx)) return;
-  publish_color(ctx);
+  schedule_live_publish(ctx, LightPopupMode::Color);
 }
 
 static void publish_color_temperature(LightPopupContext* ctx) {
@@ -1107,14 +1186,14 @@ static void publish_color_temperature(LightPopupContext* ctx) {
 
 static void commit_color_temperature(LightPopupContext* ctx) {
   if (!ctx) return;
+  cancel_pending_live_publish(ctx);
   sync_bound_tile_from_popup(ctx);
   publish_color_temperature(ctx);
   ctx->last_live_publish_ms = millis();
 }
 
 static void maybe_live_publish_color_temperature(LightPopupContext* ctx) {
-  if (!begin_live_publish(ctx)) return;
-  publish_color_temperature(ctx);
+  schedule_live_publish(ctx, LightPopupMode::Temperature);
 }
 
 static void update_preview(LightPopupContext* ctx) {
@@ -1449,6 +1528,10 @@ static lv_obj_t* create_control_icon_button(lv_obj_t* parent, const char* icon_n
 
 static void apply_init_to_context(LightPopupContext* ctx, const LightPopupInit& init) {
   if (!ctx) return;
+  if (!ctx->entity_id.equalsIgnoreCase(init.entity_id)) {
+    cancel_pending_live_publish(ctx);
+    ctx->last_live_publish_ms = 0;
+  }
   ctx->suppress_events = true;
   update_popup_language(ctx);
   ctx->entity_id = init.entity_id;
@@ -1842,6 +1925,7 @@ static void on_overlay_delete(lv_event_t* e) {
   if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
   LightPopupContext* ctx = static_cast<LightPopupContext*>(lv_event_get_user_data(e));
   if (!ctx) return;
+  cancel_pending_live_publish(ctx);
   if (ctx->color_field_buf) {
     heap_caps_free(ctx->color_field_buf);
     ctx->color_field_buf = nullptr;
@@ -2092,6 +2176,8 @@ void preload_light_popup() {
 
 void hide_light_popup() {
   if (!g_light_popup_ctx || !g_light_popup_ctx->card || !g_light_popup_ctx->overlay) return;
+  g_light_popup_ctx->user_dragging = false;
+  cancel_pending_live_publish(g_light_popup_ctx);
   lv_obj_add_flag(g_light_popup_ctx->card, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_light_popup_ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
 }

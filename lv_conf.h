@@ -17,6 +17,8 @@
 #ifndef LV_CONF_H
 #define LV_CONF_H
 
+#include "src/devices/device_select.h"
+
 /* If you need to include anything here, do it inside the `__ASSEMBLY__` guard */
 #if  0 && defined(__ASSEMBLY__)
 #include "my_include.h"
@@ -69,7 +71,16 @@
 
 #if LV_USE_STDLIB_MALLOC == LV_STDLIB_BUILTIN
     /** Size of memory available for `lv_malloc()` in bytes (>= 2kB) */
-    #define LV_MEM_SIZE (12 * 1024 * 1024U)         /**< [bytes] */
+    #if defined(DEVICE_GUITION_ESP32_4848S040)
+        /*
+         * This ESP32-S3 board has 8 MB PSRAM in total. Reserving the generic
+         * 12 MB LVGL arena fails and makes LVGL dereference a null TLSF pool
+         * during theme initialization.
+         */
+        #define LV_MEM_SIZE (2 * 1024 * 1024U)      /**< [bytes] */
+    #else
+        #define LV_MEM_SIZE (12 * 1024 * 1024U)     /**< [bytes] */
+    #endif
 
     /** Size of the memory expand for `lv_malloc()` in bytes */
     #define LV_MEM_POOL_EXPAND_SIZE 0
@@ -509,7 +520,11 @@
  *  If size is not set to 0, the decoder will fail to decode when the cache is full.
  *  If size is 0, the cache function is not enabled and the decoded memory will be
  *  released immediately after use. */
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+#define LV_CACHE_DEF_SIZE (512 * 1024U)
+#else
 #define LV_CACHE_DEF_SIZE (6 * 1024 * 1024U)  // 6 MB Cache
+#endif
 
 /** Default number of image header cache entries. The cache is used to store the headers of images
  *  The main logic is like `LV_CACHE_DEF_SIZE` but for image headers. */

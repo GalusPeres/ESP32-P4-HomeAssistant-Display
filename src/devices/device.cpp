@@ -130,6 +130,18 @@ fs::FS& storageFS() {
   return DeviceImpl::storageFS();
 }
 
+void storageWriteBegin() {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  DeviceImpl::storageWriteBegin();
+#endif
+}
+
+void storageWriteEnd() {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  DeviceImpl::storageWriteEnd();
+#endif
+}
+
 bool sdReady() {
   return DeviceImpl::sdReady();
 }

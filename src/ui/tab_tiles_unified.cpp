@@ -34,6 +34,7 @@ static bool g_tiles_reload_requested[3] = {false, false, false};
 static bool g_tiles_reload_only_if_loaded[3] = {true, true, true};
 static bool g_tiles_release_requested[3] = {false, false, false};
 static bool g_tiles_icon_refresh_requested = false;
+static uint32_t g_tiles_icon_generation = 1;
 
 static constexpr uint16_t kInvalidFolderId = 0xFFFF;
 // The Waveshare 8 keeps the visible folder plus up to four direct navigation
@@ -65,6 +66,7 @@ struct FolderCacheEntry {
   TileGridConfig grid_config{};
   TileWidgetCache widgets{};
   uint32_t last_used_ms = 0;
+  uint32_t icon_generation = 0;
 };
 
 // FolderCacheEntry is large (~28 KB for config Strings + widget snapshots).
@@ -518,6 +520,19 @@ static void hide_preview_images(GridType grid_type);
 static void tiles_refresh_icons_for_grid(GridType grid_type);
 static bool process_preview_step(GridType grid_type, bool only_missing, uint8_t max_loads);
 
+static void refresh_active_folder_icons_if_stale(FolderCacheEntry& entry) {
+  if (entry.icon_generation == g_tiles_icon_generation) return;
+
+  const uint32_t started_ms = millis();
+  tiles_refresh_icons_for_grid(GridType::TAB0);
+  entry.icon_generation = g_tiles_icon_generation;
+  Serial.printf(
+      "[Tiles] folder-icons refreshed folder=%u generation=%lu in %lu ms\n",
+      static_cast<unsigned>(entry.folder_id),
+      static_cast<unsigned long>(entry.icon_generation),
+      static_cast<unsigned long>(millis() - started_ms));
+}
+
 static void stop_preview_timer() {
   if (g_preview_timer) {
     lv_timer_del(g_preview_timer);
@@ -883,6 +898,7 @@ static void build_folder_cache_entry(FolderCacheEntry& entry, GridType grid_type
 
   entry.loaded = true;
   entry.dirty = false;
+  entry.icon_generation = g_tiles_icon_generation;
   entry.last_used_ms = millis();
 }
 
@@ -1415,6 +1431,7 @@ void tiles_reload_layout(GridType grid_type) {
     memcpy(g_active_cache->tile_objs, g_tiles_objs[idx], sizeof(g_active_cache->tile_objs));
     g_active_cache->widgets_valid = true;
     g_active_cache->dirty = false;
+    g_active_cache->icon_generation = g_tiles_icon_generation;
     g_active_cache->last_used_ms = millis();
   }
   Serial.printf("[%s] Layout neu geladen\n", getGridName(grid_type));
@@ -1501,6 +1518,8 @@ void tiles_request_reload_all() {
 }
 
 void tiles_request_icon_refresh() {
+  ++g_tiles_icon_generation;
+  if (g_tiles_icon_generation == 0) g_tiles_icon_generation = 1;
   g_tiles_icon_refresh_requested = true;
 }
 
@@ -1640,6 +1659,10 @@ void tiles_process_reload_requests() {
         // Restored widgets carry their old payload hash; without clearing it the
         // weather tile's hash short-circuit skips the re-apply and can stay blank.
         tile_renderer_invalidate_weather_payload(GridType::TAB0);
+        // Hidden folder grids may have been built before Home Assistant sent
+        // its icon metadata. Refresh a stale cache while it is still hidden so
+        // automatically resolved light/switch icons are present on first draw.
+        refresh_active_folder_icons_if_stale(*target);
         apply_cached_states(GridType::TAB0, target->grid_config);
         process_sensor_update_queue();
         process_switch_update_queue();
@@ -1683,6 +1706,7 @@ void tiles_process_reload_requests() {
       restore_active_cache(*target);
       if (target->grid) {
         tile_renderer_invalidate_weather_payload(GridType::TAB0);
+        refresh_active_folder_icons_if_stale(*target);
         apply_cached_states(GridType::TAB0, target->grid_config);
         process_sensor_update_queue();
         process_switch_update_queue();
@@ -1745,7 +1769,14 @@ void tiles_process_reload_requests() {
     for (uint8_t i = 0; i < 3; ++i) {
       GridType grid_type = static_cast<GridType>(i);
       if (!g_tiles_grids[i] || !g_tiles_loaded[i]) continue;
+      if (grid_type == GridType::TAB0 && g_active_cache &&
+          g_active_cache->icon_generation == g_tiles_icon_generation) {
+        continue;
+      }
       tiles_refresh_icons_for_grid(grid_type);
+      if (grid_type == GridType::TAB0 && g_active_cache) {
+        g_active_cache->icon_generation = g_tiles_icon_generation;
+      }
     }
   }
 

@@ -67,6 +67,11 @@ void prepareForRestart();
 bool initSDCard();
 bool storageReady();
 fs::FS& storageFS();
+// Bracket write-heavy storage transactions. Most devices implement this as a
+// no-op; the ESP32-S3 RGB board uses it to hide unavoidable main-flash stalls
+// until the continuously scanned panel has re-synchronised.
+void storageWriteBegin();
+void storageWriteEnd();
 
 bool sdReady();
 fs::FS& sdFS();

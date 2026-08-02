@@ -6,6 +6,7 @@
 #include <math.h>
 #include <new>
 
+#include "src/core/psram_budget.h"
 #include "src/tiles/tile_renderer_shared.h"
 #include "src/tiles/tile_renderer_fonts.h"
 #include "src/devices/device.h"
@@ -38,7 +39,7 @@ constexpr char kAnimDir[] = "/animations";
 constexpr uint16_t kMaxSide = 128;
 constexpr uint16_t kMaxFrames = 64;
 constexpr size_t kMaxUpscaledBytes = 5u * 1024u * 1024u;  // PSRAM budget per tile (ARGB)
-constexpr size_t kMinPsramReserveBytes = 8u * 1024u * 1024u;
+constexpr size_t kMaxPsramReserveBytes = 8u * 1024u * 1024u;
 constexpr uint16_t kHeaderBytes = 12;
 constexpr uint16_t kMinZoomPercent = 25;
 constexpr uint16_t kMaxZoomPercent = 300;
@@ -155,6 +156,7 @@ void compute_display_size(uint16_t src_w, uint16_t src_h,
                           PixelAnimFitMode fit_mode,
                           uint16_t zoom_percent,
                           uint16_t frames,
+                          size_t buffer_budget,
                           uint16_t& disp_w,
                           uint16_t& disp_h) {
   box_w = max_u16(box_w, 1);
@@ -175,7 +177,8 @@ void compute_display_size(uint16_t src_w, uint16_t src_h,
     disp_h = clamp_u16(raw_h, 1, box_h);
   }
 
-  const size_t max_frame_px = kMaxUpscaledBytes / (static_cast<size_t>(4) * max_u16(frames, 1));
+  const size_t max_frame_px =
+      buffer_budget / (static_cast<size_t>(4) * max_u16(frames, 1));
   if (max_frame_px == 0) {
     disp_w = 1;
     disp_h = 1;
@@ -297,14 +300,19 @@ bool load_panim(const String& file_name, uint16_t avail_w, uint16_t avail_h,
 
   uint16_t disp_w = 1;
   uint16_t disp_h = 1;
-  compute_display_size(w, h, avail_w, avail_h, fit_mode, zoom_percent, frames, disp_w, disp_h);
+  const size_t buffer_budget =
+      psram_budget::fractionCapped(kMaxUpscaledBytes);
+  compute_display_size(w, h, avail_w, avail_h, fit_mode, zoom_percent,
+                       frames, buffer_budget, disp_w, disp_h);
   const size_t frame_px = static_cast<size_t>(disp_w) * disp_h;
   const size_t frame_bytes = frame_px * 4;  // ARGB8888
   const size_t total_bytes = frame_bytes * frames;
 
   const size_t psram_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
   const size_t psram_largest = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
-  if (psram_largest < total_bytes || psram_free < total_bytes + kMinPsramReserveBytes) {
+  const size_t reserve =
+      psram_budget::fractionCapped(kMaxPsramReserveBytes);
+  if (psram_largest < total_bytes || psram_free < total_bytes + reserve) {
     Serial.printf("[PixelAnim] PSRAM budget too low (%u bytes needed, free=%u, largest=%u)\n",
                   static_cast<unsigned>(total_bytes),
                   static_cast<unsigned>(psram_free),

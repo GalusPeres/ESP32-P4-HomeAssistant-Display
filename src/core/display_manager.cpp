@@ -790,6 +790,22 @@ bool DisplayManager::init() {
 
   last_activity_time = millis();
 
+  // LVGL's built-in TLSF allocator assumes that LV_MEM_SIZE can be obtained
+  // as one contiguous block. Passing a null pool into lv_init() causes a
+  // StoreProhibited panic before LVGL can return an error. Check the exact
+  // requirement while no other task can fragment PSRAM and fail with a useful
+  // serial message instead.
+  const size_t largest_lvgl_pool =
+      heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (largest_lvgl_pool < LV_MEM_SIZE) {
+    Serial.printf(
+        "[Display] LVGL-Pool nicht verfuegbar: benoetigt=%u KB, "
+        "groesster PSRAM-Block=%u KB\n",
+        static_cast<unsigned>(LV_MEM_SIZE / 1024U),
+        static_cast<unsigned>(largest_lvgl_pool / 1024U));
+    return false;
+  }
+
   // LVGL initialisieren
   lv_init();
 

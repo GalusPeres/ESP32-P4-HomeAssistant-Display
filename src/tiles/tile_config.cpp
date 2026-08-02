@@ -17,6 +17,16 @@ static constexpr uint8_t LEGACY_NAV_KIND_SETTINGS = 1;
 static constexpr uint8_t LEGACY_NAV_KIND_BACK = 2;
 static constexpr uint8_t LEGACY_TAB_SETTINGS = 3;
 
+class ScopedStorageWriteDisplayGuard {
+ public:
+  ScopedStorageWriteDisplayGuard() { Device::storageWriteBegin(); }
+  ~ScopedStorageWriteDisplayGuard() { Device::storageWriteEnd(); }
+
+  ScopedStorageWriteDisplayGuard(const ScopedStorageWriteDisplayGuard&) = delete;
+  ScopedStorageWriteDisplayGuard& operator=(
+      const ScopedStorageWriteDisplayGuard&) = delete;
+};
+
 template <typename T>
 struct HeapCapsDeleter {
   void operator()(T* ptr) const {
@@ -645,16 +655,30 @@ static bool anyGridFileExists(uint16_t folder_id, bool is_root) {
 }
 
 static bool writeImagePathSd(uint16_t folder_id, size_t index, const String& path) {
-  if (!ensureImagePathDir()) return false;
+  if (!storageReady()) return false;
   ensureSidecarIndexBuilt();
   uint32_t key = sidecarKey(folder_id, index);
   String filePath = imagePathFile(folder_id, index);
+  const bool has_sidecar = sidecarKeyPresent(g_image_sidecar_keys, key);
   if (path.length() == 0) {
+    if (!has_sidecar) return true;
     if (storageFS().exists(filePath)) storageFS().remove(filePath);
     sidecarKeyRemove(g_image_sidecar_keys, key);
     return true;
   }
-  if (storageFS().exists(filePath)) storageFS().remove(filePath);
+
+  if (has_sidecar) {
+    File current_file = storageFS().open(filePath, FILE_READ);
+    if (current_file) {
+      String current = current_file.readString();
+      current_file.close();
+      current.trim();
+      if (current == path) return true;
+    }
+  }
+
+  if (!ensureImagePathDir()) return false;
+  if (has_sidecar && storageFS().exists(filePath)) storageFS().remove(filePath);
   File f = storageFS().open(filePath, FILE_WRITE);
   if (!f) return false;
   f.print(path);
@@ -702,13 +726,26 @@ static bool writeLongEntityIdSd(uint16_t folder_id, size_t index, const String& 
   ensureSidecarIndexBuilt();
   uint32_t key = sidecarKey(folder_id, index);
   String filePath = entityPathFile(folder_id, index);
+  const bool has_sidecar = sidecarKeyPresent(g_entity_sidecar_keys, key);
   if (entity.length() < ENTITY_MAX) {
+    if (!has_sidecar) return true;
     if (storageFS().exists(filePath)) storageFS().remove(filePath);
     sidecarKeyRemove(g_entity_sidecar_keys, key);
     return true;
   }
+
+  if (has_sidecar) {
+    File current_file = storageFS().open(filePath, FILE_READ);
+    if (current_file) {
+      String current = current_file.readString();
+      current_file.close();
+      current.trim();
+      if (current == entity) return true;
+    }
+  }
+
   if (!ensureEntityPathDir()) return false;
-  if (storageFS().exists(filePath)) storageFS().remove(filePath);
+  if (has_sidecar && storageFS().exists(filePath)) storageFS().remove(filePath);
   File f = storageFS().open(filePath, FILE_WRITE);
   if (!f) return false;
   f.print(entity);
@@ -1979,6 +2016,7 @@ bool TileConfig::saveGrid(const char* prefix, const TileGridConfig& grid) {
       allocPackedGridScratch<PackedQuarterGridV6>(QUARTERS_PER_GRID, "Legacy-Save");
   PackedQuarterGridV6* packed = packed_storage.get();
   if (!packed) return false;
+  ScopedStorageWriteDisplayGuard storage_write_guard;
   for (size_t q = 0; q < QUARTERS_PER_GRID; ++q) {
     packed[q].version = PACKED_GRID_VERSION;
     packed[q].quarter_index = static_cast<uint8_t>(q);
@@ -2456,6 +2494,7 @@ bool TileConfig::saveFolders() const {
     Serial.println("[TileConfig] WARN: Storage nicht verfuegbar, Ordner-Liste kann nicht gespeichert werden");
     return false;
   }
+  ScopedStorageWriteDisplayGuard storage_write_guard;
   if (!ensureTileGridDir()) return false;
 
   // Atomar schreiben (wie writeGridSd): der Ordner-Index ist die kritischste
@@ -2512,6 +2551,7 @@ bool TileConfig::saveFolders() const {
 
 bool TileConfig::createFolder(uint16_t parent_id, const String& name, const String& icon, uint16_t& out_id) {
   if (!storageReady()) return false;
+  ScopedStorageWriteDisplayGuard storage_write_guard;
   if (!folderExists(parent_id)) parent_id = kRootFolderId;
   uint16_t next_id = nextFolderId();
   if (next_id == kInvalidFolderId) return false;
@@ -2555,6 +2595,7 @@ bool TileConfig::deleteFolder(uint16_t folder_id) {
     Serial.println("[TileConfig] WARN: Storage nicht verfuegbar, Ordner kann nicht geloescht werden");
     return false;
   }
+  ScopedStorageWriteDisplayGuard storage_write_guard;
 
   std::vector<uint16_t> to_delete;
   to_delete.push_back(folder_id);
@@ -2719,6 +2760,7 @@ bool TileConfig::saveGrid(uint16_t folder_id, const TileGridConfig& grid,
       allocPackedGridScratch<PackedQuarterGridV7>(QUARTERS_PER_GRID, "Grid-Save");
   PackedQuarterGridV7* packed = packed_storage.get();
   if (!packed) return false;
+  ScopedStorageWriteDisplayGuard storage_write_guard;
   for (size_t q = 0; q < QUARTERS_PER_GRID; ++q) {
     packed[q].version = PACKED_GRID_VERSION;
     packed[q].quarter_index = static_cast<uint8_t>(q);

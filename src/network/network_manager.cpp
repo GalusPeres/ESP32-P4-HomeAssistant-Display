@@ -18,6 +18,16 @@
 #include <ESPmDNS.h>
 #include <WiFi.h>
 
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+// Optional diagnostic hook exported by the HomeTiles ESP-Hosted SDIO object.
+// Keep it weak so stock-core and non-P4 builds remain link-compatible.
+extern "C" void hometiles_sdio_get_rx_diag(
+    uint32_t* last_pkt_len_raw, uint32_t* rx_byte_count,
+    uint32_t* last_interrupts, uint32_t* legal_fffff_hits,
+    uint32_t* pending_drains, uint32_t* alloc_retries,
+    uint32_t* bus_faults) __attribute__((weak));
+#endif
+
 // Globale Instanz
 HomeTilesNetworkManager networkManager;
 
@@ -702,7 +712,7 @@ void HomeTilesNetworkManager::handleWifiDriverWedge(const char* context) {
 
   const bool wired = isWiredLinkUp();
   String detail;
-  detail.reserve(256);
+  detail.reserve(512);
   detail += "ESP-Hosted RPC-Timeout zum C6";
   if (context && context[0]) {
     detail += " (";
@@ -730,6 +740,40 @@ void HomeTilesNetworkManager::handleWifiDriverWedge(const char* context) {
                                      MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA) /
                                  1024));
   detail += mem;
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  if (hometiles_sdio_get_rx_diag) {
+    uint32_t last_raw = 0;
+    uint32_t consumed = 0;
+    uint32_t last_intr = 0;
+    uint32_t legal_fffff = 0;
+    uint32_t pending_drains = 0;
+    uint32_t alloc_retries = 0;
+    uint32_t bus_faults = 0;
+    hometiles_sdio_get_rx_diag(
+        &last_raw, &consumed, &last_intr, &legal_fffff,
+        &pending_drains, &alloc_retries, &bus_faults);
+    char sdio_diag[224];
+    snprintf(
+        sdio_diag, sizeof(sdio_diag),
+        "sdio raw=0x%08lX consumed=%lu intr=0x%08lX "
+        "legal_fffff=%lu pending_drains=%lu alloc_retries=%lu "
+        "bus_faults=%lu\n",
+        static_cast<unsigned long>(last_raw),
+        static_cast<unsigned long>(consumed),
+        static_cast<unsigned long>(last_intr),
+        static_cast<unsigned long>(legal_fffff),
+        static_cast<unsigned long>(pending_drains),
+        static_cast<unsigned long>(alloc_retries),
+        static_cast<unsigned long>(bus_faults));
+    detail += sdio_diag;
+    Serial.printf("[Network] %s", sdio_diag);
+  } else {
+    detail += "sdio diagnostics unavailable (stock/old hosted object)\n";
+  }
+#endif
+  detail += camera_stream_is_active()
+                ? "camera_stream=active\n"
+                : "camera_stream=inactive\n";
   detail += wired
                 ? "Weiterlauf ueber Ethernet, WiFi bis zum Neustart deaktiviert\n"
                 : "Sicherer Neustart folgt (setzt den C6 mit zurueck)\n";

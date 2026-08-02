@@ -81,6 +81,13 @@ try {
             '(?m)^ \* Opts: .+$',
             $stableOptions,
             1)
+        $source = [regex]::Replace(
+            $source,
+            '(?ms)^#ifdef LV_LVGL_H_INCLUDE_SIMPLE\r?\n' +
+            '#include "lvgl\.h"\r?\n#else\r?\n' +
+            '#include "lvgl/lvgl\.h"\r?\n#endif',
+            '#include "lvgl.h"',
+            1)
         $macro = "MDI_ICONS_$size"
         $guardedBlock = @"
 #include "src/devices/device_select.h"

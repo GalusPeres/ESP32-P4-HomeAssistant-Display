@@ -55,6 +55,8 @@ void prepareForRestart();
 bool initSDCard();
 bool storageReady();
 fs::FS& storageFS();
+void storageWriteBegin();
+void storageWriteEnd();
 
 bool sdReady();
 fs::FS& sdFS();

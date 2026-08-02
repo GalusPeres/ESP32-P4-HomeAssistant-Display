@@ -38,6 +38,15 @@ constexpr uint32_t kConnectTimeoutMs = 10000;
 constexpr uint32_t kReadTimeoutMs = 20000;
 constexpr uint32_t kReadPaceMs = 2;
 
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+// Native WiFi does not need the ESP32-P4/ESP-Hosted separation between the
+// complete HTTPS download and flash writes. Keeping only one verified range
+// in PSRAM avoids trying to reserve a ~5.4 MB firmware image on an 8 MB board.
+constexpr bool kStageCompleteImage = false;
+#else
+constexpr bool kStageCompleteImage = true;
+#endif
+
 class PsramStageBuffer {
  public:
   ~PsramStageBuffer() { release(); }
@@ -810,14 +819,20 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
     g_install_retryable = true;
   }
 
+  size_t image_remainder = 0;
   size_t stage_capacity = 0;
   size_t staged_len = 0;
+  UpdateWriteCtx write_ctx;
   if (!failed) {
-    // Download und Flash-Schreiben bleiben strikt getrennt. Mehrere feste
-    // PSRAM-Bloecke entfernen jedoch die unnoetige Forderung nach einem
-    // einzelnen zusammenhaengenden ~6-MB-Block, die nach langer Laufzeit trotz
-    // genuegend freiem PSRAM scheitern konnte.
-    stage_capacity = total_sz - head_ctx.len;
+    image_remainder = total_sz - head_ctx.len;
+    // P4/ESP-Hosted behaelt die bewaehrte vollstaendige Trennung von Download
+    // und Flash. Der native S3-WiFi-Pfad braucht nur einen verifizierten
+    // 512-KB-Range-Puffer und schreibt ihn danach direkt in die inaktive
+    // OTA-Partition.
+    stage_capacity =
+        kStageCompleteImage
+            ? image_remainder
+            : std::min(image_remainder, kStageRangeBytes);
     if (!stage.allocate(stage_capacity)) {
       error_out = "not enough PSRAM for safe OTA staging";
       Serial.printf(
@@ -831,7 +846,8 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
           static_cast<unsigned>(kStageBlockBytes / 1024));
       failed = true;
     } else {
-      Serial.printf("[Update] Safe staged download: %uB TCP RX, %uB Lesechunk, %uKB Ranges, %uKB PSRAM in %u Bloecken\n",
+      Serial.printf("[Update] Safe %s staging: %uB TCP RX, %uB Lesechunk, %uKB Ranges, %uKB PSRAM in %u Bloecken\n",
+                    kStageCompleteImage ? "full-image" : "rolling-range",
                     static_cast<unsigned>(kSocketRxBufferBytes),
                     static_cast<unsigned>(kInstallReadChunk),
                     static_cast<unsigned>(kStageRangeBytes / 1024),
@@ -840,18 +856,42 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
     }
   }
 
-  // Den kompletten Rest laden, solange Update/Flash noch unangetastet sind.
-  // Mehrere begrenzte Range-Requests verhindern, dass ESP-Hosted minutenlang
-  // einen einzigen RX-Strom abarbeiten muss. Jeder Block darf neu gestartet
-  // werden, ohne bereits geladene Daten oder das Flash zu veraendern.
+  if (!failed && !kStageCompleteImage) {
+    if (!Update.begin(total_sz, U_FLASH)) {
+      error_out = Update.errorString();
+      failed = true;
+      Serial.printf("[Update] Update.begin fehlgeschlagen: %s\n",
+                    error_out.c_str());
+    } else {
+      update_started = true;
+      write_ctx.total = total_sz;
+      write_ctx.progress = progress;
+      write_ctx.error = &error_out;
+      Serial.printf("[Update] Update.begin OK, Groesse: %u\n",
+                    static_cast<unsigned>(total_sz));
+      if (!writeUpdateBytes(image_head, head_ctx.len, &write_ctx)) {
+        if (!error_out.length()) error_out = Update.errorString();
+        failed = true;
+      } else {
+        reportInstallProgress(write_ctx, true);
+      }
+    }
+  }
+
+  // Begrenzte Range-Requests verhindern, dass ESP-Hosted minutenlang einen
+  // einzigen RX-Strom abarbeiten muss. Auf dem S3 wird jeder Range erst
+  // vollstaendig in PSRAM bestaetigt und dann in die inaktive OTA-Partition
+  // geschrieben; ein abgebrochener Range kann daher ohne doppeltes Schreiben
+  // neu geladen werden.
   if (!failed) {
-    while (staged_len < stage_capacity && !failed) {
+    while (staged_len < image_remainder && !failed) {
       const size_t range_start = head_ctx.len + staged_len;
-      size_t range_len = stage_capacity - staged_len;
+      size_t range_len = image_remainder - staged_len;
       if (range_len > kStageRangeBytes) range_len = kStageRangeBytes;
       const size_t range_end = range_start + range_len - 1;
       bool range_ok = false;
-      const size_t block_index = staged_len / kStageBlockBytes;
+      const size_t block_index =
+          kStageCompleteImage ? staged_len / kStageBlockBytes : 0;
       uint8_t* const stage_block = stage.block(block_index);
       if (!stage_block || range_len > stage.blockSize(block_index)) {
         error_out = "invalid OTA staging block";
@@ -864,7 +904,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
         HeadBufferCtx stage_ctx{stage_block, range_len, 0};
         stage_ctx.progress_base = range_start;
         stage_ctx.progress_total = total_sz;
-        stage_ctx.progress = progress;
+        stage_ctx.progress = kStageCompleteImage ? progress : nullptr;
         error_out = "";
 
         Serial.printf("[Update] Lade Range %u-%u (Versuch %u/%u)\n",
@@ -901,18 +941,38 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
         break;
       }
 
+      if (!kStageCompleteImage &&
+          !writeUpdateBytes(stage_block, range_len, &write_ctx)) {
+        if (!error_out.length()) error_out = Update.errorString();
+        failed = true;
+        break;
+      }
+
       staged_len += range_len;
-      if (progress) progress(head_ctx.len + staged_len, total_sz);
+      if (kStageCompleteImage && progress) {
+        progress(head_ctx.len + staged_len, total_sz);
+      }
       Serial.printf("[Update] Download progress: %u / %u Bytes\n",
                     static_cast<unsigned>(head_ctx.len + staged_len),
                     static_cast<unsigned>(total_sz));
-      if (staged_len < stage_capacity) delay(kStageRangePauseMs);
+      if (staged_len < image_remainder) {
+        delay(kStageCompleteImage ? kStageRangePauseMs : 20);
+      }
     }
 
     if (!failed) {
-      Serial.printf("[Update] Download vollstaendig im PSRAM: %u / %u Bytes\n",
-                    static_cast<unsigned>(head_ctx.len + staged_len),
-                    static_cast<unsigned>(total_sz));
+      if (kStageCompleteImage) {
+        Serial.printf(
+            "[Update] Download vollstaendig im PSRAM: %u / %u Bytes\n",
+            static_cast<unsigned>(head_ctx.len + staged_len),
+            static_cast<unsigned>(total_sz));
+      } else {
+        reportInstallProgress(write_ctx, true);
+        Serial.printf(
+            "[Update] Range-Download und Installation vollstaendig: %u / %u Bytes\n",
+            static_cast<unsigned>(head_ctx.len + staged_len),
+            static_cast<unsigned>(total_sz));
+      }
     }
   }
 
@@ -923,7 +983,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
   net_buf = nullptr;
   if (!failed) delay(50);
 
-  if (!failed) {
+  if (!failed && kStageCompleteImage) {
     if (!Update.begin(total_sz, U_FLASH)) {
       error_out = Update.errorString();
       failed = true;
@@ -933,8 +993,6 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
       update_started = true;
       Serial.printf("[Update] Update.begin OK, Groesse: %u\n",
                     static_cast<unsigned>(total_sz));
-      UpdateWriteCtx write_ctx;
-      write_ctx.written = 0;
       write_ctx.total = total_sz;
       write_ctx.progress = progress;
       write_ctx.error = &error_out;

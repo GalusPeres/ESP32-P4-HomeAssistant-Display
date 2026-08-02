@@ -3,7 +3,9 @@ param(
     [ValidateSet('tab5', 'waveshare_b4', 'waveshare_7', 'waveshare_8', 'waveshare_10_1', 'layout_test_1024x600', 'layout_test_480x480', 'guition_jc8012p4a1', 'guition_jc1060p470c', 'guition_esp32_4848s040')]
     [string]$Profile,
 
-    [string]$OutputDirectory
+    [string]$OutputDirectory,
+
+    [string[]]$ExtraDefine = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -70,7 +72,14 @@ if ($Profile -ne 'guition_esp32_4848s040') {
 }
 
 $commonFlags = "-DLV_CONF_INCLUDE_SIMPLE -I$repoRoot -I$libraries"
-$cppFlags = "-DHOMETILES_CI_TARGET -D$($defines[$Profile]) $commonFlags"
+$extraDefineFlags = @()
+foreach ($define in $ExtraDefine) {
+    if ($define -notmatch '^[A-Za-z_][A-Za-z0-9_]*(=.*)?$') {
+        throw "Invalid extra compiler define: $define"
+    }
+    $extraDefineFlags += "-D$define"
+}
+$cppFlags = "-DHOMETILES_CI_TARGET -D$($defines[$Profile]) $($extraDefineFlags -join ' ') $commonFlags"
 $cFlags = $cppFlags
 
 Move-Item -LiteralPath $sketchProfiles -Destination $hiddenSketchProfiles
@@ -128,6 +137,16 @@ if ($Profile -ne 'guition_esp32_4848s040') {
         Select-String -SimpleMatch 'HomeTiles RPC sync serialization active'
     if (-not $rpcSerializationMarker) {
         throw "ESP-Hosted RPC serialization marker missing from $firmwareBin"
+    }
+    $sdioRxRecoveryMarker = $firmwareStrings |
+        Select-String -SimpleMatch 'HomeTiles SDIO RX recovery active (a8204f9 raw PKT_LEN + pending drain)'
+    if (-not $sdioRxRecoveryMarker) {
+        throw "ESP-Hosted PKT_LEN/pending RX recovery marker missing from $firmwareBin"
+    }
+    $obsoletePktLenDrop = $firmwareStrings |
+        Select-String -SimpleMatch 'PKT_LEN reg all-ones (bus read error); dropping read'
+    if ($obsoletePktLenDrop) {
+        throw "Obsolete masked PKT_LEN drop path found in $firmwareBin"
     }
 }
 

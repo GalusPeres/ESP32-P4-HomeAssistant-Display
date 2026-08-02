@@ -1,13 +1,24 @@
 #include "src/devices/guition_esp32_4848s040/device_guition_esp32_4848s040.h"
+#include "src/devices/device_select.h"
 
 #if defined(DEVICE_GUITION_ESP32_4848S040)
 
 #include <Arduino.h>
+
+// Arduino_GFX 1.6.5 keeps the ESP-IDF panel handle private and exposes no
+// restart method. This access-specifier shim is local to this translation unit
+// and does not change the class layout or the library ABI. It lets the board
+// driver call ESP-IDF's public esp_lcd_rgb_panel_restart() after a main-flash
+// write. Remove it once Arduino_ESP32RGBPanel provides a handle/restart API.
+#define private public
 #include <Arduino_GFX_Library.h>
+#undef private
+
 #include <LittleFS.h>
 #include <SD.h>
 #include <SPI.h>
 #include <Wire.h>
+#include <esp_err.h>
 #include <esp_heap_caps.h>
 
 #include <algorithm>
@@ -61,7 +72,73 @@ constexpr int8_t kSdCs = 42;
 constexpr uint32_t kSdFrequency = 20000000;
 
 constexpr uint32_t kSdRetryMs = 1500;
-constexpr size_t kRgbBounceBufferPixels = 480 * 10;
+
+#if (defined(CONFIG_SPIRAM_XIP_FROM_PSRAM) && CONFIG_SPIRAM_XIP_FROM_PSRAM) || \
+    ((defined(CONFIG_SPIRAM_FETCH_INSTRUCTIONS) && CONFIG_SPIRAM_FETCH_INSTRUCTIONS) && \
+     (defined(CONFIG_SPIRAM_RODATA) && CONFIG_SPIRAM_RODATA))
+#define HOMETILES_GUITION_S3_HAS_PSRAM_XIP 1
+#else
+#define HOMETILES_GUITION_S3_HAS_PSRAM_XIP 0
+#endif
+
+#if defined(CONFIG_ESP32S3_DATA_CACHE_LINE_64B) && \
+    CONFIG_ESP32S3_DATA_CACHE_LINE_64B
+#define HOMETILES_GUITION_S3_HAS_CACHE_LINE_64B 1
+#else
+#define HOMETILES_GUITION_S3_HAS_CACHE_LINE_64B 0
+#endif
+
+#ifndef HOMETILES_GUITION_S3_RGB_TEST_VARIANT
+#define HOMETILES_GUITION_S3_RGB_TEST_VARIANT 0
+#endif
+
+#if HOMETILES_GUITION_S3_RGB_TEST_VARIANT == 1
+#define HOMETILES_GUITION_S3_RGB_TEST_LABEL "A-driver-fix-bounce10"
+#define HOMETILES_GUITION_S3_RGB_BOUNCE_ROWS 10
+#elif HOMETILES_GUITION_S3_RGB_TEST_VARIANT == 2
+#define HOMETILES_GUITION_S3_RGB_TEST_LABEL "B-driver-fix-bounce20"
+#define HOMETILES_GUITION_S3_RGB_BOUNCE_ROWS 20
+#elif HOMETILES_GUITION_S3_RGB_TEST_VARIANT == 0
+#if HOMETILES_GUITION_S3_HAS_PSRAM_XIP && \
+    HOMETILES_GUITION_S3_HAS_CACHE_LINE_64B
+#define HOMETILES_GUITION_S3_RGB_TEST_LABEL "release-xip-bounce10"
+#define HOMETILES_GUITION_S3_RGB_BOUNCE_ROWS 10
+#else
+// Arduino_GFX's example for this exact panel uses a direct PSRAM framebuffer
+// without the cache-fed RGB bounce path. On the stock Arduino SDK that is the
+// safer mode: the external-memory cache is disabled during main-flash writes,
+// so a bounce ISR cannot refill its internal line buffers reliably.
+#define HOMETILES_GUITION_S3_RGB_TEST_LABEL "release-direct-flash-guard"
+#define HOMETILES_GUITION_S3_RGB_BOUNCE_ROWS 0
+#endif
+#else
+#error "Unknown Guition S3 RGB test variant"
+#endif
+
+constexpr uint32_t kRgbPclkHz = 10000000;
+constexpr size_t kRgbBounceBufferPixels =
+    480 * HOMETILES_GUITION_S3_RGB_BOUNCE_ROWS;
+constexpr uint32_t kRgbHorizontalTotal = 480 + 10 + 8 + 50;
+constexpr uint32_t kRgbVerticalTotal = 480 + 10 + 8 + 20;
+constexpr uint32_t kRgbFramePeriodMs =
+    ((kRgbHorizontalTotal * kRgbVerticalTotal * 1000U) + kRgbPclkHz - 1U) /
+    kRgbPclkHz;
+constexpr uint32_t kStorageRecoveryMs = kRgbFramePeriodMs * 2U;
+constexpr bool kHasPsramXip = HOMETILES_GUITION_S3_HAS_PSRAM_XIP != 0;
+constexpr bool kHasCacheLine64 =
+    HOMETILES_GUITION_S3_HAS_CACHE_LINE_64B != 0;
+#if defined(CONFIG_COMPILER_OPTIMIZATION_PERF) && \
+    CONFIG_COMPILER_OPTIMIZATION_PERF
+constexpr const char* kCompilerOptimization = "O2";
+#else
+constexpr const char* kCompilerOptimization = "size";
+#endif
+#if defined(CONFIG_LCD_RGB_RESTART_IN_VSYNC) && \
+    CONFIG_LCD_RGB_RESTART_IN_VSYNC
+constexpr bool kRestartInVsync = true;
+#else
+constexpr bool kRestartInVsync = false;
+#endif
 
 Arduino_DataBus* g_panel_bus = nullptr;
 Arduino_ESP32RGBPanel* g_rgb_panel = nullptr;
@@ -76,8 +153,13 @@ bool g_sd_available = false;
 bool g_sd_init_attempted = false;
 uint32_t g_sd_retry_tick_ms = 0;
 uint8_t g_brightness = 0;
+uint8_t g_applied_brightness = 0;
 uint8_t g_rotation = DeviceGuitionESP324848S040::kProfile.rotation_default;
 uint8_t g_touch_address = 0;
+uint16_t g_storage_write_depth = 0;
+bool g_storage_blackout_active = false;
+bool g_storage_restart_required = false;
+uint8_t g_storage_restore_brightness = 0;
 
 void ensureStorageLayout() {
   if (!g_littlefs_ready) return;
@@ -167,6 +249,7 @@ void applyBrightness(uint8_t value, bool remember = true) {
   const uint32_t duty =
       (static_cast<uint32_t>(value) * kBacklightMaxDuty + 127u) / 255u;
   ledcWrite(kBacklightPin, duty);
+  g_applied_brightness = value;
 }
 
 bool initDisplay() {
@@ -181,7 +264,7 @@ bool initDisplay() {
       kPanelB0, kPanelB1, kPanelB2, kPanelB3, kPanelB4,
       1, 10, 8, 50,
       1, 10, 8, 20,
-      0, 10000000, false,
+      0, kRgbPclkHz, false,
       0, 0, kRgbBounceBufferPixels);
   g_gfx = new Arduino_RGB_Display(
       480, 480, g_rgb_panel, g_rotation, true, g_panel_bus, GFX_NOT_DEFINED,
@@ -196,9 +279,17 @@ bool initDisplay() {
   g_gfx->fillScreen(0x0000);
   g_display_ready = true;
   Serial.printf(
-      "[Device/GUITION ESP32-4848S040] Display ready, PCLK=10 MHz, "
-      "bounce=%u px, PSRAM free=%u KB\n",
+      "[Device/GUITION ESP32-4848S040] Display ready, test=%s, "
+      "PCLK=%u MHz, bounce=%u rows/%u px, XIP=%u, cache-line=%u B, "
+      "opt=%s, VSYNC-restart=%u, PSRAM free=%u KB\n",
+      HOMETILES_GUITION_S3_RGB_TEST_LABEL,
+      static_cast<unsigned>(kRgbPclkHz / 1000000),
+      static_cast<unsigned>(HOMETILES_GUITION_S3_RGB_BOUNCE_ROWS),
       static_cast<unsigned>(kRgbBounceBufferPixels),
+      kHasPsramXip ? 1U : 0U,
+      kHasCacheLine64 ? 64U : 32U,
+      kCompilerOptimization,
+      kRestartInVsync ? 1U : 0U,
       static_cast<unsigned>(
           heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
   return true;
@@ -448,6 +539,63 @@ bool DeviceGuitionESP324848S040::storageReady() {
 
 fs::FS& DeviceGuitionESP324848S040::storageFS() {
   return LittleFS;
+}
+
+void DeviceGuitionESP324848S040::storageWriteBegin() {
+  if (g_storage_write_depth < UINT16_MAX) {
+    ++g_storage_write_depth;
+  }
+  if (g_storage_write_depth != 1) return;
+
+  // Espressif's supported bounce mode is safe across main-flash writes only
+  // with PSRAM XIP and a 64-byte S3 cache line. The stock Arduino SDK has
+  // neither. Mark the continuous RGB stream for an explicit restart and hide
+  // the short underflow while the flash cache is unavailable.
+  if (kHasPsramXip && kHasCacheLine64) return;
+  if (!g_display_ready) return;
+
+  g_storage_restart_required = true;
+  if (!g_backlight_ready || g_applied_brightness == 0) return;
+
+  g_storage_blackout_active = true;
+  g_storage_restore_brightness = g_applied_brightness;
+  applyBrightness(0, false);
+  delay(2);
+}
+
+void DeviceGuitionESP324848S040::storageWriteEnd() {
+  if (g_storage_write_depth == 0) return;
+  --g_storage_write_depth;
+  if (g_storage_write_depth != 0) return;
+
+  const bool restart_required = g_storage_restart_required;
+  const bool restore_backlight = g_storage_blackout_active;
+  const uint8_t restore_brightness = g_storage_restore_brightness;
+  g_storage_restart_required = false;
+  g_storage_blackout_active = false;
+  g_storage_restore_brightness = 0;
+
+  if (restart_required) {
+    esp_err_t restart_result = ESP_ERR_INVALID_STATE;
+    if (g_rgb_panel && g_rgb_panel->_panel_handle) {
+      // ESP-IDF schedules this restart on the next VSYNC, resetting the DMA
+      // scan position that otherwise remains wrapped after a flash write.
+      restart_result =
+          esp_lcd_rgb_panel_restart(g_rgb_panel->_panel_handle);
+    }
+    if (restart_result != ESP_OK) {
+      Serial.printf(
+          "[Display/S3] RGB restart after flash write failed: %s (0x%X)\n",
+          esp_err_to_name(restart_result),
+          static_cast<unsigned>(restart_result));
+    }
+
+    // One frame reaches the scheduled VSYNC restart; the second is fully clean
+    // before the backlight becomes visible again.
+    delay(kStorageRecoveryMs);
+  }
+
+  if (restore_backlight) applyBrightness(restore_brightness, false);
 }
 
 bool DeviceGuitionESP324848S040::sdReady() {

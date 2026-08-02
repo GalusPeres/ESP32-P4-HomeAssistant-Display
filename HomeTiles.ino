@@ -101,6 +101,21 @@ static void log_memory_status(const char* tag) {
                 psram_free / 1024,
                 psram_largest / 1024,
                 ESP.getPsramSize() / 1024);
+  if (lv_is_initialized()) {
+    lv_mem_monitor_t lv_mem{};
+    lv_mem_monitor(&lv_mem);
+    Serial.printf(
+        "[LVGL/Mem] %s | Total=%u KB | Used=%u KB (%u%%) | "
+        "Max used=%u KB | Free=%u KB | Largest=%u KB | Frag=%u%%\n",
+        tag ? tag : "?",
+        static_cast<unsigned>(lv_mem.total_size / 1024),
+        static_cast<unsigned>((lv_mem.total_size - lv_mem.free_size) / 1024),
+        static_cast<unsigned>(lv_mem.used_pct),
+        static_cast<unsigned>(lv_mem.max_used / 1024),
+        static_cast<unsigned>(lv_mem.free_size / 1024),
+        static_cast<unsigned>(lv_mem.free_biggest_size / 1024),
+        static_cast<unsigned>(lv_mem.frag_pct));
+  }
   Serial.flush();
 }
 

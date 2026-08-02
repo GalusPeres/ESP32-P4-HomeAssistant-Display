@@ -4,11 +4,7 @@
  * Glyphs: LVGL OK, navigation, keyboard, backspace and enter symbols only
  ******************************************************************************/
 
-#ifdef LV_LVGL_H_INCLUDE_SIMPLE
 #include "lvgl.h"
-#else
-#include "lvgl/lvgl.h"
-#endif
 
 #ifndef UI_SYMBOLS_24
 #define UI_SYMBOLS_24 1

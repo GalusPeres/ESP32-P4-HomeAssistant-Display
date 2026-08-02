@@ -1,0 +1,47 @@
+diff --git a/host/drivers/transport/sdio/sdio_drv.c b/host/drivers/transport/sdio/sdio_drv.c
+--- a/host/drivers/transport/sdio/sdio_drv.c
++++ b/host/drivers/transport/sdio/sdio_drv.c
+@@ -96,6 +96,8 @@ static const char TAG[] = "H_SDIO_DRV";
+  */
+ #define DO_COMBINED_REG_READ (1)
+ 
++#define H_TOKEN_RDATA_MODE (1)
++
+ /** Constants/Macros **/
+ 
+ // default queue sizes if unable to get from transport config
+@@ -383,8 +385,22 @@ static int sdio_get_tx_buffer_num(uint32_t *tx_num, bool is_lock_needed)
+ 	uint32_t len = 0;
+ 	int ret = 0;
+ 
++#if H_TOKEN_RDATA_MODE == 1
++	uint8_t bytes[sizeof(len)];
++	for (size_t i = 0; i < sizeof(bytes); ++i) {
++		ret = g_h.funcs->_h_sdio_read_reg(sdio_handle,
++			ESP_SLAVE_TOKEN_RDATA + i, &bytes[i], 1, is_lock_needed);
++		if (ret) {
++			break;
++		}
++	}
++	if (ret == 0) {
++		memcpy(&len, bytes, sizeof(len));
++	}
++#else
+ 	ret = g_h.funcs->_h_sdio_read_reg(sdio_handle, ESP_SLAVE_TOKEN_RDATA, (uint8_t *)&len,
+ 		sizeof(len), is_lock_needed);
++#endif
+ 
+ 	if (ret) {
+ 		ESP_LOGE(TAG, "%s: err: %d", __func__, ret);
+diff --git a/host/port/esp/freertos/include/port_esp_hosted_host_config.h b/host/port/esp/freertos/include/port_esp_hosted_host_config.h
+--- a/host/port/esp/freertos/include/port_esp_hosted_host_config.h
++++ b/host/port/esp/freertos/include/port_esp_hosted_host_config.h
+@@ -232,7 +232,7 @@
+    * - for Host Tx: slave will ignore extra data sent by Host
+    * - for Host Rx: slave will send extra 0 data, ignored by Host
+    */
+-  #define H_SDIO_TX_BLOCK_ONLY_XFER (1)
++  #define H_SDIO_TX_BLOCK_ONLY_XFER (0)
+   #define H_SDIO_RX_BLOCK_ONLY_XFER (1)
+ 
+   // workarounds for some SDIO transfer errors that may occur

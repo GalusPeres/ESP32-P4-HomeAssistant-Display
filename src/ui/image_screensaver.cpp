@@ -16,6 +16,7 @@
 #include <misc/cache/instance/lv_image_cache.h>
 
 #include "src/core/dma2d_arbiter.h"
+#include "src/core/psram_budget.h"
 #include "src/core/config_manager.h"
 #include "src/core/display_manager.h"
 #include "src/devices/device.h"
@@ -43,7 +44,7 @@ constexpr uint32_t kMaxDecodePixels = 2048U * 2048U;
 
 // Nach den Decode-Puffern muss genug PSRAM fuer den Rest der UI uebrig
 // bleiben (Cover-Worker, Popups, LVGL-Zwischenpuffer).
-constexpr size_t kPsramReserveBytes = 4U * 1024U * 1024U;
+constexpr size_t kMaxPsramReserveBytes = 4U * 1024U * 1024U;
 constexpr size_t kPpaBufferAlignment = 64;
 constexpr uint16_t kImageRadius =
     static_cast<uint16_t>(tile_layout::scale(26));
@@ -134,7 +135,9 @@ void* alloc_aligned_prefer_psram(size_t bytes) {
 bool psram_budget_ok(size_t needed) {
   const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
   const size_t free_total = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
-  return largest >= needed && free_total >= needed + kPsramReserveBytes;
+  const size_t reserve =
+      psram_budget::fractionCapped(kMaxPsramReserveBytes);
+  return largest >= needed && free_total >= needed + reserve;
 }
 
 void free_screensaver_dsc(lv_image_dsc_t*& dsc) {
