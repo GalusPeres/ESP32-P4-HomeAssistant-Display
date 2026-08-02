@@ -37,6 +37,10 @@ public:
   // Display-Sleep-Modus verwalten (Display aus, CPU minimal, Touch bleibt aktiv)
   void enterDisplaySleep();
   void wakeFromDisplaySleep(const char* reason = "unknown");
+  // Aktualisiert die aktuell gewuenschte Backlight-Stufe. Im Display-Sleep
+  // wird nur der beim Aufwachen wiederherzustellende Wert geaendert; das
+  // Backlight bleibt dabei sicher aus.
+  void setDisplayBrightness(uint8_t brightness);
   bool isInSleep() const { return is_display_sleeping; }
   bool isTouchWakeEnabled() const;
   bool isImuWakeEnabled() const;

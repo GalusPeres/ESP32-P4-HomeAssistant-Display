@@ -4,6 +4,7 @@
 #include "src/ui/tab_settings.h"
 #include "src/core/config_manager.h"
 #include "src/core/board_hal.h"
+#include "src/core/power_manager.h"
 #include "src/network/network_manager.h"
 #include "src/network/network_transport.h"
 #include "src/tiles/mdi_icons.h"
@@ -23,10 +24,12 @@
 #include "src/ui/ui_keyboard.h"
 #include "src/ui/hometiles_logo.h"
 #include "src/ui/popup_layout.h"
+#include "src/ui/image_screensaver.h"
 #include "src/ui/ui_surface_style.h"
 #include "src/ui/weather_popup.h"
 
 static lv_obj_t *brightness_label = nullptr;
+static lv_obj_t *screensaver_brightness_value_label = nullptr;
 static lv_obj_t *display_rotate_btn = nullptr;
 static lv_obj_t *display_rotate_label = nullptr;
 static lv_obj_t *display_rotate_text_label = nullptr;
@@ -172,6 +175,7 @@ static lv_obj_t *ap_confirm_yes_btn = nullptr;
 static lv_obj_t *ap_confirm_no_btn = nullptr;
 static lv_obj_t *display_section_label = nullptr;
 static lv_obj_t *brightness_title_label = nullptr;
+static lv_obj_t *screensaver_brightness_title_label = nullptr;
 static lv_obj_t *wifi_section_label = nullptr;
 static lv_obj_t *ap_yes_label_obj = nullptr;
 static lv_obj_t *ap_no_label_obj = nullptr;
@@ -190,6 +194,7 @@ static lv_obj_t *sleep_label = nullptr;
 static lv_obj_t *screensaver_slider = nullptr;
 static lv_obj_t *screensaver_time_label = nullptr;
 static lv_obj_t *screensaver_label = nullptr;
+static lv_obj_t *screensaver_brightness_slider = nullptr;
 
 // Power Status Labels (stubs -> no battery display)
 static lv_obj_t *power_status_label = nullptr;
@@ -448,6 +453,36 @@ static void on_brightness(lv_event_t *e) {
         wake_mode_battery);
     mqttPublishDeviceSettings();
     update_settings_tile_summaries();
+  }
+}
+
+static void on_screensaver_brightness(lv_event_t *e) {
+  lv_obj_t *slider = static_cast<lv_obj_t*>(lv_event_get_target(e));
+  const lv_event_code_t code = lv_event_get_code(e);
+  int32_t pct = lv_slider_get_value(slider);
+  if (pct < kScreensaverBrightnessPctMin) pct = kScreensaverBrightnessPctMin;
+  if (pct > kScreensaverBrightnessPctMax) pct = kScreensaverBrightnessPctMax;
+
+  static char buf[16];
+  snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(pct));
+  if (screensaver_brightness_value_label) {
+    lv_label_set_text(screensaver_brightness_value_label, buf);
+  }
+
+  if (code == LV_EVENT_VALUE_CHANGED) {
+    // Beim Ziehen kurz die echte Dimmstufe zeigen. Nach dem Loslassen kehrt
+    // der Einstellungs-Screen zur normalen Display-Helligkeit zurueck.
+    BoardHAL::setBrightness(
+        Device::backlightRawFromPercent(static_cast<uint8_t>(pct)));
+  } else if (code == LV_EVENT_RELEASED) {
+    configManager.saveScreensaverBrightness(static_cast<uint8_t>(pct));
+    BoardHAL::setBrightness(configManager.getConfig().display_brightness);
+    image_screensaver_brightness_changed();
+    mqttPublishDeviceSettings();
+  } else if (code == LV_EVENT_PRESS_LOST) {
+    // Ein abgebrochener Drag ist keine Einstellung. Die Vorschau darf das
+    // normale Dashboard danach nicht dauerhaft gedimmt lassen.
+    BoardHAL::setBrightness(configManager.getConfig().display_brightness);
   }
 }
 
@@ -929,12 +964,14 @@ static void reset_popup_refs() {
   settings_popup_kb_spacer = nullptr;
 
   brightness_label = nullptr;
+  screensaver_brightness_value_label = nullptr;
   // WICHTIG: wird in build_display_popup gesetzt - ohne das Nullen hier
   // zeigte der Pointer nach dem Schliessen des Display-Popups ins Leere und
   // der naechste settings_refresh_language()-Aufruf (Sprachwechsel!) schrieb
   // per lv_label_set_text in freigegebenen Speicher -> Guru Meditation
   // (Store access fault in lv_label_revert_dots; Tab5-Crash 2026-07-05).
   brightness_title_label = nullptr;
+  screensaver_brightness_title_label = nullptr;
   display_rotate_btn = nullptr;
   display_rotate_label = nullptr;
   display_rotate_text_label = nullptr;
@@ -945,6 +982,7 @@ static void reset_popup_refs() {
   screensaver_slider = nullptr;
   screensaver_time_label = nullptr;
   screensaver_label = nullptr;
+  screensaver_brightness_slider = nullptr;
   ap_mode_btn = nullptr;
   ap_mode_btn_label = nullptr;
   wifi_disconnect_btn = nullptr;
@@ -1006,6 +1044,12 @@ static void close_settings_popup() {
     ap_btn_cooldown_timer = nullptr;
   }
   if (networkTransport.isWifiDriverActive()) WiFi.scanDelete();
+  // Falls der Screensaver-Helligkeitsregler waehrend einer laufenden
+  // Vorschau geschlossen wird, immer zur normalen Helligkeit zurueckkehren.
+  if (settings_popup_kind == SettingsPopupKind::Display) {
+    powerManager.setDisplayBrightness(
+        configManager.getConfig().display_brightness);
+  }
   if (settings_popup_overlay) {
     lv_obj_del(settings_popup_overlay);
   }
@@ -1783,11 +1827,11 @@ static void build_display_popup(lv_obj_t* parent) {
   const DeviceConfig& cfg = configManager.getConfig();
   lv_obj_t* form = create_form_area(parent);
   lv_obj_clear_flag(form, LV_OBJ_FLAG_SCROLLABLE);
-  // Vier Reihen: mit festem Abstand von oben und ausreichend Luft dazwischen -
+  // Fuenf Reihen: mit festem Abstand von oben und ausreichend Luft dazwischen -
   // nicht ganz oben angeklebt (wirkte verloren), aber auch nicht komplett
   // mittig (User-Wunsch).
-  lv_obj_set_style_pad_top(form, popup_layout::scale(48), 0);
-  lv_obj_set_style_pad_row(form, popup_layout::scale(26), 0);
+  lv_obj_set_style_pad_top(form, popup_layout::scale(32), 0);
+  lv_obj_set_style_pad_row(form, popup_layout::scale(18), 0);
 
   // Schmalere Beschriftungs-/Wertspalten als frueher (210/150): der
   // Slider dazwischen bekommt den gewonnenen Platz.
@@ -1863,6 +1907,40 @@ static void build_display_popup(lv_obj_t* parent) {
   screensaver_time_label = create_display_row_label(
       screensaver_row, screensaver_buf, popup_layout::scale(130),
       LV_TEXT_ALIGN_RIGHT);
+
+  lv_obj_t* screensaver_brightness_row = create_display_control_row(form);
+  screensaver_brightness_title_label = create_display_row_label(
+      screensaver_brightness_row, tr().screensaver_brightness_label,
+      popup_layout::scale(170));
+  lv_label_set_long_mode(screensaver_brightness_title_label,
+                         LV_LABEL_LONG_WRAP);
+
+  screensaver_brightness_slider =
+      lv_slider_create(screensaver_brightness_row);
+  style_settings_slider(screensaver_brightness_slider);
+  lv_obj_set_width(screensaver_brightness_slider, 1);
+  lv_obj_set_flex_grow(screensaver_brightness_slider, 1);
+  lv_slider_set_range(screensaver_brightness_slider,
+                      kScreensaverBrightnessPctMin,
+                      kScreensaverBrightnessPctMax);
+  lv_slider_set_value(screensaver_brightness_slider,
+                      cfg.screensaver_brightness_pct, LV_ANIM_OFF);
+  lv_obj_add_event_cb(screensaver_brightness_slider,
+                      on_screensaver_brightness, LV_EVENT_VALUE_CHANGED,
+                      nullptr);
+  lv_obj_add_event_cb(screensaver_brightness_slider,
+                      on_screensaver_brightness, LV_EVENT_RELEASED, nullptr);
+  lv_obj_add_event_cb(screensaver_brightness_slider,
+                      on_screensaver_brightness, LV_EVENT_PRESS_LOST,
+                      nullptr);
+
+  static char screensaver_brightness_buf[16];
+  snprintf(screensaver_brightness_buf, sizeof(screensaver_brightness_buf),
+           "%u%%",
+           static_cast<unsigned>(cfg.screensaver_brightness_pct));
+  screensaver_brightness_value_label = create_display_row_label(
+      screensaver_brightness_row, screensaver_brightness_buf,
+      popup_layout::scale(130), LV_TEXT_ALIGN_RIGHT);
 
   // Rotation als vollbreiter Button mit Icon + Beschriftung im Button
   // (statt "Rotation"-Label links neben einem Icon-Button)
@@ -3153,10 +3231,12 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
 
   display_section_label = nullptr;
   brightness_title_label = nullptr;
+  screensaver_brightness_title_label = nullptr;
   wifi_section_label = nullptr;
   sleep_section_label = nullptr;
   sleep_label = nullptr;
   brightness_label = nullptr;
+  screensaver_brightness_value_label = nullptr;
   display_rotate_btn = nullptr;
   display_rotate_label = nullptr;
   display_rotate_sub_label = nullptr;
@@ -3165,6 +3245,7 @@ void build_settings_tab(lv_obj_t *tab, hotspot_callback_t hotspot_cb) {
   screensaver_slider = nullptr;
   screensaver_time_label = nullptr;
   screensaver_label = nullptr;
+  screensaver_brightness_slider = nullptr;
   ap_mode_btn = nullptr;
   ap_mode_btn_label = nullptr;
   wifi_disconnect_btn = nullptr;
@@ -3264,6 +3345,10 @@ void settings_refresh_language() {
   if (settings_popup_title) lv_label_set_text(settings_popup_title, popup_title_for_kind(settings_popup_kind));
   if (display_section_label) lv_label_set_text(display_section_label, s.display_label);
   if (brightness_title_label) lv_label_set_text(brightness_title_label, s.brightness_label);
+  if (screensaver_brightness_title_label) {
+    lv_label_set_text(screensaver_brightness_title_label,
+                      s.screensaver_brightness_label);
+  }
   if (display_rotate_text_label) lv_label_set_text(display_rotate_text_label, s.display_rotate_btn_text);
   if (wifi_section_label) lv_label_set_text(wifi_section_label, s.wifi_label);
   if (sleep_section_label) lv_label_set_text(sleep_section_label, s.sleep_label);

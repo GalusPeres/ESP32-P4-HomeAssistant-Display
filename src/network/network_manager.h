@@ -124,7 +124,9 @@ public:
   // Telemetrie (Loop-Task; sendet ueber die Outbound-Queue)
   void publishTelemetry();
   void publishBridgeConfig();
-  void publishBridgeRequest();
+  // Leere Requests sind der leichte periodische Dirty-Check. Ein explizites
+  // "force" wird nur fuer den manuellen Admin-Refresh gesendet.
+  void publishBridgeRequest(bool force = false);
   const char* getBridgeApplyTopic() const;
   const char* getBridgeRequestTopic() const;
   const char* getHistoryRequestTopic() const;

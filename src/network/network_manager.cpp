@@ -1530,12 +1530,13 @@ const char* HomeTilesNetworkManager::getBridgeApplyTopic() const {
   return bridge_apply_topic_.length() ? bridge_apply_topic_.c_str() : nullptr;
 }
 
-void HomeTilesNetworkManager::publishBridgeRequest() {
+void HomeTilesNetworkManager::publishBridgeRequest(bool force) {
   if (!isMqttConnected()) return;
   if (bridge_request_topic_.isEmpty()) return;
   mqttEnqueuePublishWithLargeBuffer(
-      bridge_request_topic_.c_str(), "", false, 30000);
-  Serial.println("[Network] Home Assistant Bridge-Aktualisierung angefordert");
+      bridge_request_topic_.c_str(), force ? "force" : "", false, 30000);
+  Serial.printf("[Network] Home Assistant Bridge-Aktualisierung angefordert%s\n",
+                force ? " (erzwungen)" : "");
 }
 
 const char* HomeTilesNetworkManager::getBridgeRequestTopic() const {

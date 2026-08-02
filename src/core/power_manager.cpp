@@ -210,6 +210,14 @@ void PowerManager::wakeFromDisplaySleep(const char* reason) {
   mqttPublishDeviceSettings();
 }
 
+void PowerManager::setDisplayBrightness(uint8_t brightness) {
+  if (is_display_sleeping) {
+    saved_brightness = brightness;
+    return;
+  }
+  BoardHAL::setBrightness(brightness);
+}
+
 void PowerManager::updatePowerMode() {
 }
 

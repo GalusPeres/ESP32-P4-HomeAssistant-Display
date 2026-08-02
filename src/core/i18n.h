@@ -119,6 +119,7 @@ struct Strings {
 
   const char* display_label;
   const char* brightness_label;
+  const char* screensaver_brightness_label;
   const char* hue_label;
   const char* saturation_label;
   const char* sleep_label;

@@ -19,6 +19,8 @@ const MqttTopicRegistry::TopicDescriptor MqttTopicRegistry::kDescriptors[] = {
   {TopicKey::HA_WOHN_TEMP, TopicDomain::HaStatestream, "sensor/og_wohnbereich_sensor_temperatur/state"},
   {TopicKey::DISPLAY_BRIGHTNESS_CMND, TopicDomain::Command, "display_brightness"},
   {TopicKey::DISPLAY_BRIGHTNESS_STAT, TopicDomain::State, "display_brightness"},
+  {TopicKey::SCREENSAVER_BRIGHTNESS_CMND, TopicDomain::Command, "screensaver_brightness"},
+  {TopicKey::SCREENSAVER_BRIGHTNESS_STAT, TopicDomain::State, "screensaver_brightness"},
   {TopicKey::DISPLAY_ROTATE_CMND, TopicDomain::Command, "display_rotate"},
   {TopicKey::DISPLAY_ROTATE_STAT, TopicDomain::State, "display_rotate"},
   {TopicKey::DISPLAY_SLEEP_CMND, TopicDomain::Command, "display_sleep"},

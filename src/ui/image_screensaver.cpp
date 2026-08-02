@@ -19,6 +19,7 @@
 #include "src/core/psram_budget.h"
 #include "src/core/config_manager.h"
 #include "src/core/display_manager.h"
+#include "src/core/power_manager.h"
 #include "src/devices/device.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/tiles/tile_renderer.h"
@@ -89,6 +90,16 @@ ScreensaverState* g_state = nullptr;
 bool g_live_config_refresh_requested = false;
 bool g_live_grid_refresh_requested = false;
 String g_live_preview_wallpaper;
+
+void apply_configured_screensaver_brightness() {
+  powerManager.setDisplayBrightness(Device::backlightRawFromPercent(
+      configManager.getConfig().screensaver_brightness_pct));
+}
+
+void restore_configured_display_brightness() {
+  powerManager.setDisplayBrightness(
+      configManager.getConfig().display_brightness);
+}
 
 // Ein-Slot-Cache: das dekodierte Wallpaper bleibt in PSRAM (~2 MB), damit
 // das Oeffnen nach dem ersten Mal sofort geht. Ersetzt wird der Slot erst,
@@ -331,21 +342,6 @@ uint16_t* hw_decode_jpeg(const uint8_t* data, size_t len,
   // teilt — dieses Churn stand auf dem Tab5 im Verdacht, Transaktionen zu
   // verlieren ("PPA VERKLEMMT").
   static jpeg_decoder_handle_t s_engine = nullptr;
-  if (!s_engine) {
-    jpeg_decode_engine_cfg_t engine_cfg{};
-    engine_cfg.intr_priority = 0;
-    // Vollbilder brauchen laenger als ein 240er-Cover.
-    engine_cfg.timeout_ms = 500;
-    err = jpeg_new_decoder_engine(&engine_cfg, &s_engine);
-    if (err != ESP_OK || !s_engine) {
-      s_engine = nullptr;
-      free(decoded);
-      Serial.printf("[Screensaver] HW JPEG Engine nicht verfuegbar: %s\n",
-                    esp_err_to_name(err));
-      return nullptr;
-    }
-  }
-
   jpeg_decode_cfg_t decode_cfg{};
   decode_cfg.output_format = JPEG_DECODE_OUT_FORMAT_RGB565;
   decode_cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_RGB;
@@ -356,25 +352,41 @@ uint16_t* hw_decode_jpeg(const uint8_t* data, size_t len,
     // 2D-DMA-Pool, siehe dma2d_arbiter.h).
     Dma2dArbiterGuard dma2d_guard(2000);
     if (!dma2d_guard.locked()) {
-      Serial.println("[Screensaver] 2D-DMA-Arbiter Timeout, decode ungeschuetzt");
+      free(decoded);
+      Serial.println("[Screensaver] 2D-DMA-Arbiter Timeout, nutze SW-Fallback");
+      return nullptr;
+    }
+    if (!s_engine) {
+      jpeg_decode_engine_cfg_t engine_cfg{};
+      engine_cfg.intr_priority = 0;
+      // Vollbilder brauchen laenger als ein 240er-Cover.
+      engine_cfg.timeout_ms = 500;
+      err = jpeg_new_decoder_engine(&engine_cfg, &s_engine);
+      if (err != ESP_OK || !s_engine) {
+        s_engine = nullptr;
+        free(decoded);
+        Serial.printf("[Screensaver] HW JPEG Engine nicht verfuegbar: %s\n",
+                      esp_err_to_name(err));
+        return nullptr;
+      }
     }
     err = jpeg_decoder_process(s_engine, &decode_cfg, data,
                                static_cast<uint32_t>(len),
                                reinterpret_cast<uint8_t*>(decoded),
                                static_cast<uint32_t>(allocated_bytes),
                                &decoded_bytes);
-  }
-  if (err != ESP_OK || decoded_bytes < requested_bytes) {
-    free(decoded);
-    Serial.printf("[Screensaver] HW JPEG decode fehlgeschlagen: %s bytes=%u/%u\n",
-                  esp_err_to_name(err),
-                  static_cast<unsigned>(decoded_bytes),
-                  static_cast<unsigned>(requested_bytes));
-    // Wie beim Media-Cover: Engine nach Fehlschlag verwerfen statt mit
-    // moeglicherweise haengendem Zustand weiterzuarbeiten.
-    jpeg_del_decoder_engine(s_engine);
-    s_engine = nullptr;
-    return nullptr;
+    if (err != ESP_OK || decoded_bytes < requested_bytes) {
+      free(decoded);
+      Serial.printf("[Screensaver] HW JPEG decode fehlgeschlagen: %s bytes=%u/%u\n",
+                    esp_err_to_name(err),
+                    static_cast<unsigned>(decoded_bytes),
+                    static_cast<unsigned>(requested_bytes));
+      // Engine unter demselben Lock verwerfen, den ihr Shared-Pool-Lifecycle
+      // benoetigt.
+      jpeg_del_decoder_engine(s_engine);
+      s_engine = nullptr;
+      return nullptr;
+    }
   }
 
   out_w = static_cast<uint16_t>(info.width);
@@ -1187,6 +1199,7 @@ void on_global_overlay_delete(lv_event_t* e) {
     reset_switch_widgets(GridType::SCREENSAVER);
     reset_media_widgets(GridType::SCREENSAVER);
     g_state = nullptr;
+    restore_configured_display_brightness();
   }
   if (st->timer) lv_timer_delete(st->timer);
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
@@ -1224,7 +1237,13 @@ void show_image_screensaver() {
   // Das alte Overlay wird asynchron geloescht; ein zweiter State waehrend
   // dieses Abbaus waere unnoetig und macht Widget-/Cache-Lebenszeiten schwer
   // vorhersehbar.
-  if (g_state) return;
+  if (g_state || powerManager.isInSleep()) return;
+  const uint32_t started_ms = millis();
+  Serial.printf("[Screensaver] Aufbau startet | idle=%u ms | dim=%u%%\n",
+                static_cast<unsigned>(
+                    started_ms - displayManager.getLastActivityTime()),
+                static_cast<unsigned>(
+                    configManager.getConfig().screensaver_brightness_pct));
   ScreensaverState* st = new ScreensaverState();
   if (!st) return;
 
@@ -1262,12 +1281,16 @@ void show_image_screensaver() {
   apply_wallpaper(st, wallpaper, true);
   st->next_slot_refresh_ms = millis() + 1000U;
   st->timer = lv_timer_create(global_screensaver_timer_cb, 1000, st);
+  apply_configured_screensaver_brightness();
+  Serial.printf("[Screensaver] Sichtbar nach %u ms\n",
+                static_cast<unsigned>(millis() - started_ms));
 }
 
 void hide_image_screensaver() {
   ScreensaverState* st = g_state;
   if (!st) return;
   g_state = nullptr;
+  restore_configured_display_brightness();
   g_live_config_refresh_requested = false;
   g_live_grid_refresh_requested = false;
   g_live_preview_wallpaper = String();
@@ -1291,8 +1314,13 @@ bool is_image_screensaver_visible() {
   return g_state != nullptr;
 }
 
+void image_screensaver_brightness_changed() {
+  if (!g_state) return;
+  apply_configured_screensaver_brightness();
+}
+
 void service_image_screensaver_auto(uint32_t last_activity_ms) {
-  if (g_state) return;
+  if (g_state || powerManager.isInSleep()) return;
   const auto& config = configManager.getConfig();
   if (!config.auto_screensaver_enabled || config.auto_screensaver_seconds == 0) return;
   if (static_cast<uint32_t>(millis() - last_activity_ms) >=

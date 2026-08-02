@@ -1601,7 +1601,7 @@ void WebAdminServer::handleBridgeRefresh() {
                 "<h1>MQTT ist nicht verbunden - bitte später erneut versuchen.</h1>");
     return;
   }
-  networkManager.publishBridgeRequest();
+  networkManager.publishBridgeRequest(true);
   server.sendHeader("Location", "/");
   server.send(303, "text/plain", "");
 }
@@ -2405,6 +2405,7 @@ void WebAdminServer::handleGetEntityOptions() {
     for (const auto& opt : parseSensorList(ha.lights_text)) addSwitchOption(opt);
     for (const auto& opt : parseSensorList(ha.switches_text)) addSwitchOption(opt);
     addSwitchOption(kEntityDisplayBrightness);
+    addSwitchOption(kEntityScreensaverBrightness);
     addSwitchOption(kEntityDisplayRotate);
     addSwitchOption(kEntityDisplaySleep);
     appendHumanizedList(json, "switches", switch_options);

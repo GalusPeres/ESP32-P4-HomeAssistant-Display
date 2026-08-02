@@ -469,7 +469,7 @@ void UIManager::updateStatusbar() {
 
   // Trigger NTP whenever any shared network transport is connected.
 
-  if (!have_time && networkTransport.isConnected()) {
+  if (!have_time && networkTransport.isConnected() && !tz_configured) {
 
     scheduleNtpSync(0);
 
@@ -484,6 +484,7 @@ void UIManager::updateStatusbar() {
 void UIManager::scheduleNtpSync(uint32_t delay_ms) {
 
   next_ntp_sync_ms = millis() + delay_ms;
+  tz_configured = false;
 
 }
 
@@ -491,7 +492,7 @@ void UIManager::scheduleNtpSync(uint32_t delay_ms) {
 
 void UIManager::serviceNtpSync() {
 
-  if (!networkTransport.isConnected()) return;
+  if (!networkTransport.isConnected() || tz_configured) return;
 
 
 
@@ -502,11 +503,14 @@ void UIManager::serviceNtpSync() {
 
 
   const DeviceConfig& cfg = configManager.getConfig();
+  const uint32_t started_ms = millis();
+  Serial.println("[NTP] Konfiguration startet");
   configTzTime(timezone_spec_for_code(cfg.timezone), "pool.ntp.org", "time.nist.gov", "time.cloudflare.com");
 
   tz_configured = true;
 
-  next_ntp_sync_ms = now_ms + 3600000UL; // Stündlich neu syncen
+  Serial.printf("[NTP] Konfiguration abgeschlossen (%u ms)\n",
+                static_cast<unsigned>(millis() - started_ms));
 
 }
 

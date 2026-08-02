@@ -28,6 +28,9 @@ static constexpr uint8_t kDisplayRotationFlipped = 1;
 static constexpr uint8_t kDisplayRotationAuto = 2;
 static constexpr uint8_t kWakeModeTouch = 0;
 static constexpr uint8_t kWakeModeImu = 1;
+static constexpr uint8_t kScreensaverBrightnessPctMin = 1;
+static constexpr uint8_t kScreensaverBrightnessPctMax = 100;
+static constexpr uint8_t kScreensaverBrightnessPctDefault = 25;
 
 struct DeviceConfig {
   char wifi_ssid[CONFIG_WIFI_SSID_MAX];
@@ -54,7 +57,10 @@ struct DeviceConfig {
   bool configured;  // Flag ob Konfiguration vorhanden ist
 
   // Display & Power Settings
-  uint8_t display_brightness;  // 75-255
+  uint8_t display_brightness;  // Geraetespezifischer Rohwert, derzeit 121-255
+  // Einheitlicher sichtbarer Prozentwert. Die Umrechnung auf den jeweiligen
+  // Treiberbereich erfolgt ueber Device::backlightRawFromPercent().
+  uint8_t screensaver_brightness_pct;  // 1-100
   bool tile_borders;           // Feine Rahmen um normale Dashboard-Kacheln
   bool display_rotated_180;    // Display 180 deg gedreht?
   uint8_t display_rotation_quarters; // 0=0°, 1=90°, 2=180°, 3=270°
@@ -99,6 +105,7 @@ public:
                            uint8_t wake_mode_battery);
 
   bool saveScreensaverTimeout(bool enabled, uint16_t seconds);
+  bool saveScreensaverBrightness(uint8_t brightness_pct);
   bool saveTileBorders(bool enabled);
   bool saveEthernetEnabled(bool enabled);
   bool saveStaticAddressingEnabled(bool enabled);

@@ -1064,7 +1064,12 @@ void loop() {
     if (WiFi.status() == WL_CONNECTED ||
         (uint32_t)(now - tab5_brightness_cap_wait_since) > kTab5BrightnessRestoreTimeoutMs) {
       tab5_brightness_capped = false;
-      BoardHAL::setBrightness(configManager.getConfig().display_brightness);
+      if (is_image_screensaver_visible()) {
+        image_screensaver_brightness_changed();
+      } else {
+        powerManager.setDisplayBrightness(
+            configManager.getConfig().display_brightness);
+      }
       Serial.println("[Power] Brownout-Helligkeitsdrossel aufgehoben");
     } else if (BoardHAL::getBrightness() > kTab5SafeBrightness) {
       // Auch waehrend der Wartephase durchsetzen (Slider-Aenderung im
@@ -1073,6 +1078,13 @@ void loop() {
     }
   }
 #endif
+
+  // Ein sichtbarer/noch abbauender Kamerastream ist aktive Nutzung. So legen
+  // sich Screensaver und Display-Sleep nicht ueber die PPA-/JPEG-Pipeline;
+  // nach dem Schliessen beginnt das konfigurierte Idle-Intervall sauber neu.
+  if (camera_popup_is_busy()) {
+    displayManager.resetActivityTimer();
+  }
 
   service_image_screensaver_auto(displayManager.getLastActivityTime());
   if (first_run) Serial.println("[Loop] powerManager.update()...");

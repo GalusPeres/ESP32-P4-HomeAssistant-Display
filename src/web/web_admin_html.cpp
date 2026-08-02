@@ -730,6 +730,7 @@ bool buildAdminFolderTabFragments(uint16_t folder_id, String& button_html, Strin
   for (const auto& opt : lightOptions) addSwitchOption(opt);
   for (const auto& opt : switchOptionsRaw) addSwitchOption(opt);
   addSwitchOption(kEntityDisplayBrightness);
+  addSwitchOption(kEntityScreensaverBrightness);
   addSwitchOption(kEntityDisplayRotate);
   addSwitchOption(kEntityDisplaySleep);
 
@@ -824,6 +825,7 @@ String WebAdminServer::getAdminPage() {
     addSwitchOption(opt);
   }
   addSwitchOption(kEntityDisplayBrightness);
+  addSwitchOption(kEntityScreensaverBrightness);
   addSwitchOption(kEntityDisplayRotate);
   addSwitchOption(kEntityDisplaySleep);
   auto formatSensorValue = [](const String& raw, uint8_t decimals) -> String {

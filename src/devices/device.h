@@ -17,10 +17,33 @@ inline constexpr uint16_t kGridPad = kProfile.grid_pad;
 inline constexpr uint16_t kGridCellW = kProfile.grid_cell_w;
 inline constexpr uint16_t kGridCellH = kProfile.grid_cell_h;
 inline constexpr uint8_t kDisplayFlushBands = kProfile.display_flush_bands;
+inline constexpr uint8_t kBacklightInputMin = kProfile.backlight_input_min;
 inline constexpr RotationStepMode kRotationStepMode = kProfile.rotation_step_mode;
 inline constexpr uint8_t kRotationDefault = kProfile.rotation_default;
 inline constexpr uint8_t kRotationFlipped = kProfile.rotation_flipped;
 inline constexpr Capabilities kCapabilities = kProfile.capabilities;
+
+// Einheitliche Prozentwerte fuer Funktionen wie die Screensaver-Dimmung.
+// Die normale Display-Helligkeit bleibt aus Kompatibilitaetsgruenden in ihrem
+// bisherigen geraetespezifischen Rohformat gespeichert.
+inline uint8_t backlightRawFromPercent(uint8_t percent) {
+  if (percent < 1) percent = 1;
+  if (percent > 100) percent = 100;
+  const uint16_t span = static_cast<uint16_t>(255U - kBacklightInputMin);
+  return static_cast<uint8_t>(
+      kBacklightInputMin +
+      (static_cast<uint32_t>(percent - 1U) * span + 49U) / 99U);
+}
+
+inline uint8_t backlightPercentFromRaw(uint8_t raw) {
+  if (raw < kBacklightInputMin) raw = kBacklightInputMin;
+  const uint16_t span = static_cast<uint16_t>(255U - kBacklightInputMin);
+  if (span == 0) return 100;
+  return static_cast<uint8_t>(
+      1U + (static_cast<uint32_t>(raw - kBacklightInputMin) * 99U +
+            (span / 2U)) /
+               span);
+}
 
 const Profile& profile();
 const char* displayName();

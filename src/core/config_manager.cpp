@@ -139,6 +139,7 @@ ConfigManager::ConfigManager() {
 
   // Display & Power Defaults
   config.display_brightness = 200;
+  config.screensaver_brightness_pct = kScreensaverBrightnessPctDefault;
   config.tile_borders = true;
   config.display_rotated_180 = false;
   config.display_rotation_quarters = Device::kRotationDefault;
@@ -239,6 +240,14 @@ bool ConfigManager::load() {
 
   // Display & Power Settings laden
   config.display_brightness = prefs.getUChar("disp_bright", 200);
+  const uint8_t migration_display_brightness =
+      (config.display_brightness >= 121) ? config.display_brightness : 200;
+  config.screensaver_brightness_pct = prefs.isKey("ss_bright")
+                                          ? prefs.getUChar(
+                                                "ss_bright",
+                                                kScreensaverBrightnessPctDefault)
+                                          : Device::backlightPercentFromRaw(
+                                                migration_display_brightness);
   config.tile_borders = prefs.getBool("tile_border", true);
   bool rot_180 = prefs.getBool("disp_rot180", false);
   uint8_t rot_mode = rot_180 ? kDisplayRotationFlipped : kDisplayRotationNormal;
@@ -302,6 +311,11 @@ bool ConfigManager::load() {
   if (config.display_brightness < 121 || config.display_brightness > 255) {
     config.display_brightness = 200;
   }
+  if (config.screensaver_brightness_pct < kScreensaverBrightnessPctMin ||
+      config.screensaver_brightness_pct > kScreensaverBrightnessPctMax) {
+    config.screensaver_brightness_pct =
+        Device::backlightPercentFromRaw(config.display_brightness);
+  }
 
   // Fallback: 0 Minuten korrigieren (kann durch ungültige Speicherung entstehen)
   if (config.mqtt_base_topic[0] == '\0') {
@@ -336,6 +350,12 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
       (normalized.display_rotation_quarters == Device::kRotationFlipped);
   normalized.display_rotation_mode = rotation_mode_from_quarters(
       normalized.display_rotation_quarters, normalized.display_rotation_mode);
+  if (normalized.display_brightness < 121) normalized.display_brightness = 200;
+  if (normalized.screensaver_brightness_pct < kScreensaverBrightnessPctMin ||
+      normalized.screensaver_brightness_pct > kScreensaverBrightnessPctMax) {
+    normalized.screensaver_brightness_pct =
+        Device::backlightPercentFromRaw(normalized.display_brightness);
+  }
   apply_device_capability_limits(normalized);
 
   // Speichere alle Felder
@@ -373,6 +393,7 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
 
   // Display & Power Settings speichern
   prefs.putUChar("disp_bright", normalized.display_brightness);
+  prefs.putUChar("ss_bright", normalized.screensaver_brightness_pct);
   prefs.putBool("tile_border", normalized.tile_borders);
   prefs.putBool("eth_mode", normalized.ethernet_enabled);
   prefs.putBool("disp_rot180", normalized.display_rotated_180);
@@ -542,6 +563,25 @@ bool ConfigManager::saveEthernetEnabled(bool enabled) {
   return true;
 }
 
+bool ConfigManager::saveScreensaverBrightness(uint8_t brightness_pct) {
+  if (brightness_pct < kScreensaverBrightnessPctMin) {
+    brightness_pct = kScreensaverBrightnessPctMin;
+  } else if (brightness_pct > kScreensaverBrightnessPctMax) {
+    brightness_pct = kScreensaverBrightnessPctMax;
+  }
+
+  Preferences prefs;
+  if (!prefs.begin(PREF_NAMESPACE, false)) {
+    Serial.println("ConfigManager: Screensaver-Helligkeit konnte nicht gespeichert werden");
+    return false;
+  }
+  prefs.putUChar("ss_bright", brightness_pct);
+  prefs.end();
+
+  config.screensaver_brightness_pct = brightness_pct;
+  return true;
+}
+
 bool ConfigManager::saveStaticAddressingEnabled(bool enabled) {
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
@@ -604,6 +644,8 @@ void ConfigManager::clear() {
   set_timezone_code(config.timezone, sizeof(config.timezone), "berlin");
   config.global_time_format = clock_tile::TIME_FORMAT_AUTO;
   config.global_date_format = clock_tile::DATE_FORMAT_AUTO;
+  config.display_brightness = 200;
+  config.screensaver_brightness_pct = kScreensaverBrightnessPctDefault;
   config.tile_borders = true;
   config.display_rotated_180 = false;
   config.display_rotation_quarters = Device::kRotationDefault;

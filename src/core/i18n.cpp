@@ -121,6 +121,7 @@ static const Strings kStringsDe = {
 
     "Display",
     "Helligkeit:",
+    "Screensaver\nHelligkeit:",
     "Farbton",
     "Sättigung",
     "Sleep:",
@@ -489,6 +490,7 @@ static const Strings kStringsEn = {
 
     "Display",
     "Brightness:",
+    "Screensaver\nBrightness:",
     "Hue",
     "Saturation",
     "Sleep:",
@@ -857,6 +859,7 @@ static const Strings kStringsFr = {
 
     "Écran",
     "Luminosité :",
+    "Écran de veille\nLuminosité :",
     "Teinte",
     "Saturation",
     "Veille :",

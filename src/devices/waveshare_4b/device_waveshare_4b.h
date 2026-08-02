@@ -18,6 +18,7 @@ inline constexpr Device::Profile kProfile{
     166,
     166,
     4,
+    1,
     Device::RotationStepMode::QuarterTurns,
     0,
     2,

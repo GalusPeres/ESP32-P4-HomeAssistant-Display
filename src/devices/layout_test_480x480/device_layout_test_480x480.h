@@ -18,6 +18,7 @@ inline constexpr Device::Profile kProfile{
     111,
     111,
     4,
+    121,
     Device::RotationStepMode::FlipOnly,
     0,
     2,

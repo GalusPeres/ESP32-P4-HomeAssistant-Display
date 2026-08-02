@@ -10,6 +10,7 @@
 void show_image_screensaver();
 void hide_image_screensaver();
 bool is_image_screensaver_visible();
+void image_screensaver_brightness_changed();
 
 // Laedt das erste konfigurierte Bild verzoegert in den PSRAM-Cache.
 void preload_image_screensaver();

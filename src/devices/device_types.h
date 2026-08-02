@@ -30,6 +30,10 @@ struct Profile {
   uint16_t grid_cell_w;
   uint16_t grid_cell_h;
   uint8_t display_flush_bands;
+  // Kleinster Eingabewert, den der Treiber als sichtbare 1-%-Helligkeit
+  // interpretiert. Einige P4-Treiber skalieren 121..255 intern auf 1..255,
+  // direkte PWM-/M5GFX-Treiber verwenden dagegen bereits 1..255.
+  uint8_t backlight_input_min;
   RotationStepMode rotation_step_mode;
   uint8_t rotation_default;
   uint8_t rotation_flipped;
