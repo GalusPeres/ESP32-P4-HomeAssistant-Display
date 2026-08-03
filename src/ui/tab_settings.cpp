@@ -469,20 +469,25 @@ static void on_screensaver_brightness(lv_event_t *e) {
     lv_label_set_text(screensaver_brightness_value_label, buf);
   }
 
-  if (code == LV_EVENT_VALUE_CHANGED) {
-    // Beim Ziehen kurz die echte Dimmstufe zeigen. Nach dem Loslassen kehrt
-    // der Einstellungs-Screen zur normalen Display-Helligkeit zurueck.
-    BoardHAL::setBrightness(
+  if (code == LV_EVENT_PRESSED || code == LV_EVENT_VALUE_CHANGED ||
+      code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+    // Auch ein blosses Antippen (oder Ziehen am 1-/100-%-Anschlag) muss die
+    // gewaehlte Stufe sichtbar machen. LVGL sendet dort kein VALUE_CHANGED.
+    // Die Vorschau bleibt bis zum Schliessen des Popups aktiv, damit der
+    // Regler nach dem Loslassen nicht wie ein wirkungsloser No-op aussieht.
+    powerManager.setDisplayBrightness(
         Device::backlightRawFromPercent(static_cast<uint8_t>(pct)));
-  } else if (code == LV_EVENT_RELEASED) {
-    configManager.saveScreensaverBrightness(static_cast<uint8_t>(pct));
-    BoardHAL::setBrightness(configManager.getConfig().display_brightness);
-    image_screensaver_brightness_changed();
-    mqttPublishDeviceSettings();
-  } else if (code == LV_EVENT_PRESS_LOST) {
-    // Ein abgebrochener Drag ist keine Einstellung. Die Vorschau darf das
-    // normale Dashboard danach nicht dauerhaft gedimmt lassen.
-    BoardHAL::setBrightness(configManager.getConfig().display_brightness);
+  }
+
+  if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+    // PRESS_LOST ist auf Touchgeraeten ein normales Drag-Ende, wenn der Finger
+    // ausserhalb des Reglers loslaesst. Den sichtbaren Endwert deshalb genauso
+    // uebernehmen wie bei RELEASED, statt Anzeige und gespeicherten Wert
+    // auseinanderlaufen zu lassen.
+    if (configManager.saveScreensaverBrightness(static_cast<uint8_t>(pct))) {
+      image_screensaver_brightness_changed();
+      mqttPublishDeviceSettings();
+    }
   }
 }
 
@@ -1925,6 +1930,8 @@ static void build_display_popup(lv_obj_t* parent) {
                       kScreensaverBrightnessPctMax);
   lv_slider_set_value(screensaver_brightness_slider,
                       cfg.screensaver_brightness_pct, LV_ANIM_OFF);
+  lv_obj_add_event_cb(screensaver_brightness_slider,
+                      on_screensaver_brightness, LV_EVENT_PRESSED, nullptr);
   lv_obj_add_event_cb(screensaver_brightness_slider,
                       on_screensaver_brightness, LV_EVENT_VALUE_CHANGED,
                       nullptr);

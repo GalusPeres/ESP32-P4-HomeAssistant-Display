@@ -240,14 +240,12 @@ bool ConfigManager::load() {
 
   // Display & Power Settings laden
   config.display_brightness = prefs.getUChar("disp_bright", 200);
-  const uint8_t migration_display_brightness =
-      (config.display_brightness >= 121) ? config.display_brightness : 200;
-  config.screensaver_brightness_pct = prefs.isKey("ss_bright")
-                                          ? prefs.getUChar(
-                                                "ss_bright",
-                                                kScreensaverBrightnessPctDefault)
-                                          : Device::backlightPercentFromRaw(
-                                                migration_display_brightness);
+  // Der Screensaver soll auf Bestandsgeraeten ebenfalls wirklich dimmen.
+  // Den fehlenden Wert daher nicht aus der normalen Display-Helligkeit
+  // ableiten (bei 100 % war die neue Funktion sonst optisch wirkungslos),
+  // sondern mit der eigenen sinnvollen Voreinstellung starten.
+  config.screensaver_brightness_pct =
+      prefs.getUChar("ss_bright", kScreensaverBrightnessPctDefault);
   config.tile_borders = prefs.getBool("tile_border", true);
   bool rot_180 = prefs.getBool("disp_rot180", false);
   uint8_t rot_mode = rot_180 ? kDisplayRotationFlipped : kDisplayRotationNormal;
