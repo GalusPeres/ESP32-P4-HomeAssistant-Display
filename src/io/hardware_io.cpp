@@ -8,7 +8,6 @@
 #include <driver/gpio.h>
 
 #include "src/devices/device.h"
-#include "src/devices/device_select.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/network/mqtt_topics.h"
 #include "src/network/network_manager.h"
@@ -26,61 +25,6 @@ constexpr uint32_t kTemperatureConversionMs = 800;
 constexpr uint32_t kTemperatureSampleMs = 3000;
 constexpr uint32_t kTemperatureRetryMs = 3000;
 constexpr uint32_t kStateRepublishMs = 60000;
-
-#if defined(DEVICE_WAVESHARE_4B)
-constexpr HardwareIoPinOption kPinOptions[] = {
-    {2, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 2 (P3)"},
-    {3, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 3 (P3)"},
-    {4, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 4 (P3)"},
-    {5, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 5 (P3)"},
-    {21, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 21 (P3)"},
-    {32, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_ONBOARD,
-     "Relay 1 (86 Panel, GPIO 32)"},
-    {46, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_ONBOARD,
-     "Relay 2 (86 Panel, GPIO 46)"},
-};
-#elif defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
-constexpr HardwareIoPinOption kPinOptions[] = {
-    {2, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 2"},
-    {3, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 3"},
-    {4, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 4"},
-    {5, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 5"},
-    {21, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 21"},
-    {22, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 22"},
-    {28, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 28"},
-    {29, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 29"},
-    {30, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 30"},
-    {31, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 31"},
-    {32, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 32"},
-    {49, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 49"},
-    {50, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 50"},
-    {51, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 51"},
-    {52, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO 52"},
-};
-#elif defined(DEVICE_M5STACKS_TAB5)
-constexpr HardwareIoPinOption kPinOptions[] = {
-    {0, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO EXT 0"},
-    {1, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO EXT 1"},
-    {49, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO EXT 49"},
-    {50, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "GPIO EXT 50"},
-    {53, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "Port A SDA (GPIO 53)"},
-    {54, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "Port A SCL (GPIO 54)"},
-    {2, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "M5-Bus GPIO 2"},
-    {3, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "M5-Bus GPIO 3"},
-    {4, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "M5-Bus GPIO 4"},
-    {16, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "M5-Bus GPIO 16"},
-    {17, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "M5-Bus GPIO 17"},
-    {45, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "M5-Bus GPIO 45"},
-    {47, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "M5-Bus GPIO 47"},
-    {48, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "M5-Bus GPIO 48"},
-    {51, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "M5-Bus GPIO 51"},
-    {52, HARDWARE_IO_PIN_RELAY | HARDWARE_IO_PIN_TEMPERATURE, "M5-Bus GPIO 52"},
-};
-#else
-// Portable sentinel for profiles without a verified I/O description. The
-// public count remains zero; zero-length C++ arrays are compiler extensions.
-constexpr HardwareIoPinOption kPinOptions[] = {{-1, 0, ""}};
-#endif
 
 bool replace_file_atomically(fs::FS& fs) {
   if (!fs.exists(kConfigTmpPath)) return false;
@@ -114,6 +58,50 @@ bool parse_type(const char* raw, HardwareIoType& out) {
     return true;
   }
   return false;
+}
+
+const char* default_hardware_variant() {
+  const char* variant = Device::profile().hardware_io.default_variant;
+  return variant && *variant ? variant : "standard";
+}
+
+bool pin_supports_type(const Device::HardwareIoPinOption& option,
+                       HardwareIoType type) {
+  const uint8_t wanted = type == HardwareIoType::Temperature
+                             ? Device::kHardwareIoPinTemperature
+                             : Device::kHardwareIoPinSwitch;
+  return (option.capabilities & wanted) != 0;
+}
+
+bool pin_matches_variant(const Device::HardwareIoPinOption& option,
+                         const String& board_variant) {
+  return !option.required_variant || !*option.required_variant ||
+         board_variant.equalsIgnoreCase(option.required_variant);
+}
+
+bool valid_hardware_variant(const String& board_variant) {
+  if (board_variant.equalsIgnoreCase(default_hardware_variant())) return true;
+  const Device::HardwareIoProfile& profile = Device::profile().hardware_io;
+  for (uint8_t i = 0; i < profile.pin_count; ++i) {
+    const char* required = profile.pin_options[i].required_variant;
+    if (required && *required && board_variant.equalsIgnoreCase(required)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const Device::HardwareIoPinOption* find_pin_option(
+    int gpio, HardwareIoType type, const String& board_variant) {
+  const Device::HardwareIoProfile& profile = Device::profile().hardware_io;
+  for (uint8_t i = 0; i < profile.pin_count; ++i) {
+    const Device::HardwareIoPinOption& option = profile.pin_options[i];
+    if (option.gpio == gpio && pin_supports_type(option, type) &&
+        pin_matches_variant(option, board_variant)) {
+      return &option;
+    }
+  }
+  return nullptr;
 }
 
 bool valid_id(const String& id) {
@@ -338,32 +326,11 @@ HardwareIoManager::HardwareIoManager() {
   reset();
 }
 
-const HardwareIoPinOption* HardwareIoManager::pinOptions(size_t& count) {
-#if defined(DEVICE_WAVESHARE_4B) || \
-    defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || \
-    defined(DEVICE_M5STACKS_TAB5)
-  count = sizeof(kPinOptions) / sizeof(kPinOptions[0]);
-#else
-  count = 0;
-#endif
-  return kPinOptions;
-}
-
-bool HardwareIoManager::pinSupports(int gpio, HardwareIoType type,
-                                    bool allow_onboard_relays) {
-  size_t count = 0;
-  const HardwareIoPinOption* options = pinOptions(count);
-  const uint8_t wanted = type == HardwareIoType::Temperature
-                             ? HARDWARE_IO_PIN_TEMPERATURE
-                             : HARDWARE_IO_PIN_RELAY;
-  for (size_t i = 0; i < count; ++i) {
-    if (options[i].gpio == gpio && (options[i].capabilities & wanted) &&
-        (allow_onboard_relays ||
-         (options[i].capabilities & HARDWARE_IO_PIN_ONBOARD) == 0)) {
-      return true;
-    }
-  }
-  return false;
+const Device::HardwareIoPinOption* HardwareIoManager::pinOptions(
+    size_t& count) {
+  const Device::HardwareIoProfile& profile = Device::profile().hardware_io;
+  count = profile.pin_count;
+  return profile.pin_options;
 }
 
 String HardwareIoManager::localEntityId(uint8_t index) const {
@@ -474,7 +441,7 @@ void HardwareIoManager::reset() {
   service_cursor_ = 0;
   stale_state_topic_count_ = 0;
   stale_state_retry_ms_ = 0;
-  board_variant_86_2ro_ = false;
+  board_variant_ = default_hardware_variant();
   for (uint8_t i = 0; i < kHardwareIoMaxChannels; ++i) {
     channels_[i] = HardwareIoChannelConfig{};
     runtime_[i] = RuntimeChannel{};
@@ -484,10 +451,10 @@ void HardwareIoManager::reset() {
 
 bool HardwareIoManager::parseDocument(
     const String& json, HardwareIoChannelConfig* out_channels,
-    uint8_t& out_count, bool& out_board_variant_86_2ro,
+    uint8_t& out_count, String& out_board_variant,
     String& error, bool allow_missing_names) const {
   out_count = 0;
-  out_board_variant_86_2ro = false;
+  out_board_variant = default_hardware_variant();
   if (!json.length() || json.length() > kMaxConfigBytes) {
     error = "Invalid configuration size";
     return false;
@@ -499,12 +466,17 @@ bool HardwareIoManager::parseDocument(
     error = String("Invalid JSON: ") + parse_error.c_str();
     return false;
   }
-#if defined(DEVICE_WAVESHARE_4B)
-  String board_variant = String(doc["board_variant"] | "standard");
-  board_variant.trim();
-  board_variant.toLowerCase();
-  out_board_variant_86_2ro = board_variant == "waveshare_86_2ro";
-#endif
+  out_board_variant = String(doc["board_variant"] |
+                             default_hardware_variant());
+  out_board_variant.trim();
+  out_board_variant.toLowerCase();
+  if (!out_board_variant.length()) {
+    out_board_variant = default_hardware_variant();
+  }
+  if (!valid_hardware_variant(out_board_variant)) {
+    error = "Unknown hardware variant";
+    return false;
+  }
   JsonArrayConst input = doc["channels"].as<JsonArrayConst>();
   if (input.size() > kHardwareIoMaxChannels) {
     error = "Too many channels";
@@ -562,27 +534,27 @@ bool HardwareIoManager::parseDocument(
     config.precision = static_cast<uint8_t>(
         constrain(item["precision"] | 1, 0, 3));
 
-    if (!pinSupports(config.gpio, config.type,
-                     out_board_variant_86_2ro)) {
+    const Device::HardwareIoPinOption* pin_option =
+        find_pin_option(config.gpio, config.type, out_board_variant);
+    if (!pin_option) {
       error = "GPIO ";
       error += String(static_cast<int>(config.gpio));
       error += " is not available for this channel type on ";
       error += Device::displayName();
       return false;
     }
-    size_t pin_count = 0;
-    const HardwareIoPinOption* pin_options = pinOptions(pin_count);
-    bool onboard_relay = false;
-    for (size_t i = 0; i < pin_count; ++i) {
-      if (pin_options[i].gpio == config.gpio &&
-          (pin_options[i].capabilities & HARDWARE_IO_PIN_ONBOARD)) {
-        onboard_relay = true;
-        break;
+    if (config.type == HardwareIoType::Relay) {
+      const Device::HardwareIoOutputLogic logic = pin_option->output_logic;
+      if ((logic == Device::HardwareIoOutputLogic::ActiveHigh &&
+           config.inverted) ||
+          (logic == Device::HardwareIoOutputLogic::ActiveLow &&
+           !config.inverted)) {
+        error = pin_option->label;
+        error += logic == Device::HardwareIoOutputLogic::ActiveLow
+                     ? " is fixed active-low"
+                     : " is fixed active-high";
+        return false;
       }
-    }
-    if (onboard_relay && config.inverted) {
-      error = "The 86 Panel onboard relays are fixed active-high";
-      return false;
     }
     for (uint8_t i = 0; i < out_count; ++i) {
       if (out_channels[i].gpio == config.gpio) {
@@ -623,15 +595,14 @@ bool HardwareIoManager::loadPath(const char* path) {
 
   HardwareIoChannelConfig loaded[kHardwareIoMaxChannels];
   uint8_t count = 0;
-  bool board_variant_86_2ro = false;
+  String board_variant;
   String error;
-  if (!parseDocument(json, loaded, count, board_variant_86_2ro, error,
-                     true)) {
+  if (!parseDocument(json, loaded, count, board_variant, error, true)) {
     Serial.printf("[HardwareIO] %s ungueltig: %s\n", path, error.c_str());
     return false;
   }
   channel_count_ = count;
-  board_variant_86_2ro_ = board_variant_86_2ro;
+  board_variant_ = board_variant;
   for (uint8_t i = 0; i < count; ++i) channels_[i] = loaded[i];
   return true;
 }
@@ -793,13 +764,11 @@ void HardwareIoManager::begin() {
 
 bool HardwareIoManager::saveChannels(
     const HardwareIoChannelConfig* channels, uint8_t count,
-    bool board_variant_86_2ro) const {
+    const String& board_variant) const {
   if (!Device::storageReady()) return false;
   JsonDocument doc;
   doc["version"] = kConfigVersion;
-  doc["board_variant"] = board_variant_86_2ro
-                             ? "waveshare_86_2ro"
-                             : "standard";
+  doc["board_variant"] = board_variant;
   JsonArray array = doc["channels"].to<JsonArray>();
   for (uint8_t i = 0; i < count; ++i) {
     const HardwareIoChannelConfig& config = channels[i];
@@ -841,13 +810,12 @@ bool HardwareIoManager::saveChannels(
 bool HardwareIoManager::replaceFromJson(const String& json, String& error) {
   HardwareIoChannelConfig candidate[kHardwareIoMaxChannels];
   uint8_t candidate_count = 0;
-  bool candidate_board_variant_86_2ro = false;
+  String candidate_board_variant;
   if (!parseDocument(json, candidate, candidate_count,
-                     candidate_board_variant_86_2ro, error, false)) {
+                     candidate_board_variant, error, false)) {
     return false;
   }
-  if (!saveChannels(candidate, candidate_count,
-                     candidate_board_variant_86_2ro)) {
+  if (!saveChannels(candidate, candidate_count, candidate_board_variant)) {
     error = "Could not save hardware configuration";
     return false;
   }
@@ -906,7 +874,7 @@ bool HardwareIoManager::replaceFromJson(const String& json, String& error) {
   }
 
   if (begun_) unsubscribeMqttTopics();
-  board_variant_86_2ro_ = candidate_board_variant_86_2ro;
+  board_variant_ = candidate_board_variant;
   if (begun_) {
     transitionRuntime(candidate, candidate_count);
   } else {
@@ -927,9 +895,7 @@ String HardwareIoManager::toJson(bool include_device_meta) const {
   JsonDocument doc;
   doc["version"] = kConfigVersion;
   doc["max_channels"] = kHardwareIoMaxChannels;
-  doc["board_variant"] = board_variant_86_2ro_
-                             ? "waveshare_86_2ro"
-                             : "standard";
+  doc["board_variant"] = board_variant_;
   if (include_device_meta) {
     doc["device_key"] = Device::profile().key;
     doc["device_name"] = Device::displayName();
@@ -937,18 +903,25 @@ String HardwareIoManager::toJson(bool include_device_meta) const {
   }
   JsonArray options = doc["pin_options"].to<JsonArray>();
   size_t option_count = 0;
-  const HardwareIoPinOption* pins = pinOptions(option_count);
+  const Device::HardwareIoPinOption* pins = pinOptions(option_count);
   for (size_t i = 0; i < option_count; ++i) {
     JsonObject option = options.add<JsonObject>();
     option["gpio"] = pins[i].gpio;
     option["label"] = pins[i].label;
-    option["relay"] = (pins[i].capabilities & HARDWARE_IO_PIN_RELAY) != 0;
+    option["relay"] =
+        (pins[i].capabilities & Device::kHardwareIoPinSwitch) != 0;
     option["temperature"] =
-        (pins[i].capabilities & HARDWARE_IO_PIN_TEMPERATURE) != 0;
+        (pins[i].capabilities & Device::kHardwareIoPinTemperature) != 0;
     option["onboard"] =
-        (pins[i].capabilities & HARDWARE_IO_PIN_ONBOARD) != 0;
-    if (pins[i].capabilities & HARDWARE_IO_PIN_ONBOARD) {
-      option["requires_variant"] = "waveshare_86_2ro";
+        (pins[i].capabilities & Device::kHardwareIoPinOnboard) != 0;
+    if (pins[i].required_variant && *pins[i].required_variant) {
+      option["requires_variant"] = pins[i].required_variant;
+    }
+    if (pins[i].output_logic == Device::HardwareIoOutputLogic::ActiveHigh) {
+      option["fixed_output_logic"] = "high";
+    } else if (pins[i].output_logic ==
+               Device::HardwareIoOutputLogic::ActiveLow) {
+      option["fixed_output_logic"] = "low";
     }
   }
   JsonArray channels = doc["channels"].to<JsonArray>();

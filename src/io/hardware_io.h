@@ -2,23 +2,13 @@
 
 #include <Arduino.h>
 
+#include "src/devices/hardware_io_profile.h"
+
 static constexpr uint8_t kHardwareIoMaxChannels = 8;
 
 enum class HardwareIoType : uint8_t {
   Relay = 0,
   Temperature = 1,
-};
-
-enum HardwareIoPinCapability : uint8_t {
-  HARDWARE_IO_PIN_RELAY = 1U << 0,
-  HARDWARE_IO_PIN_TEMPERATURE = 1U << 1,
-  HARDWARE_IO_PIN_ONBOARD = 1U << 2,
-};
-
-struct HardwareIoPinOption {
-  int8_t gpio;
-  uint8_t capabilities;
-  const char* label;
 };
 
 struct HardwareIoChannelConfig {
@@ -67,9 +57,7 @@ class HardwareIoManager {
   uint8_t channelCount() const { return channel_count_; }
   bool hasTemperatureChannels() const;
 
-  static const HardwareIoPinOption* pinOptions(size_t& count);
-  static bool pinSupports(int gpio, HardwareIoType type,
-                          bool allow_onboard_relays = false);
+  static const Device::HardwareIoPinOption* pinOptions(size_t& count);
 
  private:
   struct RuntimeChannel {
@@ -97,7 +85,7 @@ class HardwareIoManager {
   uint8_t service_cursor_ = 0;
   uint8_t stale_state_topic_count_ = 0;
   bool begun_ = false;
-  bool board_variant_86_2ro_ = false;
+  String board_variant_;
   uint32_t stale_state_retry_ms_ = 0;
   String stale_state_topics_[kHardwareIoMaxChannels];
 
@@ -105,10 +93,10 @@ class HardwareIoManager {
   bool loadPath(const char* path);
   bool parseDocument(const String& json,
                      HardwareIoChannelConfig* out_channels,
-                     uint8_t& out_count, bool& out_board_variant_86_2ro,
+                     uint8_t& out_count, String& out_board_variant,
                      String& error, bool allow_missing_names) const;
   bool saveChannels(const HardwareIoChannelConfig* channels,
-                    uint8_t count, bool board_variant_86_2ro) const;
+                    uint8_t count, const String& board_variant) const;
   void stopRuntime();
   void startRuntime();
   void transitionRuntime(const HardwareIoChannelConfig* channels,

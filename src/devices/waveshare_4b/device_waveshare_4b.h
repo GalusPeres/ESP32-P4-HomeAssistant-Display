@@ -3,6 +3,7 @@
 #include <FS.h>
 
 #include "src/devices/device_types.h"
+#include "src/devices/waveshare_4b/hardware_io_profile.h"
 
 namespace DeviceWaveshare4B {
 
@@ -26,6 +27,7 @@ inline constexpr Device::Profile kProfile{
     // ESP32-P4-86-Panel-ETH-2RO. The B4 exposes USB-OTG for an external
     // adapter; the 86-panel variant additionally has the native RMII PHY.
     Device::Capabilities{false, false, false, false, true, true},
+    kHardwareIoProfile,
 };
 
 bool init();

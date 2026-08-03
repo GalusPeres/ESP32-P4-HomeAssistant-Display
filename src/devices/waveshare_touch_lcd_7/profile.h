@@ -1,6 +1,7 @@
 #pragma once
 
 #include "src/devices/device_types.h"
+#include "src/devices/waveshare_touch_lcd_7/hardware_io_profile.h"
 
 namespace DeviceWaveshareTouchLCD7Profile {
 
@@ -21,6 +22,7 @@ inline constexpr Device::Profile kProfile{
     0,
     2,
     Device::Capabilities{false, false, false, false, true, false},
+    kHardwareIoProfile,
 };
 
 }  // namespace DeviceWaveshareTouchLCD7Profile

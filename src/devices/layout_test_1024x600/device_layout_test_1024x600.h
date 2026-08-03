@@ -23,6 +23,7 @@ inline constexpr Device::Profile kProfile{
     0,
     2,
     Device::Capabilities{false, false, false, false, true, false},
+    Device::kNoHardwareIoProfile,
 };
 
 bool init();

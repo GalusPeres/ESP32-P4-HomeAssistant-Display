@@ -2,6 +2,8 @@
 
 #include <Arduino.h>
 
+#include "src/devices/hardware_io_profile.h"
+
 namespace Device {
 
 enum class RotationStepMode : uint8_t {
@@ -38,6 +40,7 @@ struct Profile {
   uint8_t rotation_default;
   uint8_t rotation_flipped;
   Capabilities capabilities;
+  HardwareIoProfile hardware_io{};
 };
 
 }  // namespace Device

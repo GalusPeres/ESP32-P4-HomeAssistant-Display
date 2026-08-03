@@ -5698,9 +5698,9 @@ function t(key) {
     const atLimit = channels.length >= Number(hardwareIoModel?.max_channels || 8);
     const addSwitch = document.getElementById('hardwareIoAddSwitch');
     const addTemperature = document.getElementById('hardwareIoAddTemperature');
-    const onboardSwitchAvailable = String(hardwareIoModel?.device_key || '') === 'waveshare_4b' &&
-      (hardwareIoModel.pin_options || []).some(option => option.onboard && option.relay &&
-        !channels.some(channel => Number(channel.gpio) === Number(option.gpio)));
+    const onboardSwitchAvailable = (hardwareIoModel.pin_options || []).some(option =>
+      option.onboard && option.relay &&
+      !channels.some(channel => Number(channel.gpio) === Number(option.gpio)));
     if (addSwitch) {
       addSwitch.disabled = atLimit ||
         (!onboardSwitchAvailable && hardwareIoUnusedPins('relay').length === 0);
@@ -5815,13 +5815,14 @@ function t(key) {
     if (channel.type === 'relay') {
       const pinDescriptor = (hardwareIoModel.pin_options || []).find(option =>
         Number(option.gpio) === Number(channel.gpio));
-      const fixedActiveHigh = !!pinDescriptor?.onboard;
-      if (fixedActiveHigh) channel.inverted = false;
+      const fixedOutputLogic = String(pinDescriptor?.fixed_output_logic || '');
+      if (fixedOutputLogic === 'high') channel.inverted = false;
+      if (fixedOutputLogic === 'low') channel.inverted = true;
       let logicControl;
-      if (fixedActiveHigh) {
+      if (fixedOutputLogic) {
         logicControl = document.createElement('div');
         logicControl.className = 'hardware-io-fixed-value';
-        logicControl.textContent = 'Active high';
+        logicControl.textContent = fixedOutputLogic === 'low' ? 'Active low' : 'Active high';
       } else {
         logicControl = makeHardwareIoToggle([
           {value: 'high', label: 'High'},
@@ -5893,11 +5894,11 @@ function t(key) {
     const channels = hardwareIoModel.channels || (hardwareIoModel.channels = []);
     if (channels.length >= Number(hardwareIoModel.max_channels || 8)) return;
     let pin = null;
-    if (type === 'relay' && String(hardwareIoModel.device_key || '') === 'waveshare_4b') {
+    if (type === 'relay') {
       const used = new Set(channels.map(channel => Number(channel.gpio)));
       pin = (hardwareIoModel.pin_options || []).find(option =>
         option.onboard && option.relay && !used.has(Number(option.gpio))) || null;
-      if (pin) hardwareIoModel.board_variant = 'waveshare_86_2ro';
+      if (pin?.requires_variant) hardwareIoModel.board_variant = pin.requires_variant;
     }
     if (!pin) pin = hardwareIoUnusedPins(type)[0];
     if (!pin) {
@@ -5910,7 +5911,7 @@ function t(key) {
       name: type === 'temperature' ? 'Temperature ' + sequence : 'Switch ' + sequence,
       type,
       gpio: Number(pin.gpio),
-      inverted: false,
+      inverted: pin.fixed_output_logic === 'low',
       boot_state: 'off',
       precision: 1
     });

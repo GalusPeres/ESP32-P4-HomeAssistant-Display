@@ -3,6 +3,7 @@
 #include <FS.h>
 
 #include "src/devices/device_types.h"
+#include "src/devices/guition_jc8012p4a1/hardware_io_profile.h"
 
 namespace DeviceGuitionJC8012P4A1 {
 
@@ -23,6 +24,7 @@ inline constexpr Device::Profile kProfile{
     0,
     2,
     Device::Capabilities{false, false, false, false, false, false},
+    kHardwareIoProfile,
 };
 
 bool init();

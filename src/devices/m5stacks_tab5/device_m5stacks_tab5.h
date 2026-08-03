@@ -3,6 +3,7 @@
 #include <FS.h>
 
 #include "src/devices/device_types.h"
+#include "src/devices/m5stacks_tab5/hardware_io_profile.h"
 
 namespace DeviceM5StacksTab5 {
 
@@ -23,6 +24,7 @@ inline constexpr Device::Profile kProfile{
     0,
     2,
     Device::Capabilities{false, false, false, false, false, false},
+    kHardwareIoProfile,
 };
 
 bool init();
