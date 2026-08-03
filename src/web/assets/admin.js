@@ -5617,8 +5617,8 @@ function t(key) {
   let hardwareIoLoaded = false;
   let hardwareIoLoading = false;
   let hardwareIoBound = false;
-  let hardwareIoSaveTimer = null;
   let hardwareIoSaving = false;
+  let hardwareIoDirty = false;
   let hardwareIoEditVersion = 0;
   let hardwareIoEntityRefreshTimers = [];
 
@@ -5627,6 +5627,20 @@ function t(key) {
     if (!el) return;
     el.textContent = text || '';
     el.className = 'hardware-io-save-state' + (state ? ' ' + state : '');
+  }
+
+  function updateHardwareIoSaveActions() {
+    const save = document.getElementById('hardwareIoSave');
+    const saveRestart = document.getElementById('hardwareIoSaveRestart');
+    if (save) save.disabled = hardwareIoSaving || !hardwareIoDirty;
+    if (saveRestart) saveRestart.disabled = hardwareIoSaving;
+  }
+
+  function markHardwareIoDirty() {
+    hardwareIoEditVersion++;
+    hardwareIoDirty = true;
+    setHardwareIoSaveState('Unsaved changes');
+    updateHardwareIoSaveActions();
   }
 
   function hardwareIoSupportsPin(pin, type) {
@@ -5648,7 +5662,7 @@ function t(key) {
   }
 
   function nextHardwareIoId(type) {
-    const prefix = type === 'temperature' ? 'temperature_' : 'relay_';
+    const prefix = type === 'temperature' ? 'temperature_' : 'switch_';
     const existing = new Set((hardwareIoModel?.channels || []).map(channel => String(channel.id || '')));
     for (let i = 1; i < 100; i++) {
       const candidate = prefix + i;
@@ -5657,46 +5671,44 @@ function t(key) {
     return prefix + Date.now().toString(36);
   }
 
-  function hardwareIoDeviceNote() {
-    const key = String(hardwareIoModel?.device_key || '');
-    if (key === 'waveshare_4b') {
-      return hardwareIoModel?.board_variant === 'waveshare_86_2ro'
-        ? '86 Panel 2RO mode is enabled. Its fixed active-high Relay 1 and Relay 2 outputs use GPIO 32 and GPIO 46.'
-        : 'Standard B4 mode is active. Enable 86 Panel 2RO mode only when the relay bottom board is physically installed.';
-    }
-    if (key === 'waveshare_touch_lcd_8') {
-      return 'Only header GPIOs that do not conflict with display, touch, SD, audio, Ethernet or the WiFi co-processor are available.';
-    }
-    if (key === 'm5stacks_tab5') {
-      return 'Port A and the listed M5-Bus pins are available. Do not assign a pin that is already used by an attached Unit or M5-Bus module.';
-    }
-    return 'No verified GPIO profile is available for this device yet.';
+  function hardwareIoAsciiSlug(value) {
+    let slug = String(value || '').replace(/[A-Z]/g, character => character.toLowerCase());
+    slug = slug.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    return slug;
+  }
+
+  function hardwareIoDeviceSlug() {
+    const slug = hardwareIoAsciiSlug(
+      hardwareIoModel?.entity_prefix || hardwareIoModel?.device_name || 'panel');
+    return slug || 'panel';
+  }
+
+  function hardwareIoNameSlug(channel) {
+    const slug = hardwareIoAsciiSlug(channel?.name || '');
+    return slug || String(channel?.id || 'channel');
+  }
+
+  function hardwareIoLocalEntityId(channel) {
+    const domain = channel?.type === 'temperature' ? 'sensor.' : 'switch.';
+    return domain + hardwareIoDeviceSlug() + '_' + hardwareIoNameSlug(channel);
   }
 
   function updateHardwareIoActions() {
     const channels = hardwareIoModel?.channels || [];
     const atLimit = channels.length >= Number(hardwareIoModel?.max_channels || 8);
-    const addRelay = document.getElementById('hardwareIoAddRelay');
+    const addSwitch = document.getElementById('hardwareIoAddSwitch');
     const addTemperature = document.getElementById('hardwareIoAddTemperature');
-    if (addRelay) addRelay.disabled = atLimit || hardwareIoUnusedPins('relay').length === 0;
-    if (addTemperature) addTemperature.disabled = atLimit || hardwareIoUnusedPins('temperature').length === 0;
-    const preset = document.getElementById('hardwareIoPreset86');
-    if (preset) {
-      const is86Family = String(hardwareIoModel?.device_key || '') === 'waveshare_4b' &&
-        [32, 46].every(pin => (hardwareIoModel.pin_options || []).some(option => Number(option.gpio) === pin && option.relay));
-      const enabled86 = hardwareIoModel?.board_variant === 'waveshare_86_2ro';
-      preset.classList.toggle('is-hidden', !is86Family);
-      preset.textContent = enabled86 ? 'Disable 86 Panel relays' : 'Enable 86 Panel relays';
-      preset.disabled = !is86Family || (!enabled86 && channels.length >
-        Number(hardwareIoModel?.max_channels || 8) - 2);
+    const onboardSwitchAvailable = String(hardwareIoModel?.device_key || '') === 'waveshare_4b' &&
+      (hardwareIoModel.pin_options || []).some(option => option.onboard && option.relay &&
+        !channels.some(channel => Number(channel.gpio) === Number(option.gpio)));
+    if (addSwitch) {
+      addSwitch.disabled = atLimit ||
+        (!onboardSwitchAvailable && hardwareIoUnusedPins('relay').length === 0);
     }
-  }
-
-  function scheduleHardwareIoSave() {
-    hardwareIoEditVersion++;
-    setHardwareIoSaveState('Saving…', 'saving');
-    if (hardwareIoSaveTimer) window.clearTimeout(hardwareIoSaveTimer);
-    hardwareIoSaveTimer = window.setTimeout(saveHardwareIoNow, 650);
+    if (addTemperature) {
+      addTemperature.disabled = atLimit || hardwareIoUnusedPins('temperature').length === 0;
+    }
+    updateHardwareIoSaveActions();
   }
 
   function createHardwareIoField(labelText, control) {
@@ -5721,37 +5733,49 @@ function t(key) {
     return select;
   }
 
+  function makeHardwareIoToggle(options, value, onChange) {
+    const group = document.createElement('div');
+    group.className = 'hardware-io-toggle';
+    group.setAttribute('role', 'group');
+    const buttons = [];
+    const activate = nextValue => {
+      buttons.forEach(button => {
+        const active = button.dataset.value === String(nextValue);
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    };
+    options.forEach(item => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.value = String(item.value);
+      button.textContent = item.label;
+      button.disabled = !!item.disabled;
+      button.addEventListener('click', () => {
+        activate(item.value);
+        onChange(item.value);
+      });
+      buttons.push(button);
+      group.appendChild(button);
+    });
+    activate(value);
+    return group;
+  }
+
   function renderHardwareIoCard(channel, index) {
     const card = document.createElement('div');
-    card.className = 'hardware-io-card';
+    card.className = 'hardware-io-card hardware-io-card-' +
+      (channel.type === 'temperature' ? 'temperature' : 'switch');
 
     const header = document.createElement('div');
     header.className = 'hardware-io-card-header';
-    const title = document.createElement('div');
-    title.className = 'hardware-io-card-title';
-    const icon = document.createElement('span');
-    icon.className = 'hardware-io-card-icon mdi ' +
-      (channel.type === 'temperature' ? 'mdi-thermometer' : 'mdi-electric-switch');
-    const titleText = document.createElement('div');
-    const namePreview = document.createElement('div');
-    namePreview.className = 'hardware-io-card-name';
-    namePreview.textContent = channel.name || (channel.type === 'temperature' ? 'Temperature' : 'Relay');
+    const typeLabel = document.createElement('div');
+    typeLabel.className = 'hardware-io-card-type';
+    typeLabel.textContent = channel.type === 'temperature' ? 'Temperature' : 'Switch';
     const idPreview = document.createElement('div');
     idPreview.className = 'hardware-io-card-id';
-    idPreview.textContent = channel.id;
-    titleText.append(namePreview, idPreview);
-    title.append(icon, titleText);
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'hardware-io-delete mdi mdi-delete-outline';
-    remove.title = 'Remove assignment';
-    remove.addEventListener('click', () => {
-      if (!window.confirm('Remove "' + (channel.name || channel.id) + '"?')) return;
-      hardwareIoModel.channels.splice(index, 1);
-      renderHardwareIo();
-      scheduleHardwareIoSave();
-    });
-    header.append(title, remove);
+    idPreview.textContent = hardwareIoLocalEntityId(channel);
+    header.append(typeLabel, idPreview);
     card.appendChild(header);
 
     const fields = document.createElement('div');
@@ -5759,29 +5783,15 @@ function t(key) {
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
     nameInput.maxLength = 48;
+    nameInput.required = true;
     nameInput.value = channel.name || '';
-    nameInput.placeholder = channel.type === 'temperature' ? 'Room temperature' : 'Relay';
+    nameInput.placeholder = channel.type === 'temperature' ? 'Temperature' : 'Switch';
     nameInput.addEventListener('input', () => {
       channel.name = nameInput.value;
-      namePreview.textContent = nameInput.value || (channel.type === 'temperature' ? 'Temperature' : 'Relay');
-      scheduleHardwareIoSave();
+      idPreview.textContent = hardwareIoLocalEntityId(channel);
+      markHardwareIoDirty();
     });
     fields.appendChild(createHardwareIoField('Name', nameInput));
-
-    const typeSelect = makeHardwareIoSelect([
-      {value: 'relay', label: 'Relay / switch'},
-      {value: 'temperature', label: 'DS18B20 temperature'}
-    ], channel.type);
-    typeSelect.addEventListener('change', () => {
-      channel.type = typeSelect.value;
-      if (!hardwareIoSupportsPin(channel.gpio, channel.type)) {
-        const first = hardwareIoUnusedPins(channel.type, index)[0];
-        channel.gpio = first ? Number(first.gpio) : -1;
-      }
-      renderHardwareIo();
-      scheduleHardwareIoSave();
-    });
-    fields.appendChild(createHardwareIoField('Function', typeSelect));
 
     const availablePins = hardwareIoUnusedPins(channel.type, index);
     const selectedOption = (hardwareIoModel.pin_options || []).find(option =>
@@ -5798,7 +5808,7 @@ function t(key) {
     gpioSelect.addEventListener('change', () => {
       channel.gpio = Number(gpioSelect.value);
       renderHardwareIo();
-      scheduleHardwareIoSave();
+      markHardwareIoDirty();
     });
     fields.appendChild(createHardwareIoField('GPIO', gpioSelect));
 
@@ -5807,28 +5817,28 @@ function t(key) {
         Number(option.gpio) === Number(channel.gpio));
       const fixedActiveHigh = !!pinDescriptor?.onboard;
       if (fixedActiveHigh) channel.inverted = false;
-      const polarity = makeHardwareIoSelect([
-        {value: 'high', label: fixedActiveHigh ? 'Active high (fixed)' : 'Active high'},
-        {value: 'low', label: 'Active low'}
-      ], channel.inverted ? 'low' : 'high');
+      let logicControl;
       if (fixedActiveHigh) {
-        const lowOption = Array.from(polarity.options).find(option => option.value === 'low');
-        if (lowOption) lowOption.remove();
-        polarity.disabled = true;
+        logicControl = document.createElement('div');
+        logicControl.className = 'hardware-io-fixed-value';
+        logicControl.textContent = 'Active high';
+      } else {
+        logicControl = makeHardwareIoToggle([
+          {value: 'high', label: 'High'},
+          {value: 'low', label: 'Low'}
+        ], channel.inverted ? 'low' : 'high', value => {
+          channel.inverted = value === 'low';
+          markHardwareIoDirty();
+        });
       }
-      polarity.addEventListener('change', () => {
-        channel.inverted = polarity.value === 'low';
-        scheduleHardwareIoSave();
-      });
-      fields.appendChild(createHardwareIoField('Relay signal', polarity));
+      fields.appendChild(createHardwareIoField('Output logic', logicControl));
 
-      const boot = makeHardwareIoSelect([
-        {value: 'off', label: 'Off (safe)'},
+      const boot = makeHardwareIoToggle([
+        {value: 'off', label: 'Off'},
         {value: 'on', label: 'On'}
-      ], channel.boot_state || 'off');
-      boot.addEventListener('change', () => {
-        channel.boot_state = boot.value;
-        scheduleHardwareIoSave();
+      ], channel.boot_state || 'off', value => {
+        channel.boot_state = value;
+        markHardwareIoDirty();
       });
       fields.appendChild(createHardwareIoField('After restart', boot));
     } else {
@@ -5840,14 +5850,22 @@ function t(key) {
       ], channel.precision ?? 1);
       precision.addEventListener('change', () => {
         channel.precision = Number(precision.value);
-        scheduleHardwareIoSave();
+        markHardwareIoDirty();
       });
       fields.appendChild(createHardwareIoField('Precision', precision));
-      const note = document.createElement('div');
-      note.className = 'hardware-io-temp-note';
-      note.textContent = 'One externally powered, 3-wire sensor per GPIO. Use DATA + 4.7 kΩ to 3.3 V; parasite power and multi-drop are not supported.';
-      fields.appendChild(note);
     }
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'hardware-io-delete mdi mdi-delete-outline';
+    remove.title = 'Remove assignment';
+    remove.addEventListener('click', () => {
+      if (!window.confirm('Remove "' + (channel.name || channel.id) + '"?')) return;
+      hardwareIoModel.channels.splice(index, 1);
+      renderHardwareIo();
+      markHardwareIoDirty();
+    });
+    fields.appendChild(remove);
     card.appendChild(fields);
     return card;
   }
@@ -5855,15 +5873,13 @@ function t(key) {
   function renderHardwareIo() {
     const list = document.getElementById('hardwareIoList');
     if (!list || !hardwareIoModel) return;
-    const note = document.getElementById('hardwareIoDeviceNote');
-    if (note) note.textContent = hardwareIoDeviceNote();
     list.innerHTML = '';
     const channels = hardwareIoModel.channels || [];
     if (!channels.length) {
       const empty = document.createElement('div');
       empty.className = 'hardware-io-empty';
       empty.textContent = (hardwareIoModel.pin_options || []).length
-        ? 'No local hardware assigned. Add a relay or temperature sensor above.'
+        ? 'No local hardware assigned. Add a switch or temperature sensor above.'
         : 'This device has no verified configurable GPIO profile yet.';
       list.appendChild(empty);
     } else {
@@ -5876,7 +5892,14 @@ function t(key) {
     if (!hardwareIoModel) return;
     const channels = hardwareIoModel.channels || (hardwareIoModel.channels = []);
     if (channels.length >= Number(hardwareIoModel.max_channels || 8)) return;
-    const pin = hardwareIoUnusedPins(type)[0];
+    let pin = null;
+    if (type === 'relay' && String(hardwareIoModel.device_key || '') === 'waveshare_4b') {
+      const used = new Set(channels.map(channel => Number(channel.gpio)));
+      pin = (hardwareIoModel.pin_options || []).find(option =>
+        option.onboard && option.relay && !used.has(Number(option.gpio))) || null;
+      if (pin) hardwareIoModel.board_variant = 'waveshare_86_2ro';
+    }
+    if (!pin) pin = hardwareIoUnusedPins(type)[0];
     if (!pin) {
       setHardwareIoSaveState('No free compatible GPIO', 'error');
       return;
@@ -5884,7 +5907,7 @@ function t(key) {
     const sequence = channels.filter(channel => channel.type === type).length + 1;
     channels.push({
       id: nextHardwareIoId(type),
-      name: type === 'temperature' ? 'Temperature ' + sequence : 'Relay ' + sequence,
+      name: type === 'temperature' ? 'Temperature ' + sequence : 'Switch ' + sequence,
       type,
       gpio: Number(pin.gpio),
       inverted: false,
@@ -5892,47 +5915,30 @@ function t(key) {
       precision: 1
     });
     renderHardwareIo();
-    scheduleHardwareIoSave();
-  }
-
-  function addHardwareIo86Preset() {
-    if (!hardwareIoModel) return;
-    const channels = hardwareIoModel.channels || (hardwareIoModel.channels = []);
-    const enabled = hardwareIoModel.board_variant === 'waveshare_86_2ro';
-    if (enabled) {
-      if (!window.confirm('Disable 86 Panel 2RO mode and remove both onboard relay assignments?')) return;
-      hardwareIoModel.channels = channels.filter(channel =>
-        ![32, 46].includes(Number(channel.gpio)));
-      hardwareIoModel.board_variant = 'standard';
-      renderHardwareIo();
-      scheduleHardwareIoSave();
-      return;
-    }
-    hardwareIoModel.board_variant = 'waveshare_86_2ro';
-    for (const spec of [{gpio: 32, name: 'Relay 1'}, {gpio: 46, name: 'Relay 2'}]) {
-      if (channels.length >= Number(hardwareIoModel.max_channels || 8)) break;
-      if (channels.some(channel => Number(channel.gpio) === spec.gpio)) continue;
-      if (!hardwareIoSupportsPin(spec.gpio, 'relay')) continue;
-      channels.push({
-        id: nextHardwareIoId('relay'), name: spec.name, type: 'relay',
-        gpio: spec.gpio, inverted: false, boot_state: 'off', precision: 1
-      });
-    }
-    renderHardwareIo();
-    scheduleHardwareIoSave();
+    markHardwareIoDirty();
   }
 
   function bindHardwareIo() {
     if (hardwareIoBound) return;
     hardwareIoBound = true;
-    document.getElementById('hardwareIoAddRelay')?.addEventListener('click', () => addHardwareIoChannel('relay'));
-    document.getElementById('hardwareIoAddTemperature')?.addEventListener('click', () => addHardwareIoChannel('temperature'));
-    document.getElementById('hardwareIoPreset86')?.addEventListener('click', addHardwareIo86Preset);
+    document.getElementById('hardwareIoAddSwitch')?.addEventListener('click', () => {
+      addHardwareIoChannel('relay');
+    });
+    document.getElementById('hardwareIoAddTemperature')?.addEventListener('click', () => {
+      addHardwareIoChannel('temperature');
+    });
+    document.getElementById('hardwareIoSave')?.addEventListener('click', () => {
+      saveHardwareIoNow(false);
+    });
+    document.getElementById('hardwareIoSaveRestart')?.addEventListener('click', () => {
+      if (!window.confirm('Restart the device?')) return;
+      saveHardwareIoNow(true);
+    });
   }
 
   function scheduleHardwareIoEntityOptionsRefresh() {
     hardwareIoEntityRefreshTimers.forEach(timer => window.clearTimeout(timer));
-    hardwareIoEntityRefreshTimers = [2500, 7500].map(delay => window.setTimeout(() => {
+    hardwareIoEntityRefreshTimers = [0, 2500, 7500].map(delay => window.setTimeout(() => {
       fetchEntityOptions(true).then(data => {
         tileTabs.forEach(tab => {
           rebuildEntitySelect(tab + '_sensor_entity', data.sensors);
@@ -5943,14 +5949,29 @@ function t(key) {
     }, delay));
   }
 
-  async function saveHardwareIoNow() {
-    hardwareIoSaveTimer = null;
-    if (!hardwareIoModel) return;
-    if (hardwareIoSaving) {
-      hardwareIoSaveTimer = window.setTimeout(saveHardwareIoNow, 150);
+  function restartAfterHardwareIoSave() {
+    setHardwareIoSaveState('Restarting…', 'saving');
+    const restartForm = document.getElementById('admin_restart_form');
+    if (restartForm) {
+      window.setTimeout(() => restartForm.submit(), 100);
       return;
     }
+    fetch('/restart', {method: 'POST'}).catch(() => {});
+  }
+
+  async function saveHardwareIoNow(restartAfterSave = false) {
+    if (!hardwareIoModel || hardwareIoSaving) return false;
+    if (!hardwareIoDirty) {
+      if (restartAfterSave) restartAfterHardwareIoSave();
+      return true;
+    }
+    if ((hardwareIoModel.channels || []).some(channel =>
+      !String(channel.name || '').trim())) {
+      setHardwareIoSaveState('Name is required', 'error');
+      return false;
+    }
     hardwareIoSaving = true;
+    updateHardwareIoSaveActions();
     const saveVersion = hardwareIoEditVersion;
     const channels = (hardwareIoModel.channels || []).map(channel => ({
       id: String(channel.id || ''),
@@ -5962,6 +5983,7 @@ function t(key) {
       precision: Math.max(0, Math.min(3, Number(channel.precision ?? 1)))
     }));
     setHardwareIoSaveState('Saving…', 'saving');
+    let saved = false;
     try {
       const response = await fetch('/api/hardware-io', {
         method: 'POST',
@@ -5974,7 +5996,11 @@ function t(key) {
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.success) throw new Error(result.error || ('HTTP ' + response.status));
       if (saveVersion === hardwareIoEditVersion) {
+        hardwareIoDirty = false;
         setHardwareIoSaveState('Saved', 'saved');
+        saved = true;
+      } else {
+        setHardwareIoSaveState('Unsaved changes');
       }
       scheduleHardwareIoEntityOptionsRefresh();
     } catch (error) {
@@ -5984,11 +6010,10 @@ function t(key) {
       }
     } finally {
       hardwareIoSaving = false;
-      if (saveVersion !== hardwareIoEditVersion) {
-        if (hardwareIoSaveTimer) window.clearTimeout(hardwareIoSaveTimer);
-        hardwareIoSaveTimer = window.setTimeout(saveHardwareIoNow, 150);
-      }
+      updateHardwareIoSaveActions();
     }
+    if (saved && restartAfterSave) restartAfterHardwareIoSave();
+    return saved;
   }
 
   async function initHardwareIo() {
@@ -6007,8 +6032,10 @@ function t(key) {
       data.board_variant = data.board_variant || 'standard';
       hardwareIoModel = data;
       hardwareIoLoaded = true;
+      hardwareIoDirty = false;
       renderHardwareIo();
-      setHardwareIoSaveState('All changes save automatically');
+      setHardwareIoSaveState('Saved', 'saved');
+      updateHardwareIoSaveActions();
     } catch (error) {
       const list = document.getElementById('hardwareIoList');
       if (list) {

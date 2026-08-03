@@ -163,50 +163,40 @@
     .hardware-io-content {
       flex:1 1 auto;
       min-height:0;
-      overflow-y:auto;
-      overscroll-behavior:contain;
-      margin:0 -12px 0 0;
-      padding:0 12px 18px 0;
-    }
-    .hardware-io-heading {
       display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:18px;
-      margin-bottom:16px;
+      flex-direction:column;
+      overflow:hidden;
     }
-    .hardware-io-heading h2 { margin:0 0 5px; font-size:22px; color:var(--text); }
-    .hardware-io-heading p { margin:0; max-width:680px; color:var(--text-3); font-size:13px; line-height:1.45; }
-    .hardware-io-heading-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
-    .hardware-io-heading-actions .hardware-io-action {
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      gap:7px;
-      width:auto;
-      min-width:0;
-      margin:0;
-      padding:10px 14px;
-      font-size:13px;
+    .hardware-io-toolbar.settings-actions {
+      flex:0 0 auto;
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      width:min(100%, 290px);
+      align-self:flex-end;
+      gap:10px;
+      padding:0 0 12px;
+      background:var(--card);
+    }
+    .hardware-io-toolbar.settings-actions .hardware-io-add-button {
+      width:100%;
       white-space:nowrap;
     }
-    .hardware-io-device-note {
-      margin-bottom:14px;
-      padding:10px 12px;
-      border:1px solid #2b2b2b;
-      border-radius:12px;
-      background:var(--well);
-      color:var(--text-2);
-      font-size:12px;
-      line-height:1.45;
+    .hardware-io-list {
+      flex:1 1 auto;
+      min-height:0;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      overflow:auto;
+      overscroll-behavior:contain;
+      padding-right:4px;
     }
-    .hardware-io-list { display:flex; flex-direction:column; gap:10px; }
     .hardware-io-loading,
     .hardware-io-empty {
       display:flex;
       align-items:center;
       justify-content:center;
-      min-height:180px;
+      min-height:140px;
       padding:24px;
       box-sizing:border-box;
       border:1px dashed var(--line-strong);
@@ -216,33 +206,48 @@
       font-size:14px;
     }
     .hardware-io-card {
-      padding:16px;
+      flex:0 0 auto;
+      min-width:980px;
+      display:block;
+      padding:10px 12px;
+      box-sizing:border-box;
       border:1px solid #292929;
-      border-radius:16px;
+      border-radius:12px;
       background:var(--panel);
     }
     .hardware-io-card-header {
       display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      margin-bottom:14px;
+      align-items:baseline;
+      gap:10px;
+      min-width:0;
+      margin-bottom:8px;
     }
-    .hardware-io-card-title { display:flex; align-items:center; gap:9px; min-width:0; }
-    .hardware-io-card-icon {
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      width:34px;
-      height:34px;
-      flex:0 0 34px;
-      border-radius:10px;
-      background:var(--accent-soft);
-      color:#5fd4c7;
-      font-size:20px;
+    .hardware-io-card-type {
+      flex:0 0 auto;
+      color:var(--text);
+      font-size:13px;
+      font-weight:700;
     }
-    .hardware-io-card-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:15px; font-weight:700; color:var(--text); }
-    .hardware-io-card-id { color:var(--text-3); font-size:11px; margin-top:2px; }
+    .hardware-io-card-id {
+      min-width:0;
+      overflow:hidden;
+      color:var(--text-3);
+      font-family:ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size:13px;
+      line-height:1.3;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .hardware-io-fields {
+      display:grid;
+      grid-template-columns:minmax(260px, 1.55fr) minmax(220px, 1.15fr) repeat(2, minmax(160px, .85fr)) 34px;
+      align-items:start;
+      gap:10px;
+    }
+    .hardware-io-card-temperature .hardware-io-fields {
+      grid-template-columns:minmax(240px, 1.45fr) repeat(2, minmax(190px, 1fr)) 34px;
+    }
+    .hardware-io-card-temperature .hardware-io-delete { grid-column:4; }
     .hardware-io-delete {
       display:inline-flex;
       align-items:center;
@@ -259,27 +264,65 @@
       font-family:inherit;
       font-size:18px;
       cursor:pointer;
+      grid-column:5;
+      align-self:start;
+      margin-top:16px;
     }
     .hardware-io-delete:hover { background:rgba(193,68,68,.14); border-color:var(--danger); }
-    .hardware-io-fields { display:grid; grid-template-columns:1.35fr 1fr 1fr 1fr; gap:12px; align-items:end; }
     .hardware-io-field { min-width:0; }
-    .hardware-io-field label { margin:0 0 5px; }
+    .hardware-io-field label { margin:0 0 4px; font-size:11px; }
     .hardware-io-field input,
-    .hardware-io-field select { margin:0; padding:10px 13px; font-size:13px; }
-    .hardware-io-temp-note {
-      grid-column:3 / -1;
-      align-self:center;
-      padding:9px 11px;
-      border-radius:10px;
-      background:rgba(38,166,154,.09);
+    .hardware-io-field select {
+      height:34px;
+      margin:0;
+      padding:6px 10px;
+      font-size:12px;
+      line-height:20px;
+    }
+    .hardware-io-toggle {
+      width:100%;
+      display:grid;
+      grid-auto-flow:column;
+      grid-auto-columns:1fr;
+      height:34px;
+      box-sizing:border-box;
+      padding:2px;
+      border:1px solid var(--line-strong);
+      border-radius:9px;
+      background:var(--well);
+    }
+    .hardware-io-toggle button {
+      min-width:52px;
+      margin:0;
+      padding:4px 9px;
+      border:0;
+      border-radius:6px;
+      background:transparent;
+      color:var(--text-3);
+      font-family:inherit;
+      font-size:11px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .hardware-io-toggle button.active {
+      background:var(--accent);
+      color:#fff;
+    }
+    .hardware-io-fixed-value {
+      width:100%;
+      height:34px;
+      box-sizing:border-box;
+      display:flex;
+      align-items:center;
+      padding:0 10px;
+      border:1px solid var(--line-strong);
+      border-radius:9px;
+      background:var(--well);
       color:var(--text-2);
       font-size:11px;
-      line-height:1.4;
     }
-    .hardware-io-footer { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:14px; }
-    .hardware-io-safety { display:flex; align-items:flex-start; gap:7px; max-width:760px; color:var(--text-3); font-size:11px; line-height:1.45; }
-    .hardware-io-safety .mdi { color:var(--accent-link); font-size:16px; line-height:1; margin-top:1px; }
-    .hardware-io-save-state { min-width:120px; color:var(--text-3); font-size:12px; font-weight:600; text-align:right; white-space:nowrap; }
+    .hardware-io-footer { flex:0 0 auto; }
+    .hardware-io-save-state { min-width:0; margin-left:auto; color:var(--text-3); font-size:12px; font-weight:600; text-align:right; white-space:nowrap; }
     .hardware-io-save-state.saving { color:var(--accent-link); }
     .hardware-io-save-state.saved { color:var(--ok); }
     .hardware-io-save-state.error { color:var(--err); }
@@ -547,6 +590,7 @@
     .btn:hover { background:var(--accent-hover); }
     .btn:active { background:var(--accent-active); }
     .btn:focus-visible { outline:none; box-shadow:0 0 0 3px var(--accent-ring); }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
     .btn-secondary { background:#2a2a2a; color:#e8e8e8; margin-top:12px; width:100%; }
     .btn-secondary:hover { background:#333333; }
     .btn-secondary:active { background:#3a3a3a; }
@@ -1136,13 +1180,14 @@
       body { height:auto; overflow:auto; }
       .wrapper { height:auto; padding:16px; }
       .card { height:auto; min-height:calc(100vh - 32px); }
-      #tab-network.active,
-      #tab-hardware.active { flex:none; overflow:visible; }
-      .hardware-io-content { flex:none; overflow:visible; margin:0; padding-right:0; }
-      .hardware-io-heading { flex-direction:column; }
-      .hardware-io-heading-actions { justify-content:flex-start; }
-      .hardware-io-fields { grid-template-columns:repeat(2, minmax(0, 1fr)); }
-      .hardware-io-temp-note { grid-column:1 / -1; }
+      #tab-network.active { flex:none; overflow:visible; }
+      #tab-hardware.active {
+        flex:1 1 auto;
+        min-height:420px;
+        height:calc(100vh - 190px);
+        overflow:hidden;
+      }
+      .hardware-io-content { flex:1 1 auto; min-height:0; overflow:hidden; }
       #admin_settings_form {
         flex:none;
         overflow:visible;
@@ -1165,12 +1210,14 @@
       .file-manager-selection-actions { justify-content:flex-start; }
     }
     @media (max-width: 520px) {
-      .hardware-io-heading-actions { width:100%; }
-      .hardware-io-heading-actions .hardware-io-action { flex:1 1 auto; }
-      .hardware-io-fields { grid-template-columns:1fr; }
-      .hardware-io-temp-note { grid-column:auto; }
-      .hardware-io-footer { align-items:flex-start; flex-direction:column; }
-      .hardware-io-save-state { min-width:0; text-align:left; }
+      .hardware-io-save-state {
+        flex:1 1 100%;
+        min-width:0;
+        margin-left:0;
+        overflow:hidden;
+        text-align:right;
+        text-overflow:ellipsis;
+      }
     }
     .gauge-fields { padding-left:4px; }
     .gauge-fields.hidden { display:none; }

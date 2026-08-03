@@ -328,3 +328,87 @@ SHA256 8DEB7780FBE192BA59ECDF4D4018FD4DF9716EE7627D54C5665933FC30882A6E
 ```
 
 Alle drei Builds enthalten die erwarteten Geräteprofile, den RPC-Marker, den neuen SDIO-Recovery-Marker und die Crashlog-Diagnose. Der alte fehlerhafte Drop-Text und die bekannten fatalen Allokations-Asserts sind nicht enthalten. Alle drei Binärdateien passen in den OTA-Slot. Ein echter Langzeittest muss noch zeigen, ob der seltene Wedge damit in der Praxis beseitigt ist; die Diagnose trennt beim nächsten Auftreten den SDIO-Fall deutlich besser von Brownout, Watchdog oder Panic.
+
+## Update 2026-08-03: RX-Short-Tail-A/B nach `1502 > 86`
+
+Der neueste lange Waveshare-8-Kameralauf endete nach 30.249 Sekunden mit
+`packet size[1502]>[86]`, danach MQTT-Verlust und RPC-Timeout. Kamera,
+Speicher und Decoder waren bis dahin gesund; `alloc_retries=0` und
+`bus_faults=0`. Das beweist eine verletzte Stream-Grenze, aber noch nicht,
+ob der Parser selbst oder die darunterliegende C6/SDIO-Übertragung die
+primäre Ursache ist.
+
+Für einen sauberen ersten A/B-Test wurde deshalb nur die verbleibende
+auffällige RX-Transaktionsform geändert:
+
+- `H_SDIO_RX_BLOCK_ONLY_XFER` ist aus.
+- Ganze 512-Byte-Blöcke bleiben Blocktransfers; nur der Rest läuft als
+  kurzer CMD53-Byte-Mode-Transfer.
+- Die vom ESP-Port verlangte 4-Byte-Ausrichtung bleibt erhalten.
+- Der Double-Buffer reserviert explizit die maximal drei Alignment-Bytes.
+- Ein Delta über 65.532 Byte wird vor der 16-Bit-SDIO-Schnittstelle als
+  Transportfehler abgewiesen.
+- Parser-Carry/Reassembly wurde bewusst noch nicht zugemischt, damit der
+  Feldtest die RX-Transaktionsänderung isoliert bewertet.
+
+Reproduzierbarer Patch:
+
+`tools/esp-hosted-3.3.7-rx-fix/rx-short-tail-cmd53.patch`
+
+Beide `sdio_drv.c.obj` wurden für `esp32p4-libs` und `esp32p4_es-libs`
+normal sowie mit `-Wall -Wextra` gebaut; normal/strict waren je Variante
+bytegleich. Der Build verlangt den Marker
+`HomeTiles SDIO RX 512-byte padding disabled (CMD53 short tail, 4-byte aligned)`.
+
+Nur der angeforderte Waveshare-8-Testbuild wurde erzeugt:
+
+```text
+build/sdio-rx-short-tail-20260803/waveshare_8/HomeTiles.ino.bin
+SHA256 3136A80B014FCFD8231C1875E635F3290CAA6B5F8B0246F07430924F408C1974
+Größe 6.075.328 Byte, OTA-Reserve 740.416 Byte
+```
+
+Noch nicht committen, pushen oder auf alle drei Geräte ausrollen. Zuerst
+Waveshare 8 mit derselben Kamera-Last mindestens 24 bis 48 Stunden testen.
+Wenn derselbe kurze Stream-Rest erneut erscheint, folgt ein separater
+Hardening-Build mit Header-Tri-State, 1536-Byte-Carry und echtem
+Double-Buffer-Free-Slot-Semaphor; nicht beides nachträglich als denselben
+A/B-Test bezeichnen.
+
+## Update 2026-08-03: lokale Hardware-I/O-Testbuilds
+
+Die lokale Hardware-I/O-Funktion verwendet jetzt die sichtbaren
+Home-Assistant-Domänen bereits als kanonische IDs: Relais heißen
+`switch.<geraeteprofil>_<kanal>`, Temperatursensoren
+`sensor.<geraeteprofil>_<kanal>`. Dieselben IDs werden im Hardware-Tab, in
+den lokalen Tile-Einstellungen und in der Bridge verwendet. Lokale Relais
+werden auf dem Panel direkt geschaltet; dafür ist kein Umweg über MQTT oder
+die Bridge erforderlich.
+
+Für die drei angeforderten Testbuilds wurde die SDIO-Änderung bewusst
+getrennt: B4 und Tab5 bleiben auf dem bisherigen a8204-Recovery-Stand,
+während nur der 8-Zoll-Build den experimentellen Short-Tail-Patch enthält.
+`tools/build-firmware-local.ps1` erzwingt diese Auswahl mit
+`-EspHostedRxVariant installed-a8204` beziehungsweise `repo-short-tail` und
+prüft den jeweiligen Binärmarker.
+
+```text
+Waveshare B4 / 86-2RO (a8204-Basis):
+build/relay-local-a8204-waveshare_b4/HomeTiles.ino.bin
+SHA256 2C76B309A45DD3FC3F9A2FBBDA6DCD1EE1B8E806EC712A0BAA52E7D7C96A9AB9
+Größe 6.100.064 Byte, OTA-Reserve 715.680 Byte
+
+Tab5 (a8204-Basis):
+build/relay-local-a8204-tab5/HomeTiles.ino.bin
+SHA256 702D2693AE16EFD50C8A1F466398AD238F8D55CA2D345B6E07D2FC54221A580D
+Größe 6.178.384 Byte, OTA-Reserve 637.360 Byte
+
+Waveshare 8 Zoll (experimenteller Short-Tail-Patch):
+build/relay-review-waveshare_8/HomeTiles.ino.bin
+SHA256 2259A63C262325995078EA5890BE2F35B04C9BF67D9A4913FC1C3B919D298126
+Größe 6.078.960 Byte, OTA-Reserve 736.784 Byte
+```
+
+Diese drei Builds sind lokale Testartefakte und noch nicht veröffentlicht.
+Der 8-Zoll-SDIO-Patch gilt weiterhin nur als A/B-Test; erst ein langer
+Kameralauf kann zeigen, ob er den seltenen Wedge tatsächlich verhindert.

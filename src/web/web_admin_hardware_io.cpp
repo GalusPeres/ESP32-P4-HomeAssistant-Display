@@ -1,6 +1,7 @@
 #include "src/web/web_admin.h"
 
 #include "src/io/hardware_io.h"
+#include "src/network/mqtt_handlers.h"
 #include "src/network/network_manager.h"
 #include "src/web/web_admin_utils.h"
 
@@ -49,5 +50,8 @@ void WebAdminServer::handleSaveHardwareIo() {
   // HA-Entities. Bei bestehender Verbindung wird sie sofort aktualisiert;
   // offline folgt sie automatisch beim naechsten MQTT-Connect.
   networkManager.publishBridgeConfig();
+  // Die lokale Entity-ID kann sich durch den Namen aendern. Den etwas
+  // teureren Route-Scan erst nach dem Web-Admin-Ruhefenster ausfuehren.
+  mqttRequestDynamicSlotsReload();
   server.send(200, "application/json", "{\"success\":true}");
 }

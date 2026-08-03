@@ -4,12 +4,15 @@
 #include <FS.h>
 #include <cmath>
 #include <cstring>
+#include <strings.h>
 #include <driver/gpio.h>
 
 #include "src/devices/device.h"
 #include "src/devices/device_select.h"
+#include "src/network/ha_bridge_config.h"
 #include "src/network/mqtt_topics.h"
 #include "src/network/network_manager.h"
+#include "src/ui/tab_tiles_unified.h"
 
 namespace {
 
@@ -239,6 +242,94 @@ void configure_one_wire_pin(int gpio) {
   one_wire_release(pin);
 }
 
+String local_ascii_slug(const char* value) {
+  String slug;
+  slug.reserve(value ? strlen(value) : 0);
+  bool separator_pending = false;
+  for (const unsigned char* p =
+           reinterpret_cast<const unsigned char*>(value);
+       p && *p; ++p) {
+    char c = static_cast<char>(*p);
+    if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+    const bool valid = (c >= 'a' && c <= 'z') ||
+                       (c >= '0' && c <= '9');
+    if (!valid) {
+      separator_pending = slug.length() > 0;
+      continue;
+    }
+    if (separator_pending) slug += '_';
+    separator_pending = false;
+    slug += c;
+  }
+  return slug;
+}
+
+String local_model_slug() {
+  String slug = local_ascii_slug(Device::profile().key);
+  if (!slug.length()) slug = local_ascii_slug(Device::displayName());
+  if (!slug.length()) slug = "panel";
+  return slug;
+}
+
+String legacy_model_slug() {
+  String slug = local_ascii_slug(Device::displayName());
+  if (!slug.length()) slug = local_model_slug();
+  return slug;
+}
+
+String local_device_slug() {
+  return local_model_slug();
+}
+
+String local_entity_name_slug(const HardwareIoChannelConfig& config) {
+  String slug = local_ascii_slug(config.name.c_str());
+  // The hidden channel ID remains the deterministic fallback for names that
+  // contain no ASCII characters. It also keeps the entity usable while an
+  // empty name is being corrected by the configuration parser.
+  if (!slug.length()) slug = config.id;
+  return slug;
+}
+
+String make_local_entity_id(const HardwareIoChannelConfig& config) {
+  String entity(config.type == HardwareIoType::Temperature
+                    ? "sensor."
+                    : "switch.");
+  entity += local_device_slug();
+  entity += '_';
+  entity += local_entity_name_slug(config);
+  return entity;
+}
+
+String make_legacy_name_local_entity_id(
+    const HardwareIoChannelConfig& config) {
+  String entity(config.type == HardwareIoType::Temperature
+                    ? "sensor."
+                    : "switch.");
+  entity += legacy_model_slug();
+  entity += '_';
+  entity += local_entity_name_slug(config);
+  return entity;
+}
+
+String make_legacy_channel_local_entity_id(
+    const HardwareIoChannelConfig& config) {
+  String entity(config.type == HardwareIoType::Temperature
+                    ? "sensor."
+                    : "switch.");
+  entity += legacy_model_slug();
+  entity += '_';
+  entity += config.id;
+  return entity;
+}
+
+void update_local_entity_grids(const String& entity_id, const char* payload) {
+  if (!entity_id.length() || !payload) return;
+  tiles_update_sensor_by_entity(GridType::TAB0, entity_id.c_str(), payload);
+  tiles_update_sensor_by_entity(GridType::TAB1, entity_id.c_str(), payload);
+  tiles_update_sensor_by_entity(GridType::TAB2, entity_id.c_str(), payload);
+  tiles_update_sensor_by_entity(GridType::SCREENSAVER, entity_id.c_str(), payload);
+}
+
 }  // namespace
 
 HardwareIoManager hardwareIo;
@@ -275,6 +366,109 @@ bool HardwareIoManager::pinSupports(int gpio, HardwareIoType type,
   return false;
 }
 
+String HardwareIoManager::localEntityId(uint8_t index) const {
+  if (index >= channel_count_) return String();
+  if (runtime_[index].local_entity_id.length()) {
+    return runtime_[index].local_entity_id;
+  }
+  return make_local_entity_id(channels_[index]);
+}
+
+bool HardwareIoManager::localEntityInfo(uint8_t index, String& entity_id,
+                                        String& name,
+                                        HardwareIoType& type) const {
+  if (index >= channel_count_) return false;
+  entity_id = localEntityId(index);
+  name = channels_[index].name;
+  type = channels_[index].type;
+  return entity_id.length() > 0;
+}
+
+bool HardwareIoManager::isLocalEntityId(const char* entity_id) const {
+  if (!entity_id || !*entity_id) return false;
+  // A visible, device-specific ID always wins over compatibility aliases.
+  for (uint8_t i = 0; i < channel_count_; ++i) {
+    if (runtime_[i].local_entity_id.length()) {
+      if (runtime_[i].local_entity_id.equalsIgnoreCase(entity_id)) return true;
+    } else if (make_local_entity_id(channels_[i]).equalsIgnoreCase(entity_id)) {
+      return true;
+    }
+  }
+  for (uint8_t i = 0; i < channel_count_; ++i) {
+    if (make_legacy_name_local_entity_id(channels_[i]).equalsIgnoreCase(
+            entity_id)) {
+      return true;
+    }
+  }
+  for (uint8_t i = 0; i < channel_count_; ++i) {
+    if (make_legacy_channel_local_entity_id(channels_[i]).equalsIgnoreCase(
+            entity_id)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool HardwareIoManager::handleLocalEntityCommand(const char* entity_id,
+                                                  const char* action) {
+  if (!entity_id || !*entity_id) return false;
+  int8_t matched_index = -1;
+  // Prefer the visible ID. This prevents a legacy alias from claiming the
+  // name-derived ID of another channel after an upgrade.
+  for (uint8_t i = 0; i < channel_count_; ++i) {
+    if (localEntityId(i).equalsIgnoreCase(entity_id)) {
+      matched_index = static_cast<int8_t>(i);
+      break;
+    }
+  }
+  if (matched_index < 0) {
+    for (uint8_t i = 0; i < channel_count_; ++i) {
+      if (make_legacy_name_local_entity_id(channels_[i]).equalsIgnoreCase(
+              entity_id)) {
+        matched_index = static_cast<int8_t>(i);
+        break;
+      }
+    }
+  }
+  if (matched_index < 0) {
+    for (uint8_t i = 0; i < channel_count_; ++i) {
+      if (make_legacy_channel_local_entity_id(channels_[i]).equalsIgnoreCase(
+              entity_id)) {
+        matched_index = static_cast<int8_t>(i);
+        break;
+      }
+    }
+  }
+  if (matched_index < 0) return false;
+
+  const uint8_t index = static_cast<uint8_t>(matched_index);
+  if (channels_[index].type != HardwareIoType::Relay) {
+    Serial.printf("[HardwareIO] lokale Sensor-Entity ist nicht schaltbar: %s\n",
+                  entity_id);
+    return true;
+  }
+
+  String command = action && *action ? String(action) : String("toggle");
+  command.trim();
+  command.toLowerCase();
+  bool state = runtime_[index].relay_state;
+  if (command == "toggle") {
+    state = !state;
+  } else if (command == "on" || command == "1" || command == "true") {
+    state = true;
+  } else if (command == "off" || command == "0" || command == "false") {
+    state = false;
+  } else {
+    Serial.printf("[HardwareIO] ungueltiger lokaler Relay-Befehl fuer %s\n",
+                  entity_id);
+    return true;
+  }
+  applyRelay(index, state, true);
+  Serial.printf("[HardwareIO] lokales Relay '%s' -> %s\n",
+                entity_id, state ? "ON" : "OFF");
+  return true;
+}
+
 void HardwareIoManager::reset() {
   channel_count_ = 0;
   service_cursor_ = 0;
@@ -291,7 +485,7 @@ void HardwareIoManager::reset() {
 bool HardwareIoManager::parseDocument(
     const String& json, HardwareIoChannelConfig* out_channels,
     uint8_t& out_count, bool& out_board_variant_86_2ro,
-    String& error) const {
+    String& error, bool allow_missing_names) const {
   out_count = 0;
   out_board_variant_86_2ro = false;
   if (!json.length() || json.length() > kMaxConfigBytes) {
@@ -349,10 +543,13 @@ bool HardwareIoManager::parseDocument(
     config.name = String(item["name"] | "");
     config.name.trim();
     if (!config.name.length()) {
+      if (!allow_missing_names) {
+        error = "Channel name is required";
+        return false;
+      }
       config.name = config.type == HardwareIoType::Temperature
-                        ? "Temperature"
-                        : "Relay";
-      config.name += " GPIO ";
+                        ? "Temperature GPIO "
+                        : "Switch GPIO ";
       config.name += String(static_cast<unsigned>(config.gpio));
     }
     if (config.name.length() > 48) {
@@ -396,6 +593,15 @@ bool HardwareIoManager::parseDocument(
         error = "Channel IDs must be unique";
         return false;
       }
+      // Only visible IDs must be unique. A newly allocated hidden ID may
+      // legitimately equal another channel's visible name slug (for example
+      // old relay_1 + new switch_1). Ambiguous legacy aliases are suppressed
+      // at runtime and must not block an otherwise valid configuration.
+      if (make_local_entity_id(out_channels[i]).equalsIgnoreCase(
+              make_local_entity_id(config))) {
+        error = "Channel names must create unique entity IDs";
+        return false;
+      }
     }
     out_channels[out_count++] = config;
   }
@@ -419,7 +625,8 @@ bool HardwareIoManager::loadPath(const char* path) {
   uint8_t count = 0;
   bool board_variant_86_2ro = false;
   String error;
-  if (!parseDocument(json, loaded, count, board_variant_86_2ro, error)) {
+  if (!parseDocument(json, loaded, count, board_variant_86_2ro, error,
+                     true)) {
     Serial.printf("[HardwareIO] %s ungueltig: %s\n", path, error.c_str());
     return false;
   }
@@ -491,6 +698,7 @@ void HardwareIoManager::startRuntime() {
     }
   }
   rebuildMqttTopics();
+  syncAllLocalEntityStates(true);
 }
 
 void HardwareIoManager::transitionRuntime(
@@ -635,7 +843,9 @@ bool HardwareIoManager::replaceFromJson(const String& json, String& error) {
   uint8_t candidate_count = 0;
   bool candidate_board_variant_86_2ro = false;
   if (!parseDocument(json, candidate, candidate_count,
-                     candidate_board_variant_86_2ro, error)) return false;
+                     candidate_board_variant_86_2ro, error, false)) {
+    return false;
+  }
   if (!saveChannels(candidate, candidate_count,
                      candidate_board_variant_86_2ro)) {
     error = "Could not save hardware configuration";
@@ -647,15 +857,51 @@ bool HardwareIoManager::replaceFromJson(const String& json, String& error) {
   // Runtime-Umbau gesichert und bei bestehender bzw. naechster Verbindung
   // mit einem leeren retained Payload entfernt.
   for (uint8_t old = 0; old < channel_count_; ++old) {
-    bool id_kept = false;
+    bool topic_kept = false;
     for (uint8_t next = 0; next < candidate_count; ++next) {
       if (channels_[old].id == candidate[next].id) {
-        id_kept = true;
-        break;
+        topic_kept = true;
       }
     }
-    if (!id_kept && runtime_[old].state_topic.length()) {
+    if (!topic_kept && runtime_[old].state_topic.length()) {
       rememberStaleStateTopic(runtime_[old].state_topic);
+    }
+
+    // Clear every obsolete local ID, but never clear an ID still claimed by
+    // any candidate as its primary ID or one of the two upgrade aliases.
+    const String old_entity_ids[] = {
+        make_local_entity_id(channels_[old]),
+        make_legacy_name_local_entity_id(channels_[old]),
+        make_legacy_channel_local_entity_id(channels_[old]),
+    };
+    for (size_t old_id_index = 0;
+         old_id_index < sizeof(old_entity_ids) / sizeof(old_entity_ids[0]);
+         ++old_id_index) {
+      const String& old_entity_id = old_entity_ids[old_id_index];
+      bool duplicate_old_id = false;
+      for (size_t previous = 0; previous < old_id_index; ++previous) {
+        if (old_entity_ids[previous].equalsIgnoreCase(old_entity_id)) {
+          duplicate_old_id = true;
+          break;
+        }
+      }
+      if (duplicate_old_id) continue;
+
+      bool entity_kept = false;
+      for (uint8_t next = 0; next < candidate_count; ++next) {
+        if (make_local_entity_id(candidate[next]).equalsIgnoreCase(
+                old_entity_id) ||
+            make_legacy_name_local_entity_id(candidate[next]).equalsIgnoreCase(
+                old_entity_id) ||
+            make_legacy_channel_local_entity_id(candidate[next])
+                .equalsIgnoreCase(old_entity_id)) {
+          entity_kept = true;
+          break;
+        }
+      }
+      if (!entity_kept) {
+        markLocalEntityUnavailable(channels_[old], old_entity_id);
+      }
     }
   }
 
@@ -670,6 +916,7 @@ bool HardwareIoManager::replaceFromJson(const String& json, String& error) {
                                          : HardwareIoChannelConfig{};
     }
   }
+  syncAllLocalEntityStates(true);
   if (networkManager.isMqttConnected()) subscribeMqttTopics();
   Serial.printf("[HardwareIO] %u Zuordnung(en) gespeichert\n",
                 static_cast<unsigned>(channel_count_));
@@ -686,6 +933,7 @@ String HardwareIoManager::toJson(bool include_device_meta) const {
   if (include_device_meta) {
     doc["device_key"] = Device::profile().key;
     doc["device_name"] = Device::displayName();
+    doc["entity_prefix"] = local_device_slug();
   }
   JsonArray options = doc["pin_options"].to<JsonArray>();
   size_t option_count = 0;
@@ -708,6 +956,7 @@ String HardwareIoManager::toJson(bool include_device_meta) const {
     const HardwareIoChannelConfig& config = channels_[i];
     JsonObject item = channels.add<JsonObject>();
     item["id"] = config.id;
+    item["entity_id"] = localEntityId(i);
     item["name"] = config.name;
     item["type"] = type_name(config.type);
     item["gpio"] = config.gpio;
@@ -727,7 +976,55 @@ void HardwareIoManager::appendBridgeJson(String& json) const {
     const HardwareIoChannelConfig& config = channels_[i];
     json += "{\"id\":\"";
     append_json_escaped(json, config.id);
-    json += "\",\"type\":\"";
+    json += "\",\"entity_id\":\"";
+    append_json_escaped(json, make_local_entity_id(config));
+    json += "\",\"legacy_entity_ids\":[";
+    const String current_entity_id = make_local_entity_id(config);
+    const String legacy_name_entity_id =
+        make_legacy_name_local_entity_id(config);
+    const String legacy_channel_entity_id =
+        make_legacy_channel_local_entity_id(config);
+    const auto conflicts_with_primary_id = [&](const String& candidate_id) {
+      for (uint8_t other = 0; other < channel_count_; ++other) {
+        if (make_local_entity_id(channels_[other]).equalsIgnoreCase(
+                candidate_id)) {
+          return true;
+        }
+      }
+      return false;
+    };
+    const auto channel_alias_conflicts_with_name_alias = [&]() {
+      for (uint8_t other = 0; other < channel_count_; ++other) {
+        if (other != i &&
+            make_legacy_name_local_entity_id(channels_[other])
+                .equalsIgnoreCase(legacy_channel_entity_id)) {
+          return true;
+        }
+      }
+      return false;
+    };
+    bool first_legacy_id = true;
+    const auto append_legacy_id = [&](const String& legacy_entity_id) {
+      if (!legacy_entity_id.length() ||
+          legacy_entity_id.equalsIgnoreCase(current_entity_id)) {
+        return;
+      }
+      if (!first_legacy_id) json += ',';
+      json += '"';
+      append_json_escaped(json, legacy_entity_id);
+      json += '"';
+      first_legacy_id = false;
+    };
+    if (!conflicts_with_primary_id(legacy_name_entity_id)) {
+      append_legacy_id(legacy_name_entity_id);
+    }
+    if (!legacy_channel_entity_id.equalsIgnoreCase(legacy_name_entity_id) &&
+        !conflicts_with_primary_id(legacy_channel_entity_id) &&
+        !channel_alias_conflicts_with_name_alias()) {
+      append_legacy_id(legacy_channel_entity_id);
+    }
+    json += ']';
+    json += ",\"type\":\"";
     json += type_name(config.type);
     json += "\",\"name\":\"";
     append_json_escaped(json, config.name);
@@ -744,6 +1041,7 @@ void HardwareIoManager::appendBridgeJson(String& json) const {
 void HardwareIoManager::rebuildMqttTopics() {
   const String base = mqttTopics.deviceBase();
   for (uint8_t i = 0; i < channel_count_; ++i) {
+    runtime_[i].local_entity_id = make_local_entity_id(channels_[i]);
     runtime_[i].state_topic = base + "/stat/io/" + channels_[i].id;
     if (channels_[i].type == HardwareIoType::Relay) {
       runtime_[i].command_topic = base + "/cmnd/io/" + channels_[i].id;
@@ -833,15 +1131,17 @@ void HardwareIoManager::applyRelay(uint8_t index, bool on, bool publish) {
   if (publish) publishChannelState(index, true);
 }
 
-void HardwareIoManager::publishChannelState(uint8_t index, bool force) {
-  if (index >= channel_count_ || !networkManager.isMqttConnected()) return;
-  RuntimeChannel& runtime = runtime_[index];
-  char payload[24] = {0};
+void HardwareIoManager::buildChannelPayload(uint8_t index, char* payload,
+                                            size_t payload_size) const {
+  if (!payload || payload_size == 0) return;
+  payload[0] = '\0';
+  if (index >= channel_count_) return;
+  const RuntimeChannel& runtime = runtime_[index];
   if (channels_[index].type == HardwareIoType::Relay) {
-    snprintf(payload, sizeof(payload), "%s", runtime.relay_state ? "ON" : "OFF");
+    snprintf(payload, payload_size, "%s", runtime.relay_state ? "ON" : "OFF");
   } else if (!runtime.temperature_valid || std::isnan(runtime.temperature_c) ||
              std::isinf(runtime.temperature_c)) {
-    snprintf(payload, sizeof(payload), "%s", "unavailable");
+    snprintf(payload, payload_size, "%s", "unavailable");
   } else {
     dtostrf(runtime.temperature_c, 0, channels_[index].precision, payload);
     size_t leading = 0;
@@ -849,6 +1149,100 @@ void HardwareIoManager::publishChannelState(uint8_t index, bool force) {
     if (leading) memmove(payload, payload + leading,
                          strlen(payload + leading) + 1);
   }
+}
+
+void HardwareIoManager::markLocalEntityUnavailable(
+    const HardwareIoChannelConfig& config, const String& entity_id) {
+  if (!entity_id.length()) return;
+  haBridgeConfig.updateEntityMeta(
+      entity_id, config.name,
+      config.type == HardwareIoType::Temperature ? "C" : "",
+      "");
+  haBridgeConfig.updateSensorValue(entity_id, "unavailable");
+  update_local_entity_grids(entity_id, "unavailable");
+}
+
+void HardwareIoManager::syncLocalEntityState(uint8_t index,
+                                             const char* payload,
+                                             bool force) {
+  if (index >= channel_count_ || !payload) return;
+  RuntimeChannel& runtime = runtime_[index];
+  if (!runtime.local_entity_id.length()) {
+    runtime.local_entity_id = make_local_entity_id(channels_[index]);
+  }
+  const String& entity_id = runtime.local_entity_id;
+  if (!entity_id.length()) return;
+  if (force) {
+    haBridgeConfig.updateEntityMeta(
+        entity_id, channels_[index].name,
+        channels_[index].type == HardwareIoType::Temperature ? "C" : "",
+        "");
+  }
+  if (!force && runtime.last_local_payload[0] &&
+      strcmp(payload, runtime.last_local_payload) == 0) {
+    return;
+  }
+  haBridgeConfig.updateSensorValue(entity_id, payload);
+  update_local_entity_grids(entity_id, payload);
+
+  // Keep local tiles made with both earlier beta ID formats operational:
+  // model + visible name and model + hidden channel ID. Primary IDs always
+  // win; the newer name alias wins over the oldest channel-ID alias.
+  const String legacy_name_entity_id =
+      make_legacy_name_local_entity_id(channels_[index]);
+  bool legacy_name_conflicts = false;
+  for (uint8_t other = 0; other < channel_count_; ++other) {
+    if (other != index &&
+        localEntityId(other).equalsIgnoreCase(legacy_name_entity_id)) {
+      legacy_name_conflicts = true;
+      break;
+    }
+  }
+  if (!legacy_name_conflicts &&
+      !legacy_name_entity_id.equalsIgnoreCase(entity_id)) {
+    update_local_entity_grids(legacy_name_entity_id, payload);
+  }
+
+  const String legacy_channel_entity_id =
+      make_legacy_channel_local_entity_id(channels_[index]);
+  bool legacy_channel_conflicts = false;
+  for (uint8_t other = 0; other < channel_count_; ++other) {
+    if (other != index &&
+        (localEntityId(other).equalsIgnoreCase(legacy_channel_entity_id) ||
+         make_legacy_name_local_entity_id(channels_[other])
+             .equalsIgnoreCase(legacy_channel_entity_id))) {
+      legacy_channel_conflicts = true;
+      break;
+    }
+  }
+  if (!legacy_channel_conflicts &&
+      !legacy_channel_entity_id.equalsIgnoreCase(entity_id) &&
+      !legacy_channel_entity_id.equalsIgnoreCase(legacy_name_entity_id)) {
+    update_local_entity_grids(legacy_channel_entity_id, payload);
+  }
+  strlcpy(runtime.last_local_payload, payload,
+          sizeof(runtime.last_local_payload));
+}
+
+void HardwareIoManager::syncAllLocalEntityStates(bool force) {
+  for (uint8_t i = 0; i < channel_count_; ++i) {
+    char payload[24] = {0};
+    buildChannelPayload(i, payload, sizeof(payload));
+    syncLocalEntityState(i, payload, force);
+  }
+}
+
+void HardwareIoManager::refreshLocalEntityCache() {
+  syncAllLocalEntityStates(true);
+}
+
+void HardwareIoManager::publishChannelState(uint8_t index, bool force) {
+  if (index >= channel_count_) return;
+  RuntimeChannel& runtime = runtime_[index];
+  char payload[24] = {0};
+  buildChannelPayload(index, payload, sizeof(payload));
+  syncLocalEntityState(index, payload, force);
+  if (!networkManager.isMqttConnected()) return;
   const uint32_t now = millis();
   if (!force && runtime.last_payload[0] &&
       strcmp(payload, runtime.last_payload) == 0 &&

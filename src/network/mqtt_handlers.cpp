@@ -1078,6 +1078,7 @@ static bool resolve_toggle_action(const char* action, bool current, bool* desire
 }
 
 static bool handle_local_switch_command(const char* entity_id, const char* action) {
+  if (hardwareIo.handleLocalEntityCommand(entity_id, action)) return true;
   if (entityEquals(entity_id, kEntityDisplayBrightness)) {
     sync_local_device_entities(false);
     return true;
@@ -1170,6 +1171,11 @@ static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
     String ent = entity;
     ent.trim();
     if (!ent.length()) return;
+    // Physische Panel-I/O-Entities verwenden dieselbe ID wie in HA, werden
+    // auf diesem Panel aber direkt aktualisiert und gesteuert. Eine parallele
+    // HA-Statestream-Subscription waere redundant und koennte alten State
+    // ueber den echten GPIO-State schreiben.
+    if (hardwareIo.isLocalEntityId(ent.c_str())) return;
 
     String topic = buildHaStatestreamTopic(ent, suffix);
     auto it = std::find_if(
@@ -1568,6 +1574,10 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
     Serial.printf("[Bridge] applyJson: %u ms\n", (unsigned)(millis() - t_parse0));
     if (applied) {
       Serial.println("[Bridge] Konfiguration von HA empfangen");
+      // applyJson ersetzt die Bridge-Metadaten-/Werte-Maps. Panel-interne
+      // Local-I/O-Entities sofort wieder eintragen, damit sie auch ohne
+      // Bridge-Abhaengigkeit im Tile-Editor und Runtime-Cache erhalten bleiben.
+      hardwareIo.refreshLocalEntityCache();
       // Nur der erste erfolgreiche Bridge-Sync darf die Boot-Sleep-Sperre
       // freigeben und den Idle-Timer starten. Die Bridge sendet auch spaeter
       // regelmaessige apply-Refreshes; jeder davon hatte zuvor den Timer
@@ -2121,6 +2131,9 @@ void mqttPublishHistoryRequest(const char* entity_id,
                                uint16_t period_minutes,
                                uint16_t points) {
   if (!entity_id || !*entity_id) return;
+  // Der lokale Live-Wert ist ohne Bridge verfuegbar, eine Historie dagegen
+  // nicht. Deshalb niemals unnoetig einen HA-Request fuer Panel-I/O starten.
+  if (hardwareIo.isLocalEntityId(entity_id)) return;
 
   if (hours == 0) hours = 24;
   if (period_minutes == 0) period_minutes = 5;

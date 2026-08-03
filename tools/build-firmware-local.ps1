@@ -5,7 +5,10 @@ param(
 
     [string]$OutputDirectory,
 
-    [string[]]$ExtraDefine = @()
+    [string[]]$ExtraDefine = @(),
+
+    [ValidateSet('repo-short-tail', 'installed-a8204')]
+    [string]$EspHostedRxVariant = 'repo-short-tail'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -73,7 +76,8 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 # The Arduino profile command reinstalls the ESP32 platform immediately before
 # compiling and can silently overwrite the patched ESP-Hosted archive. Apply
 # and verify the fixes first, then compile by FQBN while sketch.yaml is hidden.
-if ($Profile -ne 'guition_esp32_4848s040') {
+if ($Profile -ne 'guition_esp32_4848s040' -and
+    $EspHostedRxVariant -eq 'repo-short-tail') {
     & (Join-Path $PSScriptRoot 'apply-esp-hosted-3.3.7-fixes-local.ps1')
 }
 
@@ -148,6 +152,16 @@ if ($Profile -ne 'guition_esp32_4848s040') {
         Select-String -SimpleMatch 'HomeTiles SDIO RX recovery active (a8204f9 raw PKT_LEN + pending drain)'
     if (-not $sdioRxRecoveryMarker) {
         throw "ESP-Hosted PKT_LEN/pending RX recovery marker missing from $firmwareBin"
+    }
+    $sdioRxShortTailMarker = $firmwareStrings |
+        Select-String -SimpleMatch 'HomeTiles SDIO RX 512-byte padding disabled (CMD53 short tail, 4-byte aligned)'
+    if ($EspHostedRxVariant -eq 'repo-short-tail' -and
+        -not $sdioRxShortTailMarker) {
+        throw "ESP-Hosted short-tail CMD53 RX marker missing from $firmwareBin"
+    }
+    if ($EspHostedRxVariant -eq 'installed-a8204' -and
+        $sdioRxShortTailMarker) {
+        throw "Unexpected ESP-Hosted short-tail CMD53 RX marker found in a8204 baseline build: $firmwareBin"
     }
     $obsoletePktLenDrop = $firmwareStrings |
         Select-String -SimpleMatch 'PKT_LEN reg all-ones (bus read error); dropping read'

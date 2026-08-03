@@ -49,8 +49,20 @@ class HardwareIoManager {
   void appendBridgeJson(String& json) const;
   void subscribeMqttTopics();
   void publishAllStates();
+  void refreshLocalEntityCache();
   bool handleMqttMessage(const char* topic, const uint8_t* payload,
                          size_t length);
+
+  // Diese physischen Kanaele verwenden auf dem Panel und in Home Assistant
+  // dieselbe kurze sichtbare Entity-ID (switch.<geraet>_<name> bzw.
+  // sensor.<geraet>_<name>). Die unsichtbare Kanal-ID bleibt fuer MQTT und
+  // die HA-unique_id stabil; die HA-unique_id enthaelt ausserdem die volle
+  // Geraete-ID. Bei mehreren gleichen Panels vergibt HA bei Bedarf _2/_3.
+  // Auf dem Panel funktionieren die Kanaele direkt und ohne MQTT/Bridge.
+  bool localEntityInfo(uint8_t index, String& entity_id, String& name,
+                       HardwareIoType& type) const;
+  bool isLocalEntityId(const char* entity_id) const;
+  bool handleLocalEntityCommand(const char* entity_id, const char* action);
 
   uint8_t channelCount() const { return channel_count_; }
   bool hasTemperatureChannels() const;
@@ -74,7 +86,9 @@ class HardwareIoManager {
     uint32_t last_publish_ms = 0;
     String command_topic;
     String state_topic;
+    String local_entity_id;
     char last_payload[24] = {0};
+    char last_local_payload[24] = {0};
   };
 
   HardwareIoChannelConfig channels_[kHardwareIoMaxChannels];
@@ -92,7 +106,7 @@ class HardwareIoManager {
   bool parseDocument(const String& json,
                      HardwareIoChannelConfig* out_channels,
                      uint8_t& out_count, bool& out_board_variant_86_2ro,
-                     String& error) const;
+                     String& error, bool allow_missing_names) const;
   bool saveChannels(const HardwareIoChannelConfig* channels,
                     uint8_t count, bool board_variant_86_2ro) const;
   void stopRuntime();
@@ -104,6 +118,13 @@ class HardwareIoManager {
   void rememberStaleStateTopic(const String& topic);
   void flushStaleStateTopics();
   void applyRelay(uint8_t index, bool on, bool publish);
+  String localEntityId(uint8_t index) const;
+  void buildChannelPayload(uint8_t index, char* payload,
+                           size_t payload_size) const;
+  void markLocalEntityUnavailable(const HardwareIoChannelConfig& config,
+                                  const String& entity_id);
+  void syncLocalEntityState(uint8_t index, const char* payload, bool force);
+  void syncAllLocalEntityStates(bool force);
   void publishChannelState(uint8_t index, bool force);
   bool serviceTemperature(uint8_t index, uint32_t now_ms);
 };

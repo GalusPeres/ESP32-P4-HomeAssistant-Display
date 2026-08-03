@@ -16,6 +16,7 @@
 #include "src/core/config_manager.h"
 #include "src/core/dma2d_arbiter.h"
 #include "src/core/i18n.h"
+#include "src/io/hardware_io.h"
 #include "src/web/web_admin.h"
 #include "src/ui/screensaver_config.h"
 #include "src/ui/ui_surface_style.h"
@@ -4454,6 +4455,7 @@ void process_tile_graph_queue() {
 void request_tile_graph_history(const char* entity_id) {
   if (!entity_id || !*entity_id) return;
   if (String(entity_id).startsWith("__")) return;  // Skip preload entities
+  if (hardwareIo.isLocalEntityId(entity_id)) return;
   mqttPublishHistoryRequest(entity_id);
   Serial.printf("[TileGraph] History requested for %s\n", entity_id);
 }

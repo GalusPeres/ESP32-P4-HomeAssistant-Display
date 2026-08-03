@@ -25,6 +25,16 @@ the relevant changes from Espressif's upstream fix commits applied:
   exact-length CMD53 byte mode instead of padded block-only writes. These
   changes avoid the two C6 SLC transaction shapes reported to wedge under
   sustained traffic. They are not yet an official Espressif fix.
+- `rx-short-tail-cmd53.patch`: targeted 8-inch field A/B for the remaining
+  receive-side transaction shape after a long camera run ended with
+  `packet size[1502]>[86]`. Host RX no longer rounds the whole stream delta
+  up to a 512-byte CMD53 block transfer. Full blocks are followed by a short
+  byte-mode tail, retaining the ESP port's required four-byte alignment.
+  The double buffer explicitly reserves those zero-to-three alignment bytes,
+  and corrupt deltas that would overflow the port's 16-bit transfer length
+  fail as a transport error. This deliberately does not add parser
+  reassembly, so the first field test can attribute the result to the RX
+  transaction change.
 - `pkt-len-pending-rx-recovery.patch`: checks the complete raw 32-bit
   `PKT_LEN` word for a true `0xFFFFFFFF` bus fault before applying the 20-bit
   counter mask. The legal low-20-bit value `0xFFFFF` is no longer discarded.
@@ -53,7 +63,10 @@ backports matches the previous repository object opcode-for-opcode
 (remaining diffs are path-string offsets only) and has an identical symbol
 table. The issue #167 build then changes only `sdio_drv.c`: the four CMD52
 reads are compiled into `sdio_write_task`, and the block-padding branch is
-compiled out while the RX block-transfer setting remains unchanged.
+compiled out while the RX block-transfer setting remains unchanged. The
+subsequent short-tail A/B object also compiles out RX 512-byte padding, keeps
+the four-byte port alignment, and contains the overflow guard and a distinct
+startup marker.
 The patched objects remove four fatal allocation asserts from the affected
 SDIO RX/TX paths, add `realloc` as an undefined symbol (resolved by newlib/ESP
 heap), and call `heap_caps_aligned_alloc()` first with
@@ -63,7 +76,8 @@ no new undefined symbol; normal and `-Wall -Wextra` builds are byte-identical.
 
 The field diagnostics deliberately use sparse ERROR-level markers because
 Arduino's precompiled ESP-Hosted component removes lower log levels. Startup
-prints `HomeTiles SDIO RX recovery active`; legal `0xFFFFF`, pending-drain,
+prints `HomeTiles SDIO RX recovery active` and
+`HomeTiles SDIO RX 512-byte padding disabled`; legal `0xFFFFF`, pending-drain,
 allocation-retry, and true raw-bus-fault counters are logged for the first
 four hits and then at powers of two. `hometiles_sdio_get_rx_diag()` exposes a
 lock-free snapshot to the persistent HomeTiles network-wedge report. It never
@@ -78,15 +92,17 @@ artifacts; opcode/symbol verification is used for rebuild comparison.
 
 - `pkt-len-pending-rx-recovery.patch`
   - SHA-256: `bfcb601c22c56db2768b2c90dd0fb38c38f1a766804156e3e1c8b29df8a8bae0`
+- `rx-short-tail-cmd53.patch`
+  - SHA-256: `094d919d45d37ea2e280f0164dc8558417fdfbb27d4c414c87e91dd892cbeba2`
 - fully patched `sdio_drv.c` source
-  - SHA-256: `f7ede6466b881a8a29c816b3ff6b5da1442282ab46b0f4a3ae8d35ff3d2bec87`
+  - SHA-256: `bd385c4aa4c88d4e05a4433e1618ad121dd1bb967f9e3afb5e4bf73156621617`
 
 - `esp32p4-libs/sdio_drv.c.obj`
-  - SHA-256: `544aa1cb70ed77dad73eff11efc2d3faa1ccc9cda64dcf291bcd55aa50a3764f`
+  - SHA-256: `bd37eac387ec44c1f124304108136fb33765f8b6da39ba4c51d31f99a5684a6f`
 - `esp32p4-libs/port_esp_hosted_host_os.c.obj`
   - SHA-256: `f82f73b3af661fec2b5908924349c0f2db1d557cb2a959b7db4d6927ef374828`
 - `esp32p4_es-libs/sdio_drv.c.obj`
-  - SHA-256: `0549005b2e710f3ac98795049f4a1a1cb8c74a070c7801d66039be13144f1c53`
+  - SHA-256: `ca63bcf8c5da34d14f65bc4f729cc55b49b38c60cf6493c03b9ee41eb3da6cab`
 - `esp32p4_es-libs/port_esp_hosted_host_os.c.obj`
   - SHA-256: `d4d88a04edcd6f7de78f63a75df0d296ba0531ffc3182e73795ce3a687043ab4`
 

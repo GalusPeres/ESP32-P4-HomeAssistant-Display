@@ -1,0 +1,59 @@
+diff --git a/host/drivers/transport/sdio/sdio_drv.c b/host/drivers/transport/sdio/sdio_drv.c
+--- a/host/drivers/transport/sdio/sdio_drv.c
++++ b/host/drivers/transport/sdio/sdio_drv.c
+@@ -974,5 +974,10 @@ static uint8_t * sdio_rx_get_buffer(uint32_t len)
+ 	// we need to allocate enough memory to hold the padded data
+ 	len = ((len + ESP_BLOCK_SIZE - 1) / ESP_BLOCK_SIZE) * ESP_BLOCK_SIZE;
++#else
++	/* The ESP SDIO port rounds byte-mode reads to the required 4-byte
++	 * transfer alignment. Reserve those at-most-three trailing bytes even
++	 * though only the unpadded stream length is parsed. */
++	len = H_SDIO_RX_LEN_TO_TRANSFER(len);
+ #endif
+ 
+ 	// (re)allocate a write buffer big enough to contain the data stream
+@@ -1190,4 +1195,8 @@ static void sdio_read_task(void const* pvParameters)
+ 	ESP_LOGE(TAG, "HomeTiles SDIO RX recovery active "
+ 			"(a8204f9 raw PKT_LEN + pending drain)");
++#if !H_SDIO_RX_BLOCK_ONLY_XFER
++	ESP_LOGE(TAG, "HomeTiles SDIO RX 512-byte padding disabled "
++			"(CMD53 short tail, 4-byte aligned)");
++#endif
+ 
+ 	ESP_LOGI(TAG, "Open data path at slave");
+@@ -1310,6 +1319,24 @@ static void sdio_read_task(void const* pvParameters)
+ 		}
+ #endif
+ 
++		/* The ESP port's read callback takes a uint16_t and rounds byte-mode
++		 * reads up to four bytes. Reject a corrupt cumulative-length delta
++		 * before either operation could wrap the transfer length. */
++		if (len_from_slave > (UINT16_MAX - 3U)) {
++			ESP_LOGE(TAG, "HomeTiles SDIO RX length out of range: %"PRIu32
++					" (raw=0x%08"PRIx32" consumed=%"PRIu32")",
++					len_from_slave, sdio_diag_last_pkt_len_raw,
++					sdio_rx_byte_count);
++			SDIO_DRV_UNLOCK();
++			g_h.funcs->_h_event_post(ESP_HOSTED_EVENT,
++					ESP_HOSTED_EVENT_TRANSPORT_FAILURE,
++					NULL, 0, HOSTED_BLOCK_MAX);
++#if H_TRANSPORT_RESTART_ON_FAILURE
++			g_h.funcs->_h_restart_host();
++#endif
++			continue;
++		}
++
+ 		/* Allocate rx buffer */
+ 		rxbuff = sdio_rx_get_buffer(len_from_slave);
+ 		if (!rxbuff) {
+diff --git a/host/port/esp/freertos/include/port_esp_hosted_host_config.h b/host/port/esp/freertos/include/port_esp_hosted_host_config.h
+--- a/host/port/esp/freertos/include/port_esp_hosted_host_config.h
++++ b/host/port/esp/freertos/include/port_esp_hosted_host_config.h
+@@ -233,6 +233,6 @@
+    * - for Host Rx: slave will send extra 0 data, ignored by Host
+    */
+   #define H_SDIO_TX_BLOCK_ONLY_XFER (0)
+-  #define H_SDIO_RX_BLOCK_ONLY_XFER (1)
++  #define H_SDIO_RX_BLOCK_ONLY_XFER (0)
+ 
+   // workarounds for some SDIO transfer errors that may occur

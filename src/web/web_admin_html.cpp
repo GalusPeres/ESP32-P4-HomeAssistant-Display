@@ -966,27 +966,17 @@ String WebAdminServer::getAdminPage() {
       <!-- Local GPIO / relay / temperature assignments -->
       <div id="tab-hardware" class="tab-content">
         <div class="hardware-io-content">
-          <div class="hardware-io-heading">
-            <div>
-              <h2>Hardware I/O</h2>
-              <p>Assign verified GPIOs to relays or local temperature sensors. Changes are saved automatically.</p>
-            </div>
-            <div class="hardware-io-heading-actions">
-              <button id="hardwareIoPreset86" class="btn btn-secondary hardware-io-action is-hidden" type="button">Add 86 Panel relays</button>
-              <button id="hardwareIoAddTemperature" class="btn btn-secondary hardware-io-action" type="button"><i class="mdi mdi-thermometer"></i> Temperature</button>
-              <button id="hardwareIoAddRelay" class="btn hardware-io-action" type="button"><i class="mdi mdi-plus"></i> Relay</button>
-            </div>
+          <div class="settings-actions hardware-io-toolbar">
+            <button id="hardwareIoAddSwitch" class="btn btn-secondary hardware-io-add-button" type="button">+ Switch</button>
+            <button id="hardwareIoAddTemperature" class="btn btn-secondary hardware-io-add-button" type="button">+ Temperature</button>
           </div>
-          <div id="hardwareIoDeviceNote" class="hardware-io-device-note"></div>
           <div id="hardwareIoList" class="hardware-io-list">
             <div class="hardware-io-loading">Loading hardware assignments…</div>
           </div>
-          <div class="hardware-io-footer">
-            <div class="hardware-io-safety">
-              <i class="mdi mdi-shield-check-outline"></i>
-              Only board-specific, conflict-free 3.3 V GPIOs are offered. Relay GPIOs require a compatible driver module and must never drive a coil or mains directly. DS18B20 requires external power and a 4.7 kΩ pull-up to 3.3 V.
-            </div>
+          <div class="admin-footer-actions hardware-io-footer">
             <div id="hardwareIoSaveState" class="hardware-io-save-state"></div>
+            <button id="hardwareIoSave" class="btn btn-go admin-footer-btn" type="button">Save</button>
+            <button id="hardwareIoSaveRestart" class="btn btn-secondary admin-footer-btn" type="button">Save &amp; Restart</button>
           </div>
         </div>
       </div>

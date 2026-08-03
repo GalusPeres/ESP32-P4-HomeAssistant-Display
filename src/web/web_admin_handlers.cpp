@@ -1,6 +1,7 @@
 #include "src/web/web_admin.h"
 #include "src/web/web_admin_html.h"
 #include "src/core/i18n.h"
+#include "src/io/hardware_io.h"
 #include "src/web/web_admin_utils.h"
 #include "src/core/device_entities.h"
 #include "src/network/ha_bridge_config.h"
@@ -2324,9 +2325,34 @@ void WebAdminServer::handleGetEntityOptions() {
     json += "\":[";
     bool first = true;
     for (const auto& id : ids) {
-      appendPair(json, id, humanizeIdentifier(id, true) + " - " + id, first);
+      String label;
+      if (hardwareIo.isLocalEntityId(id.c_str())) {
+        label = haBridgeConfig.findSensorName(id);
+      }
+      if (!label.length()) label = humanizeIdentifier(id, true);
+      appendPair(json, id, label + " - " + id, first);
     }
     json += "]";
+  };
+
+  auto appendLocalIds = [&](std::vector<String>& ids, HardwareIoType wanted) {
+    for (uint8_t i = 0; i < hardwareIo.channelCount(); ++i) {
+      String entity_id;
+      String name;
+      HardwareIoType type = HardwareIoType::Relay;
+      if (!hardwareIo.localEntityInfo(i, entity_id, name, type) ||
+          type != wanted) {
+        continue;
+      }
+      bool duplicate = false;
+      for (const auto& existing : ids) {
+        if (existing.equalsIgnoreCase(entity_id)) {
+          duplicate = true;
+          break;
+        }
+      }
+      if (!duplicate) ids.push_back(entity_id);
+    }
   };
 
   // Wie label_already_has_unit_suffix im Energy-Formular.
@@ -2343,7 +2369,9 @@ void WebAdminServer::handleGetEntityOptions() {
   };
 
   String json = "{\"success\":true,";
-  appendHumanizedList(json, "sensors", parseSensorList(ha.sensors_text));
+  auto sensor_ids = parseSensorList(ha.sensors_text);
+  appendLocalIds(sensor_ids, HardwareIoType::Temperature);
+  appendHumanizedList(json, "sensors", sensor_ids);
   json += ",";
   appendHumanizedList(json, "weathers", parseSensorList(ha.weathers_text));
   json += ",";
@@ -2408,6 +2436,9 @@ void WebAdminServer::handleGetEntityOptions() {
     addSwitchOption(kEntityScreensaverBrightness);
     addSwitchOption(kEntityDisplayRotate);
     addSwitchOption(kEntityDisplaySleep);
+    std::vector<String> local_relays;
+    appendLocalIds(local_relays, HardwareIoType::Relay);
+    for (const auto& opt : local_relays) addSwitchOption(opt);
     appendHumanizedList(json, "switches", switch_options);
   }
 

@@ -9,6 +9,7 @@
 #include "src/core/display_manager.h"
 #include "src/core/i18n.h"
 #include "src/fonts/ui_fonts.h"
+#include "src/io/hardware_io.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/tiles/tile_config.h"
@@ -850,7 +851,8 @@ static void apply_history_payload(SensorPopupContext* ctx, const char* payload) 
 }
 
 static bool should_request_history(const String& entity_id) {
-  return entity_id.length() && !entity_id.startsWith("__");
+  return entity_id.length() && !entity_id.startsWith("__") &&
+         !hardwareIo.isLocalEntityId(entity_id.c_str());
 }
 
 static void request_history_for_context(SensorPopupContext* ctx) {
