@@ -56,6 +56,8 @@ public:
   void handleGetEntityOptions();
   void handleGetScreensaver();
   void handleSaveScreensaver();
+  void handleGetHardwareIo();
+  void handleSaveHardwareIo();
   void handleSaveTileBorders();
   void handleGetScreensaverWallpaper();
   void handleGetSdImages();

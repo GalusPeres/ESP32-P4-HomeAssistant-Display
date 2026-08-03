@@ -150,7 +150,8 @@
     .tab-content.active { display:block; }
     /* Settings bleibt unter der Tab-Leiste und scrollt dort intern, statt den
        Browser-Viewport mit langen Konfigurationsformularen zu vergroessern. */
-    #tab-network.active {
+    #tab-network.active,
+    #tab-hardware.active {
       flex:1 1 auto;
       min-height:0;
       max-height:none;
@@ -159,6 +160,129 @@
       overflow:hidden;
       overscroll-behavior:contain;
     }
+    .hardware-io-content {
+      flex:1 1 auto;
+      min-height:0;
+      overflow-y:auto;
+      overscroll-behavior:contain;
+      margin:0 -12px 0 0;
+      padding:0 12px 18px 0;
+    }
+    .hardware-io-heading {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:18px;
+      margin-bottom:16px;
+    }
+    .hardware-io-heading h2 { margin:0 0 5px; font-size:22px; color:var(--text); }
+    .hardware-io-heading p { margin:0; max-width:680px; color:var(--text-3); font-size:13px; line-height:1.45; }
+    .hardware-io-heading-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+    .hardware-io-heading-actions .hardware-io-action {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:7px;
+      width:auto;
+      min-width:0;
+      margin:0;
+      padding:10px 14px;
+      font-size:13px;
+      white-space:nowrap;
+    }
+    .hardware-io-device-note {
+      margin-bottom:14px;
+      padding:10px 12px;
+      border:1px solid #2b2b2b;
+      border-radius:12px;
+      background:var(--well);
+      color:var(--text-2);
+      font-size:12px;
+      line-height:1.45;
+    }
+    .hardware-io-list { display:flex; flex-direction:column; gap:10px; }
+    .hardware-io-loading,
+    .hardware-io-empty {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:180px;
+      padding:24px;
+      box-sizing:border-box;
+      border:1px dashed var(--line-strong);
+      border-radius:16px;
+      color:var(--text-3);
+      text-align:center;
+      font-size:14px;
+    }
+    .hardware-io-card {
+      padding:16px;
+      border:1px solid #292929;
+      border-radius:16px;
+      background:var(--panel);
+    }
+    .hardware-io-card-header {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:14px;
+    }
+    .hardware-io-card-title { display:flex; align-items:center; gap:9px; min-width:0; }
+    .hardware-io-card-icon {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:34px;
+      height:34px;
+      flex:0 0 34px;
+      border-radius:10px;
+      background:var(--accent-soft);
+      color:#5fd4c7;
+      font-size:20px;
+    }
+    .hardware-io-card-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:15px; font-weight:700; color:var(--text); }
+    .hardware-io-card-id { color:var(--text-3); font-size:11px; margin-top:2px; }
+    .hardware-io-delete {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:34px;
+      height:34px;
+      flex:0 0 34px;
+      margin:0;
+      padding:0;
+      border:1px solid #3b2929;
+      border-radius:10px;
+      background:transparent;
+      color:#e37b7b;
+      font-family:inherit;
+      font-size:18px;
+      cursor:pointer;
+    }
+    .hardware-io-delete:hover { background:rgba(193,68,68,.14); border-color:var(--danger); }
+    .hardware-io-fields { display:grid; grid-template-columns:1.35fr 1fr 1fr 1fr; gap:12px; align-items:end; }
+    .hardware-io-field { min-width:0; }
+    .hardware-io-field label { margin:0 0 5px; }
+    .hardware-io-field input,
+    .hardware-io-field select { margin:0; padding:10px 13px; font-size:13px; }
+    .hardware-io-temp-note {
+      grid-column:3 / -1;
+      align-self:center;
+      padding:9px 11px;
+      border-radius:10px;
+      background:rgba(38,166,154,.09);
+      color:var(--text-2);
+      font-size:11px;
+      line-height:1.4;
+    }
+    .hardware-io-footer { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:14px; }
+    .hardware-io-safety { display:flex; align-items:flex-start; gap:7px; max-width:760px; color:var(--text-3); font-size:11px; line-height:1.45; }
+    .hardware-io-safety .mdi { color:var(--accent-link); font-size:16px; line-height:1; margin-top:1px; }
+    .hardware-io-save-state { min-width:120px; color:var(--text-3); font-size:12px; font-weight:600; text-align:right; white-space:nowrap; }
+    .hardware-io-save-state.saving { color:var(--accent-link); }
+    .hardware-io-save-state.saved { color:var(--ok); }
+    .hardware-io-save-state.error { color:var(--err); }
     #admin_settings_form {
       flex:1 1 auto;
       min-height:0;
@@ -1012,7 +1136,13 @@
       body { height:auto; overflow:auto; }
       .wrapper { height:auto; padding:16px; }
       .card { height:auto; min-height:calc(100vh - 32px); }
-      #tab-network.active { flex:none; overflow:visible; }
+      #tab-network.active,
+      #tab-hardware.active { flex:none; overflow:visible; }
+      .hardware-io-content { flex:none; overflow:visible; margin:0; padding-right:0; }
+      .hardware-io-heading { flex-direction:column; }
+      .hardware-io-heading-actions { justify-content:flex-start; }
+      .hardware-io-fields { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+      .hardware-io-temp-note { grid-column:1 / -1; }
       #admin_settings_form {
         flex:none;
         overflow:visible;
@@ -1033,6 +1163,14 @@
       .file-manager-upload-row { align-items:flex-start; }
       .file-manager-selection-bar { align-items:stretch; flex-direction:column; }
       .file-manager-selection-actions { justify-content:flex-start; }
+    }
+    @media (max-width: 520px) {
+      .hardware-io-heading-actions { width:100%; }
+      .hardware-io-heading-actions .hardware-io-action { flex:1 1 auto; }
+      .hardware-io-fields { grid-template-columns:1fr; }
+      .hardware-io-temp-note { grid-column:auto; }
+      .hardware-io-footer { align-items:flex-start; flex-direction:column; }
+      .hardware-io-save-state { min-width:0; text-align:left; }
     }
     .gauge-fields { padding-left:4px; }
     .gauge-fields.hidden { display:none; }
@@ -1813,4 +1951,3 @@
     .tile-settings textarea {
       font-size:14px;
     }
-

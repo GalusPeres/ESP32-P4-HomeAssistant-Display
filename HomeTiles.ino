@@ -38,6 +38,7 @@
 #include "src/ui/tab_tiles_unified.h"
 #include "src/ui/image_screensaver.h"
 #include "src/ui/screensaver_config.h"
+#include "src/io/hardware_io.h"
 #include "src/tiles/tile_config.h"
 #include "src/tiles/tile_renderer.h"  // Für process_sensor_update_queue()
 #include "src/tiles/mdi_icons.h"      // MDI Icon Mapping
@@ -656,6 +657,8 @@ void setup() {
   haBridgeConfig.load();
   tileConfig.load();
   screensaverConfig.load();
+  hardwareIo.load();
+  hardwareIo.begin();
   if (has_config) {
     displayManager.setRotation(configManager.getConfig().display_rotation_quarters);
   }

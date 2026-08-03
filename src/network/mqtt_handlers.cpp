@@ -20,6 +20,7 @@
 #include "src/core/battery_state.h"
 #include "src/core/board_hal.h"
 #include "src/core/lvgl_tick_service.h"
+#include "src/io/hardware_io.h"
 #include "src/web/web_admin.h"
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
@@ -1543,6 +1544,11 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
 static void processMqttMessage(char* topic, uint8_t* payload, unsigned int length) {
   yield();  // Webserver atmen lassen!
 
+  // Lokale Relais haben bewusst einen kleinen, direkten Topic-Pfad. Das
+  // vermeidet JSON-Parsing und laesst normale Bridge-/Kamera-Nachrichten
+  // weiterhin durch den bestehenden Router laufen.
+  if (hardwareIo.handleMqttMessage(topic, payload, length)) return;
+
   const char* apply_topic = networkManager.getBridgeApplyTopic();
   if (apply_topic && strcmp(topic, apply_topic) == 0) {
     char* cfg_buf = mqttConfigBuffer();
@@ -1693,6 +1699,7 @@ void mqttSubscribeTopics() {
   // Subscriptions. Die bereits aufgebauten Routen deshalb genau einmal alle
   // anmelden, aber nicht vorher sinnlos als Unsubscribe einreihen.
   mqttReloadDynamicSlots(true);
+  hardwareIo.subscribeMqttTopics();
 }
 
 // ========== Home Snapshot publizieren ==========
@@ -1740,6 +1747,10 @@ void mqttPublishDeviceSettings() {
 
 void mqttServiceLocalSensors() {
   service_pending_history_fallback();
+  // Eine einzelne, faellige 1-Wire-Phase pro Aufruf; bei Relais ist dieser
+  // Pfad praktisch kostenlos. Die Zustandsmaschine wartet nie synchron auf
+  // die DS18x20-Konvertierung.
+  hardwareIo.service();
 
   static uint32_t last_run_ms = 0;
   const uint32_t now_ms = millis();
@@ -1748,7 +1759,16 @@ void mqttServiceLocalSensors() {
   }
   last_run_ms = now_ms;
   sync_internal_battery_entity();
-  sync_external_temp_entity(true);
+#if !defined(CONFIG_IDF_TARGET_ESP32P4)
+  // Das alte GPIO-1/50-Autoprobing bleibt nur fuer bereits unterstuetzte
+  // Nicht-P4-Installationen erhalten. Auf P4 war OneWire hier ohnehin
+  // compile-time deaktiviert; ein permanentes "unavailable" wuerde neben den
+  // neuen, explizit zugeordneten Local-I/O-Entities nur eine tote Alt-Entity
+  // erzeugen.
+  if (!hardwareIo.hasTemperatureChannels()) {
+    sync_external_temp_entity(true);
+  }
+#endif
 }
 
 // ========== Scene Command publizieren ==========

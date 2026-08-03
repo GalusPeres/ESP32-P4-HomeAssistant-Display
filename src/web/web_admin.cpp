@@ -80,6 +80,10 @@ bool WebAdminServer::start() {
               [this]() { this->handleGetScreensaver(); });
     server.on("/api/screensaver", HTTP_POST,
               [this]() { this->handleSaveScreensaver(); });
+    server.on("/api/hardware-io", HTTP_GET,
+              [this]() { this->handleGetHardwareIo(); });
+    server.on("/api/hardware-io", HTTP_POST,
+              [this]() { this->handleSaveHardwareIo(); });
     server.on("/api/display/tile-borders", HTTP_POST,
               [this]() { this->handleSaveTileBorders(); });
     server.on("/api/screensaver/wallpaper", HTTP_GET,

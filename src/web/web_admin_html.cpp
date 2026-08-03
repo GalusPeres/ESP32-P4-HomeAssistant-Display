@@ -924,6 +924,10 @@ String WebAdminServer::getAdminPage() {
           <i class="mdi mdi-monitor" style="font-size:24px;"></i>
           <span style="font-size:14px;font-weight:600;">Screensaver</span>
         </button>
+        <button class="tab-btn" onclick="switchTab('tab-hardware')">
+          <i class="mdi mdi-electric-switch" style="font-size:24px;"></i>
+          <span style="font-size:14px;font-weight:600;">Hardware</span>
+        </button>
         <button class="tab-btn" onclick="switchTab('tab-network')">
           <i class="mdi mdi-cog" style="font-size:24px;"></i>
           <span style="font-size:14px;font-weight:600;">)html";
@@ -959,6 +963,34 @@ String WebAdminServer::getAdminPage() {
                     formatSensorValue, navigateOptionsHtml, true);
 
   html += R"html(
+      <!-- Local GPIO / relay / temperature assignments -->
+      <div id="tab-hardware" class="tab-content">
+        <div class="hardware-io-content">
+          <div class="hardware-io-heading">
+            <div>
+              <h2>Hardware I/O</h2>
+              <p>Assign verified GPIOs to relays or local temperature sensors. Changes are saved automatically.</p>
+            </div>
+            <div class="hardware-io-heading-actions">
+              <button id="hardwareIoPreset86" class="btn btn-secondary hardware-io-action is-hidden" type="button">Add 86 Panel relays</button>
+              <button id="hardwareIoAddTemperature" class="btn btn-secondary hardware-io-action" type="button"><i class="mdi mdi-thermometer"></i> Temperature</button>
+              <button id="hardwareIoAddRelay" class="btn hardware-io-action" type="button"><i class="mdi mdi-plus"></i> Relay</button>
+            </div>
+          </div>
+          <div id="hardwareIoDeviceNote" class="hardware-io-device-note"></div>
+          <div id="hardwareIoList" class="hardware-io-list">
+            <div class="hardware-io-loading">Loading hardware assignments…</div>
+          </div>
+          <div class="hardware-io-footer">
+            <div class="hardware-io-safety">
+              <i class="mdi mdi-shield-check-outline"></i>
+              Only board-specific, conflict-free 3.3 V GPIOs are offered. Relay GPIOs require a compatible driver module and must never drive a coil or mains directly. DS18B20 requires external power and a 4.7 kΩ pull-up to 3.3 V.
+            </div>
+            <div id="hardwareIoSaveState" class="hardware-io-save-state"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Tab 3: Settings (Network/MQTT Configuration) -->
       <div id="tab-network" class="tab-content">
         <form id="admin_settings_form" action="/mqtt" method="POST" autocomplete="on">
