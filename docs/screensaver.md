@@ -37,6 +37,9 @@ and the configured clock and tiles.
 - Tap any **Clock** tile on the normal dashboard to open the screensaver immediately.
 - To activate it after inactivity, open **Settings → Display** on the device and set
   the **Screensaver** slider. This timeout is separate from the display sleep timeout.
+- Use **Saver bright.** in the same popup for an independent 1-100% screensaver
+  brightness (default 25%). Dragging previews the level; normal brightness
+  returns after release.
 - Tap the free image/background area to return to the dashboard.
 
 ![Display settings with screensaver timeout](images/8in-display-popup-screensaver.png){ width="70%" }
@@ -78,6 +81,10 @@ normal folder page. Color and **Opacity** are configured together; the reset but
 restores both. Sensor and Energy values remain live while the screensaver is open.
 Popups are not opened in screensaver mode, so touches act directly on supported
 controls or leave the overlay stable.
+
+Hardware Switch and temperature entities configured on the same panel are also
+available in these bottom rows. They continue to work locally when Home
+Assistant is offline.
 
 !!! warning "Media tiles"
     Media tiles are supported and use a minimum size of 2×2. Loading and decoding

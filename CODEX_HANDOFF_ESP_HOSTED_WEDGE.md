@@ -389,7 +389,7 @@ Für die drei angeforderten Testbuilds wurde die SDIO-Änderung bewusst
 getrennt: B4 und Tab5 bleiben auf dem bisherigen a8204-Recovery-Stand,
 während nur der 8-Zoll-Build den experimentellen Short-Tail-Patch enthält.
 `tools/build-firmware-local.ps1` erzwingt diese Auswahl mit
-`-EspHostedRxVariant installed-a8204` beziehungsweise `repo-short-tail` und
+`-EspHostedRxVariant repo-a8204` beziehungsweise `repo-short-tail` und
 prüft den jeweiligen Binärmarker.
 
 ```text
@@ -412,3 +412,13 @@ Größe 6.078.960 Byte, OTA-Reserve 736.784 Byte
 Diese drei Builds sind lokale Testartefakte und noch nicht veröffentlicht.
 Der 8-Zoll-SDIO-Patch gilt weiterhin nur als A/B-Test; erst ein langer
 Kameralauf kann zeigen, ob er den seltenen Wedge tatsächlich verhindert.
+
+## Update 2026-08-03: Freigabegrenze für den Release-Kandidaten
+
+Die Short-Tail-Quellen und -Objekte dürfen im Release-Vorbereitungsbranch für
+einen reproduzierbaren GitHub-Actions-Test eingecheckt werden. Sie bleiben aber
+von allen veröffentlichten Firmware-Images getrennt: Auch das reguläre
+Waveshare-8-Image verwendet `repo-a8204`; der Short-Tail-Pfad wird unter einem
+eigenen `*_short_tail_test`-Namen nur als privates A/B-Artefakt hochgeladen.
+Eine Übernahme in ein Release bleibt bis zu einem bestandenen 24- bis
+48-stündigen Kameralauf gesperrt.

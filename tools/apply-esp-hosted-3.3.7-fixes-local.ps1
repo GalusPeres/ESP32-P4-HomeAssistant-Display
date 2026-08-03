@@ -1,3 +1,8 @@
+param(
+    [ValidateSet('repo-short-tail', 'repo-a8204')]
+    [string]$EspHostedRxVariant = 'repo-a8204'
+)
+
 $ErrorActionPreference = 'Stop'
 
 $coreVersion = '3.3.7'
@@ -10,7 +15,8 @@ if (-not $ar) {
 }
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
-$fixDirectories = @('esp-hosted-3.3.7-tx-fix', 'esp-hosted-3.3.7-rx-fix')
+$txFixDirectory = Join-Path $repoRoot 'tools\esp-hosted-3.3.7-tx-fix'
+$rxFixDirectory = Join-Path $repoRoot 'tools\esp-hosted-3.3.7-rx-fix'
 $variants = @('esp32p4-libs', 'esp32p4_es-libs')
 
 foreach ($variant in $variants) {
@@ -24,34 +30,46 @@ foreach ($variant in $variants) {
         Copy-Item -LiteralPath $archive -Destination $backup
     }
 
-    foreach ($fixDirectory in $fixDirectories) {
-        $objects = Get-ChildItem -LiteralPath (Join-Path $repoRoot "tools\$fixDirectory\$variant") -Filter '*.obj'
-        foreach ($object in $objects) {
-            & $ar rs $archive $object.FullName
-            if ($LASTEXITCODE -ne 0) {
-                throw "Failed to inject $($object.Name) into $archive"
-            }
+    $objects = @(
+        Get-ChildItem -LiteralPath (Join-Path $txFixDirectory $variant) -Filter '*.obj'
+        Get-ChildItem -LiteralPath (Join-Path $rxFixDirectory $variant) -Filter '*.obj' |
+            Where-Object Name -ne 'sdio_drv.c.obj'
+    )
+    $sdioObject = if ($EspHostedRxVariant -eq 'repo-short-tail') {
+        Join-Path (Join-Path $rxFixDirectory $variant) 'sdio_drv.c.obj'
+    } else {
+        Join-Path (Join-Path (Join-Path $rxFixDirectory 'baseline-a8204') $variant) 'sdio_drv.c.obj'
+    }
+    if (-not (Test-Path -LiteralPath $sdioObject)) {
+        throw "ESP-Hosted RX object not found: $sdioObject"
+    }
+    $objects += Get-Item -LiteralPath $sdioObject
 
-            $verifyDirectory = Join-Path $env:TEMP ("hometiles-esp-hosted-verify-" + [Guid]::NewGuid())
-            New-Item -ItemType Directory -Path $verifyDirectory | Out-Null
-            Push-Location $verifyDirectory
-            try {
-                & $ar x $archive $object.Name
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Failed to extract $($object.Name) from $archive"
-                }
-                $actual = (Get-FileHash -Algorithm SHA256 $object.Name).Hash
-                $expected = (Get-FileHash -Algorithm SHA256 $object.FullName).Hash
-                if ($actual -ne $expected) {
-                    throw "Verification failed for $($object.Name) in $archive"
-                }
+    foreach ($object in $objects) {
+        & $ar rs $archive $object.FullName
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to inject $($object.Name) into $archive"
+        }
+
+        $verifyDirectory = Join-Path $env:TEMP ("hometiles-esp-hosted-verify-" + [Guid]::NewGuid())
+        New-Item -ItemType Directory -Path $verifyDirectory | Out-Null
+        Push-Location $verifyDirectory
+        try {
+            & $ar x $archive $object.Name
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to extract $($object.Name) from $archive"
             }
-            finally {
-                Pop-Location
-                Remove-Item -LiteralPath $verifyDirectory -Recurse -Force
+            $actual = (Get-FileHash -Algorithm SHA256 $object.Name).Hash
+            $expected = (Get-FileHash -Algorithm SHA256 $object.FullName).Hash
+            if ($actual -ne $expected) {
+                throw "Verification failed for $($object.Name) in $archive"
             }
+        }
+        finally {
+            Pop-Location
+            Remove-Item -LiteralPath $verifyDirectory -Recurse -Force
         }
     }
 
-    Write-Host "Patched and verified: $archive"
+    Write-Host "Patched and verified ($EspHostedRxVariant): $archive"
 }

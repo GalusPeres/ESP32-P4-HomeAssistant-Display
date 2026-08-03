@@ -4,8 +4,9 @@ The [HomeTiles Bridge](https://github.com/GalusPeres/HomeTiles-Bridge)
 is the Home Assistant side of the project: a custom integration that pushes entity
 states, icons, sensor history, weather forecasts, and energy data to the displays via
 MQTT, and executes the light/switch/media/scene commands coming back. Bridge
-v0.6.28 also provides the experimental local camera transport used by HomeTiles
-v0.6.3 and newer.
+v0.6.28 and newer provide the experimental local camera transport used by
+HomeTiles v0.6.3 and newer. Bridge v0.6.32 adds migration-safe entities for the
+local Hardware I/O announced by HomeTiles v0.6.4.
 
 Every display appears as its own device under the integration — with its base topic
 and status entities — no matter how many panels you run:
@@ -17,6 +18,8 @@ and status entities — no matter how many panels you run:
 - Home Assistant 2025.11 or newer
 - An MQTT broker configured in Home Assistant (see the [setup guide](home-assistant-setup.md))
 - HomeTiles Bridge v0.6.28 or newer when Camera tiles are used
+- HomeTiles Bridge v0.6.32 or newer when panel-local Switch or temperature
+  assignments should appear as Home Assistant entities
 
 ## Installation
 
@@ -75,6 +78,27 @@ Select which entities the displays may use:
 Entity selections are **shared across all panels** — every display can use every
 entity configured here.
 
+Panel-local Hardware I/O is different: it is announced by the firmware and
+belongs only to that panel's Home Assistant device. It does not need to be added
+to this shared entity selection.
+
+## Local Hardware Entities
+
+HomeTiles v0.6.4 can announce locally configured Switch outputs, onboard relays,
+and DS18B20 inputs. Bridge v0.6.32 creates these dynamically as `switch` or
+`sensor` entities on the correct display device.
+
+The firmware keeps a stable hidden channel ID for MQTT topics and Home Assistant
+unique IDs while advertising a readable entity ID based on the device and
+channel name. During an upgrade the Bridge migrates known automatically
+generated IDs, including numeric suffixes from identical panels. IDs manually
+renamed in Home Assistant remain untouched.
+
+Deleting an assignment removes its retained MQTT state and marks the old Home
+Assistant entity unavailable. Saving a new assignment causes the panel to
+re-announce its configuration; restarting Home Assistant is not required after
+the Bridge itself has already been installed and loaded.
+
 ### Energy Dashboard
 
 Enable electricity, gas, and/or water. The displays' energy tiles pull their statistics
@@ -89,6 +113,7 @@ For debugging with an MQTT client (topic layout, `{id}` = panel device id):
 | Topic | Direction | Description |
 |---|---|---|
 | `<base>/stat/connected` | Display → HA | Connection status |
+| `tab5_lvgl/config/{id}/bridge` | Display → HA | Device announcement, including local Hardware I/O |
 | `tab5_lvgl/config/{id}/bridge/apply` | HA → Display | Full configuration push |
 | `tab5_lvgl/config/{id}/bridge/icons` | HA → Display | Lightweight icon updates |
 | `tab5_lvgl/config/{id}/history/*` | Both | Sensor history request/response |
@@ -101,6 +126,8 @@ For debugging with an MQTT client (topic layout, `{id}` = panel device id):
 | `<base>/cmnd/scene` | Display → HA | Scene/script activation |
 | `<base>/cmnd/camera` | Display → HA | Open/close an experimental camera session |
 | `<base>/stat/camera` | HA → Display | Camera protocol, endpoint and status |
+| `<base>/cmnd/io/{channel_id}` | HA → Display | Local Switch command (`ON` / `OFF`) |
+| `<base>/stat/io/{channel_id}` | Display → HA | Retained local Switch or temperature state |
 
 Entity states are published under `<HA prefix>/<entity>/...` by the bridge itself —
 Home Assistant's MQTT Statestream integration is **not** required.

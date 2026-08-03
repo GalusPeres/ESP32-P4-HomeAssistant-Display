@@ -82,41 +82,57 @@ jobs:
             profile: tab5
             key: m5stacks_tab5
             define: DEVICE_M5STACKS_TAB5
+            rx_variant: repo-a8204
             publish: true
           - label: Waveshare 4B
             profile: waveshare_b4
             key: waveshare_4b
             define: DEVICE_WAVESHARE_4B
+            rx_variant: repo-a8204
             publish: true
           - label: Waveshare 7 inch (experimental)
             profile: waveshare_7
             key: waveshare_touch_lcd_7
             define: DEVICE_WAVESHARE_TOUCH_LCD_7
+            rx_variant: repo-a8204
             publish: true
           - label: Waveshare 8 inch
             profile: waveshare_8
             key: waveshare_touch_lcd_8
             define: DEVICE_WAVESHARE_TOUCH_LCD_8
+            rx_variant: repo-a8204
             publish: true
+          - label: Waveshare 8 inch (short-tail A/B candidate)
+            profile: waveshare_8
+            key: waveshare_touch_lcd_8_short_tail_test
+            metadata_key: waveshare_touch_lcd_8
+            define: DEVICE_WAVESHARE_TOUCH_LCD_8
+            rx_variant: repo-short-tail
+            publish: false
+            candidate: true
           - label: Waveshare 10.1 inch (experimental)
             profile: waveshare_10_1
             key: waveshare_touch_lcd_10_1
             define: DEVICE_WAVESHARE_TOUCH_LCD_10_1
+            rx_variant: repo-a8204
             publish: true
           - label: Guition JC8012P4A1
             profile: guition_jc8012p4a1
             key: guition_jc8012p4a1
             define: DEVICE_GUITION_JC8012P4A1
+            rx_variant: repo-a8204
             publish: true
           - label: Guition JC1060P470C (experimental)
             profile: guition_jc1060p470c
             key: guition_jc1060p470c
             define: DEVICE_GUITION_JC1060P470C
+            rx_variant: repo-a8204
             publish: true
           - label: GUITION ESP32-4848S040 (experimental)
             profile: guition_esp32_4848s040
             key: guition_esp32_4848s040
             define: DEVICE_GUITION_ESP32_4848S040
+            rx_variant: native-s3
             publish: true
 
     steps:
@@ -150,7 +166,8 @@ jobs:
           arduino-cli core list
           arduino-cli lib list
 
-      - name: Apply ESP-Hosted 3.3.7 TX/RX allocation fixes
+      - name: Apply target-specific ESP-Hosted 3.3.7 fixes
+        if: matrix.rx_variant != 'native-s3'
         shell: bash
         run: |
           set -euo pipefail
@@ -158,26 +175,37 @@ jobs:
           ar_bin="$(find "$HOME/.arduino15/packages/esp32/tools" -type f -path '*/bin/riscv32-esp-elf-ar' -print -quit)"
           test -x "$ar_bin"
 
-          for fix_dir in esp-hosted-3.3.7-tx-fix esp-hosted-3.3.7-rx-fix; do
-            for variant in esp32p4-libs esp32p4_es-libs; do
-              archive="$HOME/.arduino15/packages/esp32/tools/${variant}/${ARDUINO_CORE_VERSION}/lib/libespressif__esp_hosted.a"
-              test -f "$archive"
+          rx_variant="${{ matrix.rx_variant }}"
+          for variant in esp32p4-libs esp32p4_es-libs; do
+            archive="$HOME/.arduino15/packages/esp32/tools/${variant}/${ARDUINO_CORE_VERSION}/lib/libespressif__esp_hosted.a"
+            test -f "$archive"
 
-              for fixed_object in "$GITHUB_WORKSPACE/tools/${fix_dir}/${variant}"/*.obj; do
-                test -f "$fixed_object"
-                object_name="$(basename "$fixed_object")"
+            fixed_objects=("$GITHUB_WORKSPACE/tools/esp-hosted-3.3.7-tx-fix/${variant}"/*.obj)
+            for fixed_object in "$GITHUB_WORKSPACE/tools/esp-hosted-3.3.7-rx-fix/${variant}"/*.obj; do
+              if [ "$(basename "$fixed_object")" != "sdio_drv.c.obj" ]; then
+                fixed_objects+=("$fixed_object")
+              fi
+            done
+            if [ "$rx_variant" = "repo-short-tail" ]; then
+              fixed_objects+=("$GITHUB_WORKSPACE/tools/esp-hosted-3.3.7-rx-fix/${variant}/sdio_drv.c.obj")
+            else
+              fixed_objects+=("$GITHUB_WORKSPACE/tools/esp-hosted-3.3.7-rx-fix/baseline-a8204/${variant}/sdio_drv.c.obj")
+            fi
 
-                work_dir="$(mktemp -d)"
-                cp "$fixed_object" "$work_dir/$object_name"
-                "$ar_bin" rs "$archive" "$work_dir/$object_name"
-                (
-                  cd "$work_dir"
-                  rm "$object_name"
-                  "$ar_bin" x "$archive" "$object_name"
-                  cmp "$object_name" "$fixed_object"
-                )
-                rm -rf "$work_dir"
-              done
+            for fixed_object in "${fixed_objects[@]}"; do
+              test -f "$fixed_object"
+              object_name="$(basename "$fixed_object")"
+
+              work_dir="$(mktemp -d)"
+              cp "$fixed_object" "$work_dir/$object_name"
+              "$ar_bin" rs "$archive" "$work_dir/$object_name"
+              (
+                cd "$work_dir"
+                rm "$object_name"
+                "$ar_bin" x "$archive" "$object_name"
+                cmp "$object_name" "$fixed_object"
+              )
+              rm -rf "$work_dir"
             done
           done
 
@@ -252,6 +280,22 @@ jobs:
                 exit 1
               fi
             done
+            grep -a -F -q "HomeTiles RPC sync serialization active" "${firmware_bin}"
+            grep -a -F -q "HomeTiles SDIO RX recovery active (a8204f9 raw PKT_LEN + pending drain)" "${firmware_bin}"
+
+            short_tail_marker="HomeTiles SDIO RX 512-byte padding disabled (CMD53 short tail, 4-byte aligned)"
+            if [ "${{ matrix.rx_variant }}" = "repo-short-tail" ]; then
+              grep -a -F -q "${short_tail_marker}" "${firmware_bin}"
+            elif grep -a -F -q "${short_tail_marker}" "${firmware_bin}"; then
+              echo "Unexpected 8-inch short-tail RX patch found in ${{ matrix.label }}" >&2
+              exit 1
+            fi
+
+            obsolete_marker="PKT_LEN reg all-ones (bus read error); dropping read"
+            if grep -a -F -q "${obsolete_marker}" "${firmware_bin}"; then
+              echo "Obsolete masked PKT_LEN drop path found in ${firmware_bin}" >&2
+              exit 1
+            fi
           fi
 
       - name: Package firmware binaries
@@ -259,7 +303,8 @@ jobs:
         run: |
           node release-helper/package-ci-build.js \
             --build-dir "build/ci/${{ matrix.key }}" \
-            --device-key "${{ matrix.key }}"
+            --device-key "${{ matrix.key }}" \
+            --metadata-device-key "${{ matrix.metadata_key || matrix.key }}"
 
       - name: Archive private debug symbols
         if: startsWith(github.ref, 'refs/tags/') && matrix.publish
@@ -313,10 +358,10 @@ jobs:
           exit 1
 
       - name: Upload firmware artifact
-        if: matrix.publish
+        if: matrix.publish || matrix.candidate
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-${{ matrix.key }}
+          name: ${{ matrix.candidate && format('candidate-{0}', matrix.key) || format('firmware-{0}', matrix.key) }}
           path: build/releases/*.bin
           if-no-files-found: error
           retention-days: 14
