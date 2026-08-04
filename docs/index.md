@@ -73,6 +73,13 @@ Assistant device. Camera support and the ESP32-S3 build remain experimental.
 
 [Read the v0.6.4 release notes :octicons-arrow-right-24:](releases/v0.6.4.md)
 
+## Support HomeTiles
+
+HomeTiles is free and open source. If you find it useful, voluntary support
+helps with test hardware and continued development.
+
+[Support HomeTiles :simple-buymeacoffee:](https://buymeacoffee.com/galusperes){ .md-button }
+
 ## Device Support
 
 ![HomeTiles running on three ESP32-P4 displays](images/hometiles-supported-devices.png){ width="100%" .ht-hero }
