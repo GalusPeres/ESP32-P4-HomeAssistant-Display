@@ -136,6 +136,12 @@ in Step 6, and ensure the display can reach the Home Assistant host on TCP
 ports `8124`–`8131`. Camera support is experimental and available on ESP32-P4
 targets only.
 
+Optional local GPIO switches, onboard relays, and DS18B20 sensors are configured
+on each panel's web-admin **Hardware** tab instead of the shared Bridge entity
+selection. They are immediately usable by tiles on that panel. HomeTiles Bridge
+v0.6.32 or newer also adds them automatically to the corresponding Home
+Assistant device; see [Local Hardware I/O](hardware-io.md).
+
 ## Multiple Displays
 
 - Each display needs its **own base topic** (for example `hometiles`, `panel_kitchen`, ...) —

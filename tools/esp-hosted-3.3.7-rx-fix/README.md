@@ -90,6 +90,29 @@ core archive and verifies the result before compiling. Absolute compile paths
 remain in DWARF/`__FILE__`, so the full object SHA below identifies these exact
 artifacts; opcode/symbol verification is used for rebuild comparison.
 
+## Per-device release variants
+
+The CMD53 short-tail change is still an 8-inch field experiment and must not be
+silently promoted to every ESP32-P4 image:
+
+- `repo-short-tail` uses the fully patched `sdio_drv.c.obj` below and is built
+  only as a clearly named, non-release Waveshare 8-inch A/B artifact until a
+  24-48 hour camera soak has passed without a wedge.
+- `repo-a8204` uses the checked-in `baseline-a8204` SDIO object while retaining
+  the common RPC, allocation, PSRAM, PKT_LEN, and pending-drain fixes. It is the
+  published release variant for every ESP32-P4 target.
+- The ESP32-S3 target uses native WiFi and links no ESP-Hosted object.
+
+The local build helper defaults to the release-safe a8204 variant; a short-tail
+test build must select `-EspHostedRxVariant repo-short-tail` explicitly. GitHub
+Actions builds both 8-inch variants under distinct artifact names and verifies
+their final binary markers. The baseline object hashes are:
+
+- `baseline-a8204/esp32p4-libs/sdio_drv.c.obj`
+  - SHA-256: `544aa1cb70ed77dad73eff11efc2d3faa1ccc9cda64dcf291bcd55aa50a3764f`
+- `baseline-a8204/esp32p4_es-libs/sdio_drv.c.obj`
+  - SHA-256: `0549005b2e710f3ac98795049f4a1a1cb8c74a070c7801d66039be13144f1c53`
+
 - `pkt-len-pending-rx-recovery.patch`
   - SHA-256: `bfcb601c22c56db2768b2c90dd0fb38c38f1a766804156e3e1c8b29df8a8bae0`
 - `rx-short-tail-cmd53.patch`

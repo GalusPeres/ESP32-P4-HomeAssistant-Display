@@ -5651,14 +5651,23 @@ function t(key) {
       option.requires_variant === hardwareIoModel.board_variant;
   }
 
-  function hardwareIoUnusedPins(type, exceptIndex = -1) {
+  function hardwareIoUnusedPins(type, exceptIndex = -1, includeOtherVariants = false) {
     if (!hardwareIoModel || !Array.isArray(hardwareIoModel.pin_options)) return [];
     const used = new Set((hardwareIoModel.channels || [])
       .map((channel, index) => index === exceptIndex ? null : Number(channel.gpio))
       .filter(pin => Number.isFinite(pin)));
-    return hardwareIoModel.pin_options.filter(option =>
-      option && hardwareIoSupportsPin(option.gpio, type) &&
-      !used.has(Number(option.gpio)));
+    return hardwareIoModel.pin_options.filter(option => {
+      if (!option || !option[type] || used.has(Number(option.gpio))) return false;
+      return includeOtherVariants || hardwareIoSupportsPin(option.gpio, type);
+    });
+  }
+
+  function syncHardwareIoBoardVariant() {
+    const selectedVariant = (hardwareIoModel?.channels || []).map(channel =>
+      (hardwareIoModel.pin_options || []).find(option =>
+        Number(option.gpio) === Number(channel.gpio))?.requires_variant || '')
+      .find(Boolean);
+    hardwareIoModel.board_variant = selectedVariant || 'standard';
   }
 
   function nextHardwareIoId(type) {
@@ -5794,6 +5803,13 @@ function t(key) {
     fields.appendChild(createHardwareIoField('Name', nameInput));
 
     const availablePins = hardwareIoUnusedPins(channel.type, index);
+    if (channel.type === 'relay') {
+      hardwareIoUnusedPins(channel.type, index, true).forEach(option => {
+        if (!availablePins.some(existing => Number(existing.gpio) === Number(option.gpio))) {
+          availablePins.push(option);
+        }
+      });
+    }
     const selectedOption = (hardwareIoModel.pin_options || []).find(option =>
       Number(option.gpio) === Number(channel.gpio) && option[channel.type]);
     if (selectedOption && !availablePins.some(option => Number(option.gpio) === Number(channel.gpio))) {
@@ -5807,6 +5823,7 @@ function t(key) {
     gpioSelect.disabled = availablePins.length === 0;
     gpioSelect.addEventListener('change', () => {
       channel.gpio = Number(gpioSelect.value);
+      syncHardwareIoBoardVariant();
       renderHardwareIo();
       markHardwareIoDirty();
     });
@@ -5863,6 +5880,7 @@ function t(key) {
     remove.addEventListener('click', () => {
       if (!window.confirm('Remove "' + (channel.name || channel.id) + '"?')) return;
       hardwareIoModel.channels.splice(index, 1);
+      syncHardwareIoBoardVariant();
       renderHardwareIo();
       markHardwareIoDirty();
     });
@@ -5895,10 +5913,7 @@ function t(key) {
     if (channels.length >= Number(hardwareIoModel.max_channels || 8)) return;
     let pin = null;
     if (type === 'relay') {
-      const used = new Set(channels.map(channel => Number(channel.gpio)));
-      pin = (hardwareIoModel.pin_options || []).find(option =>
-        option.onboard && option.relay && !used.has(Number(option.gpio))) || null;
-      if (pin?.requires_variant) hardwareIoModel.board_variant = pin.requires_variant;
+      pin = hardwareIoUnusedPins(type)[0] || hardwareIoUnusedPins(type, -1, true)[0] || null;
     }
     if (!pin) pin = hardwareIoUnusedPins(type)[0];
     if (!pin) {
@@ -5915,6 +5930,7 @@ function t(key) {
       boot_state: 'off',
       precision: 1
     });
+    syncHardwareIoBoardVariant();
     renderHardwareIo();
     markHardwareIoDirty();
   }

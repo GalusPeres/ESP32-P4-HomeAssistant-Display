@@ -8,12 +8,12 @@ You never upload binaries by hand — you only bump the version and push a tag.
 
 ```bash
 # 1. Bump the version (only when the current state is actually ready to ship!)
-#    Edit version.txt:  #define FW_VERSION "v0.3.8"
+#    Edit version.txt:  #define FW_VERSION "v0.6.4"
 
 # 2. Commit, tag, push (the tag must match FW_VERSION exactly)
 git add version.txt
-git commit -m "Release v0.3.8"
-git tag v0.3.8
+git commit -m "Release v0.6.4"
+git tag v0.6.4
 git push --follow-tags
 ```
 
@@ -22,12 +22,17 @@ That's it. The action then:
 1. Builds all eight release targets with the pinned toolchain (ESP32 core +
    libraries, see workflow `env`). This includes four hardware-confirmed
    profiles (covering five device products because the 86 Panel uses the 4B
-   image) and four experimental profiles.
+   image) and four experimental profiles. CI also builds one clearly named,
+   private Waveshare 8-inch short-tail A/B artifact that is not a release asset.
 2. Verifies that the tag matches `FW_VERSION` in `version.txt` — a mismatch
    fails the build on purpose.
 3. Verifies the device descriptor embedded in each binary.
 4. Creates the GitHub release with auto-generated notes and uploads all
    16 binaries (`<device>.bin` for OTA + `<device>_factory.bin` for first flash).
+
+The checked-in release notes are not copied into the GitHub release
+automatically. After the workflow succeeds, replace the generated GitHub text
+with the matching `docs/releases/vX.Y.Z.md` content and keep the asset list.
 
 The release notes must keep **hardware-confirmed** and **experimental /
 community-testing** devices in separate sections. A successful CI compile does
@@ -48,6 +53,20 @@ release is published (GitHub CDN propagation can add a few minutes).
 - **Don't pre-create a draft release for the tag.** The workflow can't see
   drafts and would create a second release. If you want custom release notes,
   edit them *after* the workflow finishes (web UI or `gh release edit`).
+- **Keep target-specific ESP-Hosted RX variants separated.** All published P4
+  release targets use the checked-in a8204 baseline; the ESP32-S3 target uses
+  native WiFi. CI additionally builds the experimental CMD53 short-tail object
+  as a clearly named, non-release Waveshare 8-inch A/B artifact and verifies
+  the expected markers before packaging. Do not promote that artifact until a
+  24-48 hour camera soak has passed without a wedge.
+
+## Preparing a candidate without releasing
+
+Push a release-preparation branch, open a draft pull request, or dispatch the
+firmware workflow manually for that branch. The workflow builds all targets and
+keeps the binaries as private GitHub Actions artifacts for 14 days. Do not bump
+`version.txt`, create the final tag, or create a GitHub draft release. This gives
+the candidate full GitHub build coverage without making it available to OTA.
 
 ## If something goes wrong
 

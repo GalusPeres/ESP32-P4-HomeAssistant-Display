@@ -1,15 +1,16 @@
 ---
-title: ESP32-P4 Touch Dashboard for Home Assistant
-description: Open-source firmware for configurable Home Assistant touch dashboards on ESP32-P4 displays, with a built-in web admin and MQTT integration.
+title: ESP32 Touch Dashboard for Home Assistant
+description: Open-source firmware for configurable Home Assistant touch dashboards on ESP32-P4 displays, plus an experimental ESP32-S3 image, built-in web admin, and MQTT integration.
 ---
 
 # HomeTiles
 
 Tile-based firmware that turns ESP32-P4 touch displays into Home Assistant control
-panels — configured entirely in the browser, updated over the air, connected via MQTT.
+panels, with an additional experimental ESP32-S3 image — configured entirely in
+the browser, updated over the air, connected via MQTT.
 
 <p align="center">
-  <img src="images/8in-home.png" alt="HomeTiles dashboard on the Waveshare 8 inch display" width="48%">
+  <img src="images/8in-home-new.png" alt="HomeTiles dashboard on the Waveshare 8 inch display" width="48%">
   <img src="images/8in-screensaver.png" alt="HomeTiles screensaver with clock and sensor tiles" width="48%">
 </p>
 
@@ -54,22 +55,23 @@ panels — configured entirely in the browser, updated over the air, connected v
 </div>
 
 Looking for something specific? [Tile Types](tiles.md) ·
-[Screensaver](screensaver.md) · [Firmware Updates](updating.md) ·
+[Local Hardware I/O](hardware-io.md) · [Screensaver](screensaver.md) ·
+[Firmware Updates](updating.md) ·
 [FAQ & Troubleshooting](faq.md) ·
 [GitHub](https://github.com/GalusPeres/HomeTiles)
 
-## New In v0.6.3
+## New In v0.6.4
 
-HomeTiles v0.6.3 adds an experimental ESP32-P4 camera popup, smoother and more
-accurate light controls, Cyrillic tile-title glyphs, network and memory
-hardening, and a smaller codebase after removal of the unfinished PC companion
-features.
+HomeTiles v0.6.4 keeps folders, Weather popups, light controls, Camera sessions,
+and the web admin responsive during long sessions. It adds separate screensaver
+brightness and a local Hardware page for Switch outputs, onboard relays, and
+DS18B20 temperature inputs.
 
-Camera tiles require **HomeTiles Bridge v0.6.28 or newer**. The bridge converts
-the selected Home Assistant camera into display-sized JPEG frames and sends
-them over a receiver-paced local TCP connection.
+Local assignments work directly on the panel. **HomeTiles Bridge v0.6.32 or
+newer** also exposes them as `switch` and `sensor` entities on the matching Home
+Assistant device. Camera support and the ESP32-S3 build remain experimental.
 
-[Read the v0.6.3 release notes :octicons-arrow-right-24:](releases/v0.6.3.md)
+[Read the v0.6.4 release notes :octicons-arrow-right-24:](releases/v0.6.4.md)
 
 ## Device Support
 
@@ -85,14 +87,14 @@ them over a receiver-paced local TCP connection.
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-8](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 8" 1280×800 | Supported |
 | [Guition JC8012P4A1C_I_W_Y](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | 10.1" 1280×800 | Supported |
 
-### Experimental builds awaiting hardware confirmation
+### Experimental / community-testing builds
 
 | Exact device | Display | Test status |
 | --- | --- | --- |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 7" 1280×720 | [Testing requested in #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 10.1" 1280×800 | [Testing requested in #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | [Guition JC1060P470C_I_W_Y](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | 7" 1024×600 | `_I_W_Y` only; [testing requested in #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
-| [Guition ESP32-4848S040C_I](https://www.guition.com/esp32-display-module/4-inch-esp32s3-display-module) | 4" 480×480 | ESP32-S3, no camera tile; [testing requested in #9](https://github.com/GalusPeres/HomeTiles/issues/9) |
+| [Guition ESP32-4848S040C_I](https://www.guition.com/esp32-display-module/4-inch-esp32s3-display-module) | 4" 480×480 | ESP32-S3, no camera tile; [initial testing positive, long-duration and OTA coverage pending in #9](https://github.com/GalusPeres/HomeTiles/issues/9) |
 
 Every release provides factory and OTA images for all eight build targets.
 Experimental means the image compiles and is published for community testing,

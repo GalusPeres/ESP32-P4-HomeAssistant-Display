@@ -56,6 +56,8 @@ When the parent tile is resized, the slot grid adapts immediately and shows the
 new layout during the drag. Explicitly placed mini-tiles are preserved wherever
 they still fit.
 
+![Editing a Climate tile and its mini-tile grid](images/web-admin-climate.png){ width="80%" }
+
 ## Moving, Resizing, Copying
 
 - **Move** — drag a tile to another cell; a placeholder shows where it will land.
@@ -111,12 +113,33 @@ on-device settings, plus a few admin-only ones:
 Unlike tile edits, this form uses the green **Save** button in the footer —
 next to it is the device restart button.
 
+## Local Hardware I/O
+
+The **Hardware** tab assigns only the profile-whitelisted pins exposed by the
+current firmware target. Select **+ Switch** for an output or **+ Temperature**
+for a DS18B20 input. Each compact row shows the name, resulting local entity ID,
+GPIO, and the controls supported by that channel.
+
+Hardware assignments use explicit **Save** and **Save & Restart** buttons. A
+normal Save applies the new runtime configuration immediately and refreshes the
+entity selectors used by normal and screensaver tiles. Save & Restart also
+reboots the panel so the configured startup state can be checked.
+
+Local Switch tiles control their output directly without an MQTT round trip.
+HomeTiles Bridge v0.6.32 or newer additionally creates matching Home Assistant
+`switch` and `sensor` entities on the panel device.
+
+See [Local Hardware I/O](hardware-io.md) for supported pins, onboard relay
+behavior, DS18B20 wiring, and electrical safety notes.
+
 ## Import / Export
 
 Exports the complete dashboard — all folders, tiles, and the screensaver layout —
 as a single JSON file; import restores it. Useful as a backup before bigger layout
 changes, or to copy a layout to a second device. Older exports without a screensaver
 section remain supported and leave the current screensaver configuration unchanged.
+Local Hardware I/O assignments are deliberately device-specific and are not
+included in this dashboard file.
 
 ![Import and export](images/web-admin-import-export.png)
 

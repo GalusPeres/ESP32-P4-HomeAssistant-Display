@@ -2,7 +2,7 @@
 
 # <img src="docs/images/favicon.svg" width="42" alt="" align="top"> HomeTiles
 
-**Tile-based ESP32-P4 firmware for Home Assistant dashboards<br>with a fully configurable web interface.**
+**Tile-based ESP32-P4 firmware for Home Assistant dashboards<br>with an experimental ESP32-S3 image and a fully configurable web interface.**
 
 <a href="https://galusperes.github.io/HomeTiles/#demo"><strong>Live demo</strong></a>
 &nbsp;·&nbsp;
@@ -16,7 +16,8 @@
 
 </div>
 
-The project supports multiple ESP32-P4 touch displays and combines:
+The project supports multiple ESP32-P4 touch displays plus an experimental
+ESP32-S3 image and combines:
 
 - touch-first, tile-based dashboard UI
 - MQTT-based Home Assistant integration
@@ -33,6 +34,8 @@ The project supports multiple ESP32-P4 touch displays and combines:
 
 Camera tiles require **HomeTiles Bridge v0.6.28 or newer**. Other tile types do
 not depend on the camera protocol.
+Local Hardware I/O works directly on the panel; **HomeTiles Bridge v0.6.32 or
+newer** is required to expose those assignments in Home Assistant.
 
 New to this? The [Home Assistant Setup Guide](docs/home-assistant-setup.md) walks through
 the whole chain: MQTT broker, bridge integration, and connecting the display.
@@ -45,6 +48,7 @@ the whole chain: MQTT broker, bridge integration, and connecting the display.
 - [Home Assistant Setup Guide](docs/home-assistant-setup.md) — MQTT broker, bridge integration, first connection
 - [Bridge Integration](docs/bridge.md) — installation, panel settings, entity configuration
 - [Web Admin Panel](docs/web-admin.md) — creating tiles, drag & drop, folders, import/export
+- [Local Hardware I/O](docs/hardware-io.md) — GPIO switches, onboard relays, DS18B20 sensors
 - [Screensaver](docs/screensaver.md) — microSD images, slideshow, clock, and overlay tiles
 - [On-Device UI](docs/device-ui.md) — popups and on-device settings, with screenshots
 - [Tile Types](docs/tiles.md) — every tile type and what it needs
@@ -52,26 +56,26 @@ the whole chain: MQTT broker, bridge integration, and connecting the display.
 - [FAQ & Troubleshooting](docs/faq.md) — common questions and known quirks
 - [BOARD_SETTINGS.md](BOARD_SETTINGS.md) — Arduino IDE build settings per device
 
-## Highlights Of v0.6.3
+## Highlights Of v0.6.4
 
-- Added an experimental camera tile and popup for ESP32-P4 displays. The bridge
-  converts Home Assistant camera sources into receiver-paced, display-sized
-  JPEG video over the local network.
-- Added an explicit camera protocol check: incompatible Bridge versions now
-  produce a clear update message instead of an indefinite loading state.
-- Improved light brightness, color-wheel and color-temperature controls,
-  including correct CCT endpoints and smoother local slider feedback.
-- Added Cyrillic glyphs to tile titles while keeping the selectable interface
-  languages English and German.
-- Removed the unfinished PC WebSocket/Stream Deck path, Key tiles and Counter
-  tiles so the firmware stays focused on Home Assistant.
-- Hardened ESP-Hosted network buffering and camera/UI memory restoration.
+- Added configurable local Hardware I/O for Switch outputs, the two onboard
+  relays of the ESP32-P4-86-Panel-ETH-2RO, and DS18B20 temperature inputs.
+- Added a separate screensaver brightness setting with live preview and correct
+  restoration of normal display brightness.
+- Kept folders, Weather popups, tile icons, and the web admin responsive with
+  bounded caches, navigation preloading, and generated gzip assets.
+- Fixed brightness, color, and Kelvin dragging so the 500 ms command limiter
+  preserves the newest value and both slider endpoints.
+- Hardened ESP-Hosted RPC/SDIO recovery and added persistent diagnostics for the
+  remaining upstream P4/C6 WiFi-driver wedge.
+- Added a flash-safe RGB restart path for the experimental Guition
+  ESP32-4848S040 ESP32-S3 image.
 
-Camera support requires
-[HomeTiles Bridge v0.6.28 or newer](https://github.com/GalusPeres/HomeTiles-Bridge/releases/tag/v0.6.28)
-and is currently experimental.
+Local hardware entities in Home Assistant require
+[HomeTiles Bridge v0.6.32 or newer](https://github.com/GalusPeres/HomeTiles-Bridge/releases/tag/v0.6.32).
+Camera support and the ESP32-S3 target remain experimental.
 
-See the [v0.6.3 release notes](docs/releases/v0.6.3.md) for details.
+See the [v0.6.4 release notes](docs/releases/v0.6.4.md) for details.
 
 <details>
 <summary>Highlights of v0.6.2</summary>
@@ -222,7 +226,7 @@ Everything visible on the dashboard is tile-based and managed from the built-in 
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-8](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Supported |
 | [Guition JC8012P4A1C_I_W_Y](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | Supported |
 
-### Experimental builds awaiting hardware confirmation
+### Experimental / community-testing builds
 
 These binaries are included on the release page so owners can test them. A
 successful compile does not mean that display, touch, brightness, storage,
@@ -233,7 +237,7 @@ networking and OTA have been confirmed on the physical device.
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Experimental; feedback in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Experimental; feedback in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | [Guition JC1060P470C_I_W_Y](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | Experimental; only the `_I_W_Y` variant, see [issue #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
-| [Guition ESP32-4848S040C_I](https://www.guition.com/esp32-display-module/4-inch-esp32s3-display-module) | Experimental ESP32-S3 target; see [issue #9](https://github.com/GalusPeres/HomeTiles/issues/9). Camera tiles are not available on this target. |
+| [Guition ESP32-4848S040C_I](https://www.guition.com/esp32-display-module/4-inch-esp32s3-display-module) | Experimental ESP32-S3 target; initial hardware testing is positive, while long-duration and OTA coverage are still pending in [issue #9](https://github.com/GalusPeres/HomeTiles/issues/9). Camera tiles are not available on this target. |
 
 Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
 
@@ -247,7 +251,7 @@ with a hardware-specific firmware image for each display profile.
 Home dashboard, folder view, and the settings menu:
 
 <p align="center">
-  <img src="docs/images/8in-home.png" alt="Home dashboard" width="32%"> <img src="docs/images/8in-folder-lighting.png" alt="Folder view with light tiles and scenes" width="32%"> <img src="docs/images/8in-settings.png" alt="On-device settings menu" width="32%">
+  <img src="docs/images/8in-home-new.png" alt="Home dashboard" width="32%"> <img src="docs/images/8in-folder-lighting.png" alt="Folder view with light tiles and scenes" width="32%"> <img src="docs/images/8in-settings.png" alt="On-device settings menu" width="32%">
 </p>
 
 Configurable Climate mini-tiles for current values and heating/cooling targets:
@@ -304,6 +308,8 @@ More screenshots and how everything works: [Web Admin Panel](docs/web-admin.md) 
 - Firmware updates directly on the device (checks GitHub releases, installs over the air)
 - OTA firmware upload from the built-in web admin panel
 - Fully tile-configurable dashboard via the built-in web admin panel
+- Local GPIO switches, supported onboard relays, and DS18B20 sensors configured
+  through the Hardware tab
 - Drag-and-drop tile layout editing in the web admin panel
 - Configurable Climate mini-tile layouts with capability-aware controls
 - MQTT-based Home Assistant communication
@@ -398,6 +404,9 @@ Step-by-step instructions (broker, integration, display): [Home Assistant Setup 
 - Camera tiles are experimental and available only on ESP32-P4 targets. The
   Bridge transcodes video in Home Assistant, so CPU use increases with source
   resolution, requested frame rate and the number of simultaneously open panels.
+- The Guition ESP32-4848S040 ESP32-S3 image remains experimental. Community
+  testing confirms smooth operation with the flash-safe display fix, but boot,
+  OTA, storage, and long-duration behavior still need broader validation.
 
 ## Notes
 

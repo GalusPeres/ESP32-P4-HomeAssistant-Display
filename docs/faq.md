@@ -33,6 +33,30 @@ the source's actual refresh rate. Transcoding uses Home Assistant host CPU and
 each simultaneously open panel creates its own experimental stream session.
 Camera tiles are not available on the ESP32-S3 Guition ESP32-4848S040C_I.
 
+## A local Hardware entity is missing in Home Assistant
+
+First verify that the assignment was saved in the panel's web-admin **Hardware**
+tab. It should already be selectable by a tile on that same panel; this local
+path does not need Home Assistant.
+
+Home Assistant discovery requires HomeTiles Bridge v0.6.32 or newer and an MQTT
+connection. After updating the Bridge, restart Home Assistant once, save the
+Hardware page again or use **Settings → System → Pairing**, and check the entity
+list of that panel device. A second identical panel is still a separate device;
+Home Assistant may add its normal `_2` suffix to a colliding visible entity ID.
+
+## The ESP32-S3 screen briefly goes black while saving
+
+This is expected on the experimental Guition ESP32-4848S040 build. The stock
+Arduino SDK cannot feed the RGB panel safely from PSRAM while internal flash is
+being written. HomeTiles briefly blanks the backlight, writes the data, restarts
+RGB DMA on VSYNC, and then restores the image. This avoids the permanently
+shifted picture seen by early testers.
+
+The target remains experimental: boot, OTA, storage, and long-duration behavior
+still need broader real-hardware testing. Please report any repeatable failure in
+[issue #9](https://github.com/GalusPeres/HomeTiles/issues/9) with the serial log.
+
 ## The display is missing in Home Assistant / I deleted it there
 
 Tap **Settings → System → Pairing** on the display: it reconnects MQTT and republishes
@@ -99,6 +123,21 @@ check again right after boot.
 The firmware frees memory automatically before the check. If it still fails on a
 current version, please [report it](#the-display-crashed-or-restarted-by-itself).
 
+## WiFi or MQTT stops responding and the panel restarts
+
+ESP32-P4 WiFi uses ESP-Hosted communication with the panel's ESP32-C6. A rare
+upstream RPC/SDIO driver wedge can leave the cached WiFi link looking connected
+after MQTT has already stopped. It has also occurred without OTA and without an
+open Camera popup, so Camera activity in the report is diagnostic context, not
+proof of the cause.
+
+v0.6.4 adds response routing, more SDIO recovery paths, persistent counters, and
+a safe restart which resets both chips if the driver no longer responds. This is
+a mitigation and diagnostic improvement, not a claim that the upstream fault is
+fully fixed. After a restart, open **Settings → System → Download crash log** in
+the web admin and include the exact device, firmware version, uptime, and report
+when opening a GitHub issue.
+
 ## The GitHub update download fails or the device restarts during it
 
 ESP32-P4 displays use a separate ESP32-C6 WiFi coprocessor through ESP-Hosted/SDIO.
@@ -106,9 +145,11 @@ After a long uptime, the large GitHub HTTPS/TLS download can occasionally stop w
 `connection lost` or an `esp-aes` allocation error. The exact interaction is still
 under investigation.
 
-Since v0.5.6 the device records the failure, safely restarts, and retries the update
-from a fresh boot. It may therefore restart more than once. When it has settled, open
-**Settings → System** and check whether the new version is shown.
+Since v0.5.6 the device records the failure, safely restarts, and retries the
+update from a fresh boot. The display may therefore still restart instead of
+remaining permanently offline. When it has settled, open **Settings → System**
+and check whether the new version is shown. The separate WiFi/MQTT section above
+explains the additional v0.6.4 diagnostics.
 
 If the automatic retry still fails, the user must download the matching plain OTA
 `.bin` from the [release page](https://github.com/GalusPeres/HomeTiles/releases) and

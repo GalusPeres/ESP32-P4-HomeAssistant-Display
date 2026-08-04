@@ -98,9 +98,12 @@ The settings tile (gear icon) opens the on-device settings menu:
 
 ### Display
 
-Brightness, sleep timeout (up to *Never*), a separate screensaver timeout, and a
-rotate button that turns the whole UI by 180° — for mounting the display upside
-down. Set the screensaver slider to *Never* to disable automatic activation.
+Brightness, sleep timeout (up to *Never*), a separate screensaver timeout,
+separate screensaver brightness, and a rotate button that turns the whole UI by
+180° — for mounting the display upside down. Set the screensaver slider to
+*Never* to disable automatic activation. The screensaver brightness slider
+previews the dimmed level while dragging and restores normal brightness after
+release.
 
 ![Display settings with screensaver timeout](images/8in-display-popup-screensaver.png){ width="70%" }
 
