@@ -9,8 +9,12 @@
 <a href="https://galusperes.github.io/HomeTiles/"><strong>Documentation</strong></a>
 &nbsp;·&nbsp;
 <a href="https://github.com/GalusPeres/HomeTiles/releases/latest"><strong>Latest release</strong></a>
-&nbsp;&middot;&nbsp;
-<a href="https://buymeacoffee.com/galusperes"><strong>☕ Support HomeTiles</strong></a>
+
+<br>
+
+<a href="https://buymeacoffee.com/galusperes">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="217" height="60">
+</a>
 
 <br>
 
@@ -57,12 +61,6 @@ the whole chain: MQTT broker, bridge integration, and connecting the display.
 - [Firmware Updates](docs/updating.md) — on-device updater, web OTA, factory flash
 - [FAQ & Troubleshooting](docs/faq.md) — common questions and known quirks
 - [BOARD_SETTINGS.md](BOARD_SETTINGS.md) — Arduino IDE build settings per device
-
-## Support HomeTiles
-
-HomeTiles is free and open source. If you find it useful, you can support test
-hardware and continued development on
-[Buy Me a Coffee](https://buymeacoffee.com/galusperes).
 
 ## Highlights Of v0.6.4
 

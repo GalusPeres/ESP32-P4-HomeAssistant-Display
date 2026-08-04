@@ -52,12 +52,6 @@ nav:
 extra_css:
   - stylesheets/extra.css
 
-extra:
-  social:
-    - icon: simple/buymeacoffee
-      link: https://buymeacoffee.com/galusperes
-      name: Support HomeTiles on Buy Me a Coffee
-
 markdown_extensions:
   - admonition
   - pymdownx.details

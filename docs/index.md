@@ -10,6 +10,12 @@ panels, with an additional experimental ESP32-S3 image — configured entirely i
 the browser, updated over the air, connected via MQTT.
 
 <p align="center">
+  <a href="https://buymeacoffee.com/galusperes">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="217" height="60">
+  </a>
+</p>
+
+<p align="center">
   <img src="images/8in-home-new.png" alt="HomeTiles dashboard on the Waveshare 8 inch display" width="48%">
   <img src="images/8in-screensaver.png" alt="HomeTiles screensaver with clock and sensor tiles" width="48%">
 </p>
@@ -72,13 +78,6 @@ newer** also exposes them as `switch` and `sensor` entities on the matching Home
 Assistant device. Camera support and the ESP32-S3 build remain experimental.
 
 [Read the v0.6.4 release notes :octicons-arrow-right-24:](releases/v0.6.4.md)
-
-## Support HomeTiles
-
-HomeTiles is free and open source. If you find it useful, voluntary support
-helps with test hardware and continued development.
-
-[Support HomeTiles :simple-buymeacoffee:](https://buymeacoffee.com/galusperes){ .md-button }
 
 ## Device Support
 
