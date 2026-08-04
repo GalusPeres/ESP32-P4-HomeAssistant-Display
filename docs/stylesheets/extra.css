@@ -296,3 +296,55 @@
 .md-search__input:hover {
   background-color: #191d24;
 }
+
+/* Buy Me a Coffee sits between search and the GitHub repository link. */
+@media screen and (min-width: 60em) {
+  .md-header__source {
+    display: flex;
+    flex: 0 0 calc(12.1rem + 138px);
+    align-items: center;
+    width: calc(12.1rem + 138px);
+    max-width: none;
+  }
+
+  .md-header__source .md-source {
+    flex: 0 0 12.1rem;
+    width: 12.1rem;
+  }
+}
+
+.ht-header-support {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin: 0 0.55rem;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ht-header-support img {
+  display: block;
+  width: 116px;
+  height: auto;
+}
+
+@media screen and (max-width: 76.234375em) {
+  .md-header__source {
+    flex-basis: calc(12.1rem + 106px);
+    width: calc(12.1rem + 106px);
+  }
+
+  .ht-header-support {
+    margin: 0 0.3rem;
+  }
+
+  .ht-header-support img {
+    width: 94px;
+  }
+}
+
+@media screen and (max-width: 44.984375em) {
+  .ht-header-support {
+    display: none;
+  }
+}
