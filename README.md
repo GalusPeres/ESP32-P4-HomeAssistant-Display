@@ -10,13 +10,11 @@
 &nbsp;·&nbsp;
 <a href="https://github.com/GalusPeres/HomeTiles/releases/latest"><strong>Latest release</strong></a>
 
-<br>
-
-<a href="https://buymeacoffee.com/galusperes">
-  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="217" height="60">
-</a>
-
-<br>
+<p>
+  <a href="https://buymeacoffee.com/galusperes">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="217" height="60">
+  </a>
+</p>
 
 <img src="docs/images/hometiles-supported-devices.png" alt="HomeTiles running on the M5Stack Tab5, Waveshare 8 inch display, and Waveshare 4B" width="92%">
 
