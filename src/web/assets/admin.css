@@ -187,7 +187,8 @@
       display:flex;
       flex-direction:column;
       gap:8px;
-      overflow:auto;
+      overflow-y:auto;
+      overflow-x:hidden;
       overscroll-behavior:contain;
       padding-right:4px;
     }
@@ -207,7 +208,8 @@
     }
     .hardware-io-card {
       flex:0 0 auto;
-      min-width:980px;
+      width:100%;
+      min-width:0;
       display:block;
       padding:10px 12px;
       box-sizing:border-box;
@@ -240,12 +242,12 @@
     }
     .hardware-io-fields {
       display:grid;
-      grid-template-columns:minmax(260px, 1.55fr) minmax(220px, 1.15fr) repeat(2, minmax(160px, .85fr)) 34px;
+      grid-template-columns:minmax(0, 1.55fr) minmax(0, 1.15fr) 104px 104px 34px;
       align-items:start;
       gap:10px;
     }
     .hardware-io-card-temperature .hardware-io-fields {
-      grid-template-columns:minmax(240px, 1.45fr) repeat(2, minmax(190px, 1fr)) 34px;
+      grid-template-columns:minmax(0, 1.55fr) minmax(0, 1.15fr) minmax(120px, .7fr) 34px;
     }
     .hardware-io-card-temperature .hardware-io-delete { grid-column:4; }
     .hardware-io-delete {
@@ -1188,6 +1190,20 @@
         overflow:hidden;
       }
       .hardware-io-content { flex:1 1 auto; min-height:0; overflow:hidden; }
+      .hardware-io-fields,
+      .hardware-io-card-temperature .hardware-io-fields {
+        grid-template-columns:minmax(0, 1fr) minmax(0, 1fr) 34px;
+      }
+      .hardware-io-field-name { grid-column:1; grid-row:1; }
+      .hardware-io-field-gpio { grid-column:2; grid-row:1; }
+      .hardware-io-field-logic { grid-column:1; grid-row:2; }
+      .hardware-io-field-boot { grid-column:2; grid-row:2; }
+      .hardware-io-field-precision { grid-column:1 / span 2; grid-row:2; }
+      .hardware-io-card .hardware-io-delete,
+      .hardware-io-card-temperature .hardware-io-delete {
+        grid-column:3;
+        grid-row:1;
+      }
       #admin_settings_form {
         flex:none;
         overflow:visible;
@@ -1210,6 +1226,20 @@
       .file-manager-selection-actions { justify-content:flex-start; }
     }
     @media (max-width: 520px) {
+      .hardware-io-fields,
+      .hardware-io-card-temperature .hardware-io-fields {
+        grid-template-columns:minmax(0, 1fr) 34px;
+      }
+      .hardware-io-field-name { grid-column:1; grid-row:1; }
+      .hardware-io-field-gpio { grid-column:1; grid-row:2; }
+      .hardware-io-field-logic,
+      .hardware-io-field-precision { grid-column:1; grid-row:3; }
+      .hardware-io-field-boot { grid-column:1; grid-row:4; }
+      .hardware-io-card .hardware-io-delete,
+      .hardware-io-card-temperature .hardware-io-delete {
+        grid-column:2;
+        grid-row:1;
+      }
       .hardware-io-save-state {
         flex:1 1 100%;
         min-width:0;

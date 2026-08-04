@@ -926,7 +926,9 @@ String WebAdminServer::getAdminPage() {
         </button>
         <button class="tab-btn" onclick="switchTab('tab-hardware')">
           <i class="mdi mdi-electric-switch" style="font-size:24px;"></i>
-          <span style="font-size:14px;font-weight:600;">Hardware</span>
+          <span style="font-size:14px;font-weight:600;">)html";
+  html += tr.admin_io;
+  html += R"html(</span>
         </button>
         <button class="tab-btn" onclick="switchTab('tab-network')">
           <i class="mdi mdi-cog" style="font-size:24px;"></i>
@@ -967,16 +969,26 @@ String WebAdminServer::getAdminPage() {
       <div id="tab-hardware" class="tab-content">
         <div class="hardware-io-content">
           <div class="settings-actions hardware-io-toolbar">
-            <button id="hardwareIoAddSwitch" class="btn btn-secondary hardware-io-add-button" type="button">+ Switch</button>
-            <button id="hardwareIoAddTemperature" class="btn btn-secondary hardware-io-add-button" type="button">+ Temperature</button>
+            <button id="hardwareIoAddSwitch" class="btn btn-secondary hardware-io-add-button" type="button">+ )html";
+  html += tr.tile_type_switch;
+  html += R"html(</button>
+            <button id="hardwareIoAddTemperature" class="btn btn-secondary hardware-io-add-button" type="button">+ )html";
+  html += tr.admin_io_temperature;
+  html += R"html(</button>
           </div>
           <div id="hardwareIoList" class="hardware-io-list">
-            <div class="hardware-io-loading">Loading hardware assignments…</div>
+            <div class="hardware-io-loading">)html";
+  html += tr.loading;
+  html += R"html(</div>
           </div>
           <div class="admin-footer-actions hardware-io-footer">
             <div id="hardwareIoSaveState" class="hardware-io-save-state"></div>
-            <button id="hardwareIoSave" class="btn btn-go admin-footer-btn" type="button">Save</button>
-            <button id="hardwareIoSaveRestart" class="btn btn-secondary admin-footer-btn" type="button">Save &amp; Restart</button>
+            <button id="hardwareIoSave" class="btn btn-go admin-footer-btn" type="button">)html";
+  html += tr.save;
+  html += R"html(</button>
+            <button id="hardwareIoRestart" class="btn btn-secondary admin-footer-btn" type="button">)html";
+  html += tr.restart_button;
+  html += R"html(</button>
           </div>
         </div>
       </div>

@@ -35,13 +35,13 @@ Camera tiles are not available on the ESP32-S3 Guition ESP32-4848S040C_I.
 
 ## A local Hardware entity is missing in Home Assistant
 
-First verify that the assignment was saved in the panel's web-admin **Hardware**
+First verify that the assignment was saved in the panel's web-admin **I/O**
 tab. It should already be selectable by a tile on that same panel; this local
 path does not need Home Assistant.
 
 Home Assistant discovery requires HomeTiles Bridge v0.6.32 or newer and an MQTT
 connection. After updating the Bridge, restart Home Assistant once, save the
-Hardware page again or use **Settings → System → Pairing**, and check the entity
+I/O page again or use **Settings → System → Pairing**, and check the entity
 list of that panel device. A second identical panel is still a separate device;
 Home Assistant may add its normal `_2` suffix to a colliding visible entity ID.
 

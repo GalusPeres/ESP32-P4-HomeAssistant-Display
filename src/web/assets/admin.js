@@ -5631,15 +5631,15 @@ function t(key) {
 
   function updateHardwareIoSaveActions() {
     const save = document.getElementById('hardwareIoSave');
-    const saveRestart = document.getElementById('hardwareIoSaveRestart');
+    const restart = document.getElementById('hardwareIoRestart');
     if (save) save.disabled = hardwareIoSaving || !hardwareIoDirty;
-    if (saveRestart) saveRestart.disabled = hardwareIoSaving;
+    if (restart) restart.disabled = hardwareIoSaving;
   }
 
   function markHardwareIoDirty() {
     hardwareIoEditVersion++;
     hardwareIoDirty = true;
-    setHardwareIoSaveState('Unsaved changes');
+    setHardwareIoSaveState(t('ioUnsavedChanges'));
     updateHardwareIoSaveActions();
   }
 
@@ -5720,9 +5720,9 @@ function t(key) {
     updateHardwareIoSaveActions();
   }
 
-  function createHardwareIoField(labelText, control) {
+  function createHardwareIoField(labelText, control, fieldClass = '') {
     const field = document.createElement('div');
-    field.className = 'hardware-io-field';
+    field.className = 'hardware-io-field' + (fieldClass ? ' ' + fieldClass : '');
     const label = document.createElement('label');
     label.textContent = labelText;
     field.appendChild(label);
@@ -5780,7 +5780,8 @@ function t(key) {
     header.className = 'hardware-io-card-header';
     const typeLabel = document.createElement('div');
     typeLabel.className = 'hardware-io-card-type';
-    typeLabel.textContent = channel.type === 'temperature' ? 'Temperature' : 'Switch';
+    typeLabel.textContent = channel.type === 'temperature'
+      ? t('ioTemperature') : t('ioSwitch');
     const idPreview = document.createElement('div');
     idPreview.className = 'hardware-io-card-id';
     idPreview.textContent = hardwareIoLocalEntityId(channel);
@@ -5794,13 +5795,15 @@ function t(key) {
     nameInput.maxLength = 48;
     nameInput.required = true;
     nameInput.value = channel.name || '';
-    nameInput.placeholder = channel.type === 'temperature' ? 'Temperature' : 'Switch';
+    nameInput.placeholder = channel.type === 'temperature'
+      ? t('ioTemperature') : t('ioSwitch');
     nameInput.addEventListener('input', () => {
       channel.name = nameInput.value;
       idPreview.textContent = hardwareIoLocalEntityId(channel);
       markHardwareIoDirty();
     });
-    fields.appendChild(createHardwareIoField('Name', nameInput));
+    fields.appendChild(createHardwareIoField(
+      t('ioName'), nameInput, 'hardware-io-field-name'));
 
     const availablePins = hardwareIoUnusedPins(channel.type, index);
     if (channel.type === 'relay') {
@@ -5818,7 +5821,7 @@ function t(key) {
     const gpioSelect = makeHardwareIoSelect(
       availablePins.length
         ? availablePins.map(option => ({value: option.gpio, label: option.label || ('GPIO ' + option.gpio)}))
-        : [{value: -1, label: 'No free GPIO'}],
+        : [{value: -1, label: t('ioNoFreeGpio')}],
       channel.gpio);
     gpioSelect.disabled = availablePins.length === 0;
     gpioSelect.addEventListener('change', () => {
@@ -5827,7 +5830,8 @@ function t(key) {
       renderHardwareIo();
       markHardwareIoDirty();
     });
-    fields.appendChild(createHardwareIoField('GPIO', gpioSelect));
+    fields.appendChild(createHardwareIoField(
+      t('ioGpio'), gpioSelect, 'hardware-io-field-gpio'));
 
     if (channel.type === 'relay') {
       const pinDescriptor = (hardwareIoModel.pin_options || []).find(option =>
@@ -5839,46 +5843,52 @@ function t(key) {
       if (fixedOutputLogic) {
         logicControl = document.createElement('div');
         logicControl.className = 'hardware-io-fixed-value';
-        logicControl.textContent = fixedOutputLogic === 'low' ? 'Active low' : 'Active high';
+        logicControl.textContent = fixedOutputLogic === 'low'
+          ? t('ioActiveLow') : t('ioActiveHigh');
       } else {
         logicControl = makeHardwareIoToggle([
-          {value: 'high', label: 'High'},
-          {value: 'low', label: 'Low'}
+          {value: 'high', label: t('ioHigh')},
+          {value: 'low', label: t('ioLow')}
         ], channel.inverted ? 'low' : 'high', value => {
           channel.inverted = value === 'low';
           markHardwareIoDirty();
         });
       }
-      fields.appendChild(createHardwareIoField('Output logic', logicControl));
+      fields.appendChild(createHardwareIoField(
+        t('ioOutputLogic'), logicControl, 'hardware-io-field-logic'));
 
       const boot = makeHardwareIoToggle([
-        {value: 'off', label: 'Off'},
-        {value: 'on', label: 'On'}
+        {value: 'off', label: t('ioOff')},
+        {value: 'on', label: t('ioOn')}
       ], channel.boot_state || 'off', value => {
         channel.boot_state = value;
         markHardwareIoDirty();
       });
-      fields.appendChild(createHardwareIoField('After restart', boot));
+      fields.appendChild(createHardwareIoField(
+        t('ioAfterRestart'), boot, 'hardware-io-field-boot'));
     } else {
       const precision = makeHardwareIoSelect([
-        {value: 0, label: '0 decimals'},
-        {value: 1, label: '1 decimal'},
-        {value: 2, label: '2 decimals'},
-        {value: 3, label: '3 decimals'}
+        {value: 0, label: t('ioDecimalsZero')},
+        {value: 1, label: t('ioDecimalOne')},
+        {value: 2, label: t('ioDecimalsTwo')},
+        {value: 3, label: t('ioDecimalsThree')}
       ], channel.precision ?? 1);
       precision.addEventListener('change', () => {
         channel.precision = Number(precision.value);
         markHardwareIoDirty();
       });
-      fields.appendChild(createHardwareIoField('Precision', precision));
+      fields.appendChild(createHardwareIoField(
+        t('ioPrecision'), precision, 'hardware-io-field-precision'));
     }
 
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'hardware-io-delete mdi mdi-delete-outline';
-    remove.title = 'Remove assignment';
+    remove.title = t('ioRemoveAssignment');
     remove.addEventListener('click', () => {
-      if (!window.confirm('Remove "' + (channel.name || channel.id) + '"?')) return;
+      if (!window.confirm(tf('ioRemoveConfirm', {
+        name: channel.name || channel.id
+      }))) return;
       hardwareIoModel.channels.splice(index, 1);
       syncHardwareIoBoardVariant();
       renderHardwareIo();
@@ -5898,8 +5908,7 @@ function t(key) {
       const empty = document.createElement('div');
       empty.className = 'hardware-io-empty';
       empty.textContent = (hardwareIoModel.pin_options || []).length
-        ? 'No local hardware assigned. Add a switch or temperature sensor above.'
-        : 'This device has no verified configurable GPIO profile yet.';
+        ? t('ioEmpty') : t('ioNoProfile');
       list.appendChild(empty);
     } else {
       channels.forEach((channel, index) => list.appendChild(renderHardwareIoCard(channel, index)));
@@ -5917,13 +5926,14 @@ function t(key) {
     }
     if (!pin) pin = hardwareIoUnusedPins(type)[0];
     if (!pin) {
-      setHardwareIoSaveState('No free compatible GPIO', 'error');
+      setHardwareIoSaveState(t('ioNoCompatibleGpio'), 'error');
       return;
     }
     const sequence = channels.filter(channel => channel.type === type).length + 1;
     channels.push({
       id: nextHardwareIoId(type),
-      name: type === 'temperature' ? 'Temperature ' + sequence : 'Switch ' + sequence,
+      name: (type === 'temperature' ? t('ioTemperature') : t('ioSwitch')) +
+        ' ' + sequence,
       type,
       gpio: Number(pin.gpio),
       inverted: pin.fixed_output_logic === 'low',
@@ -5945,11 +5955,13 @@ function t(key) {
       addHardwareIoChannel('temperature');
     });
     document.getElementById('hardwareIoSave')?.addEventListener('click', () => {
-      saveHardwareIoNow(false);
+      saveHardwareIoNow();
     });
-    document.getElementById('hardwareIoSaveRestart')?.addEventListener('click', () => {
-      if (!window.confirm('Restart the device?')) return;
-      saveHardwareIoNow(true);
+    document.getElementById('hardwareIoRestart')?.addEventListener('click', () => {
+      const confirmKey = hardwareIoDirty
+        ? 'ioRestartUnsavedConfirm' : 'restartConfirm';
+      if (!window.confirm(t(confirmKey))) return;
+      restartHardwareIoNow();
     });
   }
 
@@ -5966,8 +5978,8 @@ function t(key) {
     }, delay));
   }
 
-  function restartAfterHardwareIoSave() {
-    setHardwareIoSaveState('Restarting…', 'saving');
+  function restartHardwareIoNow() {
+    setHardwareIoSaveState(t('ioRestarting'), 'saving');
     const restartForm = document.getElementById('admin_restart_form');
     if (restartForm) {
       window.setTimeout(() => restartForm.submit(), 100);
@@ -5976,15 +5988,12 @@ function t(key) {
     fetch('/restart', {method: 'POST'}).catch(() => {});
   }
 
-  async function saveHardwareIoNow(restartAfterSave = false) {
+  async function saveHardwareIoNow() {
     if (!hardwareIoModel || hardwareIoSaving) return false;
-    if (!hardwareIoDirty) {
-      if (restartAfterSave) restartAfterHardwareIoSave();
-      return true;
-    }
+    if (!hardwareIoDirty) return true;
     if ((hardwareIoModel.channels || []).some(channel =>
       !String(channel.name || '').trim())) {
-      setHardwareIoSaveState('Name is required', 'error');
+      setHardwareIoSaveState(t('ioNameRequired'), 'error');
       return false;
     }
     hardwareIoSaving = true;
@@ -5999,7 +6008,7 @@ function t(key) {
       boot_state: channel.boot_state === 'on' ? 'on' : 'off',
       precision: Math.max(0, Math.min(3, Number(channel.precision ?? 1)))
     }));
-    setHardwareIoSaveState('Saving…', 'saving');
+    setHardwareIoSaveState(t('ioSaving'), 'saving');
     let saved = false;
     try {
       const response = await fetch('/api/hardware-io', {
@@ -6011,25 +6020,27 @@ function t(key) {
         })
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.success) throw new Error(result.error || ('HTTP ' + response.status));
+      if (!response.ok || !result.success) {
+        console.error('Hardware I/O save rejected:', result.error || response.status);
+        throw new Error(t('saveFailed'));
+      }
       if (saveVersion === hardwareIoEditVersion) {
         hardwareIoDirty = false;
-        setHardwareIoSaveState('Saved', 'saved');
+        setHardwareIoSaveState(t('ioSaved'), 'saved');
         saved = true;
       } else {
-        setHardwareIoSaveState('Unsaved changes');
+        setHardwareIoSaveState(t('ioUnsavedChanges'));
       }
       scheduleHardwareIoEntityOptionsRefresh();
     } catch (error) {
       console.error('Hardware I/O save failed:', error);
       if (saveVersion === hardwareIoEditVersion) {
-        setHardwareIoSaveState(error.message || 'Save failed', 'error');
+        setHardwareIoSaveState(t('saveFailed'), 'error');
       }
     } finally {
       hardwareIoSaving = false;
       updateHardwareIoSaveActions();
     }
-    if (saved && restartAfterSave) restartAfterHardwareIoSave();
     return saved;
   }
 
@@ -6051,7 +6062,7 @@ function t(key) {
       hardwareIoLoaded = true;
       hardwareIoDirty = false;
       renderHardwareIo();
-      setHardwareIoSaveState('Saved', 'saved');
+      setHardwareIoSaveState(t('ioSaved'), 'saved');
       updateHardwareIoSaveActions();
     } catch (error) {
       const list = document.getElementById('hardwareIoList');
@@ -6059,10 +6070,10 @@ function t(key) {
         list.innerHTML = '';
         const failed = document.createElement('div');
         failed.className = 'hardware-io-empty';
-        failed.textContent = 'Could not load hardware assignments.';
+        failed.textContent = t('ioCouldNotLoad');
         list.appendChild(failed);
       }
-      setHardwareIoSaveState(error.message || 'Load failed', 'error');
+      setHardwareIoSaveState(t('ioLoadFailed'), 'error');
     } finally {
       hardwareIoLoading = false;
     }

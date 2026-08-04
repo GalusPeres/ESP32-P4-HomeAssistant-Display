@@ -5,7 +5,7 @@ local switches or DS18B20 temperature sensors. Configuration lives on the
 panel and the runtime path is local: a Switch tile can toggle an assigned
 output even when Home Assistant or MQTT is offline.
 
-Open the panel's web admin and select **Hardware**. Each assignment is shown as
+Open the panel's web admin and select **I/O**. Each assignment is shown as
 one compact row with its HomeTiles entity ID.
 
 Hardware assignments are stored separately from dashboard folders and tiles.
@@ -20,8 +20,8 @@ them explicitly on each physical panel.
 4. Choose **High** or **Low** as the active output level when the pin is
    configurable.
 5. Choose whether the output starts **Off** or **On** after a restart.
-6. Select **Save** to apply it immediately, or **Save & Restart** to save and
-   reboot the panel.
+6. Select **Save** to apply it immediately. **Restart** reboots separately and
+   does not save pending edits.
 
 The ESP32-P4-86-Panel-ETH-2RO onboard relays are available as Switch outputs in
 the shared `waveshare_4b` firmware. **+ Switch** starts with a normal P3 GPIO;
@@ -66,7 +66,7 @@ with its normal numeric suffix.
 
 ## Available Pins
 
-The Hardware page does not show every ESP32 GPIO. It only offers pins which are
+The I/O page does not show every ESP32 GPIO. It only offers pins which are
 whitelisted by that firmware target's device profile and are not known to be
 reserved for display, touch, storage, audio, camera, boot, USB, or ESP-Hosted
 networking. Some experimental profiles are schematic-derived and still need

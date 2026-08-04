@@ -394,6 +394,39 @@ struct Strings {
   const char* camera_mqtt_topic_missing;
   const char* camera_mqtt_queue_full;
 
+  // Web-Admin: lokale I/O-Zuordnungen. Auch technisch identische Begriffe
+  // laufen ueber das zentrale Sprachsystem; die UI enthaelt keine eigenen
+  // Sprachzweige oder fest verdrahteten Anzeigetexte.
+  const char* admin_io;
+  const char* admin_io_temperature;
+  const char* admin_io_name;
+  const char* admin_io_gpio;
+  const char* admin_io_no_free_gpio;
+  const char* admin_io_output_logic;
+  const char* admin_io_active_high;
+  const char* admin_io_active_low;
+  const char* admin_io_high;
+  const char* admin_io_low;
+  const char* admin_io_after_restart;
+  const char* admin_io_precision;
+  const char* admin_io_decimals_zero;
+  const char* admin_io_decimal_one;
+  const char* admin_io_decimals_two;
+  const char* admin_io_decimals_three;
+  const char* admin_io_remove_assignment;
+  const char* admin_io_remove_confirm_fmt;
+  const char* admin_io_empty;
+  const char* admin_io_no_profile;
+  const char* admin_io_unsaved_changes;
+  const char* admin_io_no_compatible_gpio;
+  const char* admin_io_name_required;
+  const char* admin_io_saving;
+  const char* admin_io_saved;
+  const char* admin_io_load_failed;
+  const char* admin_io_could_not_load;
+  const char* admin_io_restart_unsaved_confirm;
+  const char* admin_io_restarting;
+
 };
 
 // Sprachabhaengige Darstellungsregeln und kurze Laufzeittexte, die sowohl

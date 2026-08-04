@@ -115,15 +115,16 @@ next to it is the device restart button.
 
 ## Local Hardware I/O
 
-The **Hardware** tab assigns only the profile-whitelisted pins exposed by the
+The **I/O** tab assigns only the profile-whitelisted pins exposed by the
 current firmware target. Select **+ Switch** for an output or **+ Temperature**
 for a DS18B20 input. Each compact row shows the name, resulting local entity ID,
 GPIO, and the controls supported by that channel.
 
-Hardware assignments use explicit **Save** and **Save & Restart** buttons. A
+I/O assignments use separate **Save** and **Restart** buttons. A
 normal Save applies the new runtime configuration immediately and refreshes the
-entity selectors used by normal and screensaver tiles. Save & Restart also
-reboots the panel so the configured startup state can be checked.
+entity selectors used by normal and screensaver tiles. Restart does not save
+pending edits; it only reboots the panel so the configured startup state can be
+checked.
 
 Local Switch tiles control their output directly without an MQTT round trip.
 HomeTiles Bridge v0.6.32 or newer additionally creates matching Home Assistant

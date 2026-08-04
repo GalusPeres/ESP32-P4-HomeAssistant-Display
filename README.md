@@ -309,7 +309,7 @@ More screenshots and how everything works: [Web Admin Panel](docs/web-admin.md) 
 - OTA firmware upload from the built-in web admin panel
 - Fully tile-configurable dashboard via the built-in web admin panel
 - Local GPIO switches, supported onboard relays, and DS18B20 sensors configured
-  through the Hardware tab
+  through the I/O tab
 - Drag-and-drop tile layout editing in the web admin panel
 - Configurable Climate mini-tile layouts with capability-aware controls
 - MQTT-based Home Assistant communication

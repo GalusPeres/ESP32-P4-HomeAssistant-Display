@@ -64,7 +64,7 @@ Looking for something specific? [Tile Types](tiles.md) ·
 
 HomeTiles v0.6.4 keeps folders, Weather popups, light controls, Camera sessions,
 and the web admin responsive during long sessions. It adds separate screensaver
-brightness and a local Hardware page for Switch outputs, onboard relays, and
+brightness and a local I/O page for Switch outputs, onboard relays, and
 DS18B20 temperature inputs.
 
 Local assignments work directly on the panel. **HomeTiles Bridge v0.6.32 or

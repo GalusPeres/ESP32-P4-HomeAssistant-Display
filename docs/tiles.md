@@ -17,7 +17,7 @@ a **tap** or a **long press** is configurable per tile in the web admin.
 Shows the current value of any Home Assistant entity, with icon, title, and unit.
 
 It can also show a DS18B20 input configured on this panel's
-[Hardware page](hardware-io.md). That value is sampled locally and remains
+[I/O page](hardware-io.md). That value is sampled locally and remains
 available without Home Assistant; the panel does not request a Home Assistant
 history chart for a local input.
 
@@ -56,7 +56,7 @@ bars in the week view:
 Toggles a `switch` or `light` entity with a tap; the tile reflects the current state.
 
 Switch outputs and supported onboard relays configured on this panel's
-[Hardware page](hardware-io.md) appear in the same selector and toggle directly,
+[I/O page](hardware-io.md) appear in the same selector and toggle directly,
 without waiting for an MQTT round trip.
 
 **Config:** entity, tile style, popup trigger.
