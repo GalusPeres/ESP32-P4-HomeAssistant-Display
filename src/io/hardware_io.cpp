@@ -612,6 +612,9 @@ bool HardwareIoManager::load() {
   if (!Device::storageReady()) return false;
   fs::FS& fs = Device::storageFS();
   if (loadPath(kConfigTmpPath)) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    Device::ScopedStorageWrite storage_write;
+#endif
     fs.remove(kConfigPath);
     fs.rename(kConfigTmpPath, kConfigPath);
     Serial.println("[HardwareIO] aus .tmp wiederhergestellt");
@@ -619,6 +622,9 @@ bool HardwareIoManager::load() {
   }
   if (loadPath(kConfigPath)) return true;
   if (loadPath(kConfigBackupPath)) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    Device::ScopedStorageWrite storage_write;
+#endif
     fs.remove(kConfigPath);
     fs.rename(kConfigBackupPath, kConfigPath);
     Serial.println("[HardwareIO] aus .bak wiederhergestellt");

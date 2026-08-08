@@ -300,6 +300,9 @@ bool ScreensaverConfigStore::load() {
   bool config_needs_migration = false;
   fs::FS& fs = Device::storageFS();
   if (loadPath(kConfigTmpPath)) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    Device::ScopedStorageWrite storage_write;
+#endif
     fs.remove(kConfigPath);
     fs.rename(kConfigTmpPath, kConfigPath);
     Serial.println("[ScreensaverConfig] aus .tmp wiederhergestellt");
@@ -307,6 +310,9 @@ bool ScreensaverConfigStore::load() {
   } else if (loadPath(kConfigPath)) {
     config_ok = true;
   } else if (loadPath(kConfigBackupPath)) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    Device::ScopedStorageWrite storage_write;
+#endif
     fs.remove(kConfigPath);
     fs.rename(kConfigBackupPath, kConfigPath);
     Serial.println("[ScreensaverConfig] aus .bak wiederhergestellt");

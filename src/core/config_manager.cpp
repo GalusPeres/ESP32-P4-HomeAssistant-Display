@@ -10,6 +10,49 @@ ConfigManager configManager;
 // Preferences namespace
 static const char* PREF_NAMESPACE = "tab5_config";
 
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+static bool persisted_config_equal(const DeviceConfig& a,
+                                   const DeviceConfig& b) {
+  return strcmp(a.wifi_ssid, b.wifi_ssid) == 0 &&
+         strcmp(a.wifi_pass, b.wifi_pass) == 0 &&
+         strcmp(a.wifi_static_ip, b.wifi_static_ip) == 0 &&
+         strcmp(a.wifi_gateway, b.wifi_gateway) == 0 &&
+         strcmp(a.wifi_subnet, b.wifi_subnet) == 0 &&
+         strcmp(a.wifi_dns, b.wifi_dns) == 0 &&
+         a.wifi_static_enabled == b.wifi_static_enabled &&
+         strcmp(a.mqtt_host, b.mqtt_host) == 0 &&
+         a.mqtt_port == b.mqtt_port &&
+         strcmp(a.mqtt_user, b.mqtt_user) == 0 &&
+         strcmp(a.mqtt_pass, b.mqtt_pass) == 0 &&
+         strcmp(a.mqtt_client_id, b.mqtt_client_id) == 0 &&
+         strcmp(a.mqtt_base_topic, b.mqtt_base_topic) == 0 &&
+         strcmp(a.ha_prefix, b.ha_prefix) == 0 &&
+         strcmp(a.language, b.language) == 0 &&
+         strcmp(a.timezone, b.timezone) == 0 &&
+         a.global_time_format == b.global_time_format &&
+         a.global_date_format == b.global_date_format &&
+         a.keyboard_layout == b.keyboard_layout &&
+         a.configured == b.configured &&
+         a.display_brightness == b.display_brightness &&
+         a.screensaver_brightness_pct == b.screensaver_brightness_pct &&
+         a.tile_borders == b.tile_borders &&
+         a.display_rotated_180 == b.display_rotated_180 &&
+         a.display_rotation_quarters == b.display_rotation_quarters &&
+         a.display_rotation_mode == b.display_rotation_mode &&
+         a.wake_mode_mains == b.wake_mode_mains &&
+         a.wake_mode_battery == b.wake_mode_battery &&
+         a.auto_sleep_enabled == b.auto_sleep_enabled &&
+         a.auto_sleep_seconds == b.auto_sleep_seconds &&
+         a.auto_screensaver_enabled == b.auto_screensaver_enabled &&
+         a.auto_screensaver_seconds == b.auto_screensaver_seconds &&
+         a.auto_sleep_battery_enabled == b.auto_sleep_battery_enabled &&
+         a.auto_sleep_battery_seconds == b.auto_sleep_battery_seconds &&
+         a.status_time_font_size == b.status_time_font_size &&
+         a.status_date_font_size == b.status_date_font_size &&
+         a.ethernet_enabled == b.ethernet_enabled;
+}
+#endif
+
 static uint16_t normalize_sleep_seconds(uint16_t seconds) {
   uint16_t closest = kSleepOptionsSec[0];
   uint16_t best_diff = (seconds > closest) ? (seconds - closest) : (closest - seconds);
@@ -334,14 +377,6 @@ bool ConfigManager::load() {
 }
 
 bool ConfigManager::save(const DeviceConfig& cfg) {
-  Device::ScopedStorageWrite storage_write;
-  Preferences prefs;
-
-  if (!prefs.begin(PREF_NAMESPACE, false)) {  // read/write
-    Serial.println("⚠️ ConfigManager: Preferences öffnen fehlgeschlagen");
-    return false;
-  }
-
   DeviceConfig normalized = cfg;
   normalized.display_rotation_quarters =
       normalize_rotation_quarters(normalized.display_rotation_quarters);
@@ -356,6 +391,36 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
         Device::backlightPercentFromRaw(normalized.display_brightness);
   }
   apply_device_capability_limits(normalized);
+  set_language_code(normalized.language, sizeof(normalized.language),
+                    normalized.language);
+  set_timezone_code(normalized.timezone, sizeof(normalized.timezone),
+                    normalized.timezone);
+  normalized.global_time_format =
+      normalize_global_time_format(normalized.global_time_format);
+  normalized.global_date_format =
+      normalize_global_date_format(normalized.global_date_format);
+  if (normalized.keyboard_layout > 2) normalized.keyboard_layout = 0;
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  normalized.auto_screensaver_seconds =
+      normalize_sleep_seconds(normalized.auto_screensaver_seconds);
+  normalized.status_time_font_size =
+      (normalized.status_time_font_size == 24) ? 24 : 48;
+  normalized.status_date_font_size =
+      (normalized.status_date_font_size == 20) ? 20 : 24;
+  normalized.configured = true;
+
+  if (!runtime_rotation_dirty && persisted_config_equal(normalized, config)) {
+    return true;
+  }
+#endif
+
+  Device::ScopedStorageWrite storage_write;
+  Preferences prefs;
+
+  if (!prefs.begin(PREF_NAMESPACE, false)) {  // read/write
+    Serial.println("⚠️ ConfigManager: Preferences öffnen fehlgeschlagen");
+    return false;
+  }
 
   // Speichere alle Felder
   prefs.putString("wifi_ssid", normalized.wifi_ssid);
@@ -379,15 +444,10 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   prefs.putString("mqtt_client_id", normalized.mqtt_client_id);
   prefs.putString("mqtt_base", normalized.mqtt_base_topic);
   prefs.putString("ha_prefix", normalized.ha_prefix);
-  set_language_code(normalized.language, sizeof(normalized.language), normalized.language);
   prefs.putString("lang", normalized.language);
-  set_timezone_code(normalized.timezone, sizeof(normalized.timezone), normalized.timezone);
   prefs.putString("tz", normalized.timezone);
-  normalized.global_time_format = normalize_global_time_format(normalized.global_time_format);
-  normalized.global_date_format = normalize_global_date_format(normalized.global_date_format);
   prefs.putUChar("time_fmt", normalized.global_time_format);
   prefs.putUChar("date_fmt", normalized.global_date_format);
-  if (normalized.keyboard_layout > 2) normalized.keyboard_layout = 0;
   prefs.putUChar("kb_layout", normalized.keyboard_layout);
 
   // Display & Power Settings speichern
@@ -407,8 +467,10 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
                   normalize_sleep_seconds(normalized.auto_screensaver_seconds));
   prefs.putBool("sleep_bat_en", normalized.auto_sleep_battery_enabled);
   prefs.putUShort("sleep_bat_sec", normalized.auto_sleep_battery_seconds);
-  prefs.putUChar("status_time_font", (normalized.status_time_font_size == 24) ? 24 : 48);
-  prefs.putUChar("status_date_font", (normalized.status_date_font_size == 20) ? 20 : 24);
+  prefs.putUChar("status_time_font",
+                 (normalized.status_time_font_size == 24) ? 24 : 48);
+  prefs.putUChar("status_date_font",
+                 (normalized.status_date_font_size == 20) ? 20 : 24);
 
   uint16_t sleep_minutes = (normalized.auto_sleep_seconds + 59) / 60;
   if (sleep_minutes == 0) {
@@ -429,6 +491,7 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   // Update lokale Kopie
   config = normalized;
   config.configured = true;
+  runtime_rotation_dirty = false;
 
   Serial.println("✓ ConfigManager: Konfiguration gespeichert");
   Serial.printf("  WiFi SSID: %s\n", config.wifi_ssid);
@@ -447,14 +510,6 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
                                         uint8_t rotation_quarters,
                                         uint8_t wake_mode_mains,
                                         uint8_t wake_mode_battery) {
-  Device::ScopedStorageWrite storage_write;
-  Preferences prefs;
-
-  if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("⚠️ ConfigManager: Preferences öffnen fehlgeschlagen");
-    return false;
-  }
-
   // Speichere nur Display-Settings
   uint16_t normalized_sleep_seconds = normalize_sleep_seconds(sleep_seconds);
   uint16_t normalized_bat_seconds = normalize_sleep_seconds(sleep_battery_seconds);
@@ -478,6 +533,30 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
   sleep_battery_enabled = normalized_cfg.auto_sleep_battery_enabled;
   sleep_battery_seconds = normalized_cfg.auto_sleep_battery_seconds;
   normalized_bat_seconds = sleep_battery_seconds;
+
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (!runtime_rotation_dirty &&
+      config.display_brightness == brightness &&
+      config.display_rotated_180 == rotate_180 &&
+      config.display_rotation_quarters == rotation_quarters &&
+      config.display_rotation_mode == rotation_mode &&
+      config.wake_mode_mains == wake_mode_mains &&
+      config.wake_mode_battery == wake_mode_battery &&
+      config.auto_sleep_enabled == sleep_enabled &&
+      config.auto_sleep_seconds == normalized_sleep_seconds &&
+      config.auto_sleep_battery_enabled == sleep_battery_enabled &&
+      config.auto_sleep_battery_seconds == normalized_bat_seconds) {
+    return true;
+  }
+#endif
+
+  Device::ScopedStorageWrite storage_write;
+  Preferences prefs;
+
+  if (!prefs.begin(PREF_NAMESPACE, false)) {
+    Serial.println("⚠️ ConfigManager: Preferences öffnen fehlgeschlagen");
+    return false;
+  }
 
   prefs.putUChar("disp_bright", brightness);
   prefs.putBool("disp_rot180", rotate_180);
@@ -516,19 +595,26 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
   config.auto_sleep_battery_enabled = sleep_battery_enabled;
   config.auto_sleep_battery_seconds = normalized_bat_seconds;
   apply_device_capability_limits(config);
+  runtime_rotation_dirty = false;
 
   Serial.println("✓ ConfigManager: Display-Einstellungen gespeichert");
   return true;
 }
 
 bool ConfigManager::saveScreensaverTimeout(bool enabled, uint16_t seconds) {
+  const uint16_t normalized_seconds = normalize_sleep_seconds(seconds);
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (config.auto_screensaver_enabled == enabled &&
+      config.auto_screensaver_seconds == normalized_seconds) {
+    return true;
+  }
+#endif
   Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("ConfigManager: Screensaver-Preferences oeffnen fehlgeschlagen");
     return false;
   }
-  const uint16_t normalized_seconds = normalize_sleep_seconds(seconds);
   prefs.putBool("ss_auto_en", enabled);
   prefs.putUShort("ss_auto_sec", normalized_seconds);
   prefs.end();
@@ -539,6 +625,9 @@ bool ConfigManager::saveScreensaverTimeout(bool enabled, uint16_t seconds) {
 }
 
 bool ConfigManager::saveTileBorders(bool enabled) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (config.tile_borders == enabled) return true;
+#endif
   Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
@@ -553,6 +642,9 @@ bool ConfigManager::saveTileBorders(bool enabled) {
 }
 
 bool ConfigManager::saveEthernetEnabled(bool enabled) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (config.ethernet_enabled == enabled) return true;
+#endif
   Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
@@ -573,6 +665,9 @@ bool ConfigManager::saveScreensaverBrightness(uint8_t brightness_pct) {
     brightness_pct = kScreensaverBrightnessPctMax;
   }
 
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (config.screensaver_brightness_pct == brightness_pct) return true;
+#endif
   Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
@@ -587,6 +682,9 @@ bool ConfigManager::saveScreensaverBrightness(uint8_t brightness_pct) {
 }
 
 bool ConfigManager::saveStaticAddressingEnabled(bool enabled) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (config.wifi_static_enabled == enabled) return true;
+#endif
   Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
@@ -603,6 +701,13 @@ bool ConfigManager::saveStaticAddressingEnabled(bool enabled) {
 }
 
 bool ConfigManager::clearStaticAddressing() {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (!config.wifi_static_enabled && config.wifi_static_ip[0] == '\0' &&
+      config.wifi_gateway[0] == '\0' && config.wifi_subnet[0] == '\0' &&
+      config.wifi_dns[0] == '\0') {
+    return true;
+  }
+#endif
   Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
@@ -661,18 +766,35 @@ void ConfigManager::clear() {
   config.wifi_static_enabled = false;
   boot_static_enabled = false;
   config.status_date_font_size = 24;
+  runtime_rotation_dirty = false;
 
   Serial.println("✓ ConfigManager: Konfiguration gelöscht");
 }
 
 void ConfigManager::setRuntimeDisplayRotation(bool rotate_180) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  const uint8_t previous_quarters = config.display_rotation_quarters;
+  const uint8_t previous_mode = config.display_rotation_mode;
+  const bool previous_rotated = config.display_rotated_180;
+#endif
   config.display_rotated_180 = rotate_180;
   config.display_rotation_quarters = rotation_quarters_from_legacy(rotate_180);
   config.display_rotation_mode = rotate_180 ? kDisplayRotationFlipped : kDisplayRotationNormal;
   apply_device_capability_limits(config);
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  runtime_rotation_dirty = runtime_rotation_dirty ||
+      previous_quarters != config.display_rotation_quarters ||
+      previous_mode != config.display_rotation_mode ||
+      previous_rotated != config.display_rotated_180;
+#endif
 }
 
 void ConfigManager::setRuntimeDisplayRotationQuarters(uint8_t rotation_quarters) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  const uint8_t previous_quarters = config.display_rotation_quarters;
+  const uint8_t previous_mode = config.display_rotation_mode;
+  const bool previous_rotated = config.display_rotated_180;
+#endif
   config.display_rotation_quarters = normalize_rotation_quarters(rotation_quarters);
   config.display_rotated_180 = (config.display_rotation_quarters == Device::kRotationFlipped);
   if (config.display_rotation_mode != kDisplayRotationAuto) {
@@ -680,4 +802,10 @@ void ConfigManager::setRuntimeDisplayRotationQuarters(uint8_t rotation_quarters)
         config.display_rotated_180 ? kDisplayRotationFlipped : kDisplayRotationNormal;
   }
   apply_device_capability_limits(config);
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  runtime_rotation_dirty = runtime_rotation_dirty ||
+      previous_quarters != config.display_rotation_quarters ||
+      previous_mode != config.display_rotation_mode ||
+      previous_rotated != config.display_rotated_180;
+#endif
 }

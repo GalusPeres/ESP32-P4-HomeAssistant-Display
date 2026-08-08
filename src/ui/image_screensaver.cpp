@@ -39,9 +39,9 @@ constexpr char kImageDir[] = "/images";
 constexpr char kLegacyWallpaperDir[] = "/wallpapers";
 constexpr size_t kMaxFileBytes = 8U * 1024U * 1024U;
 
-// Obergrenze fuer den voll dekodierten Zwischenpuffer: 2048x2048 RGB565 sind
-// 8 MB PSRAM. Groessere Bilder laufen ueber den TJpgDec-Pfad, der per
-// 1/2..1/8-Skalierung unter diese Grenze kommt.
+// Obergrenze fuer die beim Software-Decode akzeptierte Quellflaeche. Der S3
+// schreibt daraus MCU-weise direkt in den 480x480-Cover und benoetigt deshalb
+// keinen quellgrossen RGB565-Zwischenpuffer.
 constexpr uint32_t kMaxDecodePixels = 2048U * 2048U;
 
 // Nach den Decode-Puffern muss genug PSRAM fuer den Rest der UI uebrig
@@ -54,6 +54,10 @@ constexpr uint16_t kImageRadius =
 // lassen. Sonst kann ein gleichzeitig faelliger Decode/Composite-Durchlauf den
 // Loop blockieren, bevor LVGL die Switch-Aenderung auf das Panel geflusht hat.
 constexpr uint32_t kInteractionSettleBeforeSlideMs = 1500;
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+constexpr uint32_t kFailedWallpaperRetryMs = 60000;
+uint32_t g_wallpaper_retry_after_ms[kMaxScreensaverWallpapers]{};
+#endif
 
 struct ScreensaverState {
   lv_obj_t* overlay = nullptr;
@@ -558,6 +562,227 @@ uint16_t blend_swapped_rgb565_with_black(uint16_t swapped, uint8_t coverage) {
   return static_cast<uint16_t>((blended >> 8) | (blended << 8));
 }
 
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+struct S3DirectJpegCtx {
+  const uint8_t* data = nullptr;
+  size_t len = 0;
+  size_t pos = 0;
+  uint16_t* output = nullptr;
+  uint16_t target_w = 0;
+  uint16_t target_h = 0;
+  uint16_t image_inset = 0;
+  uint16_t image_w = 0;
+  uint16_t image_h = 0;
+  uint32_t crop_x = 0;
+  uint32_t crop_y = 0;
+  uint32_t crop_w = 0;
+  uint32_t crop_h = 0;
+  uint32_t written_pixels = 0;
+};
+
+size_t s3_direct_jpeg_input(JDEC* jd, uint8_t* buffer, size_t bytes) {
+  S3DirectJpegCtx* ctx = static_cast<S3DirectJpegCtx*>(jd->device);
+  if (!ctx || !ctx->data || ctx->pos >= ctx->len) return 0;
+  const size_t remaining = ctx->len - ctx->pos;
+  const size_t take = min(bytes, remaining);
+  if (buffer && take) memcpy(buffer, ctx->data + ctx->pos, take);
+  ctx->pos += take;
+  return take;
+}
+
+uint16_t s3_first_mapped_destination(uint32_t source_offset,
+                                     uint32_t source_span,
+                                     uint16_t destination_span) {
+  if (source_span == 0 || destination_span == 0) return destination_span;
+  const uint64_t numerator =
+      static_cast<uint64_t>(source_offset) * destination_span;
+  const uint64_t result =
+      (numerator + source_span - 1U) / source_span;
+  return static_cast<uint16_t>(
+      result < destination_span ? result : destination_span);
+}
+
+int s3_direct_jpeg_output(JDEC* jd, void* bitmap, JRECT* rect) {
+  S3DirectJpegCtx* ctx = static_cast<S3DirectJpegCtx*>(jd->device);
+  if (!ctx || !ctx->output || !bitmap || !rect) return 0;
+
+  const uint32_t crop_right = ctx->crop_x + ctx->crop_w - 1U;
+  const uint32_t crop_bottom = ctx->crop_y + ctx->crop_h - 1U;
+  const uint32_t source_left =
+      rect->left > ctx->crop_x ? rect->left : ctx->crop_x;
+  const uint32_t source_right =
+      rect->right < crop_right ? rect->right : crop_right;
+  const uint32_t source_top =
+      rect->top > ctx->crop_y ? rect->top : ctx->crop_y;
+  const uint32_t source_bottom =
+      rect->bottom < crop_bottom ? rect->bottom : crop_bottom;
+  if (source_left > source_right || source_top > source_bottom) return 1;
+
+  const uint16_t dx_begin = s3_first_mapped_destination(
+      source_left - ctx->crop_x, ctx->crop_w, ctx->image_w);
+  const uint16_t dx_end = s3_first_mapped_destination(
+      source_right - ctx->crop_x + 1U, ctx->crop_w, ctx->image_w);
+  const uint16_t dy_begin = s3_first_mapped_destination(
+      source_top - ctx->crop_y, ctx->crop_h, ctx->image_h);
+  const uint16_t dy_end = s3_first_mapped_destination(
+      source_bottom - ctx->crop_y + 1U, ctx->crop_h, ctx->image_h);
+  if (dx_begin >= dx_end || dy_begin >= dy_end) return 1;
+
+  const uint8_t* source = static_cast<const uint8_t*>(bitmap);
+  const uint32_t rect_w =
+      static_cast<uint32_t>(rect->right) - rect->left + 1U;
+  for (uint16_t dy = dy_begin; dy < dy_end; ++dy) {
+    const uint32_t sy = ctx->crop_y +
+        (static_cast<uint32_t>(dy) * ctx->crop_h) / ctx->image_h;
+    uint16_t* destination = ctx->output +
+        static_cast<size_t>(dy + ctx->image_inset) * ctx->target_w +
+        ctx->image_inset;
+    for (uint16_t dx = dx_begin; dx < dx_end; ++dx) {
+      const uint32_t sx = ctx->crop_x +
+          (static_cast<uint32_t>(dx) * ctx->crop_w) / ctx->image_w;
+      const size_t source_index =
+          (static_cast<size_t>(sy - rect->top) * rect_w +
+           (sx - rect->left)) * 3U;
+      const uint8_t blue = source[source_index];
+      const uint8_t green = source[source_index + 1U];
+      const uint8_t red = source[source_index + 2U];
+      const uint16_t native = static_cast<uint16_t>(
+          ((red >> 3) << 11) | ((green >> 2) << 5) | (blue >> 3));
+      const uint16_t swapped =
+          static_cast<uint16_t>((native >> 8) | (native << 8));
+      destination[dx] = blend_swapped_rgb565_with_black(
+          swapped, rounded_pixel_coverage(dx, dy, ctx->image_w,
+                                           ctx->image_h, kImageRadius));
+      ++ctx->written_pixels;
+    }
+  }
+  return 1;
+}
+
+lv_image_dsc_t* s3_decode_jpeg_direct_cover(
+    const uint8_t* data, size_t len, uint16_t target_w, uint16_t target_h,
+    uint16_t focus_x, uint16_t focus_y, uint16_t zoom,
+    uint16_t& source_w, uint16_t& source_h) {
+  source_w = 0;
+  source_h = 0;
+  uint8_t* work =
+      static_cast<uint8_t*>(heap_caps_malloc(4096, MALLOC_CAP_8BIT));
+  if (!work) return nullptr;
+
+  S3DirectJpegCtx ctx{};
+  ctx.data = data;
+  ctx.len = len;
+  JDEC decoder{};
+  const JRESULT prepare_result =
+      jd_prepare(&decoder, s3_direct_jpeg_input, work, 4096, &ctx);
+  if (prepare_result != JDR_OK || decoder.width == 0 || decoder.height == 0 ||
+      decoder.width > UINT16_MAX || decoder.height > UINT16_MAX) {
+    Serial.printf("[Screensaver] S3 Direct-JPEG prepare fehlgeschlagen: %d\n",
+                  static_cast<int>(prepare_result));
+    free(work);
+    return nullptr;
+  }
+
+  source_w = static_cast<uint16_t>(decoder.width);
+  source_h = static_cast<uint16_t>(decoder.height);
+  const uint32_t source_pixels =
+      static_cast<uint32_t>(source_w) * source_h;
+  if (source_pixels > kMaxDecodePixels) {
+    Serial.printf("[Screensaver] S3 Direct-JPEG zu gross: %ux%u\n",
+                  static_cast<unsigned>(source_w),
+                  static_cast<unsigned>(source_h));
+    free(work);
+    return nullptr;
+  }
+
+  ctx.image_inset = GRID_PAD > 4 ? GRID_PAD - 4 : 0;
+  if (target_w <= ctx.image_inset * 2 ||
+      target_h <= ctx.image_inset * 2) {
+    free(work);
+    return nullptr;
+  }
+  ctx.target_w = target_w;
+  ctx.target_h = target_h;
+  ctx.image_w = target_w - ctx.image_inset * 2;
+  ctx.image_h = target_h - ctx.image_inset * 2;
+
+  ctx.crop_w = source_w;
+  ctx.crop_h = static_cast<uint32_t>(
+      (static_cast<uint64_t>(ctx.crop_w) * ctx.image_h) / ctx.image_w);
+  if (ctx.crop_h > source_h || ctx.crop_h == 0) {
+    ctx.crop_h = source_h;
+    ctx.crop_w = static_cast<uint32_t>(
+        (static_cast<uint64_t>(ctx.crop_h) * ctx.image_w) / ctx.image_h);
+    if (ctx.crop_w > source_w) ctx.crop_w = source_w;
+  }
+  if (ctx.crop_w == 0 || ctx.crop_h == 0) {
+    free(work);
+    return nullptr;
+  }
+  if (zoom < 1000U) zoom = 1000U;
+  if (zoom > 3000U) zoom = 3000U;
+  ctx.crop_w = (ctx.crop_w * 1000U) / zoom;
+  ctx.crop_h = (ctx.crop_h * 1000U) / zoom;
+  if (ctx.crop_w < 1U) ctx.crop_w = 1U;
+  if (ctx.crop_h < 1U) ctx.crop_h = 1U;
+  if (ctx.crop_w > source_w) ctx.crop_w = source_w;
+  if (ctx.crop_h > source_h) ctx.crop_h = source_h;
+  if (focus_x > 1000U) focus_x = 1000U;
+  if (focus_y > 1000U) focus_y = 1000U;
+  ctx.crop_x = ((source_w - ctx.crop_w) * focus_x) / 1000U;
+  ctx.crop_y = ((source_h - ctx.crop_h) * focus_y) / 1000U;
+
+  const size_t output_bytes =
+      static_cast<size_t>(target_w) * target_h * sizeof(uint16_t);
+  if (!psram_budget_ok(output_bytes)) {
+    Serial.printf(
+        "[Screensaver] S3 Direct-JPEG PSRAM-Budget zu klein: %u Bytes\n",
+        static_cast<unsigned>(output_bytes));
+    free(work);
+    return nullptr;
+  }
+  ctx.output = static_cast<uint16_t*>(
+      alloc_aligned_prefer_psram(output_bytes));
+  if (!ctx.output) {
+    free(work);
+    return nullptr;
+  }
+  memset(ctx.output, 0, output_bytes);
+
+  const JRESULT decode_result =
+      jd_decomp(&decoder, s3_direct_jpeg_output, 0);
+  free(work);
+  const uint32_t expected_pixels =
+      static_cast<uint32_t>(ctx.image_w) * ctx.image_h;
+  if (decode_result != JDR_OK || ctx.written_pixels != expected_pixels) {
+    Serial.printf(
+        "[Screensaver] S3 Direct-JPEG decode fehlgeschlagen: result=%d "
+        "pixels=%lu/%lu\n",
+        static_cast<int>(decode_result),
+        static_cast<unsigned long>(ctx.written_pixels),
+        static_cast<unsigned long>(expected_pixels));
+    free(ctx.output);
+    return nullptr;
+  }
+
+  lv_image_dsc_t* descriptor =
+      static_cast<lv_image_dsc_t*>(malloc(sizeof(lv_image_dsc_t)));
+  if (!descriptor) {
+    free(ctx.output);
+    return nullptr;
+  }
+  memset(descriptor, 0, sizeof(*descriptor));
+  descriptor->header.magic = LV_IMAGE_HEADER_MAGIC;
+  descriptor->header.cf = LV_COLOR_FORMAT_RGB565_SWAPPED;
+  descriptor->header.w = target_w;
+  descriptor->header.h = target_h;
+  descriptor->header.stride = target_w * sizeof(uint16_t);
+  descriptor->data_size = output_bytes;
+  descriptor->data = reinterpret_cast<const uint8_t*>(ctx.output);
+  return descriptor;
+}
+#endif
+
 // Fertiges Bildschirmbild erzeugen: aussen derselbe schwarze Rahmen wie beim
 // normalen Kachel-Grid. Die Bildkante liegt exakt 4 px vor der Kachelkante
 // (GRID_PAD - 4), mit bereits eingerechnetem 26-px-Radius: 22 px wie die
@@ -666,11 +891,31 @@ lv_image_dsc_t* decode_wallpaper_to_size(const String& file_name,
   const uint32_t decode_started_ms = millis();
   uint16_t w = 0;
   uint16_t h = 0;
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  lv_image_dsc_t* dsc = s3_decode_jpeg_direct_cover(
+      file, len, target_w, target_h, focus_x, focus_y, zoom, w, h);
+  const uint32_t decode_ms = millis() - decode_started_ms;
+  free(file);
+  GuitionS3Diagnostics::logSlideshowDecode(
+      file_name.c_str(), len, w, h, target_w, target_h,
+      static_cast<uint32_t>(target_w) * sizeof(uint16_t),
+      "SW-direct", dsc != nullptr, read_ms, decode_ms, 0);
+  if (dsc) {
+    Serial.printf(
+        "[Screensaver] SW-direct Decode %ux%u -> %ux%u in %u ms\n",
+        static_cast<unsigned>(w), static_cast<unsigned>(h),
+        static_cast<unsigned>(target_w), static_cast<unsigned>(target_h),
+        static_cast<unsigned>(millis() - pipeline_started_ms));
+  }
+  return dsc;
+#else
   uint16_t* pixels = nullptr;
   bool hw = false;
+  const char* decoder = "SW";
 #if defined(CONFIG_IDF_TARGET_ESP32P4) && SOC_JPEG_DECODE_SUPPORTED
   pixels = hw_decode_jpeg(file, len, w, h);
   hw = pixels != nullptr;
+  if (hw) decoder = "HW";
 #endif
   if (!pixels) {
     pixels = sw_decode_jpeg(file, len, w, h);
@@ -681,7 +926,7 @@ lv_image_dsc_t* decode_wallpaper_to_size(const String& file_name,
     GuitionS3Diagnostics::logSlideshowDecode(
         file_name.c_str(), len, w, h, target_w, target_h,
         static_cast<uint32_t>(target_w) * sizeof(uint16_t),
-        hw ? "HW" : "SW", false, read_ms, decode_ms, 0);
+        decoder, false, read_ms, decode_ms, 0);
     return nullptr;
   }
 
@@ -693,15 +938,16 @@ lv_image_dsc_t* decode_wallpaper_to_size(const String& file_name,
   GuitionS3Diagnostics::logSlideshowDecode(
       file_name.c_str(), len, w, h, target_w, target_h,
       static_cast<uint32_t>(target_w) * sizeof(uint16_t),
-      hw ? "HW" : "SW", dsc != nullptr, read_ms, decode_ms, cover_ms);
+      decoder, dsc != nullptr, read_ms, decode_ms, cover_ms);
   if (dsc) {
     Serial.printf("[Screensaver] %s-Decode %ux%u -> %ux%u in %u ms\n",
-                  hw ? "HW" : "SW",
+                  decoder,
                   static_cast<unsigned>(w), static_cast<unsigned>(h),
                   static_cast<unsigned>(target_w), static_cast<unsigned>(target_h),
                   static_cast<unsigned>(millis() - pipeline_started_ms));
   }
   return dsc;
+#endif
 }
 
 lv_image_dsc_t* get_or_decode_cached(const ScreensaverWallpaperConfig& wallpaper,
@@ -900,6 +1146,22 @@ bool apply_wallpaper(ScreensaverState* st, int index, bool allow_fallback,
     return false;
   }
 
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  const uint32_t retry_now_ms = millis();
+  if (!allow_disabled && index >= 0 &&
+      static_cast<size_t>(index) < kMaxScreensaverWallpapers &&
+      g_wallpaper_retry_after_ms[index] != 0 &&
+      static_cast<int32_t>(retry_now_ms -
+                           g_wallpaper_retry_after_ms[index]) < 0) {
+    Serial.printf(
+        "[S3Diag/Slide] decode=skipped reason=cooldown file=%s retry_in_ms=%lu\n",
+        wallpaper.file_name.c_str(),
+        static_cast<unsigned long>(g_wallpaper_retry_after_ms[index] -
+                                   retry_now_ms));
+    return false;
+  }
+#endif
+
   const bool cache_hit = g_cache_dsc && g_cache_name == wallpaper.file_name &&
                          g_cache_w == Device::kScreenWidth &&
                          g_cache_h == Device::kScreenHeight &&
@@ -908,7 +1170,19 @@ bool apply_wallpaper(ScreensaverState* st, int index, bool allow_fallback,
                          g_cache_zoom == wallpaper.zoom;
   lv_image_dsc_t* dsc = get_or_decode_cached(
       wallpaper, Device::kScreenWidth, Device::kScreenHeight, st->image);
-  if (!dsc) return false;
+  if (!dsc) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    if (index >= 0 && static_cast<size_t>(index) < kMaxScreensaverWallpapers) {
+      g_wallpaper_retry_after_ms[index] = millis() + kFailedWallpaperRetryMs;
+    }
+#endif
+    return false;
+  }
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (index >= 0 && static_cast<size_t>(index) < kMaxScreensaverWallpapers) {
+    g_wallpaper_retry_after_ms[index] = 0;
+  }
+#endif
   // Die Quelle intern sofort umstellen, aber noch keinen bildschirmgrossen
   // LVGL-Redraw ausloesen. Auf den gedrehten P4-Geraeten rendert LVGL daraus
   // zunaechst den unsichtbaren Gesamtframe; nur dieser geht danach an PPA.
@@ -1395,6 +1669,10 @@ void image_screensaver_config_changed(const String& preview_wallpaper) {
   // Aus dem HTTP-Handler nur Flags setzen. Der LVGL-Timer aktualisiert das
   // bestehende Overlay synchron im LVGL-Kontext; dadurch gibt es weder einen
   // Overlay-Wechsel noch den alten Async-Delete/UAF-Pfad.
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  memset(g_wallpaper_retry_after_ms, 0,
+         sizeof(g_wallpaper_retry_after_ms));
+#endif
   if (g_state) {
     g_live_preview_wallpaper = preview_wallpaper;
     g_live_config_refresh_requested = true;

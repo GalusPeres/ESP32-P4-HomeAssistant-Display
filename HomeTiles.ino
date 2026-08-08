@@ -519,7 +519,20 @@ static void apply_system_reboot() {
 static bool init_nvs() {
   esp_err_t err = nvs_flash_init();
   if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    // A normal NVS scan is read-only. Only the exceptional erase/recreate path
+    // can stall the S3 RGB DMA and therefore needs the display write guard.
+    Device::storageWriteBegin();
+    const esp_err_t erase_err = nvs_flash_erase();
+    Device::storageWriteEnd();
+    if (erase_err != ESP_OK) {
+      Serial.printf("[Setup] NVS erase failed: %s (%d)\n",
+                    esp_err_to_name(erase_err), erase_err);
+      return false;
+    }
+#else
     nvs_flash_erase();
+#endif
     err = nvs_flash_init();
   }
   if (err != ESP_OK) {
@@ -598,15 +611,6 @@ void setup() {
   log_memory_status("after-boardhal");
   Serial.flush();
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
-  // The S3 RGB engine continuously scans a PSRAM framebuffer. Keep the whole
-  // first-boot flash phase inside one guard: a blank/old installation may
-  // format LittleFS, migrate files and erase/re-initialise NVS here. Ending the
-  // guard once performs the board-specific RGB restart before anything is
-  // shown, instead of letting each flash stall leave the scanout out of phase.
-  Device::storageWriteBegin();
-#endif
-
   // LittleFS (primary storage on flash)
   Serial.println("[Setup] LittleFS init...");
   Serial.flush();
@@ -680,11 +684,6 @@ void setup() {
   if (has_config) {
     displayManager.setRotation(configManager.getConfig().display_rotation_quarters);
   }
-#if defined(DEVICE_GUITION_ESP32_4848S040)
-  // Config recovery can promote .tmp/.bak files or migrate old NVS entries.
-  // Close the first-boot guard only after every loader has finished.
-  Device::storageWriteEnd();
-#endif
   Serial.println("[Setup] Configs OK");
   log_memory_status("after-configs");
   Serial.flush();

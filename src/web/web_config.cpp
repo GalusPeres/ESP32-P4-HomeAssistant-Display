@@ -61,6 +61,11 @@ const char* webConfigApPassword() {
 }
 
 static void restoreStaModeAfterAp() {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  // Calling persistent(false) after mode() is too late for the first
+  // esp_wifi_set_mode() transition on the RGB-S3.
+  WiFi.persistent(false);
+#endif
   applyWifiAutoReconnectPolicy();
   WiFi.mode(WIFI_STA);
   applyWifiAutoReconnectPolicy();
@@ -80,6 +85,9 @@ bool WebConfigServer::start() {
   Serial.println("\n🌐 Starte WiFi-Konfigurationsmodus...");
 
   // Stoppe bisherige WiFi-Verbindung (hilft beim Captive Portal)
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  WiFi.persistent(false);
+#endif
   applyWifiAutoReconnectPolicy();
   WiFi.disconnect();
   delay(100);

@@ -131,6 +131,9 @@ public:
 private:
   DeviceConfig config;
   bool boot_static_enabled = false;
+  // Rotation can be applied to the live display before the settings save is
+  // issued. Keep that runtime mutation from being mistaken for an NVS no-op.
+  bool runtime_rotation_dirty = false;
 };
 
 // Globale Instanz

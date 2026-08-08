@@ -569,6 +569,38 @@ static bool writeGridSd(uint16_t folder_id, const PackedQuarterGridV7* packed, s
   return true;
 }
 
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+static bool packedGridMatchesStored(uint16_t folder_id,
+                                    const PackedQuarterGridV7* packed,
+                                    size_t count) {
+  if (!storageReady() || !packed || count == 0) return false;
+  const String file_path = tileGridFile(folder_id);
+  File file = storageFS().open(file_path, FILE_READ);
+  if (!file) return false;
+
+  const size_t expected = count * sizeof(PackedQuarterGridV7);
+  if (static_cast<size_t>(file.size()) != expected) {
+    file.close();
+    return false;
+  }
+
+  const uint8_t* source = reinterpret_cast<const uint8_t*>(packed);
+  uint8_t chunk[256];
+  size_t offset = 0;
+  while (offset < expected) {
+    const size_t wanted = min(sizeof(chunk), expected - offset);
+    const size_t read = file.read(chunk, wanted);
+    if (read != wanted || memcmp(chunk, source + offset, wanted) != 0) {
+      file.close();
+      return false;
+    }
+    offset += wanted;
+  }
+  file.close();
+  return true;
+}
+#endif
+
 static bool readPackedGridFileV7(const String& filePath, PackedQuarterGridV7* packed, size_t count) {
   // No separate exists() pre-check: open() already returns a falsy File when
   // the path doesn't exist (checked right below), and exists()+open() were
@@ -756,6 +788,49 @@ static bool writeLongEntityIdSd(uint16_t folder_id, size_t index, const String& 
   sidecarKeyAdd(g_entity_sidecar_keys, key);
   return true;
 }
+
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+static bool sidecarTextMatches(bool has_sidecar, const String& file_path,
+                               const String& expected,
+                               bool sidecar_required) {
+  if (!sidecar_required) return !has_sidecar;
+  if (!has_sidecar) return false;
+  File file = storageFS().open(file_path, FILE_READ);
+  if (!file) return false;
+  String current = file.readString();
+  file.close();
+  current.trim();
+  return current == expected;
+}
+
+static bool gridSidecarsMatchStored(uint16_t folder_id,
+                                    const TileGridConfig& grid) {
+  ensureSidecarIndexBuilt();
+  for (size_t index = 0; index < TILES_PER_GRID; ++index) {
+    const Tile& tile = grid.tiles[index];
+    const uint32_t key = sidecarKey(folder_id, index);
+    if (tile.type == TILE_IMAGE || tile.type == TILE_SCENE) {
+      if (!sidecarTextMatches(
+              sidecarKeyPresent(g_image_sidecar_keys, key),
+              imagePathFile(folder_id, index), tile.image_path,
+              tile.image_path.length() != 0)) {
+        return false;
+      }
+    }
+
+    const bool entity_required =
+        entityTileStoresSensorEntity(tile.type) &&
+        tile.sensor_entity.length() >= ENTITY_MAX;
+    if (!sidecarTextMatches(
+            sidecarKeyPresent(g_entity_sidecar_keys, key),
+            entityPathFile(folder_id, index), tile.sensor_entity,
+            entity_required)) {
+      return false;
+    }
+  }
+  return true;
+}
+#endif
 
 static bool readLongEntityIdSd(uint16_t folder_id, size_t index, String& out) {
   out = "";
@@ -2664,6 +2739,14 @@ bool TileConfig::loadGrid(uint16_t folder_id, TileGridConfig& grid,
           continue;
         }
         unpackTileV7(packed_v7[q].tiles[i], grid.tiles[grid_idx]);
+        // Early V7 files could still carry TILE_IMAGE paths inline. Promote
+        // them to the sidecar format once, under the same guarded migration
+        // transaction used for V6, instead of writing LittleFS during an
+        // otherwise read-only folder load.
+        if (grid.tiles[grid_idx].type == TILE_IMAGE &&
+            grid.tiles[grid_idx].image_path.length() > 0) {
+          needs_migration_save = true;
+        }
       }
     }
     Serial.printf("[TileConfig] Grid %u geladen (storage v%u)\n",
@@ -2770,7 +2853,6 @@ bool TileConfig::saveGrid(uint16_t folder_id, const TileGridConfig& grid,
       allocPackedGridScratch<PackedQuarterGridV7>(QUARTERS_PER_GRID, "Grid-Save");
   PackedQuarterGridV7* packed = packed_storage.get();
   if (!packed) return false;
-  ScopedStorageWriteDisplayGuard storage_write_guard;
   for (size_t q = 0; q < QUARTERS_PER_GRID; ++q) {
     packed[q].version = PACKED_GRID_VERSION;
     packed[q].quarter_index = static_cast<uint8_t>(q);
@@ -2780,21 +2862,43 @@ bool TileConfig::saveGrid(uint16_t folder_id, const TileGridConfig& grid,
         packed[q].tiles[i] = PackedTileV7{};
         continue;
       }
-      if (working.tiles[grid_idx].type == TILE_IMAGE || working.tiles[grid_idx].type == TILE_SCENE) {
-        if (!storageReady()) {
-          Serial.println("[TileConfig] WARN: Storage nicht verfuegbar, image_path wird nicht gespeichert");
-        } else if (!writeImagePathSd(folder_id, grid_idx, working.tiles[grid_idx].image_path)) {
-          Serial.println("[TileConfig] WARN: image_path konnte nicht im Storage gespeichert werden");
-        }
-      }
-      if (entityTileStoresSensorEntity(working.tiles[grid_idx].type)) {
-        if (!writeLongEntityIdSd(folder_id, grid_idx, working.tiles[grid_idx].sensor_entity)) {
-          Serial.println("[TileConfig] WARN: lange sensor_entity konnte nicht im Storage gespeichert werden");
-        }
-      } else {
-        writeLongEntityIdSd(folder_id, grid_idx, "");
-      }
       packTile(working.tiles[grid_idx], packed[q].tiles[i]);
+    }
+  }
+
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  const bool legacy_v6_present =
+      storageFS().exists(tileGridFileLegacyV6(folder_id));
+  const bool legacy_root_present =
+      folder_id == kRootFolderId &&
+      storageFS().exists(tileGridFileLegacy("tab0"));
+  if (!legacy_v6_present && !legacy_root_present &&
+      packedGridMatchesStored(folder_id, packed, QUARTERS_PER_GRID) &&
+      gridSidecarsMatchStored(folder_id, working)) {
+    Serial.printf("[TileConfig] Grid %u unveraendert, Schreiben uebersprungen\n",
+                  static_cast<unsigned>(folder_id));
+    return true;
+  }
+#endif
+
+  ScopedStorageWriteDisplayGuard storage_write_guard;
+  for (size_t grid_idx = 0; grid_idx < TILES_PER_GRID; ++grid_idx) {
+    if (working.tiles[grid_idx].type == TILE_IMAGE ||
+        working.tiles[grid_idx].type == TILE_SCENE) {
+      if (!storageReady()) {
+        Serial.println("[TileConfig] WARN: Storage nicht verfuegbar, image_path wird nicht gespeichert");
+      } else if (!writeImagePathSd(folder_id, grid_idx,
+                                   working.tiles[grid_idx].image_path)) {
+        Serial.println("[TileConfig] WARN: image_path konnte nicht im Storage gespeichert werden");
+      }
+    }
+    if (entityTileStoresSensorEntity(working.tiles[grid_idx].type)) {
+      if (!writeLongEntityIdSd(folder_id, grid_idx,
+                               working.tiles[grid_idx].sensor_entity)) {
+        Serial.println("[TileConfig] WARN: lange sensor_entity konnte nicht im Storage gespeichert werden");
+      }
+    } else {
+      writeLongEntityIdSd(folder_id, grid_idx, "");
     }
   }
 

@@ -10,11 +10,13 @@
 #include <LittleFS.h>
 #include <SD.h>
 #include <SPI.h>
+#include <WiFi.h>
 #include <Wire.h>
 #include <esp_err.h>
 #include <esp_heap_caps.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_rgb.h>
+#include <esp_phy_init.h>
 #include <esp_private/periph_ctrl.h>
 #include <hal/lcd_ll.h>
 
@@ -74,10 +76,15 @@ constexpr int8_t kSdSck = 48;
 constexpr int8_t kSdMiso = 41;
 constexpr int8_t kSdMosi = 47;
 constexpr int8_t kSdCs = 42;
-// Start with the exact Guition/Jingcai board-demo clock. The card shares
-// SCK/MOSI with the panel command bus; higher clocks can be tested only after
-// the known-good wiring/mount baseline is confirmed on hardware.
-constexpr uint32_t kSdFrequency = 1000000;
+// Arduino-ESP32's SD library uses 4 MHz as its supported default. The exact
+// Guition demo uses a very conservative 1 MHz, which the device logs showed
+// was already saturated at ~0.93 Mbit/s and made a 260 KB JPEG take >2 s.
+// Try 4 MHz on this exact board and retain the vendor rate as mount fallback.
+#ifndef HOMETILES_GUITION_S3_SD_FREQUENCY
+#define HOMETILES_GUITION_S3_SD_FREQUENCY 4000000UL
+#endif
+constexpr uint32_t kSdFrequency = HOMETILES_GUITION_S3_SD_FREQUENCY;
+constexpr uint32_t kSdFallbackFrequency = 1000000UL;
 
 constexpr uint32_t kSdRetryMs = 1500;
 
@@ -138,7 +145,10 @@ constexpr uint32_t kSdRetryMs = 1500;
 // Arduino_GFX 1.6.5's exact GUITION ESP32-4848S040 profile uses 12 MHz with
 // these same porches and rising-edge sampling. Independent exact-board
 // projects use 12-14 MHz, while 16 MHz is reported to glitch.
-constexpr uint32_t kRgbPclkHz = 12000000;
+// Espressif recommends lowering PCLK when direct PSRAM scanout competes with
+// large SD/JPEG/PSRAM operations. Ten MHz retains smooth UI updates while
+// restoring the margin used by the previously stable Guition build.
+constexpr uint32_t kRgbPclkHz = 10000000;
 constexpr size_t kRgbBounceBufferPixels =
     480 * HOMETILES_GUITION_S3_RGB_BOUNCE_ROWS;
 constexpr uint32_t kRgbHorizontalTotal = 480 + 10 + 8 + 50;
@@ -264,6 +274,12 @@ class GuitionAtomicRgbDisplay final : public Arduino_RGB_Display {
     if (err == ESP_OK) err = esp_lcd_panel_reset(panel_handle_);
     if (err == ESP_OK) err = esp_lcd_panel_init(panel_handle_);
     if (err == ESP_OK) {
+      // panel_init() starts the stream and enables VSYNC. Mask immediately,
+      // before any further setup work can let Arduino-ESP32's automatic
+      // CONFIG_LCD_RGB_RESTART_IN_VSYNC path fire once at a random phase.
+      maskVsyncInterrupt();
+    }
+    if (err == ESP_OK) {
       err = esp_lcd_rgb_panel_get_frame_buffer(
           panel_handle_, 2, reinterpret_cast<void**>(&framebuffers_[0]),
           reinterpret_cast<void**>(&framebuffers_[1]));
@@ -286,7 +302,6 @@ class GuitionAtomicRgbDisplay final : public Arduino_RGB_Display {
     // ISR both defeats double buffering and can itself cause the documented
     // one-frame horizontal shift when it runs late. The hardware's continuous
     // RGB/GDMA stream is independent of this interrupt and remains enabled.
-    maskVsyncInterrupt();
     return true;
   }
 
@@ -534,6 +549,7 @@ bool g_backlight_ready = false;
 bool g_touch_ready = false;
 bool g_littlefs_ready = false;
 bool g_sd_available = false;
+uint32_t g_sd_active_frequency = 0;
 bool g_sd_init_attempted = false;
 uint32_t g_sd_retry_tick_ms = 0;
 uint8_t g_brightness = 0;
@@ -807,15 +823,56 @@ bool DeviceGuitionESP324848S040::init() {
 
   if (!initBacklight()) return false;
   applyBrightness(0, false);
+
+  // Mount/format LittleFS and create its base directories before the RGB
+  // peripheral starts scanning PSRAM. Backlight is already hard-off, so even
+  // a long first-install format cannot expose an uninitialised panel.
+  if (!initLittleFS()) return false;
+
+  // The first WiFi start after an erased NVS performs a full RF calibration
+  // and commits roughly 2 KB of PHY data. Do that one-time operation before
+  // RGB/GDMA starts; WiFi.persistent(false) alone only protects WiFi config,
+  // not the IDF PHY calibration namespace.
+  auto* phy_calibration = static_cast<esp_phy_calibration_data_t*>(
+      heap_caps_malloc(sizeof(esp_phy_calibration_data_t),
+                       MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  esp_err_t phy_load_err = phy_calibration
+                               ? esp_phy_load_cal_data_from_nvs(phy_calibration)
+                               : ESP_ERR_NO_MEM;
+  if (phy_load_err != ESP_OK) {
+    WiFi.persistent(false);
+    const bool wifi_started = WiFi.mode(WIFI_STA);
+    const bool wifi_stopped = wifi_started && WiFi.mode(WIFI_OFF);
+    if (wifi_started && wifi_stopped && phy_calibration) {
+      phy_load_err = esp_phy_load_cal_data_from_nvs(phy_calibration);
+    }
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+    Serial.printf(
+        "[S3Diag/Display] phase=pre-rgb-phy initial=missing "
+        "wifi_start=%u wifi_stop=%u stored=%u load=%s(%d)\n",
+        wifi_started ? 1u : 0u, wifi_stopped ? 1u : 0u,
+        phy_load_err == ESP_OK ? 1u : 0u, esp_err_to_name(phy_load_err),
+        static_cast<int>(phy_load_err));
+#endif
+  } else {
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+    Serial.println(
+        "[S3Diag/Display] phase=pre-rgb-phy calibration=present");
+#endif
+  }
+  if (phy_calibration) heap_caps_free(phy_calibration);
+
   if (!initDisplay()) return false;
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  Serial.println(
+      "[S3Diag/Display] phase=boot-policy littlefs=pre-rgb "
+      "normal_restart=skipped vsync_irq=masked");
+#endif
 
   if (!initTouch()) {
     Serial.println(
         "[Device/GUITION ESP32-4848S040] Touch unavailable; continuing");
   }
-  // Storage is initialised by setup() after BoardHAL returns. That ordering is
-  // intentional on this RGB board: setup brackets first-boot LittleFS/NVS
-  // writes with the S3 storage guard before a visible frame is presented.
   return true;
 }
 
@@ -1034,7 +1091,25 @@ bool DeviceGuitionESP324848S040::initSDCard() {
   // first and remains deselected on CS39 while the card uses CS42.
   const uint32_t mount_started_ms = millis();
   g_sd_spi.begin(kSdSck, kSdMiso, kSdMosi, kSdCs);
-  if (!SD.begin(kSdCs, g_sd_spi, kSdFrequency, "/sdcard", 5)) {
+  bool mounted = SD.begin(kSdCs, g_sd_spi, kSdFrequency, "/sdcard", 5);
+  g_sd_active_frequency = mounted ? kSdFrequency : 0;
+  if (!mounted && kSdFrequency != kSdFallbackFrequency) {
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+    Serial.printf(
+        "[S3Diag/SD] phase=mount-retry previous_hz=%lu fallback_hz=%lu\n",
+        static_cast<unsigned long>(kSdFrequency),
+        static_cast<unsigned long>(kSdFallbackFrequency));
+#endif
+    SD.end();
+    g_sd_spi.end();
+    digitalWrite(kPanelCs, HIGH);
+    digitalWrite(kSdCs, HIGH);
+    g_sd_spi.begin(kSdSck, kSdMiso, kSdMosi, kSdCs);
+    mounted = SD.begin(kSdCs, g_sd_spi, kSdFallbackFrequency,
+                       "/sdcard", 5);
+    g_sd_active_frequency = mounted ? kSdFallbackFrequency : 0;
+  }
+  if (!mounted) {
     g_sd_available = false;
     Serial.println(
         "[Device/GUITION ESP32-4848S040] SD card mount failed");
@@ -1049,6 +1124,7 @@ bool DeviceGuitionESP324848S040::initSDCard() {
   if (SD.cardType() == CARD_NONE) {
     SD.end();
     g_sd_available = false;
+    g_sd_active_frequency = 0;
     Serial.println("[Device/GUITION ESP32-4848S040] SD card absent");
 #if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
     Serial.printf(
@@ -1072,9 +1148,11 @@ bool DeviceGuitionESP324848S040::initSDCard() {
       : card_type == CARD_SDHC ? "SDHC"
                                 : "UNKNOWN";
   Serial.printf(
-      "[S3Diag/SD] phase=mount result=ok elapsed_ms=%lu card=%s(%u) "
+      "[S3Diag/SD] phase=mount result=ok elapsed_ms=%lu hz=%lu card=%s(%u) "
       "size_bytes=%llu esp_err=ESP_OK(0x0)\n",
-      static_cast<unsigned long>(millis() - mount_started_ms), card_name,
+      static_cast<unsigned long>(millis() - mount_started_ms),
+      static_cast<unsigned long>(g_sd_active_frequency),
+      card_name,
       static_cast<unsigned>(card_type),
       static_cast<unsigned long long>(SD.cardSize()));
 #endif
@@ -1198,8 +1276,10 @@ bool DeviceGuitionESP324848S040::initLittleFS() {
 void DeviceGuitionESP324848S040::migrateStorageFromSD() {
   if (!initLittleFS() || LittleFS.exists("/_migrated")) return;
 
+  const bool have_sd = initSDCard();
+  storageWriteBegin();
   ensureStorageLayout();
-  if (initSDCard()) {
+  if (have_sd) {
     Serial.println("[Storage] Migrating data from SD to LittleFS...");
     copyDirectory(SD, LittleFS, "/_tile_grids");
     copyDirectory(SD, LittleFS, "/_tile_links");
@@ -1214,6 +1294,7 @@ void DeviceGuitionESP324848S040::migrateStorageFromSD() {
     flag.print("1");
     flag.close();
   }
+  storageWriteEnd();
 }
 
 #endif  // defined(DEVICE_GUITION_ESP32_4848S040)
