@@ -534,7 +534,9 @@ static void on_settings_back_clicked(lv_event_t *e) {
 
 static void create_settings_back_button(lv_obj_t *parent) {
   lv_obj_t *btn = lv_button_create(parent);
-  lv_obj_set_style_radius(btn, 22, 0);
+  // Keep the navigation controls visually aligned with the regular tiles.
+  // The 480x480 layout is a strict 2/3 scale of the 720x720 geometry.
+  lv_obj_set_style_radius(btn, popup_layout::scale480(22), 0);
   lv_obj_set_style_border_width(btn, 0, 0);
   lv_obj_set_style_shadow_width(btn, 0, 0);
   lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
@@ -3036,7 +3038,7 @@ static lv_obj_t* create_settings_menu_tile(lv_obj_t* parent, uint8_t col, uint8_
   lv_obj_clear_flag(tile, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_grid_cell(tile, LV_GRID_ALIGN_STRETCH, col, 3, LV_GRID_ALIGN_STRETCH, row, 1);
   style_settings_button(tile, 0x2A2A2A);
-  lv_obj_set_style_radius(tile, 22, 0);
+  lv_obj_set_style_radius(tile, popup_layout::scale480(22), 0);
   lv_obj_set_style_border_opa(tile, LV_OPA_TRANSP, 0);
   lv_obj_set_style_outline_opa(tile, LV_OPA_TRANSP, 0);
   lv_obj_set_style_shadow_opa(tile, LV_OPA_TRANSP, 0);

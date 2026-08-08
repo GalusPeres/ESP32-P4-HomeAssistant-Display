@@ -6,6 +6,7 @@
 #include <lvgl.h>
 #include <strings.h>
 #include <ctype.h>
+#include "src/core/batched_nvs_write.h"
 #include "src/devices/device.h"
 #include "src/io/hardware_io.h"
 #include <vector>
@@ -139,8 +140,9 @@ bool HaBridgeConfig::save(const HaBridgeConfigData& incoming) {
     return true;
   }
 
-  Device::ScopedStorageWrite storage_write;
-  Preferences prefs;
+  Device::ScopedStorageWrite storage_write(
+      BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     return false;
   }
@@ -202,7 +204,7 @@ bool HaBridgeConfig::save(const HaBridgeConfigData& incoming) {
       prefs.putUInt(key, incoming.scene_colors[i]);
     }
   }
-  prefs.end();
+  if (!BatchedNvsWrite::finish(prefs)) return false;
 
   data = incoming;
   rebuildEntityIndexes();

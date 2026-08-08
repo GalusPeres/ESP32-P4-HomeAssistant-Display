@@ -1,4 +1,5 @@
 #include "src/core/config_manager.h"
+#include "src/core/batched_nvs_write.h"
 #include "src/core/i18n.h"
 #include "src/types/clock/clock_format.h"
 #include <Preferences.h>
@@ -9,6 +10,10 @@ ConfigManager configManager;
 
 // Preferences namespace
 static const char* PREF_NAMESPACE = "tab5_config";
+// NVS keys are limited to 15 characters. The former 16-character names were
+// rejected by NVS and therefore never persisted successfully.
+static constexpr const char* STATUS_TIME_FONT_KEY = "stat_time_font";
+static constexpr const char* STATUS_DATE_FONT_KEY = "stat_date_font";
 
 #if defined(DEVICE_GUITION_ESP32_4848S040)
 static bool persisted_config_equal(const DeviceConfig& a,
@@ -341,9 +346,9 @@ bool ConfigManager::load() {
     sleep_bat_seconds = sleep_bat_minutes * 60;
   }
   config.auto_sleep_battery_seconds = normalize_sleep_seconds(sleep_bat_seconds);
-  config.status_time_font_size = prefs.getUChar("status_time_font", 48);
+  config.status_time_font_size = prefs.getUChar(STATUS_TIME_FONT_KEY, 48);
   if (config.status_time_font_size != 24 && config.status_time_font_size != 48) config.status_time_font_size = 48;
-  config.status_date_font_size = prefs.getUChar("status_date_font", 24);
+  config.status_date_font_size = prefs.getUChar(STATUS_DATE_FONT_KEY, 24);
   if (config.status_date_font_size != 20 && config.status_date_font_size != 24) config.status_date_font_size = 24;
 
   apply_device_capability_limits(config);
@@ -414,8 +419,9 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   }
 #endif
 
-  Device::ScopedStorageWrite storage_write;
-  Preferences prefs;
+  Device::ScopedStorageWrite storage_write(
+      BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
 
   if (!prefs.begin(PREF_NAMESPACE, false)) {  // read/write
     Serial.println("⚠️ ConfigManager: Preferences öffnen fehlgeschlagen");
@@ -467,9 +473,9 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
                   normalize_sleep_seconds(normalized.auto_screensaver_seconds));
   prefs.putBool("sleep_bat_en", normalized.auto_sleep_battery_enabled);
   prefs.putUShort("sleep_bat_sec", normalized.auto_sleep_battery_seconds);
-  prefs.putUChar("status_time_font",
+  prefs.putUChar(STATUS_TIME_FONT_KEY,
                  (normalized.status_time_font_size == 24) ? 24 : 48);
-  prefs.putUChar("status_date_font",
+  prefs.putUChar(STATUS_DATE_FONT_KEY,
                  (normalized.status_date_font_size == 20) ? 20 : 24);
 
   uint16_t sleep_minutes = (normalized.auto_sleep_seconds + 59) / 60;
@@ -486,7 +492,10 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
 
   prefs.putBool("configured", true);
 
-  prefs.end();
+  if (!BatchedNvsWrite::finish(prefs)) {
+    Serial.println("ConfigManager: NVS-Transaktion fehlgeschlagen");
+    return false;
+  }
 
   // Update lokale Kopie
   config = normalized;
@@ -550,8 +559,9 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
   }
 #endif
 
-  Device::ScopedStorageWrite storage_write;
-  Preferences prefs;
+  Device::ScopedStorageWrite storage_write(
+      BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
 
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("⚠️ ConfigManager: Preferences öffnen fehlgeschlagen");
@@ -581,7 +591,10 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
   }
   prefs.putUShort("sleep_bat_min", sleep_bat_minutes);
 
-  prefs.end();
+  if (!BatchedNvsWrite::finish(prefs)) {
+    Serial.println("ConfigManager: Display-NVS-Transaktion fehlgeschlagen");
+    return false;
+  }
 
   // Update lokale Kopie
   config.display_brightness = brightness;
@@ -609,15 +622,16 @@ bool ConfigManager::saveScreensaverTimeout(bool enabled, uint16_t seconds) {
     return true;
   }
 #endif
-  Device::ScopedStorageWrite storage_write;
-  Preferences prefs;
+  Device::ScopedStorageWrite storage_write(
+      BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("ConfigManager: Screensaver-Preferences oeffnen fehlgeschlagen");
     return false;
   }
   prefs.putBool("ss_auto_en", enabled);
   prefs.putUShort("ss_auto_sec", normalized_seconds);
-  prefs.end();
+  if (!BatchedNvsWrite::finish(prefs)) return false;
 
   config.auto_screensaver_enabled = enabled;
   config.auto_screensaver_seconds = normalized_seconds;
@@ -628,14 +642,15 @@ bool ConfigManager::saveTileBorders(bool enabled) {
 #if defined(DEVICE_GUITION_ESP32_4848S040)
   if (config.tile_borders == enabled) return true;
 #endif
-  Device::ScopedStorageWrite storage_write;
-  Preferences prefs;
+  Device::ScopedStorageWrite storage_write(
+      BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("ConfigManager: Tile-Border-Preferences oeffnen fehlgeschlagen");
     return false;
   }
   prefs.putBool("tile_border", enabled);
-  prefs.end();
+  if (!BatchedNvsWrite::finish(prefs)) return false;
 
   config.tile_borders = enabled;
   return true;
@@ -645,14 +660,15 @@ bool ConfigManager::saveEthernetEnabled(bool enabled) {
 #if defined(DEVICE_GUITION_ESP32_4848S040)
   if (config.ethernet_enabled == enabled) return true;
 #endif
-  Device::ScopedStorageWrite storage_write;
-  Preferences prefs;
+  Device::ScopedStorageWrite storage_write(
+      BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("ConfigManager: Netzwerkmodus-Preferences oeffnen fehlgeschlagen");
     return false;
   }
   prefs.putBool("eth_mode", enabled);
-  prefs.end();
+  if (!BatchedNvsWrite::finish(prefs)) return false;
 
   config.ethernet_enabled = enabled;
   return true;
@@ -668,14 +684,15 @@ bool ConfigManager::saveScreensaverBrightness(uint8_t brightness_pct) {
 #if defined(DEVICE_GUITION_ESP32_4848S040)
   if (config.screensaver_brightness_pct == brightness_pct) return true;
 #endif
-  Device::ScopedStorageWrite storage_write;
-  Preferences prefs;
+  Device::ScopedStorageWrite storage_write(
+      BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("ConfigManager: Screensaver-Helligkeit konnte nicht gespeichert werden");
     return false;
   }
   prefs.putUChar("ss_bright", brightness_pct);
-  prefs.end();
+  if (!BatchedNvsWrite::finish(prefs)) return false;
 
   config.screensaver_brightness_pct = brightness_pct;
   return true;
@@ -685,8 +702,9 @@ bool ConfigManager::saveStaticAddressingEnabled(bool enabled) {
 #if defined(DEVICE_GUITION_ESP32_4848S040)
   if (config.wifi_static_enabled == enabled) return true;
 #endif
-  Device::ScopedStorageWrite storage_write;
-  Preferences prefs;
+  Device::ScopedStorageWrite storage_write(
+      BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("ConfigManager: IP-Modus-Preferences oeffnen fehlgeschlagen");
     return false;
@@ -694,7 +712,7 @@ bool ConfigManager::saveStaticAddressingEnabled(bool enabled) {
   prefs.putBool("net_static", enabled);
   prefs.putBool("wifi_static", enabled);
   prefs.putBool("eth_static", enabled);
-  prefs.end();
+  if (!BatchedNvsWrite::finish(prefs)) return false;
 
   config.wifi_static_enabled = enabled;
   return true;
@@ -708,8 +726,9 @@ bool ConfigManager::clearStaticAddressing() {
     return true;
   }
 #endif
-  Device::ScopedStorageWrite storage_write;
-  Preferences prefs;
+  Device::ScopedStorageWrite storage_write(
+      BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("ConfigManager: DHCP-Preferences oeffnen fehlgeschlagen");
     return false;
@@ -725,7 +744,7 @@ bool ConfigManager::clearStaticAddressing() {
   prefs.putString("eth_gw", "");
   prefs.putString("eth_subnet", "");
   prefs.putString("eth_dns", "");
-  prefs.end();
+  if (!BatchedNvsWrite::finish(prefs)) return false;
 
   config.wifi_static_enabled = false;
   config.wifi_static_ip[0] = '\0';
@@ -736,8 +755,9 @@ bool ConfigManager::clearStaticAddressing() {
 }
 
 void ConfigManager::clear() {
-  Device::ScopedStorageWrite storage_write;
-  Preferences prefs;
+  Device::ScopedStorageWrite storage_write(
+      BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
 
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("⚠️ ConfigManager: Preferences öffnen fehlgeschlagen");
@@ -745,7 +765,10 @@ void ConfigManager::clear() {
   }
 
   prefs.clear();
-  prefs.end();
+  if (!BatchedNvsWrite::finish(prefs)) {
+    Serial.println("ConfigManager: NVS konnte nicht geloescht werden");
+    return;
+  }
 
   memset(&config, 0, sizeof(config));
   config.configured = false;
