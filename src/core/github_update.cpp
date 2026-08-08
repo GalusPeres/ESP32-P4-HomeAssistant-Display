@@ -6,6 +6,8 @@
 #include <Update.h>
 #include <WiFi.h>
 #include <esp_heap_caps.h>
+#include <esp_ota_ops.h>
+#include <esp_partition.h>
 #include <lwip/sockets.h>
 #include <mbedtls/platform.h>
 #include <mbedtls/ssl.h>  // MBEDTLS_ERR_SSL_ALLOC_FAILED
@@ -17,6 +19,7 @@
 #include "src/core/firmware_metadata.h"
 #include "src/core/firmware_version.h"
 #include "src/devices/device.h"
+#include "src/devices/guition_esp32_4848s040/s3_diagnostics.h"
 #include "src/network/network_transport.h"
 
 namespace {
@@ -37,6 +40,25 @@ constexpr size_t kMaxHttpLineLen = 4096;
 constexpr uint32_t kConnectTimeoutMs = 10000;
 constexpr uint32_t kReadTimeoutMs = 20000;
 constexpr uint32_t kReadPaceMs = 2;
+
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+bool isRetryableTransportError(const String& error) {
+  return error.startsWith("connect failed") ||
+         error == "no http status" || error == "bad http status" ||
+         error == "header timeout" || error == "timeout" ||
+         error == "connection lost" || error == "HTTP 408" ||
+         error == "HTTP 429" || error == "HTTP 500" ||
+         error == "HTTP 502" || error == "HTTP 503" ||
+         error == "HTTP 504";
+}
+#endif
+
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+String diagnosticUrl(const String& url) {
+  const int query = url.indexOf('?');
+  return query >= 0 ? url.substring(0, query) : url;
+}
+#endif
 
 #if defined(DEVICE_GUITION_ESP32_4848S040)
 // Native WiFi does not need the ESP32-P4/ESP-Hosted separation between the
@@ -445,6 +467,17 @@ bool fetchHttpRange(const String& start_url, size_t from, size_t to,
       return false;
     }
 
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+    const String safe_url = diagnosticUrl(url);
+    Serial.printf(
+        "[S3Diag/GitHubOTA] phase=http url=%s status=%d range=%u-%u "
+        "content_length=%u expected_total=%u redirect=%u\n",
+        safe_url.c_str(), status_code, static_cast<unsigned>(from),
+        static_cast<unsigned>(to), static_cast<unsigned>(content_length),
+        static_cast<unsigned>(range_total),
+        (status_code >= 300 && status_code < 400) ? 1U : 0U);
+#endif
+
     if (status_code >= 300 && status_code < 400 && location.length()) {
       client.stop();
       url = resolveRedirectUrl(url, parsed, location);
@@ -557,6 +590,7 @@ struct UpdateWriteCtx {
   uint32_t last_progress_ms = 0;
   GithubUpdate::ProgressFn progress = nullptr;
   String* error = nullptr;
+  uint8_t update_error = 0;
 };
 
 void reportInstallProgress(UpdateWriteCtx& ctx, bool force) {
@@ -585,7 +619,18 @@ bool writeUpdateBytes(const uint8_t* data, size_t len, void* raw_ctx) {
     const size_t bytes_written =
         Update.write(const_cast<uint8_t*>(data + offset), slice);
     if (bytes_written != slice) {
-      if (ctx->error) *ctx->error = Update.errorString();
+      ctx->update_error = Update.getError();
+      const String update_error_text = Update.errorString();
+      if (ctx->error) *ctx->error = update_error_text;
+      Serial.printf(
+          "[Update] Update.write failed: requested=%u wrote=%u "
+          "total=%u/%u code=%u -> %s\n",
+          static_cast<unsigned>(slice),
+          static_cast<unsigned>(bytes_written),
+          static_cast<unsigned>(ctx->written + bytes_written),
+          static_cast<unsigned>(ctx->total),
+          static_cast<unsigned>(ctx->update_error),
+          update_error_text.c_str());
       return false;
     }
     ctx->written += bytes_written;
@@ -660,6 +705,15 @@ CheckResult checkLatest() {
 
     const int code = http.GET();
     const String location = http.header("Location");
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+    const String safe_check_url = diagnosticUrl(url);
+    const String safe_location = diagnosticUrl(location);
+    Serial.printf(
+        "[S3Diag/GitHubOTA] phase=latest-check url=%s status=%d "
+        "location=%s\n",
+        safe_check_url.c_str(), code,
+        safe_location.length() ? safe_location.c_str() : "-");
+#endif
     http.end();
     client.stop();
     delay(10);
@@ -721,6 +775,11 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
   String url = releaseDownloadUrl(
       tag, String("hometiles_") + tag + "_" + Device::profile().key + ".bin");
   Serial.printf("[Update] Lade %s\n", url.c_str());
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  Serial.printf(
+      "[S3Diag/GitHubOTA] phase=asset-select tag=%s url=%s\n", tag,
+      diagnosticUrl(url).c_str());
+#endif
 
   g_install_diag = "";
   g_install_retryable = false;
@@ -773,6 +832,11 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
     if (!fetchHttpRange(legacy_url, 0, sizeof(image_head) - 1, net_buf,
                         kInstallReadChunk, storeHeadBytes, &head_ctx, total_sz,
                         error_out, &resolved_asset_url)) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+      g_install_retryable =
+          isRetryableTransportError(first_error) ||
+          isRetryableTransportError(error_out);
+#endif
       error_out = first_error + "; fallback: " + error_out;
       failed = true;
     } else {
@@ -812,12 +876,22 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
                   incoming_desc.project_key + ", expected " +
                   firmware_meta::currentProjectKey();
       failed = true;
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+    } else {
+      Serial.printf(
+          "[S3Diag/GitHubOTA] phase=metadata result=ok expected_size=%u "
+          "device=%s project=%s\n",
+          static_cast<unsigned>(total_sz), incoming_desc.device_key,
+          incoming_desc.project_key);
+#endif
     }
   }
 
-  if (!failed) {
-    g_install_retryable = true;
-  }
+#if !defined(DEVICE_GUITION_ESP32_4848S040)
+  // Preserve the established P4 retry behaviour. The stricter distinction
+  // between transport and deterministic OTA failures is S3-only.
+  if (!failed) g_install_retryable = true;
+#endif
 
   size_t image_remainder = 0;
   size_t stage_capacity = 0;
@@ -857,11 +931,35 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
   }
 
   if (!failed && !kStageCompleteImage) {
-    if (!Update.begin(total_sz, U_FLASH)) {
-      error_out = Update.errorString();
+    GuitionS3Diagnostics::logOtaPartitions("github-begin");
+    const esp_partition_t* next_partition =
+        esp_ota_get_next_update_partition(nullptr);
+    if (!next_partition) {
+      error_out = "no next OTA partition";
+      g_install_retryable = false;
       failed = true;
-      Serial.printf("[Update] Update.begin fehlgeschlagen: %s\n",
-                    error_out.c_str());
+      Serial.println(
+          "[Update] Update.begin fehlgeschlagen: keine naechste OTA-Partition");
+    } else if (total_sz > next_partition->size) {
+      error_out = "image exceeds next OTA partition";
+      g_install_retryable = false;
+      failed = true;
+      Serial.printf(
+          "[Update] Update.begin abgelehnt: image=%u target=%s size=%u\n",
+          static_cast<unsigned>(total_sz), next_partition->label,
+          static_cast<unsigned>(next_partition->size));
+    } else if (!Update.begin(total_sz, U_FLASH)) {
+      const uint8_t update_error = Update.getError();
+      error_out = String("Updater [") +
+                  String(static_cast<unsigned>(update_error)) + "]: " +
+                  Update.errorString();
+      g_install_retryable = false;
+      failed = true;
+      Serial.printf(
+          "[Update] Update.begin fehlgeschlagen: target=%s size=%u "
+          "code=%u -> %s\n",
+          next_partition->label, static_cast<unsigned>(total_sz),
+          static_cast<unsigned>(update_error), Update.errorString());
     } else {
       update_started = true;
       write_ctx.total = total_sz;
@@ -871,6 +969,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
                     static_cast<unsigned>(total_sz));
       if (!writeUpdateBytes(image_head, head_ctx.len, &write_ctx)) {
         if (!error_out.length()) error_out = Update.errorString();
+        g_install_retryable = false;
         failed = true;
       } else {
         reportInstallProgress(write_ctx, true);
@@ -890,6 +989,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
       if (range_len > kStageRangeBytes) range_len = kStageRangeBytes;
       const size_t range_end = range_start + range_len - 1;
       bool range_ok = false;
+      bool range_failure_retryable = false;
       const size_t block_index =
           kStageCompleteImage ? staged_len / kStageBlockBytes : 0;
       uint8_t* const stage_block = stage.block(block_index);
@@ -925,6 +1025,11 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
                           ? "image size changed"
                           : "range incomplete";
         }
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+        if (isRetryableTransportError(error_out)) {
+          range_failure_retryable = true;
+        }
+#endif
         Serial.printf("[Update] Range fehlgeschlagen: %s\n", error_out.c_str());
         installDiagLine(String("Range ") + range_start + "-" + range_end +
                         " Versuch " + attempt + ": " + error_out + " | " +
@@ -937,6 +1042,9 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
       }
 
       if (!range_ok) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+        g_install_retryable = range_failure_retryable;
+#endif
         failed = true;
         break;
       }
@@ -944,6 +1052,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
       if (!kStageCompleteImage &&
           !writeUpdateBytes(stage_block, range_len, &write_ctx)) {
         if (!error_out.length()) error_out = Update.errorString();
+        g_install_retryable = false;
         failed = true;
         break;
       }
@@ -985,10 +1094,18 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
 
   if (!failed && kStageCompleteImage) {
     if (!Update.begin(total_sz, U_FLASH)) {
-      error_out = Update.errorString();
+      const uint8_t update_error = Update.getError();
+      error_out = String("Updater [") +
+                  String(static_cast<unsigned>(update_error)) + "]: " +
+                  Update.errorString();
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+      g_install_retryable = false;
+#endif
       failed = true;
-      Serial.printf("[Update] Update.begin fehlgeschlagen: %s\n",
-                    error_out.c_str());
+      Serial.printf(
+          "[Update] Update.begin fehlgeschlagen: size=%u code=%u -> %s\n",
+          static_cast<unsigned>(total_sz),
+          static_cast<unsigned>(update_error), Update.errorString());
     } else {
       update_started = true;
       Serial.printf("[Update] Update.begin OK, Groesse: %u\n",
@@ -998,6 +1115,9 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
       write_ctx.error = &error_out;
       if (!writeUpdateBytes(image_head, head_ctx.len, &write_ctx)) {
         if (!error_out.length()) error_out = Update.errorString();
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+        g_install_retryable = false;
+#endif
         failed = true;
       } else {
         reportInstallProgress(write_ctx, true);
@@ -1007,6 +1127,9 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
         if (!writeUpdateBytes(stage.block(i), stage.blockSize(i),
                               &write_ctx)) {
           if (!error_out.length()) error_out = Update.errorString();
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+          g_install_retryable = false;
+#endif
           failed = true;
         }
       }
@@ -1016,6 +1139,19 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
   stage.release();
   if (net_buf) free(net_buf);
 
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (!failed && write_ctx.written != total_sz) {
+    error_out = String("OTA byte count mismatch: written ") +
+                write_ctx.written + " expected " + total_sz;
+    g_install_retryable = false;
+    failed = true;
+    Serial.printf(
+        "[Update] Installation unvollstaendig: written=%u expected=%u\n",
+        static_cast<unsigned>(write_ctx.written),
+        static_cast<unsigned>(total_sz));
+  }
+#endif
+
   if (failed) {
     if (update_started) Update.abort();
     Serial.printf("[Update] Install fehlgeschlagen: %s\n", error_out.c_str());
@@ -1024,11 +1160,33 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
     return false;
   }
 
-  if (!Update.end(true)) {
-    error_out = Update.errorString();
-    Serial.printf("[Update] Update.end fehlgeschlagen: %s\n", error_out.c_str());
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  const bool update_end_ok = Update.end(false);
+  constexpr const char* kUpdateEndMode = "false";
+#else
+  const bool update_end_ok = Update.end(true);
+  constexpr const char* kUpdateEndMode = "true";
+#endif
+  if (!update_end_ok) {
+    const uint8_t update_error = Update.getError();
+    const String update_error_text = Update.errorString();
+    error_out = String("Updater [") +
+                String(static_cast<unsigned>(update_error)) + "]: " +
+                update_error_text;
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    g_install_retryable = false;
+#endif
+    Serial.printf(
+        "[Update] Update.end(%s) fehlgeschlagen: written=%u expected=%u "
+        "code=%u -> %s\n",
+        kUpdateEndMode,
+        static_cast<unsigned>(write_ctx.written),
+        static_cast<unsigned>(total_sz),
+        static_cast<unsigned>(update_error), update_error_text.c_str());
+    if (Update.isRunning()) Update.abort();
     return false;
   }
+  GuitionS3Diagnostics::logOtaPartitions("github-end");
   Serial.printf("[Update] %u Bytes installiert - bereit zum Neustart\n",
                 static_cast<unsigned>(total_sz));
   return true;

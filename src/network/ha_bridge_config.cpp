@@ -46,6 +46,13 @@ static uint8_t hexValue(char c);
 
 HaBridgeConfig haBridgeConfig;
 
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+static constexpr bool kWriteOnlyChangedBridgeSlots = true;
+#else
+// Preserve the existing persistence behaviour on every other device profile.
+static constexpr bool kWriteOnlyChangedBridgeSlots = false;
+#endif
+
 HaBridgeConfig::HaBridgeConfig() = default;
 
 bool HaBridgeConfig::load() {
@@ -94,6 +101,45 @@ bool HaBridgeConfig::load() {
 }
 
 bool HaBridgeConfig::save(const HaBridgeConfigData& incoming) {
+  bool slot_data_changed = !kWriteOnlyChangedBridgeSlots;
+  for (size_t i = 0; i < HA_SENSOR_SLOT_COUNT; ++i) {
+    slot_data_changed = slot_data_changed ||
+                        incoming.sensor_slots[i] != data.sensor_slots[i] ||
+                        incoming.sensor_titles[i] != data.sensor_titles[i] ||
+                        incoming.sensor_custom_units[i] !=
+                            data.sensor_custom_units[i] ||
+                        incoming.sensor_colors[i] != data.sensor_colors[i];
+  }
+  for (size_t i = 0; i < HA_SCENE_SLOT_COUNT; ++i) {
+    slot_data_changed = slot_data_changed ||
+                        incoming.scene_slots[i] != data.scene_slots[i] ||
+                        incoming.scene_titles[i] != data.scene_titles[i] ||
+                        incoming.scene_colors[i] != data.scene_colors[i];
+  }
+
+  bool legacy_data_present = false;
+  {
+    // A read-only probe never creates the NVS namespace. Most Bridge refreshes
+    // only update volatile entity metadata; return before opening NVS RW when
+    // no persistent slot or legacy key actually changed.
+    Preferences read_prefs;
+    if (read_prefs.begin(PREF_NAMESPACE, true)) {
+      legacy_data_present = read_prefs.isKey("ha_sensors") ||
+                            read_prefs.isKey("ha_scene_alias") ||
+                            read_prefs.isKey("ha_sens_units") ||
+                            read_prefs.isKey("ha_sens_names") ||
+                            read_prefs.isKey("ha_sens_vals");
+      read_prefs.end();
+    }
+  }
+
+  if (!slot_data_changed && !legacy_data_present) {
+    data = incoming;
+    rebuildEntityIndexes();
+    return true;
+  }
+
+  Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     return false;
@@ -108,30 +154,53 @@ bool HaBridgeConfig::save(const HaBridgeConfigData& incoming) {
   // prefs.putString("ha_sens_vals", incoming.sensor_values_map);
   // HA-Auto-Icons are runtime metadata. Manual tile icons are stored with the
   // tile config, but HA icon changes must not write to flash.
-  prefs.remove("ha_sensors");
-  prefs.remove("ha_scene_alias");
-  prefs.remove("ha_sens_units");
-  prefs.remove("ha_sens_names");
-  prefs.remove("ha_sens_vals");
+  if (!kWriteOnlyChangedBridgeSlots || legacy_data_present) {
+    prefs.remove("ha_sensors");
+    prefs.remove("ha_scene_alias");
+    prefs.remove("ha_sens_units");
+    prefs.remove("ha_sens_names");
+    prefs.remove("ha_sens_vals");
+  }
   for (size_t i = 0; i < HA_SENSOR_SLOT_COUNT; ++i) {
     char key[12];
-    snprintf(key, sizeof(key), "slot_s%u", static_cast<unsigned>(i));
-    prefs.putString(key, incoming.sensor_slots[i]);
-    snprintf(key, sizeof(key), "title_s%u", static_cast<unsigned>(i));
-    prefs.putString(key, incoming.sensor_titles[i]);
-    snprintf(key, sizeof(key), "unit_s%u", static_cast<unsigned>(i));
-    prefs.putString(key, incoming.sensor_custom_units[i]);
-    snprintf(key, sizeof(key), "color_s%u", static_cast<unsigned>(i));
-    prefs.putUInt(key, incoming.sensor_colors[i]);
+    if (!kWriteOnlyChangedBridgeSlots ||
+        incoming.sensor_slots[i] != data.sensor_slots[i]) {
+      snprintf(key, sizeof(key), "slot_s%u", static_cast<unsigned>(i));
+      prefs.putString(key, incoming.sensor_slots[i]);
+    }
+    if (!kWriteOnlyChangedBridgeSlots ||
+        incoming.sensor_titles[i] != data.sensor_titles[i]) {
+      snprintf(key, sizeof(key), "title_s%u", static_cast<unsigned>(i));
+      prefs.putString(key, incoming.sensor_titles[i]);
+    }
+    if (!kWriteOnlyChangedBridgeSlots ||
+        incoming.sensor_custom_units[i] != data.sensor_custom_units[i]) {
+      snprintf(key, sizeof(key), "unit_s%u", static_cast<unsigned>(i));
+      prefs.putString(key, incoming.sensor_custom_units[i]);
+    }
+    if (!kWriteOnlyChangedBridgeSlots ||
+        incoming.sensor_colors[i] != data.sensor_colors[i]) {
+      snprintf(key, sizeof(key), "color_s%u", static_cast<unsigned>(i));
+      prefs.putUInt(key, incoming.sensor_colors[i]);
+    }
   }
   for (size_t i = 0; i < HA_SCENE_SLOT_COUNT; ++i) {
     char key[12];
-    snprintf(key, sizeof(key), "slot_c%u", static_cast<unsigned>(i));
-    prefs.putString(key, incoming.scene_slots[i]);
-    snprintf(key, sizeof(key), "title_c%u", static_cast<unsigned>(i));
-    prefs.putString(key, incoming.scene_titles[i]);
-    snprintf(key, sizeof(key), "color_c%u", static_cast<unsigned>(i));
-    prefs.putUInt(key, incoming.scene_colors[i]);
+    if (!kWriteOnlyChangedBridgeSlots ||
+        incoming.scene_slots[i] != data.scene_slots[i]) {
+      snprintf(key, sizeof(key), "slot_c%u", static_cast<unsigned>(i));
+      prefs.putString(key, incoming.scene_slots[i]);
+    }
+    if (!kWriteOnlyChangedBridgeSlots ||
+        incoming.scene_titles[i] != data.scene_titles[i]) {
+      snprintf(key, sizeof(key), "title_c%u", static_cast<unsigned>(i));
+      prefs.putString(key, incoming.scene_titles[i]);
+    }
+    if (!kWriteOnlyChangedBridgeSlots ||
+        incoming.scene_colors[i] != data.scene_colors[i]) {
+      snprintf(key, sizeof(key), "color_c%u", static_cast<unsigned>(i));
+      prefs.putUInt(key, incoming.scene_colors[i]);
+    }
   }
   prefs.end();
 

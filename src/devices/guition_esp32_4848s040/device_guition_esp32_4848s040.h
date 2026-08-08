@@ -38,6 +38,9 @@ bool displayTryFullFramePreview(int32_t x, int32_t y, int32_t w, int32_t h,
                                 int32_t source_stride,
                                 const uint16_t* data, size_t data_size,
                                 bool byte_swap);
+// Prepare the inactive RGB framebuffer for one tear-free full-screen redraw.
+// Normal partial UI updates continue to use the active framebuffer directly.
+bool displayBeginAtomicFrame(const char* reason);
 void displayWaitDMA();
 void displayFillScreen(uint16_t color);
 void displaySetRotation(uint8_t rotation);

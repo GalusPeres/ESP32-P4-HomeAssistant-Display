@@ -21,6 +21,7 @@
 #include "src/core/display_manager.h"
 #include "src/core/power_manager.h"
 #include "src/devices/device.h"
+#include "src/devices/guition_esp32_4848s040/s3_diagnostics.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/tiles/tile_renderer.h"
 #include "src/tiles/tile_renderer_fonts.h"
@@ -641,16 +642,28 @@ lv_image_dsc_t* decode_wallpaper_to_size(const String& file_name,
                                          uint16_t target_w, uint16_t target_h,
                                          uint16_t focus_x, uint16_t focus_y,
                                          uint16_t zoom) {
+  const uint32_t pipeline_started_ms = millis();
   size_t len = 0;
   uint8_t* file = read_wallpaper_file(file_name, len);
-  if (!file) return nullptr;
+  if (!file) {
+    GuitionS3Diagnostics::logSlideshowDecode(
+        file_name.c_str(), 0, 0, 0, target_w, target_h,
+        static_cast<uint32_t>(target_w) * sizeof(uint16_t), "none", false,
+        millis() - pipeline_started_ms, 0, 0);
+    return nullptr;
+  }
+  const uint32_t read_ms = millis() - pipeline_started_ms;
   if (!is_jpeg(file, len)) {
     Serial.println("[Screensaver] Datei ist kein JPEG");
+    GuitionS3Diagnostics::logSlideshowDecode(
+        file_name.c_str(), len, 0, 0, target_w, target_h,
+        static_cast<uint32_t>(target_w) * sizeof(uint16_t), "none", false,
+        read_ms, 0, 0);
     free(file);
     return nullptr;
   }
 
-  const uint32_t started_ms = millis();
+  const uint32_t decode_started_ms = millis();
   uint16_t w = 0;
   uint16_t h = 0;
   uint16_t* pixels = nullptr;
@@ -662,18 +675,31 @@ lv_image_dsc_t* decode_wallpaper_to_size(const String& file_name,
   if (!pixels) {
     pixels = sw_decode_jpeg(file, len, w, h);
   }
+  const uint32_t decode_ms = millis() - decode_started_ms;
   free(file);
-  if (!pixels) return nullptr;
+  if (!pixels) {
+    GuitionS3Diagnostics::logSlideshowDecode(
+        file_name.c_str(), len, w, h, target_w, target_h,
+        static_cast<uint32_t>(target_w) * sizeof(uint16_t),
+        hw ? "HW" : "SW", false, read_ms, decode_ms, 0);
+    return nullptr;
+  }
 
+  const uint32_t cover_started_ms = millis();
   lv_image_dsc_t* dsc = make_cover_dsc(pixels, w, h, target_w, target_h,
                                        focus_x, focus_y, zoom);
+  const uint32_t cover_ms = millis() - cover_started_ms;
   free(pixels);
+  GuitionS3Diagnostics::logSlideshowDecode(
+      file_name.c_str(), len, w, h, target_w, target_h,
+      static_cast<uint32_t>(target_w) * sizeof(uint16_t),
+      hw ? "HW" : "SW", dsc != nullptr, read_ms, decode_ms, cover_ms);
   if (dsc) {
     Serial.printf("[Screensaver] %s-Decode %ux%u -> %ux%u in %u ms\n",
                   hw ? "HW" : "SW",
                   static_cast<unsigned>(w), static_cast<unsigned>(h),
                   static_cast<unsigned>(target_w), static_cast<unsigned>(target_h),
-                  static_cast<unsigned>(millis() - started_ms));
+                  static_cast<unsigned>(millis() - pipeline_started_ms));
   }
   return dsc;
 }
@@ -911,7 +937,25 @@ bool apply_wallpaper(ScreensaverState* st, int index, bool allow_fallback,
   if (!preview_ok) {
     // Falls der geraetespezifische Vollbildpfad nicht verfuegbar ist, zeichnet
     // LVGL das neue Bild weiterhin sicher wie bisher selbst.
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    const bool atomic_redraw =
+        DeviceImpl::displayBeginAtomicFrame("screensaver");
+#endif
+    GuitionS3Diagnostics::beginSlideshowPresentation(
+        wallpaper.file_name.c_str(), cache_hit, Device::kScreenWidth,
+        Device::kScreenHeight, dsc->header.stride);
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    // The inactive framebuffer deliberately isn't copied first: that large
+    // PSRAM read/write burst can starve RGB EDMA. Invalidate the whole screen
+    // so LVGL fully replaces it before the atomic swap instead.
+    if (atomic_redraw) {
+      lv_obj_invalidate(lv_screen_active());
+    } else {
+      lv_obj_invalidate(st->image);
+    }
+#else
     lv_obj_invalidate(st->image);
+#endif
   }
   return true;
 }
@@ -1247,6 +1291,14 @@ void show_image_screensaver() {
   ScreensaverState* st = new ScreensaverState();
   if (!st) return;
 
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  // Everything created below becomes visible in one completed RGB frame.
+  // Arming this before building the overlay also covers the no-wallpaper and
+  // decode-failure paths, which otherwise expose LVGL's partial render bands.
+  const bool atomic_show =
+      DeviceImpl::displayBeginAtomicFrame("screensaver-show");
+#endif
+
   st->overlay = lv_obj_create(lv_layer_top());
   lv_obj_set_size(st->overlay, Device::kScreenWidth, Device::kScreenHeight);
   lv_obj_set_pos(st->overlay, 0, 0);
@@ -1282,6 +1334,9 @@ void show_image_screensaver() {
   st->next_slot_refresh_ms = millis() + 1000U;
   st->timer = lv_timer_create(global_screensaver_timer_cb, 1000, st);
   apply_configured_screensaver_brightness();
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (atomic_show) lv_obj_invalidate(lv_screen_active());
+#endif
   Serial.printf("[Screensaver] Sichtbar nach %u ms\n",
                 static_cast<unsigned>(millis() - started_ms));
 }
@@ -1289,6 +1344,10 @@ void show_image_screensaver() {
 void hide_image_screensaver() {
   ScreensaverState* st = g_state;
   if (!st) return;
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  const bool atomic_hide =
+      DeviceImpl::displayBeginAtomicFrame("screensaver-exit");
+#endif
   g_state = nullptr;
   restore_configured_display_brightness();
   g_live_config_refresh_requested = false;
@@ -1305,6 +1364,9 @@ void hide_image_screensaver() {
   if (st->overlay) {
     lv_obj_add_flag(st->overlay, LV_OBJ_FLAG_HIDDEN);
     lv_obj_delete_async(st->overlay);
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    if (atomic_hide) lv_obj_invalidate(lv_screen_active());
+#endif
   } else {
     delete st;
   }

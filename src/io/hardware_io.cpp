@@ -787,23 +787,21 @@ bool HardwareIoManager::saveChannels(
 
   String json;
   serializeJson(doc, json);
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  Device::ScopedStorageWrite storage_write;
+#endif
   fs::FS& fs = Device::storageFS();
   if (!fs.exists(kConfigDir) && !fs.mkdir(kConfigDir)) return false;
   if (fs.exists(kConfigTmpPath)) fs.remove(kConfigTmpPath);
 
-  Device::storageWriteBegin();
   fs::File file = fs.open(kConfigTmpPath, FILE_WRITE);
-  if (!file) {
-    Device::storageWriteEnd();
-    return false;
-  }
+  if (!file) return false;
   const size_t written = file.print(json);
   file.flush();
   file.close();
   const bool complete = written == json.length();
   const bool replaced = complete && replace_file_atomically(fs);
   if (!replaced) fs.remove(kConfigTmpPath);
-  Device::storageWriteEnd();
   return replaced;
 }
 

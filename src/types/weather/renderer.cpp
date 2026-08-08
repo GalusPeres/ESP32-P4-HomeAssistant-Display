@@ -65,8 +65,10 @@ void open_current_weather_popup(lv_event_t* event,
   if (!source && event) {
     source = static_cast<lv_obj_t*>(lv_event_get_target(event));
   }
+#if !defined(DEVICE_GUITION_ESP32_4848S040)
   lv_display_t* display = source ? lv_obj_get_display(source)
                                  : lv_display_get_default();
+#endif
 
   // Release the real button first, then make the already prepared popup part
   // of the same refresh. This preserves the normal pressed feedback without
@@ -76,11 +78,19 @@ void open_current_weather_popup(lv_event_t* event,
     lv_obj_clear_state(source, LV_STATE_PRESSED);
   }
   show_weather_popup(init);
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  // On the S3 RGB panel this callback already runs from LVGL's timer handler.
+  // Forcing a nested full refresh here measured 344 ms on hardware. Let the
+  // normal refresh timer present the already-invalidated popup instead.
+  Serial.printf("[WeatherPopup] Fast open: deferred-refresh=%lu ms\n",
+                static_cast<unsigned long>(millis() - refresh_started_ms));
+#else
   if (display) {
     lv_refr_now(display);
   }
   Serial.printf("[WeatherPopup] Fast open: combined-refresh=%lu ms\n",
                 static_cast<unsigned long>(millis() - refresh_started_ms));
+#endif
 }
 }  // namespace
 

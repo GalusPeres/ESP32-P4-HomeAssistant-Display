@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 #include "src/core/firmware_version.h"
+#include "src/devices/device.h"
 
 namespace {
 
@@ -198,6 +199,9 @@ void logBootDiagnostics() {
     return;
   }
 
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  Device::ScopedStorageWrite storage_write;
+#endif
   rotateLogIfNeeded();
   File f = LittleFS.open(kLogPath, FILE_APPEND);
   if (!f) {
@@ -225,6 +229,9 @@ void logBootDiagnostics() {
 
 void appendOtaFailureReport(const char* target_tag, const String& error,
                             const String& detail) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  Device::ScopedStorageWrite storage_write;
+#endif
   rotateLogIfNeeded();
   File f = LittleFS.open(kLogPath, FILE_APPEND);
   if (!f) {
@@ -245,6 +252,9 @@ void appendOtaFailureReport(const char* target_tag, const String& error,
 }
 
 void appendNetworkWedgeReport(const String& detail) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  Device::ScopedStorageWrite storage_write;
+#endif
   rotateLogIfNeeded();
   File f = LittleFS.open(kLogPath, FILE_APPEND);
   if (!f) {

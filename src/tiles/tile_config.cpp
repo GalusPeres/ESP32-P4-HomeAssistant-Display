@@ -402,6 +402,9 @@ static void promoteRecoveryFile(const String& candidatePath, const String& fileP
   if (!storageReady()) return;
   if (!storageFS().exists(candidatePath)) return;
 
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  Device::ScopedStorageWrite storage_write;
+#endif
   if (storageFS().exists(filePath)) {
     const String badPath = filePath + ".bad";
     if (storageFS().exists(badPath)) storageFS().remove(badPath);
@@ -2713,6 +2716,13 @@ bool TileConfig::loadGrid(uint16_t folder_id, TileGridConfig& grid,
     }
   }
 
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  // V6 stores image paths inline. Migrating an old folder can therefore write
+  // LittleFS sidecars before saveGrid() opens its own (nested) guard. Keep the
+  // complete rare migration transaction protected without adding any cost to
+  // normal V7 folder opens or popups.
+  Device::ScopedStorageWrite migration_write(needs_migration_save);
+#endif
   applyImagePathsFromSd(folder_id, grid);
   applyLongEntityIdsFromSd(folder_id, grid);
 

@@ -334,6 +334,7 @@ bool ConfigManager::load() {
 }
 
 bool ConfigManager::save(const DeviceConfig& cfg) {
+  Device::ScopedStorageWrite storage_write;
   Preferences prefs;
 
   if (!prefs.begin(PREF_NAMESPACE, false)) {  // read/write
@@ -446,6 +447,7 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
                                         uint8_t rotation_quarters,
                                         uint8_t wake_mode_mains,
                                         uint8_t wake_mode_battery) {
+  Device::ScopedStorageWrite storage_write;
   Preferences prefs;
 
   if (!prefs.begin(PREF_NAMESPACE, false)) {
@@ -520,6 +522,7 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
 }
 
 bool ConfigManager::saveScreensaverTimeout(bool enabled, uint16_t seconds) {
+  Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("ConfigManager: Screensaver-Preferences oeffnen fehlgeschlagen");
@@ -536,6 +539,7 @@ bool ConfigManager::saveScreensaverTimeout(bool enabled, uint16_t seconds) {
 }
 
 bool ConfigManager::saveTileBorders(bool enabled) {
+  Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("ConfigManager: Tile-Border-Preferences oeffnen fehlgeschlagen");
@@ -549,6 +553,7 @@ bool ConfigManager::saveTileBorders(bool enabled) {
 }
 
 bool ConfigManager::saveEthernetEnabled(bool enabled) {
+  Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("ConfigManager: Netzwerkmodus-Preferences oeffnen fehlgeschlagen");
@@ -568,6 +573,7 @@ bool ConfigManager::saveScreensaverBrightness(uint8_t brightness_pct) {
     brightness_pct = kScreensaverBrightnessPctMax;
   }
 
+  Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("ConfigManager: Screensaver-Helligkeit konnte nicht gespeichert werden");
@@ -581,6 +587,7 @@ bool ConfigManager::saveScreensaverBrightness(uint8_t brightness_pct) {
 }
 
 bool ConfigManager::saveStaticAddressingEnabled(bool enabled) {
+  Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("ConfigManager: IP-Modus-Preferences oeffnen fehlgeschlagen");
@@ -596,6 +603,7 @@ bool ConfigManager::saveStaticAddressingEnabled(bool enabled) {
 }
 
 bool ConfigManager::clearStaticAddressing() {
+  Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
     Serial.println("ConfigManager: DHCP-Preferences oeffnen fehlgeschlagen");
@@ -623,6 +631,7 @@ bool ConfigManager::clearStaticAddressing() {
 }
 
 void ConfigManager::clear() {
+  Device::ScopedStorageWrite storage_write;
   Preferences prefs;
 
   if (!prefs.begin(PREF_NAMESPACE, false)) {

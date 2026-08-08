@@ -90,13 +90,12 @@ void BoardHAL::restart() {
   Serial.flush();
   esp_restart_noos();
 #elif defined(DEVICE_GUITION_ESP32_4848S040)
-  // Some ESP32-S3 RGB boards do not reliably reset the panel/PSRAM path with
-  // a software-only restart. A short timed deep sleep performs a clean
-  // hardware reset and is also safe after OTA.
-  Serial.println("[BoardHAL] Hardware reset via timed deep sleep");
+  // A timed deep-sleep wake can resume the currently running OTA image even
+  // after Update.end() selected the other slot. Use a real chip restart so
+  // the second-stage bootloader evaluates otadata and boots the new image.
+  Serial.println("[BoardHAL] ESP32-S3 restart via ESP.restart");
   Serial.flush();
-  esp_sleep_enable_timer_wakeup(100000);
-  esp_deep_sleep_start();
+  ESP.restart();
 #else
   ESP.restart();
 #endif

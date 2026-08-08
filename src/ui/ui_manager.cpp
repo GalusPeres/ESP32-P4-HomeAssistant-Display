@@ -10,6 +10,7 @@
 #include "src/ui/climate_popup.h"
 #include "src/core/display_manager.h"
 #include "src/core/config_manager.h"
+#include "src/devices/device_select.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/tiles/tile_config.h"
 #include "src/network/mqtt_handlers.h"
@@ -345,6 +346,15 @@ void UIManager::switchToTab(uint8_t index) {
     lv_display_enable_invalidation(disp, true);
 
     const uint32_t switch_started_ms = millis();
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    // The S3 log showed 70 small flushes and about 172 ms for the settings
+    // switch. Invalidating each child separately fragments the refresh and
+    // repeatedly rotates/copies into the live PSRAM framebuffer. One panel
+    // invalidation lets LVGL merge the work into the configured display bands.
+    lv_obj_invalidate(tab_panels[index]);
+    const uint32_t cleared_ms = switch_started_ms;
+    const uint32_t child_count = lv_obj_get_child_count(tab_panels[index]);
+#else
     BoardHAL::displayFillScreen(0x0000);
     const uint32_t cleared_ms = millis();
 
@@ -355,15 +365,23 @@ void UIManager::switchToTab(uint8_t index) {
         lv_obj_invalidate(child);
       }
     }
+#endif
     lv_refr_now(disp);
 
     const uint32_t finished_ms = millis();
     Serial.printf(
-        "[UI] Settings switch: clear=%lu ms draw=%lu ms total=%lu ms children=%lu\n",
+        "[UI] Settings switch: clear=%lu ms draw=%lu ms total=%lu ms "
+        "children=%lu mode=%s\n",
         static_cast<unsigned long>(cleared_ms - switch_started_ms),
         static_cast<unsigned long>(finished_ms - cleared_ms),
         static_cast<unsigned long>(finished_ms - switch_started_ms),
-        static_cast<unsigned long>(child_count));
+        static_cast<unsigned long>(child_count),
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+        "s3-panel"
+#else
+        "children"
+#endif
+    );
     return;
   }
 

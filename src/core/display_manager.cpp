@@ -2,6 +2,7 @@
 #include "src/core/power_manager.h"
 #include "src/core/board_hal.h"
 #include "src/devices/device_select.h"
+#include "src/devices/guition_esp32_4848s040/s3_diagnostics.h"
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_GUITION_JC1060P470C)
 #include "src/devices/active_device.h"
@@ -48,6 +49,34 @@ static lv_display_render_mode_t g_preserved_render_mode =
 static bool g_preserved_fast_internal_draw_buffer = false;
 static bool g_preserved_single_psram_draw_buffer = false;
 static bool g_preserved_draw_buffer_active = false;
+
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+static void guition_s3_indev_event_cb(lv_event_t* event) {
+  const lv_event_code_t code = lv_event_get_code(event);
+  GuitionS3Diagnostics::TouchAction action;
+  switch (code) {
+    case LV_EVENT_SHORT_CLICKED:
+      action = GuitionS3Diagnostics::TouchAction::ShortClicked;
+      break;
+    case LV_EVENT_CLICKED:
+      action = GuitionS3Diagnostics::TouchAction::Clicked;
+      break;
+    case LV_EVENT_LONG_PRESSED:
+      action = GuitionS3Diagnostics::TouchAction::LongPressed;
+      break;
+    default:
+      return;
+  }
+
+  lv_point_t point{};
+  lv_indev_t* event_indev =
+      static_cast<lv_indev_t*>(lv_event_get_current_target(event));
+  if (event_indev) lv_indev_get_point(event_indev, &point);
+  GuitionS3Diagnostics::noteTouchAction(
+      action, millis(), lv_event_get_param(event),
+      static_cast<int16_t>(point.x), static_cast<int16_t>(point.y));
+}
+#endif
 
 #if defined(DEVICE_M5STACKS_TAB5)
 struct Tab5FlushStats {
@@ -146,12 +175,27 @@ static inline void commit_display_if_last(lv_display_t* lv_disp) {
   if (lv_display_flush_is_last(lv_disp)) {
     DeviceImpl::displayCommit();
   }
+#elif defined(DEVICE_GUITION_ESP32_4848S040)
+  if (lv_display_flush_is_last(lv_disp)) {
+    DeviceImpl::displayWaitDisplay();
+  }
 #else
   (void)lv_disp;
 #endif
 }
 
 static inline void flush_cache_for_dma(const void* ptr, size_t size) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  // This board's "DMA" entry point is a synchronous CPU copy into
+  // Arduino_GFX's live framebuffer. The LVGL source buffer is never consumed
+  // by GDMA, so synchronising it is both unnecessary and wrong. In Arduino
+  // core 3.3.7 the old 64-byte rounding can extend outside a 32-byte-cache-line
+  // PSRAM allocation and esp_cache_msync() rejects the range; the device log
+  // then shows one error for nearly every larger UI flush.
+  (void)ptr;
+  (void)size;
+  return;
+#endif
   if (!ptr || size == 0) return;
   const uintptr_t start = reinterpret_cast<uintptr_t>(ptr);
   const uintptr_t aligned_start = start & ~(kCacheLineSize - 1);
@@ -565,6 +609,9 @@ uint8_t DisplayManager::getRotation() const {
 // Durch IRAM wird sie aus schnellem internen RAM ausgefuehrt (keine Cache-Misses)
 // -> Deutlich schnellere Display-Updates, besonders beim Scrollen!
 void IRAM_ATTR DisplayManager::flush_cb(lv_display_t *lv_disp, const lv_area_t *area, uint8_t *px_map) {
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  const uint32_t s3_flush_started_us = micros();
+#endif
   const uint32_t w = (area->x2 - area->x1 + 1);
   const uint32_t h = (area->y2 - area->y1 + 1);
   const size_t row_bytes = (size_t)w * sizeof(uint16_t);
@@ -630,6 +677,12 @@ void IRAM_ATTR DisplayManager::flush_cb(lv_display_t *lv_disp, const lv_area_t *
                     tab5_wait_us, tab5_cache_us, tab5_used_dma, tab5_used_cpu,
                     is_last_flush);
 #endif
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+    GuitionS3Diagnostics::noteFlush(
+        area_px, micros() - s3_flush_started_us, is_last_flush,
+        static_cast<int16_t>(area->x1), static_cast<int16_t>(area->y1),
+        static_cast<int16_t>(area->x2), static_cast<int16_t>(area->y2));
+#endif
     lv_display_flush_ready(lv_disp);
     return;
   }
@@ -692,6 +745,12 @@ void IRAM_ATTR DisplayManager::flush_cb(lv_display_t *lv_disp, const lv_area_t *
   tab5_note_flush(area_px, micros() - tab5_flush_start_us, tab5_push_us,
                   tab5_wait_us, tab5_cache_us, tab5_used_dma, tab5_used_cpu,
                   is_last_flush);
+#endif
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  GuitionS3Diagnostics::noteFlush(
+      area_px, micros() - s3_flush_started_us, is_last_flush,
+      static_cast<int16_t>(area->x1), static_cast<int16_t>(area->y1),
+      static_cast<int16_t>(area->x2), static_cast<int16_t>(area->y2));
 #endif
   lv_display_flush_ready(lv_disp);
 }
@@ -783,7 +842,8 @@ bool DisplayManager::init() {
 #if !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_X) && \
     !defined(DEVICE_GUITION_JC8012P4A1) && \
-    !defined(DEVICE_GUITION_JC1060P470C)
+    !defined(DEVICE_GUITION_JC1060P470C) && \
+    !defined(DEVICE_GUITION_ESP32_4848S040)
   BoardHAL::setBrightness(150);  // Wird spaeter vom Power Manager gesteuert
 #endif
   rotation = Device::kRotationDefault;
@@ -847,12 +907,29 @@ bool DisplayManager::init() {
     Serial.println("[Display] DMA-Buffer-Allokation fehlgeschlagen!");
     return false;
   }
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  Serial.printf(
+      "[S3Diag/Display] phase=lvgl-init result=ok resolution=%dx%d "
+      "lv_color=RGB565 byte_swap=0 bytes_per_pixel=%u render=partial "
+      "buffer_lines=%u requested_lines=%u buffers=%s buf1=%p buf2=%p\n",
+      SCREEN_WIDTH, SCREEN_HEIGHT, static_cast<unsigned>(g_bytes_per_pixel),
+      static_cast<unsigned>(g_buffer_lines),
+      static_cast<unsigned>(g_requested_buffer_lines),
+      g_fast_internal_draw_buffer
+          ? "internal-fast"
+          : (g_single_psram_draw_buffer ? "psram-single" : "psram-double"),
+      static_cast<void*>(buf1), static_cast<void*>(buf2));
+#endif
 
   // Touch-Input
   indev = lv_indev_create();
   lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
   lv_indev_set_read_cb(indev, touch_cb);
   lv_indev_set_display(indev, disp);
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  lv_indev_add_event_cb(indev, guition_s3_indev_event_cb, LV_EVENT_ALL,
+                        nullptr);
+#endif
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_GUITION_JC8012P4A1) || \
     defined(DEVICE_GUITION_JC1060P470C) || \

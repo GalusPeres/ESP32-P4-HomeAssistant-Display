@@ -408,6 +408,9 @@ String ScreensaverConfigStore::toJson(bool include_device_meta) const {
 bool ScreensaverConfigStore::save() {
   if (!Device::storageReady()) return false;
   normalize();
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  Device::ScopedStorageWrite storage_write;
+#endif
   fs::FS& fs = Device::storageFS();
   if (!fs.exists(kConfigDir) && !fs.mkdir(kConfigDir)) return false;
   if (fs.exists(kConfigTmpPath)) fs.remove(kConfigTmpPath);
@@ -473,6 +476,9 @@ bool ScreensaverConfigStore::replaceFromJson(const String& json, String& error,
   String normalized_json;
   serializeJson(doc, normalized_json);
 
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  Device::ScopedStorageWrite storage_write;
+#endif
   fs::FS& fs = Device::storageFS();
   if (!fs.exists(kConfigDir) && !fs.mkdir(kConfigDir)) {
     error = "Could not create config folder";

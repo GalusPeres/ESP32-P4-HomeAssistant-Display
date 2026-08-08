@@ -25,9 +25,11 @@
 #include "src/core/display_manager.h"
 #include "src/core/firmware_metadata.h"
 #include "src/core/firmware_version.h"
+#include "src/devices/guition_esp32_4848s040/s3_diagnostics.h"
 #include <LittleFS.h>
 #include <Update.h>
 #include <esp_core_dump.h>
+#include <esp_ota_ops.h>
 #include <esp_partition.h>
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
 #include <img_converters.h>
@@ -372,6 +374,7 @@ bool g_ota_display_reduced = false;
 bool g_ota_display_restore_pending = false;
 uint32_t g_ota_display_restore_retry_at = 0;
 uint16_t g_ota_display_restore_attempts = 0;
+bool g_ota_storage_guard_active = false;
 
 constexpr uint32_t kOtaDisplayRestoreRetryMs = 750;
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
@@ -384,6 +387,11 @@ constexpr uint32_t kOtaDisplayRestoreRetryMs = 750;
 constexpr bool kStageWebOtaInPsram = true;
 #else
 constexpr bool kStageWebOtaInPsram = false;
+#endif
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+constexpr bool kRequireWebOtaSize = true;
+#else
+constexpr bool kRequireWebOtaSize = kStageWebOtaInPsram;
 #endif
 constexpr size_t kOtaFlashWriteChunk = 16 * 1024;
 
@@ -401,6 +409,24 @@ void logOtaMemory(const char* tag) {
 void prepareDisplayForRestart() {
   displayManager.setInputEnabled(false);
   BoardHAL::prepareForRestart();
+}
+
+void beginOtaStorageGuard() {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (!g_ota_storage_guard_active) {
+    Device::storageWriteBegin();
+    g_ota_storage_guard_active = true;
+  }
+#endif
+}
+
+void endOtaStorageGuard() {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (g_ota_storage_guard_active) {
+    g_ota_storage_guard_active = false;
+    Device::storageWriteEnd();
+  }
+#endif
 }
 
 void prepareDisplayForOtaInstall() {
@@ -475,6 +501,9 @@ bool tryRestoreFastDisplayAfterOta() {
 }
 
 void restoreDisplayAfterOtaFailure() {
+  // Complete the Guition S3's hidden RGB/DMA resynchronisation before the
+  // panel is exposed again after a failed or aborted flash write.
+  endOtaStorageGuard();
   BoardHAL::displayPowerSaveOff();
   const bool fast_display_restored = tryRestoreFastDisplayAfterOta();
   if (fast_display_restored) {
@@ -592,6 +621,7 @@ void resetOtaUploadState() {
   if (Update.isRunning()) {
     Update.abort();
   }
+  endOtaStorageGuard();
   releaseOtaStagingBuffer();
   g_ota_upload_state.upload_started = false;
   g_ota_upload_state.upload_success = false;
@@ -651,9 +681,49 @@ bool beginDirectOtaInstall() {
   delay(20);
 
   const size_t ota_size = g_ota_upload_state.install_total_bytes ? g_ota_upload_state.install_total_bytes : UPDATE_SIZE_UNKNOWN;
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  GuitionS3Diagnostics::logOtaPartitions("web-begin");
+  const esp_partition_t* next_partition =
+      esp_ota_get_next_update_partition(nullptr);
+  if (!next_partition) {
+    g_ota_upload_state.error = "OTA begin failed: no next OTA partition";
+    Serial.println(
+        "[OTA] Install failed: no eligible next OTA partition at runtime");
+    g_ota_upload_state.install_started = false;
+    restoreDisplayAfterOtaFailure();
+    return false;
+  }
+  if (ota_size != UPDATE_SIZE_UNKNOWN && ota_size > next_partition->size) {
+    g_ota_upload_state.error = "OTA begin failed: image exceeds next OTA slot";
+    Serial.printf(
+        "[OTA] Install failed: image=%u exceeds partition=%s size=%u\n",
+        static_cast<unsigned>(ota_size), next_partition->label,
+        static_cast<unsigned>(next_partition->size));
+    g_ota_upload_state.install_started = false;
+    restoreDisplayAfterOtaFailure();
+    return false;
+  }
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  Serial.printf(
+      "[S3Diag/WebOTA] phase=Update.begin target=%s addr=0x%08lX "
+      "slot_size=%lu expected=%u\n",
+      next_partition->label,
+      static_cast<unsigned long>(next_partition->address),
+      static_cast<unsigned long>(next_partition->size),
+      static_cast<unsigned>(ota_size));
+#endif
+#endif
+  beginOtaStorageGuard();
   if (!Update.begin(ota_size, U_FLASH)) {
-    Serial.printf("[OTA] Install failed: Update.begin() -> %s\n", Update.errorString());
-    g_ota_upload_state.error = String("OTA begin failed: ") + Update.errorString();
+    const uint8_t update_error = Update.getError();
+    const String update_error_text = Update.errorString();
+    Serial.printf(
+        "[OTA] Install failed: Update.begin() code=%u -> %s\n",
+        static_cast<unsigned>(update_error), update_error_text.c_str());
+    g_ota_upload_state.error =
+        String("OTA begin failed [") +
+        String(static_cast<unsigned>(update_error)) + "]: " +
+        update_error_text;
     g_ota_upload_state.install_started = false;
     restoreDisplayAfterOtaFailure();
     return false;
@@ -674,9 +744,21 @@ bool writeDirectOtaChunk(const uint8_t* data, size_t len) {
 
   const size_t bytes_written = Update.write(const_cast<uint8_t*>(data), len);
   if (bytes_written != len) {
+    const uint8_t update_error = Update.getError();
+    const String update_error_text = Update.errorString();
+    Serial.printf(
+        "[OTA] Install failed: Update.write() requested=%u wrote=%u "
+        "total=%u/%u code=%u -> %s\n",
+        static_cast<unsigned>(len), static_cast<unsigned>(bytes_written),
+        static_cast<unsigned>(g_ota_upload_state.install_written_bytes +
+                              bytes_written),
+        static_cast<unsigned>(g_ota_upload_state.install_total_bytes),
+        static_cast<unsigned>(update_error), update_error_text.c_str());
     Update.abort();
-    Serial.printf("[OTA] Install failed: Update.write() -> %s\n", Update.errorString());
-    g_ota_upload_state.error = String("OTA write failed: ") + Update.errorString();
+    g_ota_upload_state.error =
+        String("OTA write failed [") +
+        String(static_cast<unsigned>(update_error)) + "]: " +
+        update_error_text;
     g_ota_upload_state.install_started = false;
     restoreDisplayAfterOtaFailure();
     return false;
@@ -750,6 +832,18 @@ bool saveDrawBufferAsJpeg(const lv_draw_buf_t* draw_buf, const String& path, Str
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
   // ESP32-S3 has no hardware JPEG encoder. The Apache-2.0 esp32-camera
   // converter included with the Arduino core provides the software fallback.
+  // fmt2jpg interprets RGB565 as big-endian by default, while LVGL's native
+  // RGB565 snapshot buffer on this little-endian target stores the low byte
+  // first. Tell the encoder the actual layout before converting.
+  jpgSetRgb565BE(false);
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  Serial.printf(
+      "[S3Diag/Screenshot] input=%ldx%ld cf=RGB565 stride=%lu "
+      "rgb565_be=0 bytes=%u\n",
+      static_cast<long>(width), static_cast<long>(height),
+      static_cast<unsigned long>(src_stride),
+      static_cast<unsigned>(raw_size));
+#endif
   // Its quality scale is 0..63 (lower is better); 7 is close to the P4's 92%.
   if (!fmt2jpg(input, raw_size, static_cast<uint16_t>(width),
                static_cast<uint16_t>(height), PIXFORMAT_RGB565, 7, &output,
@@ -2221,7 +2315,12 @@ void WebAdminServer::handleGetSdIcons() {
     server.send(200, "application/json", "[]");
     return;
   }
-  if (!storageFS().exists("/icons")) storageFS().mkdir("/icons");
+  if (!storageFS().exists("/icons")) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    Device::ScopedStorageWrite storage_write;
+#endif
+    storageFS().mkdir("/icons");
+  }
   std::vector<IconFileInfo> files;
   std::vector<String> paths;
   collectImageFiles("/icons", paths, 100, 1, false, true, true);
@@ -2261,8 +2360,19 @@ void WebAdminServer::handleGetSdIcons() {
 void WebAdminServer::handleUploadIcon() {
   HTTPUpload& upload = server.upload();
   static File uploadFile;
+  static bool storage_guard_active = false;
+
+  auto end_storage_guard = [&]() {
+    if (!storage_guard_active) return;
+    storage_guard_active = false;
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    Device::storageWriteEnd();
+#endif
+  };
 
   if (upload.status == UPLOAD_FILE_START) {
+    if (uploadFile) uploadFile.close();
+    end_storage_guard();
     // Empfangsfenster begrenzen -- gleiche Absturzursache wie beim
     // Filemanager-Upload (interner DMA-Heap vs. 64KB TCP-Fenster).
     int rcvbuf = 8 * 1024;
@@ -2272,6 +2382,10 @@ void WebAdminServer::handleUploadIcon() {
       Serial.println("[Icons] Upload failed: storage unavailable");
       return;
     }
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    Device::storageWriteBegin();
+    storage_guard_active = true;
+#endif
     if (!storageFS().exists("/icons")) storageFS().mkdir("/icons");
     String filename = upload.filename;
     if (filename.indexOf('/') < 0) filename = "/icons/" + filename;
@@ -2279,14 +2393,29 @@ void WebAdminServer::handleUploadIcon() {
     uploadFile = storageFS().open(filename, FILE_WRITE);
     if (!uploadFile) {
       Serial.println("[Icons] Upload open failed");
+      end_storage_guard();
     }
   } else if (upload.status == UPLOAD_FILE_WRITE) {
-    if (uploadFile) uploadFile.write(upload.buf, upload.currentSize);
+    if (uploadFile) {
+      const size_t written = uploadFile.write(upload.buf, upload.currentSize);
+      if (written != upload.currentSize) {
+        Serial.printf("[Icons] Upload write failed: requested=%u wrote=%u\n",
+                      static_cast<unsigned>(upload.currentSize),
+                      static_cast<unsigned>(written));
+        uploadFile.close();
+        end_storage_guard();
+      }
+    }
   } else if (upload.status == UPLOAD_FILE_END) {
     if (uploadFile) {
       uploadFile.close();
       Serial.printf("[Icons] Uploaded %s (%u bytes)\n", upload.filename.c_str(), upload.totalSize);
     }
+    end_storage_guard();
+  } else if (upload.status == UPLOAD_FILE_ABORTED) {
+    if (uploadFile) uploadFile.close();
+    Serial.println("[Icons] Upload aborted");
+    end_storage_guard();
   }
 }
 
@@ -2988,7 +3117,8 @@ void WebAdminServer::handlePrepareOtaUpload() {
   g_ota_upload_state.upload_total_bytes = parseOtaExpectedSize(server);
   g_ota_upload_state.install_total_bytes = g_ota_upload_state.upload_total_bytes;
 
-  if (kStageWebOtaInPsram && g_ota_upload_state.upload_total_bytes == 0) {
+  if (kRequireWebOtaSize &&
+      g_ota_upload_state.upload_total_bytes == 0) {
     resetOtaUploadState();
     sendJsonError(server, 400, "Firmware size is missing");
     return;
@@ -3021,17 +3151,27 @@ void WebAdminServer::handleOtaUpdate() {
     server.client().setSocketOption(SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
 
     const bool was_prepared = g_ota_upload_state.upload_prepared;
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    const size_t prepared_size = g_ota_upload_state.upload_total_bytes;
+#endif
     if (!was_prepared) {
       resetOtaUploadState();
     }
     g_ota_upload_state.upload_started = true;
     g_ota_upload_state.upload_prepared = false;
-    g_ota_upload_state.upload_total_bytes = parseOtaExpectedSize(server);
+    const size_t request_size = parseOtaExpectedSize(server);
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    g_ota_upload_state.upload_total_bytes =
+        request_size ? request_size : (was_prepared ? prepared_size : 0);
+#else
+    g_ota_upload_state.upload_total_bytes = request_size;
+#endif
     g_ota_upload_state.install_total_bytes = g_ota_upload_state.upload_total_bytes;
 
     if (Update.isRunning()) {
       Update.abort();
     }
+    endOtaStorageGuard();
     Update.clearError();
 
     if (!upload.filename.length()) {
@@ -3046,6 +3186,12 @@ void WebAdminServer::handleOtaUpdate() {
       g_ota_upload_state.error = "Please upload the update.bin, not the factory.bin";
       return;
     }
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    if (g_ota_upload_state.upload_total_bytes == 0) {
+      g_ota_upload_state.error = "Firmware size is missing";
+      return;
+    }
+#endif
     if (!was_prepared) {
       prepareDisplayForOtaInstall();
     }
@@ -3056,6 +3202,14 @@ void WebAdminServer::handleOtaUpdate() {
       g_ota_upload_state.next_progress_log = 512 * 1024;
     }
     Serial.printf("[OTA] Upload started: %s\n", upload.filename.c_str());
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+    Serial.printf(
+        "[S3Diag/WebOTA] phase=upload-start file=%s announced=%u "
+        "staged=%u\n",
+        upload.filename.c_str(),
+        static_cast<unsigned>(g_ota_upload_state.upload_total_bytes),
+        hasOtaStagingBuffer() ? 1U : 0U);
+#endif
     Serial.flush();
     return;
   }
@@ -3219,7 +3373,11 @@ void WebAdminServer::handleOtaUpdate() {
   }
 
   if (upload.status == UPLOAD_FILE_END) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    if (g_ota_upload_state.upload_total_bytes == 0 && upload.totalSize > 0) {
+#else
     if (upload.totalSize > 0) {
+#endif
       g_ota_upload_state.upload_total_bytes = upload.totalSize;
       g_ota_upload_state.install_total_bytes = upload.totalSize;
     }
@@ -3285,12 +3443,19 @@ void WebAdminServer::handleOtaUpdate() {
       }
       releaseOtaStagingBuffer();
 
+      // This staging branch is the established P4 flow. Keep its previous
+      // finalisation semantics; the strict exact-size path below is S3-only.
       if (!Update.end(true)) {
+        const uint8_t update_error = Update.getError();
+        const String update_error_text = Update.errorString();
+        Serial.printf(
+            "[OTA] Install failed: Update.end(true) code=%u -> %s\n",
+            static_cast<unsigned>(update_error), update_error_text.c_str());
         Update.abort();
-        Serial.printf("[OTA] Install failed: Update.end() -> %s\n",
-                      Update.errorString());
         g_ota_upload_state.error =
-            String("OTA finalize failed: ") + Update.errorString();
+            String("OTA finalize failed [") +
+            String(static_cast<unsigned>(update_error)) + "]: " +
+            update_error_text;
         g_ota_upload_state.install_started = false;
         restoreDisplayAfterOtaFailure();
         return;
@@ -3318,19 +3483,64 @@ void WebAdminServer::handleOtaUpdate() {
     g_ota_upload_state.upload_success = true;
     Serial.printf("[OTA] Upload finished: %s (%u bytes)\n", upload.filename.c_str(), upload.totalSize);
 
-    if (!Update.end(true)) {
-      Update.abort();
-      Serial.printf("[OTA] Install failed: Update.end() -> %s\n", Update.errorString());
-      g_ota_upload_state.error = String("OTA finalize failed: ") + Update.errorString();
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+    if (upload.totalSize != g_ota_upload_state.upload_total_bytes ||
+        g_ota_upload_state.install_written_bytes !=
+            g_ota_upload_state.install_total_bytes) {
+      g_ota_upload_state.error =
+          "OTA finalize refused: received/written byte count mismatch";
+      Serial.printf(
+          "[OTA] Upload byte mismatch: parser=%u announced=%u "
+          "written=%u expected=%u\n",
+          static_cast<unsigned>(upload.totalSize),
+          static_cast<unsigned>(g_ota_upload_state.upload_total_bytes),
+          static_cast<unsigned>(g_ota_upload_state.install_written_bytes),
+          static_cast<unsigned>(g_ota_upload_state.install_total_bytes));
+      if (Update.isRunning()) Update.abort();
       g_ota_upload_state.install_started = false;
       restoreDisplayAfterOtaFailure();
       return;
     }
 
+    if (!Update.end(false)) {
+      const uint8_t update_error = Update.getError();
+      const String update_error_text = Update.errorString();
+      Serial.printf(
+          "[OTA] Install failed: Update.end(false) code=%u -> %s\n",
+          static_cast<unsigned>(update_error), update_error_text.c_str());
+      Update.abort();
+      g_ota_upload_state.error =
+          String("OTA finalize failed [") +
+          String(static_cast<unsigned>(update_error)) + "]: " +
+          update_error_text;
+      g_ota_upload_state.install_started = false;
+      restoreDisplayAfterOtaFailure();
+      return;
+    }
+#else
+    if (!Update.end(true)) {
+      const uint8_t update_error = Update.getError();
+      const String update_error_text = Update.errorString();
+      Update.abort();
+      Serial.printf(
+          "[OTA] Install failed: Update.end(true) code=%u -> %s\n",
+          static_cast<unsigned>(update_error), update_error_text.c_str());
+      g_ota_upload_state.error =
+          String("OTA finalize failed [") +
+          String(static_cast<unsigned>(update_error)) + "]: " +
+          update_error_text;
+      g_ota_upload_state.install_started = false;
+      restoreDisplayAfterOtaFailure();
+      return;
+    }
+#endif
+
+    endOtaStorageGuard();
     g_ota_upload_state.install_written_bytes = g_ota_upload_state.install_total_bytes;
     g_ota_upload_state.install_success = true;
     g_ota_upload_state.restart_pending = true;
     g_ota_upload_state.restart_at_ms = millis() + 1200;
+    GuitionS3Diagnostics::logOtaPartitions("web-end");
     Serial.println("[OTA] Install finished successfully, restarting device...");
   }
 }
@@ -3618,6 +3828,9 @@ void WebAdminServer::handleCoreDumpDownload() {
 
 void WebAdminServer::handleCoreDumpErase() {
   webAdminMarkActivity();
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  Device::ScopedStorageWrite storage_write;
+#endif
   const esp_err_t err = esp_core_dump_image_erase();
   if (err != ESP_OK) {
     sendJsonError(server, 500, String("Erase failed: ") + esp_err_to_name(err));

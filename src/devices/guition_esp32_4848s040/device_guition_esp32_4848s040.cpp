@@ -1,18 +1,11 @@
 #include "src/devices/guition_esp32_4848s040/device_guition_esp32_4848s040.h"
 #include "src/devices/device_select.h"
+#include "src/devices/guition_esp32_4848s040/s3_diagnostics.h"
 
 #if defined(DEVICE_GUITION_ESP32_4848S040)
 
 #include <Arduino.h>
-
-// Arduino_GFX 1.6.5 keeps the ESP-IDF panel handle private and exposes no
-// restart method. This access-specifier shim is local to this translation unit
-// and does not change the class layout or the library ABI. It lets the board
-// driver call ESP-IDF's public esp_lcd_rgb_panel_restart() after a main-flash
-// write. Remove it once Arduino_ESP32RGBPanel provides a handle/restart API.
-#define private public
 #include <Arduino_GFX_Library.h>
-#undef private
 
 #include <LittleFS.h>
 #include <SD.h>
@@ -20,9 +13,14 @@
 #include <Wire.h>
 #include <esp_err.h>
 #include <esp_heap_caps.h>
+#include <esp_lcd_panel_ops.h>
+#include <esp_lcd_panel_rgb.h>
+#include <esp_private/periph_ctrl.h>
+#include <hal/lcd_ll.h>
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 
 namespace {
 
@@ -52,7 +50,10 @@ constexpr int8_t kPanelB3 = 7;
 constexpr int8_t kPanelB4 = 15;
 
 constexpr int8_t kBacklightPin = 38;
-constexpr uint32_t kBacklightFrequency = 150;
+// Guition's board demo uses 600 Hz and Espressif's maintained exact-board
+// profile uses 1 kHz. 1 kHz keeps the backlight well clear of visible PWM
+// flicker while retaining the board's documented 10-bit resolution.
+constexpr uint32_t kBacklightFrequency = 1000;
 constexpr uint8_t kBacklightResolution = 10;
 constexpr uint16_t kBacklightMaxDuty = (1u << kBacklightResolution) - 1u;
 
@@ -64,12 +65,19 @@ constexpr uint8_t kTouchAddressAlternate = 0x14;
 constexpr uint16_t kTouchProductIdRegister = 0x8140;
 constexpr uint16_t kTouchStatusRegister = 0x814E;
 constexpr uint16_t kTouchPointRegister = 0x814F;
+// Keep a held point across normal GT911 "no new frame" polls, but do not let
+// a broken I2C/data path leave LVGL pressed forever. At the 8 ms input period,
+// 16 consecutive real errors give the bus roughly 128 ms to recover.
+constexpr uint8_t kTouchErrorReleaseThreshold = 16;
 
 constexpr int8_t kSdSck = 48;
 constexpr int8_t kSdMiso = 41;
 constexpr int8_t kSdMosi = 47;
 constexpr int8_t kSdCs = 42;
-constexpr uint32_t kSdFrequency = 20000000;
+// Start with the exact Guition/Jingcai board-demo clock. The card shares
+// SCK/MOSI with the panel command bus; higher clocks can be tested only after
+// the known-good wiring/mount baseline is confirmed on hardware.
+constexpr uint32_t kSdFrequency = 1000000;
 
 constexpr uint32_t kSdRetryMs = 1500;
 
@@ -90,6 +98,18 @@ constexpr uint32_t kSdRetryMs = 1500;
 
 #ifndef HOMETILES_GUITION_S3_RGB_TEST_VARIANT
 #define HOMETILES_GUITION_S3_RGB_TEST_VARIANT 0
+#endif
+
+// The maintained type9 table uses ST7701 BK0/CD=0x00. Some earlier Guition
+// panel revisions used the otherwise identical table with CD=0x08. Keep that
+// single physical pixel-packing difference selectable for an isolated device
+// A/B test; never mix it with RGB/BGR, byte-swap, gamma or VCOM changes.
+#ifndef HOMETILES_GUITION_S3_PANEL_CD
+#define HOMETILES_GUITION_S3_PANEL_CD 0
+#endif
+#if HOMETILES_GUITION_S3_PANEL_CD != 0 && \
+    HOMETILES_GUITION_S3_PANEL_CD != 8
+#error "HOMETILES_GUITION_S3_PANEL_CD must be 0 or 8"
 #endif
 
 #if HOMETILES_GUITION_S3_RGB_TEST_VARIANT == 1
@@ -115,7 +135,10 @@ constexpr uint32_t kSdRetryMs = 1500;
 #error "Unknown Guition S3 RGB test variant"
 #endif
 
-constexpr uint32_t kRgbPclkHz = 10000000;
+// Arduino_GFX 1.6.5's exact GUITION ESP32-4848S040 profile uses 12 MHz with
+// these same porches and rising-edge sampling. Independent exact-board
+// projects use 12-14 MHz, while 16 MHz is reported to glitch.
+constexpr uint32_t kRgbPclkHz = 12000000;
 constexpr size_t kRgbBounceBufferPixels =
     480 * HOMETILES_GUITION_S3_RGB_BOUNCE_ROWS;
 constexpr uint32_t kRgbHorizontalTotal = 480 + 10 + 8 + 50;
@@ -123,10 +146,22 @@ constexpr uint32_t kRgbVerticalTotal = 480 + 10 + 8 + 20;
 constexpr uint32_t kRgbFramePeriodMs =
     ((kRgbHorizontalTotal * kRgbVerticalTotal * 1000U) + kRgbPclkHz - 1U) /
     kRgbPclkHz;
-constexpr uint32_t kStorageRecoveryMs = kRgbFramePeriodMs * 2U;
 constexpr bool kHasPsramXip = HOMETILES_GUITION_S3_HAS_PSRAM_XIP != 0;
 constexpr bool kHasCacheLine64 =
     HOMETILES_GUITION_S3_HAS_CACHE_LINE_64B != 0;
+constexpr uint8_t kPanelCd = HOMETILES_GUITION_S3_PANEL_CD;
+constexpr const char* kPanelInitLabel =
+    kPanelCd == 8 ? "type9-cd08" : "type9-cd00";
+#if HOMETILES_GUITION_S3_PANEL_CD == 8
+const uint8_t kPanelCd08OverrideOperations[] = {
+    BEGIN_WRITE,
+    WRITE_COMMAND_8, 0xFF,
+    WRITE_BYTES, 5, 0x77, 0x01, 0x00, 0x00, 0x10,
+    WRITE_C8_D8, 0xCD, 0x08,
+    WRITE_COMMAND_8, 0xFF,
+    WRITE_BYTES, 5, 0x77, 0x01, 0x00, 0x00, 0x00,
+    END_WRITE};
+#endif
 #if defined(CONFIG_COMPILER_OPTIMIZATION_PERF) && \
     CONFIG_COMPILER_OPTIMIZATION_PERF
 constexpr const char* kCompilerOptimization = "O2";
@@ -140,9 +175,358 @@ constexpr bool kRestartInVsync = true;
 constexpr bool kRestartInVsync = false;
 #endif
 
+class GuitionAtomicRgbDisplay final : public Arduino_RGB_Display {
+ public:
+  GuitionAtomicRgbDisplay(uint8_t rotation, Arduino_DataBus* bus)
+      : Arduino_RGB_Display(
+            480, 480, nullptr, rotation, true, bus, GFX_NOT_DEFINED,
+            st7701_type9_init_operations,
+            sizeof(st7701_type9_init_operations)) {}
+
+  bool begin(int32_t speed = GFX_NOT_DEFINED) override {
+    if (speed != GFX_SKIP_DATABUS_BEGIN && _bus && !_bus->begin()) {
+      return false;
+    }
+
+    if (_rst != GFX_NOT_DEFINED) {
+      pinMode(_rst, OUTPUT);
+      digitalWrite(_rst, HIGH);
+      delay(100);
+      digitalWrite(_rst, LOW);
+      delay(120);
+      digitalWrite(_rst, HIGH);
+      delay(120);
+    } else if (_bus) {
+      _bus->sendCommand(0x01);
+      delay(120);
+    }
+
+    if (_bus && _init_operations_len > 0) {
+      _bus->batchOperation(
+          const_cast<uint8_t*>(_init_operations), _init_operations_len);
+    }
+#if HOMETILES_GUITION_S3_PANEL_CD == 8
+    if (_bus) {
+      _bus->batchOperation(
+          const_cast<uint8_t*>(kPanelCd08OverrideOperations),
+          sizeof(kPanelCd08OverrideOperations));
+    }
+#endif
+
+    esp_lcd_rgb_panel_config_t config{};
+    config.clk_src = LCD_CLK_SRC_DEFAULT;
+    config.timings.pclk_hz = kRgbPclkHz;
+    config.timings.h_res = 480;
+    config.timings.v_res = 480;
+    config.timings.hsync_pulse_width = 8;
+    config.timings.hsync_back_porch = 50;
+    config.timings.hsync_front_porch = 10;
+    config.timings.vsync_pulse_width = 8;
+    config.timings.vsync_back_porch = 20;
+    config.timings.vsync_front_porch = 10;
+    config.timings.flags.hsync_idle_low = 0;
+    config.timings.flags.vsync_idle_low = 0;
+    config.timings.flags.de_idle_high = 0;
+    config.timings.flags.pclk_active_neg = 0;
+    config.timings.flags.pclk_idle_high = 0;
+    config.data_width = 16;
+    config.bits_per_pixel = 16;
+    config.num_fbs = 2;
+    config.bounce_buffer_size_px = kRgbBounceBufferPixels;
+    config.sram_trans_align = 8;
+    config.psram_trans_align = 64;
+    config.hsync_gpio_num = kPanelHsync;
+    config.vsync_gpio_num = kPanelVsync;
+    config.de_gpio_num = kPanelDe;
+    config.pclk_gpio_num = kPanelPclk;
+    config.disp_gpio_num = GPIO_NUM_NC;
+    const int data_pins[16] = {
+        kPanelB0, kPanelB1, kPanelB2, kPanelB3, kPanelB4,
+        kPanelG0, kPanelG1, kPanelG2, kPanelG3, kPanelG4, kPanelG5,
+        kPanelR0, kPanelR1, kPanelR2, kPanelR3, kPanelR4};
+    std::copy(std::begin(data_pins), std::end(data_pins),
+              config.data_gpio_nums);
+    config.flags.disp_active_low = true;
+    config.flags.refresh_on_demand = false;
+    config.flags.fb_in_psram = true;
+    config.flags.double_fb = true;
+    config.flags.no_fb = false;
+    config.flags.bb_invalidate_cache = false;
+
+    esp_err_t err = esp_lcd_new_rgb_panel(&config, &panel_handle_);
+    if (err == ESP_OK) {
+      esp_lcd_rgb_panel_event_callbacks_t callbacks{};
+      callbacks.on_vsync = onVsync;
+      callbacks.on_frame_buf_complete = onFrameComplete;
+      err = esp_lcd_rgb_panel_register_event_callbacks(
+          panel_handle_, &callbacks, this);
+    }
+    if (err == ESP_OK) err = esp_lcd_panel_reset(panel_handle_);
+    if (err == ESP_OK) err = esp_lcd_panel_init(panel_handle_);
+    if (err == ESP_OK) {
+      err = esp_lcd_rgb_panel_get_frame_buffer(
+          panel_handle_, 2, reinterpret_cast<void**>(&framebuffers_[0]),
+          reinterpret_cast<void**>(&framebuffers_[1]));
+    }
+    if (err != ESP_OK || !framebuffers_[0] || !framebuffers_[1]) {
+      Serial.printf(
+          "[Display/S3] Double framebuffer init failed: %s (0x%X)\n",
+          esp_err_to_name(err), static_cast<unsigned>(err));
+      return false;
+    }
+
+    active_index_ = 0;
+    pending_index_ = 0;
+    atomic_pending_ = false;
+    canonical_fb0_valid_ = true;
+    _framebuffer = framebuffers_[0];
+
+    // Arduino-ESP32 3.3.7 enables CONFIG_LCD_RGB_RESTART_IN_VSYNC. On S3,
+    // IDF 5.5.2's restart link is permanently wired to framebuffer 0, so the
+    // ISR both defeats double buffering and can itself cause the documented
+    // one-frame horizontal shift when it runs late. The hardware's continuous
+    // RGB/GDMA stream is independent of this interrupt and remains enabled.
+    maskVsyncInterrupt();
+    return true;
+  }
+
+  bool beginAtomicFrame(const char* reason) {
+    if (!panel_handle_ || !framebuffers_[0] || !framebuffers_[1]) {
+      return false;
+    }
+    if (storage_transition_) return false;
+    if (atomic_pending_) return true;
+
+    pending_index_ = active_index_ ^ 1U;
+    if (pending_index_ == 0) canonical_fb0_valid_ = false;
+    _framebuffer = framebuffers_[pending_index_];
+    atomic_pending_ = true;
+    atomic_started_ms_ = millis();
+    atomic_reason_ = reason ? reason : "unknown";
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+    Serial.printf(
+        "[S3Diag/Display] atomic-begin reason=%s front=%u back=%u "
+        "copy=0 full_redraw=required\n",
+        atomic_reason_, static_cast<unsigned>(active_index_),
+        static_cast<unsigned>(pending_index_));
+#endif
+    return true;
+  }
+
+  bool commitAtomicFrame() {
+    if (!atomic_pending_ || !panel_handle_) return false;
+
+    flush(true);
+    if (pending_index_ == 0) canonical_fb0_valid_ = true;
+    const uint32_t started_us = micros();
+    const uint32_t eof_start = frame_complete_count_;
+    const esp_err_t err = esp_lcd_panel_draw_bitmap(
+        panel_handle_, 0, 0, _fb_width, _fb_height,
+        framebuffers_[pending_index_]);
+    const bool presented =
+        err == ESP_OK && waitForFrameCompletions(eof_start, 3,
+                                                 kRgbFramePeriodMs * 5U + 20U);
+    if (err == ESP_OK) {
+      // Three EOFs cover the current frame, the one additional old frame that
+      // IDF says DMA prefetch may emit, and the completed new frame.
+      active_index_ = pending_index_;
+      canonical_fb0_valid_ = active_index_ == 0;
+    }
+    _framebuffer = framebuffers_[active_index_];
+    atomic_pending_ = false;
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+    Serial.printf(
+        "[S3Diag/Display] atomic-commit reason=%s submit=%s(0x%X) "
+        "presented=%u front=%u eof_delta=%lu total_us=%lu\n",
+        atomic_reason_, esp_err_to_name(err), static_cast<unsigned>(err),
+        presented ? 1U : 0U, static_cast<unsigned>(active_index_),
+        static_cast<unsigned long>(frame_complete_count_ - eof_start),
+        static_cast<unsigned long>(micros() - started_us));
+#endif
+    atomic_reason_ = "none";
+    atomic_started_ms_ = 0;
+    return err == ESP_OK && presented;
+  }
+
+  void service() {
+    // A software JPEG decode on this S3 can legitimately take several
+    // seconds before LVGL reaches the first full-screen flush. Keep a generous
+    // failsafe for truly abandoned transitions without cancelling valid work.
+    if (!atomic_pending_ || atomic_started_ms_ == 0 ||
+        millis() - atomic_started_ms_ < 15000U) {
+      return;
+    }
+    _framebuffer = framebuffers_[active_index_];
+    atomic_pending_ = false;
+    atomic_started_ms_ = 0;
+    Serial.printf(
+        "[Display/S3] Atomic redraw timeout, keeping framebuffer %u\n",
+        static_cast<unsigned>(active_index_));
+    atomic_reason_ = "none";
+  }
+
+  bool canonicalizeForStorage() {
+    if (!panel_handle_) return false;
+    storage_transition_ = true;
+    if (atomic_pending_) {
+      commitAtomicFrame();
+    }
+    if (active_index_ == 0) {
+      _framebuffer = framebuffers_[0];
+      canonical_fb0_valid_ = true;
+      return true;
+    }
+
+    const uint32_t started_us = micros();
+    memcpy(framebuffers_[0], framebuffers_[active_index_], _framebuffer_size);
+    // The CPU copy lands in cached PSRAM. Write the complete canonical frame
+    // back before RGB GDMA is allowed to scan framebuffer 0.
+    Cache_WriteBack_Addr(
+        reinterpret_cast<uint32_t>(framebuffers_[0]), _framebuffer_size);
+    canonical_fb0_valid_ = true;
+    const uint32_t eof_start = frame_complete_count_;
+    const esp_err_t err = esp_lcd_panel_draw_bitmap(
+        panel_handle_, 0, 0, _fb_width, _fb_height, framebuffers_[0]);
+    const bool switched =
+        err == ESP_OK && waitForFrameCompletions(eof_start, 3,
+                                                 kRgbFramePeriodMs * 5U + 20U);
+    if (err == ESP_OK) {
+      active_index_ = 0;
+    }
+    _framebuffer = framebuffers_[active_index_];
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+    Serial.printf(
+        "[S3Diag/Display] storage-canonicalize result=%s(0x%X) "
+        "switched=%u eof_delta=%lu total_us=%lu\n",
+        esp_err_to_name(err), static_cast<unsigned>(err), switched ? 1U : 0U,
+        static_cast<unsigned long>(frame_complete_count_ - eof_start),
+        static_cast<unsigned long>(micros() - started_us));
+#endif
+    // Even if draw_bitmap or the diagnostic EOF wait fails, framebuffer 0 is
+    // a complete cache-flushed copy. The storage-end one-shot restart is
+    // hardwired by IDF to this canonical buffer and can still recover it.
+    return canonical_fb0_valid_;
+  }
+
+  esp_err_t restartAfterStorage(uint32_t& wait_ms) {
+    wait_ms = 0;
+    if (!panel_handle_ || !canonical_fb0_valid_) {
+      storage_transition_ = false;
+      return ESP_ERR_INVALID_STATE;
+    }
+
+    restart_vsync_seen_ = false;
+    restart_one_shot_armed_ = true;
+    const uint32_t started_ms = millis();
+    esp_err_t err = esp_lcd_rgb_panel_restart(panel_handle_);
+    if (err == ESP_OK) {
+      enableVsyncInterruptOneShot();
+      while (!restart_vsync_seen_ &&
+             millis() - started_ms < kRgbFramePeriodMs * 3U + 20U) {
+        delay(1);
+      }
+      if (!restart_vsync_seen_) {
+        err = ESP_ERR_TIMEOUT;
+      } else {
+        const uint32_t eof_start = restart_eof_baseline_;
+        if (!waitForFrameCompletions(eof_start, 2,
+                                     kRgbFramePeriodMs * 4U + 20U)) {
+          err = ESP_ERR_TIMEOUT;
+        }
+      }
+    }
+    maskVsyncInterrupt();
+    restart_one_shot_armed_ = false;
+    if (restart_vsync_seen_) {
+      // The current VSYNC ISR performs the hardwired S3 restart to fb0 after
+      // invoking our callback, even when the subsequent EOF confirmation
+      // times out.
+      active_index_ = 0;
+      _framebuffer = framebuffers_[0];
+    }
+    wait_ms = millis() - started_ms;
+    storage_transition_ = false;
+    return err;
+  }
+
+  uint16_t* framebuffer(uint8_t index) const {
+    return index < 2 ? framebuffers_[index] : nullptr;
+  }
+
+ private:
+  static bool IRAM_ATTR onFrameComplete(
+      esp_lcd_panel_handle_t panel,
+      const esp_lcd_rgb_panel_event_data_t* event_data, void* user_ctx) {
+    (void)panel;
+    (void)event_data;
+    auto* self = static_cast<GuitionAtomicRgbDisplay*>(user_ctx);
+    if (self) ++self->frame_complete_count_;
+    return false;
+  }
+
+  static bool IRAM_ATTR onVsync(
+      esp_lcd_panel_handle_t panel,
+      const esp_lcd_rgb_panel_event_data_t* event_data, void* user_ctx) {
+    (void)panel;
+    (void)event_data;
+    auto* self = static_cast<GuitionAtomicRgbDisplay*>(user_ctx);
+    if (!self || !self->restart_one_shot_armed_) return false;
+
+    // The IDF ISR calls this callback before its restart routine. Masking the
+    // hardware bit here prevents future VSYNC interrupts; the current ISR
+    // continues and performs exactly one restart through canonical fb0.
+    PERIPH_RCC_ATOMIC() {
+      lcd_ll_enable_interrupt(&LCD_CAM, LCD_LL_EVENT_RGB, false);
+    }
+    self->restart_one_shot_armed_ = false;
+    self->restart_eof_baseline_ = self->frame_complete_count_;
+    self->restart_vsync_seen_ = true;
+    return false;
+  }
+
+  static void maskVsyncInterrupt() {
+    PERIPH_RCC_ATOMIC() {
+      lcd_ll_enable_interrupt(&LCD_CAM, LCD_LL_EVENT_RGB, false);
+      lcd_ll_clear_interrupt_status(&LCD_CAM, LCD_LL_EVENT_RGB);
+    }
+  }
+
+  static void enableVsyncInterruptOneShot() {
+    PERIPH_RCC_ATOMIC() {
+      // A disabled VSYNC source remains latched. Clear it before enabling or
+      // the ISR can restart DMA immediately in the middle of an active frame.
+      lcd_ll_clear_interrupt_status(&LCD_CAM, LCD_LL_EVENT_RGB);
+      lcd_ll_enable_interrupt(&LCD_CAM, LCD_LL_EVENT_RGB, true);
+    }
+  }
+
+  bool waitForFrameCompletions(uint32_t start, uint32_t count,
+                               uint32_t timeout_ms) const {
+    const uint32_t started_ms = millis();
+    while (static_cast<uint32_t>(frame_complete_count_ - start) < count &&
+           millis() - started_ms < timeout_ms) {
+      delay(1);
+    }
+    return static_cast<uint32_t>(frame_complete_count_ - start) >= count;
+  }
+
+  esp_lcd_panel_handle_t panel_handle_ = nullptr;
+  uint16_t* framebuffers_[2] = {nullptr, nullptr};
+  uint8_t active_index_ = 0;
+  uint8_t pending_index_ = 0;
+  bool atomic_pending_ = false;
+  bool storage_transition_ = false;
+  bool canonical_fb0_valid_ = true;
+  uint32_t atomic_started_ms_ = 0;
+  const char* atomic_reason_ = "none";
+  volatile uint32_t frame_complete_count_ = 0;
+  volatile bool restart_one_shot_armed_ = false;
+  volatile bool restart_vsync_seen_ = false;
+  volatile uint32_t restart_eof_baseline_ = 0;
+};
+
 Arduino_DataBus* g_panel_bus = nullptr;
-Arduino_ESP32RGBPanel* g_rgb_panel = nullptr;
-Arduino_RGB_Display* g_gfx = nullptr;
+GuitionAtomicRgbDisplay* g_gfx = nullptr;
 SPIClass g_sd_spi(FSPI);
 
 bool g_display_ready = false;
@@ -160,6 +544,25 @@ uint16_t g_storage_write_depth = 0;
 bool g_storage_blackout_active = false;
 bool g_storage_restart_required = false;
 uint8_t g_storage_restore_brightness = 0;
+uint32_t g_storage_guard_started_ms = 0;
+bool g_touch_active = false;
+int16_t g_touch_last_x = 0;
+int16_t g_touch_last_y = 0;
+uint8_t g_touch_status_error_streak = 0;
+uint8_t g_touch_point_error_streak = 0;
+void initSharedSpiChipSelects() {
+  // CS42 (SD) and CS39 (ST7701 command bus) share SCK48/MOSI47. Keep both
+  // devices explicitly deselected before either stack emits its first clock.
+  pinMode(kSdCs, OUTPUT);
+  digitalWrite(kSdCs, HIGH);
+  pinMode(kPanelCs, OUTPUT);
+  digitalWrite(kPanelCs, HIGH);
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  Serial.printf(
+      "[S3Diag/SD] phase=shared-cs-init panel_cs=%d sd_cs=%d idle=HIGH\n",
+      kPanelCs, kSdCs);
+#endif
+}
 
 void ensureStorageLayout() {
   if (!g_littlefs_ready) return;
@@ -223,7 +626,11 @@ bool initTouch() {
     return false;
   }
 
-  writeTouchRegister(kTouchStatusRegister, 0);
+  if (!writeTouchRegister(kTouchStatusRegister, 0)) {
+    GuitionS3Diagnostics::noteTouchPollIssue(
+        GuitionS3Diagnostics::TouchPollIssue::StatusWrite);
+  }
+  g_touch_active = false;
   g_touch_ready = true;
   return true;
 }
@@ -240,6 +647,13 @@ bool initBacklight() {
   }
   g_backlight_ready = true;
   ledcWrite(kBacklightPin, 0);
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  Serial.printf(
+      "[S3Diag/Display] phase=backlight-init result=ok pin=%d pwm_hz=%lu "
+      "resolution_bits=%u duty=0\n",
+      kBacklightPin, static_cast<unsigned long>(kBacklightFrequency),
+      static_cast<unsigned>(kBacklightResolution));
+#endif
   return true;
 }
 
@@ -257,20 +671,9 @@ bool initDisplay() {
 
   g_panel_bus = new Arduino_SWSPI(
       GFX_NOT_DEFINED, kPanelCs, kPanelSck, kPanelMosi, GFX_NOT_DEFINED);
-  g_rgb_panel = new Arduino_ESP32RGBPanel(
-      kPanelDe, kPanelVsync, kPanelHsync, kPanelPclk,
-      kPanelR0, kPanelR1, kPanelR2, kPanelR3, kPanelR4,
-      kPanelG0, kPanelG1, kPanelG2, kPanelG3, kPanelG4, kPanelG5,
-      kPanelB0, kPanelB1, kPanelB2, kPanelB3, kPanelB4,
-      1, 10, 8, 50,
-      1, 10, 8, 20,
-      0, kRgbPclkHz, false,
-      0, 0, kRgbBounceBufferPixels);
-  g_gfx = new Arduino_RGB_Display(
-      480, 480, g_rgb_panel, g_rotation, true, g_panel_bus, GFX_NOT_DEFINED,
-      st7701_type9_init_operations, sizeof(st7701_type9_init_operations));
+  g_gfx = new GuitionAtomicRgbDisplay(g_rotation, g_panel_bus);
 
-  if (!g_panel_bus || !g_rgb_panel || !g_gfx || !g_gfx->begin()) {
+  if (!g_panel_bus || !g_gfx || !g_gfx->begin()) {
     Serial.println(
         "[Device/GUITION ESP32-4848S040] ST7701 RGB display init failed");
     return false;
@@ -280,9 +683,11 @@ bool initDisplay() {
   g_display_ready = true;
   Serial.printf(
       "[Device/GUITION ESP32-4848S040] Display ready, test=%s, "
-      "PCLK=%u MHz, bounce=%u rows/%u px, XIP=%u, cache-line=%u B, "
+      "panel=%s, PCLK=%u MHz, bounce=%u rows/%u px, XIP=%u, "
+      "cache-line=%u B, "
       "opt=%s, VSYNC-restart=%u, PSRAM free=%u KB\n",
       HOMETILES_GUITION_S3_RGB_TEST_LABEL,
+      kPanelInitLabel,
       static_cast<unsigned>(kRgbPclkHz / 1000000),
       static_cast<unsigned>(HOMETILES_GUITION_S3_RGB_BOUNCE_ROWS),
       static_cast<unsigned>(kRgbBounceBufferPixels),
@@ -292,6 +697,32 @@ bool initDisplay() {
       kRestartInVsync ? 1U : 0U,
       static_cast<unsigned>(
           heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  Serial.printf(
+      "[S3Diag/Display] phase=init result=ok mode=RGB565-native "
+      "resolution=480x480 color_order=RGB byte_swap=0 endian_map=native "
+      "panel_init=%s panel_cd=0x%02X "
+      "framebuffer=psram-double num_fbs=2 bounce_rows=%u bounce_pixels=%u "
+      "rotation=%u auto_flush=1 cache_sync=Arduino_GFX "
+      "vsync_restart=storage-only fb0=%p fb1=%p\n",
+      kPanelInitLabel, static_cast<unsigned>(kPanelCd),
+      static_cast<unsigned>(HOMETILES_GUITION_S3_RGB_BOUNCE_ROWS),
+      static_cast<unsigned>(kRgbBounceBufferPixels),
+      static_cast<unsigned>(g_rotation),
+      static_cast<void*>(g_gfx->framebuffer(0)),
+      static_cast<void*>(g_gfx->framebuffer(1)));
+  Serial.printf(
+      "[S3Diag/Display] timing pclk_hz=%lu h=pol1/fp10/pw8/bp50 "
+      "v=pol1/fp10/pw8/bp20 frame_us=%lu pclk_neg=0 "
+      "restart_in_vsync=%u\n",
+      static_cast<unsigned long>(kRgbPclkHz),
+      static_cast<unsigned long>(kRgbFramePeriodMs * 1000U),
+      kRestartInVsync ? 1U : 0U);
+  Serial.println(
+      "[S3Diag/Display] rgb_pins d0..15="
+      "4,5,6,7,15,8,20,3,46,9,10,11,12,13,14,0 "
+      "control=de18/vsync17/hsync16/pclk21");
+#endif
   return true;
 }
 
@@ -362,6 +793,8 @@ void copyDirectory(fs::FS& src_fs, fs::FS& dst_fs, const char* dir_path) {
 bool DeviceGuitionESP324848S040::init() {
   Serial.println("[Device/GUITION ESP32-4848S040] Initialising board...");
 
+  initSharedSpiChipSelects();
+
   if (!psramFound()) {
     Serial.println(
         "[Device/GUITION ESP32-4848S040] ERROR: octal PSRAM not detected");
@@ -380,12 +813,15 @@ bool DeviceGuitionESP324848S040::init() {
     Serial.println(
         "[Device/GUITION ESP32-4848S040] Touch unavailable; continuing");
   }
-  initLittleFS();
-  initSDCard();
+  // Storage is initialised by setup() after BoardHAL returns. That ordering is
+  // intentional on this RGB board: setup brackets first-boot LittleFS/NVS
+  // writes with the S3 storage guard before a visible frame is presented.
   return true;
 }
 
-void DeviceGuitionESP324848S040::update() {}
+void DeviceGuitionESP324848S040::update() {
+  if (g_gfx) g_gfx->service();
+}
 
 void DeviceGuitionESP324848S040::displayPushPixels(
     int32_t x, int32_t y, int32_t w, int32_t h, const uint16_t* data) {
@@ -416,6 +852,11 @@ bool DeviceGuitionESP324848S040::displayTryFullFramePreview(
   return false;
 }
 
+bool DeviceGuitionESP324848S040::displayBeginAtomicFrame(
+    const char* reason) {
+  return g_display_ready && g_gfx && g_gfx->beginAtomicFrame(reason);
+}
+
 void DeviceGuitionESP324848S040::displayWaitDMA() {}
 
 void DeviceGuitionESP324848S040::displayFillScreen(uint16_t color) {
@@ -438,29 +879,98 @@ uint8_t DeviceGuitionESP324848S040::getBrightness() {
 bool DeviceGuitionESP324848S040::getTouch(int16_t& x, int16_t& y) {
   if (!g_touch_ready && !initTouch()) return false;
 
+  const auto return_held_point = [&]() {
+    if (!g_touch_active) return false;
+    x = g_touch_last_x;
+    y = g_touch_last_y;
+    return true;
+  };
+  const auto return_held_or_fail_safe = [&](uint8_t& error_streak) {
+    if (error_streak < UINT8_MAX) ++error_streak;
+    if (!g_touch_active || error_streak < kTouchErrorReleaseThreshold) {
+      return return_held_point();
+    }
+    GuitionS3Diagnostics::noteTouchRelease(
+        millis(), g_touch_last_x, g_touch_last_y, 0xFF);
+    g_touch_active = false;
+    g_touch_status_error_streak = 0;
+    g_touch_point_error_streak = 0;
+    return false;
+  };
+
   uint8_t status = 0;
-  if (!readTouchRegisters(kTouchStatusRegister, &status, 1)) return false;
-  if ((status & 0x80) == 0) return false;
+  if (!readTouchRegisters(kTouchStatusRegister, &status, 1)) {
+    GuitionS3Diagnostics::noteTouchPollIssue(
+        GuitionS3Diagnostics::TouchPollIssue::StatusRead);
+    return return_held_or_fail_safe(g_touch_status_error_streak);
+  }
+  g_touch_status_error_streak = 0;
+  if ((status & 0x80) == 0) {
+    // Bit 7 means "new coordinate frame ready", not "finger down". Keep the
+    // previous active point until GT911 explicitly publishes a ready frame
+    // with zero points. This mirrors Espressif's GT911 driver semantics and
+    // prevents artificial RELEASE/CLICK cycles between controller reports.
+    GuitionS3Diagnostics::noteTouchPollIssue(
+        GuitionS3Diagnostics::TouchPollIssue::NoNewFrame);
+    return return_held_point();
+  }
 
   const uint8_t points = status & 0x0F;
-  if (points == 0 || points > 5) {
-    writeTouchRegister(kTouchStatusRegister, 0);
+  if (points == 0) {
+    if (!writeTouchRegister(kTouchStatusRegister, 0)) {
+      GuitionS3Diagnostics::noteTouchPollIssue(
+          GuitionS3Diagnostics::TouchPollIssue::StatusWrite);
+    }
+    if (g_touch_active) {
+      GuitionS3Diagnostics::noteTouchRelease(
+          millis(), g_touch_last_x, g_touch_last_y, status);
+    }
+    g_touch_active = false;
+    g_touch_point_error_streak = 0;
     return false;
+  }
+  if (points > 5) {
+    if (!writeTouchRegister(kTouchStatusRegister, 0)) {
+      GuitionS3Diagnostics::noteTouchPollIssue(
+          GuitionS3Diagnostics::TouchPollIssue::StatusWrite);
+    }
+    GuitionS3Diagnostics::noteTouchPollIssue(
+        GuitionS3Diagnostics::TouchPollIssue::InvalidPointCount);
+    return return_held_or_fail_safe(g_touch_point_error_streak);
   }
 
   uint8_t point[8] = {};
   const bool read_ok =
       readTouchRegisters(kTouchPointRegister, point, sizeof(point));
-  writeTouchRegister(kTouchStatusRegister, 0);
-  if (!read_ok) return false;
+  if (!writeTouchRegister(kTouchStatusRegister, 0)) {
+    GuitionS3Diagnostics::noteTouchPollIssue(
+        GuitionS3Diagnostics::TouchPollIssue::StatusWrite);
+  }
+  if (!read_ok) {
+    GuitionS3Diagnostics::noteTouchPollIssue(
+        GuitionS3Diagnostics::TouchPollIssue::PointRead);
+    return return_held_or_fail_safe(g_touch_point_error_streak);
+  }
 
   const uint16_t raw_x =
       static_cast<uint16_t>(point[1] | (point[2] << 8));
   const uint16_t raw_y =
       static_cast<uint16_t>(point[3] | (point[4] << 8));
-  if (raw_x >= 480 || raw_y >= 480) return false;
+  if (raw_x >= 480 || raw_y >= 480) {
+    GuitionS3Diagnostics::noteTouchPollIssue(
+        GuitionS3Diagnostics::TouchPollIssue::InvalidCoordinates);
+    return return_held_or_fail_safe(g_touch_point_error_streak);
+  }
 
+  g_touch_point_error_streak = 0;
   mapTouch(raw_x, raw_y, x, y);
+  g_touch_last_x = x;
+  g_touch_last_y = y;
+  if (!g_touch_active) {
+    g_touch_active = true;
+    GuitionS3Diagnostics::noteTouchDown(millis(), x, y, raw_x, raw_y,
+                                        status);
+  }
   return true;
 }
 
@@ -484,7 +994,9 @@ void DeviceGuitionESP324848S040::displayPowerSaveOff() {
   displayWake();
 }
 
-void DeviceGuitionESP324848S040::displayWaitDisplay() {}
+void DeviceGuitionESP324848S040::displayWaitDisplay() {
+  if (g_display_ready && g_gfx) g_gfx->commitAtomicFrame();
+}
 
 void DeviceGuitionESP324848S040::prepareForRestart() {
   applyBrightness(0, false);
@@ -510,19 +1022,41 @@ bool DeviceGuitionESP324848S040::initSDCard() {
   g_sd_retry_tick_ms = now;
   SD.end();
 
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  Serial.printf(
+      "[S3Diag/SD] phase=mount-start host=SPI2(FSPI) sck=%d miso=%d "
+      "mosi=%d cs=%d panel_cs=%d hz=%lu shared=1 cs_idle=1\n",
+      kSdSck, kSdMiso, kSdMosi, kSdCs, kPanelCs,
+      static_cast<unsigned long>(kSdFrequency));
+#endif
+
   // The card and panel command bus share SCK/MOSI. The ST7701 is initialized
   // first and remains deselected on CS39 while the card uses CS42.
+  const uint32_t mount_started_ms = millis();
   g_sd_spi.begin(kSdSck, kSdMiso, kSdMosi, kSdCs);
   if (!SD.begin(kSdCs, g_sd_spi, kSdFrequency, "/sdcard", 5)) {
     g_sd_available = false;
     Serial.println(
         "[Device/GUITION ESP32-4848S040] SD card mount failed");
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+    Serial.printf(
+        "[S3Diag/SD] phase=SD.begin result=failed elapsed_ms=%lu "
+        "esp_err=unavailable(Arduino-SD-bool-API)\n",
+        static_cast<unsigned long>(millis() - mount_started_ms));
+#endif
     return false;
   }
   if (SD.cardType() == CARD_NONE) {
     SD.end();
     g_sd_available = false;
     Serial.println("[Device/GUITION ESP32-4848S040] SD card absent");
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+    Serial.printf(
+        "[S3Diag/SD] phase=card-probe result=absent card_type=%u "
+        "elapsed_ms=%lu esp_err=unavailable(Arduino-SD-bool-API)\n",
+        static_cast<unsigned>(CARD_NONE),
+        static_cast<unsigned long>(millis() - mount_started_ms));
+#endif
     return false;
   }
 
@@ -530,6 +1064,20 @@ bool DeviceGuitionESP324848S040::initSDCard() {
   Serial.printf(
       "[Device/GUITION ESP32-4848S040] SD card OK, size=%llu MB\n",
       static_cast<unsigned long long>(SD.cardSize() / (1024ULL * 1024ULL)));
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  const uint8_t card_type = SD.cardType();
+  const char* card_name =
+      card_type == CARD_MMC ? "MMC"
+      : card_type == CARD_SD ? "SDSC"
+      : card_type == CARD_SDHC ? "SDHC"
+                                : "UNKNOWN";
+  Serial.printf(
+      "[S3Diag/SD] phase=mount result=ok elapsed_ms=%lu card=%s(%u) "
+      "size_bytes=%llu esp_err=ESP_OK(0x0)\n",
+      static_cast<unsigned long>(millis() - mount_started_ms), card_name,
+      static_cast<unsigned>(card_type),
+      static_cast<unsigned long long>(SD.cardSize()));
+#endif
   return true;
 }
 
@@ -555,12 +1103,23 @@ void DeviceGuitionESP324848S040::storageWriteBegin() {
   if (!g_display_ready) return;
 
   g_storage_restart_required = true;
-  if (!g_backlight_ready || g_applied_brightness == 0) return;
+  const bool blackout = g_backlight_ready && g_applied_brightness != 0;
+  g_storage_guard_started_ms = millis();
+  GuitionS3Diagnostics::noteStorageGuardBegin(blackout);
+  if (blackout) {
+    g_storage_blackout_active = true;
+    g_storage_restore_brightness = g_applied_brightness;
+    applyBrightness(0, false);
+    delay(2);
+  }
 
-  g_storage_blackout_active = true;
-  g_storage_restore_brightness = g_applied_brightness;
-  applyBrightness(0, false);
-  delay(2);
+  // IDF's ESP32-S3 restart descriptor is permanently wired to framebuffer 0.
+  // Canonicalize while the established storage blackout is active, before the
+  // flash cache can be disabled by the caller.
+  if (g_gfx && !g_gfx->canonicalizeForStorage()) {
+    Serial.println(
+        "[Display/S3] Failed to canonicalize framebuffer before flash write");
+  }
 }
 
 void DeviceGuitionESP324848S040::storageWriteEnd() {
@@ -576,13 +1135,10 @@ void DeviceGuitionESP324848S040::storageWriteEnd() {
   g_storage_restore_brightness = 0;
 
   if (restart_required) {
-    esp_err_t restart_result = ESP_ERR_INVALID_STATE;
-    if (g_rgb_panel && g_rgb_panel->_panel_handle) {
-      // ESP-IDF schedules this restart on the next VSYNC, resetting the DMA
-      // scan position that otherwise remains wrapped after a flash write.
-      restart_result =
-          esp_lcd_rgb_panel_restart(g_rgb_panel->_panel_handle);
-    }
+    uint32_t restart_wait_ms = 0;
+    const esp_err_t restart_result =
+        g_gfx ? g_gfx->restartAfterStorage(restart_wait_ms)
+              : ESP_ERR_INVALID_STATE;
     if (restart_result != ESP_OK) {
       Serial.printf(
           "[Display/S3] RGB restart after flash write failed: %s (0x%X)\n",
@@ -590,16 +1146,24 @@ void DeviceGuitionESP324848S040::storageWriteEnd() {
           static_cast<unsigned>(restart_result));
     }
 
-    // One frame reaches the scheduled VSYNC restart; the second is fully clean
-    // before the backlight becomes visible again.
-    delay(kStorageRecoveryMs);
+    GuitionS3Diagnostics::noteRgbRestart(
+        static_cast<int32_t>(restart_result), restart_wait_ms);
   }
 
   if (restore_backlight) applyBrightness(restore_brightness, false);
+  if (restart_required) {
+    GuitionS3Diagnostics::noteStorageGuardEnd(
+        millis() - g_storage_guard_started_ms);
+    g_storage_guard_started_ms = 0;
+  }
 }
 
 bool DeviceGuitionESP324848S040::sdReady() {
-  return initSDCard();
+  // Readiness checks run inside UI, popup and screensaver paths. Retrying a
+  // failed Arduino SD.begin() here blocks the LVGL task for about 600 ms and
+  // repeatedly tears down/recreates the SD/SPI objects. Mount once during
+  // explicit board initialisation; after a failure, retry only after reboot.
+  return g_sd_available && SD.cardType() != CARD_NONE;
 }
 
 fs::FS& DeviceGuitionESP324848S040::sdFS() {

@@ -96,6 +96,22 @@ fs::FS& storageFS();
 void storageWriteBegin();
 void storageWriteEnd();
 
+class ScopedStorageWrite {
+ public:
+  explicit ScopedStorageWrite(bool active = true) : active_(active) {
+    if (active_) storageWriteBegin();
+  }
+  ~ScopedStorageWrite() {
+    if (active_) storageWriteEnd();
+  }
+
+  ScopedStorageWrite(const ScopedStorageWrite&) = delete;
+  ScopedStorageWrite& operator=(const ScopedStorageWrite&) = delete;
+
+ private:
+  bool active_;
+};
+
 bool sdReady();
 fs::FS& sdFS();
 bool suspendSDCardForNetworkTransition();

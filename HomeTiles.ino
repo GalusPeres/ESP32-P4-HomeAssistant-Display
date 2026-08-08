@@ -21,6 +21,7 @@
 #include "src/core/firmware_version.h"
 #include "src/core/github_update.h"
 #include "src/core/lvgl_tick_service.h"
+#include "src/devices/guition_esp32_4848s040/s3_diagnostics.h"
 #include "src/ui/ui_manager.h"
 #include "src/ui/sensor_popup.h"
 #include "src/ui/weather_popup.h"
@@ -59,6 +60,7 @@ static bool ota_display_suspended = false;
 static TaskHandle_t ui_build_waiter = nullptr;
 static scene_publish_cb_t ui_scene_cb = nullptr;
 static hotspot_start_cb_t ui_hotspot_cb = nullptr;
+static TaskHandle_t g_mqtt_worker_handle = nullptr;
 
 #if defined(DEVICE_M5STACKS_TAB5)
 // Brownout-Schutz (User-Log 2026-07-06): volles Backlight + Funk-Lastspitze
@@ -77,7 +79,8 @@ static uint32_t tab5_brightness_cap_wait_since = 0;
 static constexpr uint32_t kBootSplashMinVisibleMs = 2500;
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
-    defined(DEVICE_GUITION_JC8012P4A1)
+    defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_ESP32_4848S040)
 static constexpr uint32_t kBootBlackWarmupMs = 90;
 static constexpr uint32_t kBootBlackGapMs = 60;
 #endif
@@ -117,12 +120,15 @@ static void log_memory_status(const char* tag) {
         static_cast<unsigned>(lv_mem.free_biggest_size / 1024),
         static_cast<unsigned>(lv_mem.frag_pct));
   }
+  GuitionS3Diagnostics::logMemory(
+      tag, xTaskGetCurrentTaskHandle(), g_mqtt_worker_handle);
   Serial.flush();
 }
 
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
-    defined(DEVICE_GUITION_JC8012P4A1)
+    defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_ESP32_4848S040)
 static void boot_black_warmup(const char* label) {
   Serial.printf("[Boot] Black display warmup: %s\n", label ? label : "?");
   Serial.flush();
@@ -197,6 +203,8 @@ static void restore_display_after_ota_pause() {
 static void build_ui_task(void* param) {
   (void)param;
   uiManager.buildUI(ui_scene_cb, ui_hotspot_cb);
+  GuitionS3Diagnostics::logTaskWatermark("buildUI",
+                                         xTaskGetCurrentTaskHandle());
   if (ui_build_waiter) {
     xTaskNotifyGive(ui_build_waiter);
   }
@@ -559,8 +567,6 @@ static void service_background_state_refresh(bool allow_now) {
 // Futter) nie verdraengen kann; Stack liegt im PSRAM, um das knappe interne
 // RAM nicht zu belasten.
 // ---------------------------------------------------------------------------
-static TaskHandle_t g_mqtt_worker_handle = nullptr;
-
 static void mqtt_worker_task(void* param) {
   (void)param;
   for (;;) {
@@ -575,6 +581,8 @@ void setup() {
   delay(2000);
   Serial.println("\n\n=== HOMETILES STARTUP ===");
   Serial.printf("[Setup] Firmware: hometiles-%s-%s\n", FW_VERSION, Device::profile().key);
+  GuitionS3Diagnostics::logBoot(FW_VERSION, Device::profile().key);
+  GuitionS3Diagnostics::logOtaPartitions("boot");
   confirm_running_ota_if_needed();
   log_memory_status("boot-start");
   Serial.flush();
@@ -589,6 +597,15 @@ void setup() {
   Serial.println("[Setup] BoardHAL OK");
   log_memory_status("after-boardhal");
   Serial.flush();
+
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  // The S3 RGB engine continuously scans a PSRAM framebuffer. Keep the whole
+  // first-boot flash phase inside one guard: a blank/old installation may
+  // format LittleFS, migrate files and erase/re-initialise NVS here. Ending the
+  // guard once performs the board-specific RGB restart before anything is
+  // shown, instead of letting each flash stall leave the scanout out of phase.
+  Device::storageWriteBegin();
+#endif
 
   // LittleFS (primary storage on flash)
   Serial.println("[Setup] LittleFS init...");
@@ -633,7 +650,8 @@ void setup() {
   Serial.flush();
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
-    defined(DEVICE_GUITION_JC8012P4A1)
+    defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_ESP32_4848S040)
   boot_black_warmup("after-display");
 #endif
 
@@ -662,6 +680,11 @@ void setup() {
   if (has_config) {
     displayManager.setRotation(configManager.getConfig().display_rotation_quarters);
   }
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  // Config recovery can promote .tmp/.bak files or migrate old NVS entries.
+  // Close the first-boot guard only after every loader has finished.
+  Device::storageWriteEnd();
+#endif
   Serial.println("[Setup] Configs OK");
   log_memory_status("after-configs");
   Serial.flush();
@@ -673,7 +696,8 @@ void setup() {
   // aufblitzen. Deshalb Panel dunkel, Splash fertig rendern, dann erst sichtbar.
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
-    defined(DEVICE_GUITION_JC8012P4A1)
+    defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_ESP32_4848S040)
   BoardHAL::displaySleep();
   delay(kBootBlackGapMs);
   BoardHAL::displayFillScreen(0x0000);
@@ -687,7 +711,8 @@ void setup() {
   lv_obj_update_layout(lv_screen_active());
 #if !defined(DEVICE_WAVESHARE_TOUCH_LCD_X) && \
     !defined(DEVICE_M5STACKS_TAB5) && \
-    !defined(DEVICE_GUITION_JC8012P4A1)
+    !defined(DEVICE_GUITION_JC8012P4A1) && \
+    !defined(DEVICE_GUITION_ESP32_4848S040)
   BoardHAL::displayWake();
 #endif
   lv_obj_invalidate(lv_screen_active());
@@ -709,7 +734,8 @@ void setup() {
 #endif
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
-    defined(DEVICE_GUITION_JC8012P4A1)
+    defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_ESP32_4848S040)
   BoardHAL::displayWake();
   BoardHAL::displayWaitDisplay();
 #endif
@@ -772,6 +798,14 @@ void setup() {
       delay(kBootSplashMinVisibleMs - elapsed);
     }
   }
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  // Render the complete UI into the inactive S3 framebuffer while the splash
+  // remains visible. The final full-screen flush changes buffers only after a
+  // completed RGB frame, so no LVGL bands become visible during the handover.
+  const bool s3_atomic_boot =
+      DeviceImpl::displayBeginAtomicFrame("boot-ui");
+  if (!s3_atomic_boot) BoardHAL::displaySleep();
+#endif
   BootSplash::hide();
   // Waehrend des kompletten UI-Aufbaus (inkl. Statusbar-Befuellung weiter
   // unten) die Display-Invalidierung abschalten -- switchToTab(0) in
@@ -820,7 +854,9 @@ void setup() {
     lv_display_enable_invalidation(disp, true);
   }
 
+#if !defined(DEVICE_GUITION_ESP32_4848S040)
   BoardHAL::displayWake();
+#endif
   lv_obj_invalidate(lv_screen_active());
 #if defined(DEVICE_M5STACKS_TAB5)
   tab5_timed_refresh_now("wake-1");
@@ -829,6 +865,17 @@ void setup() {
   lv_refr_now(displayManager.getDisplay());
   BoardHAL::displayWaitDisplay();
 #endif
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  // The first full refresh already committed the completed inactive buffer.
+  // Repeat only in the blackout fallback; redrawing the visible front buffer
+  // again would expose LVGL's horizontal partial-render bands.
+  if (!s3_atomic_boot) {
+    delay(20);
+    lv_obj_invalidate(lv_screen_active());
+    lv_refr_now(displayManager.getDisplay());
+    BoardHAL::displayWaitDisplay();
+  }
+#else
   delay(20);
   lv_obj_invalidate(lv_screen_active());
 #if defined(DEVICE_M5STACKS_TAB5)
@@ -837,6 +884,10 @@ void setup() {
 #else
   lv_refr_now(displayManager.getDisplay());
   BoardHAL::displayWaitDisplay();
+#endif
+#endif
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  BoardHAL::displayWake();
 #endif
   Serial.println("[Setup] Display wake OK");
   log_memory_status("after-ui-build");
@@ -1015,6 +1066,7 @@ void loop() {
       Serial.flush();
     }
 
+    GuitionS3Diagnostics::service();
     webConfigServer.handle();
     // Ordner-Taps setzen nur ein Pending-Flag (tiles_switch_to_folder);
     // konsumiert wird es ausschliesslich hier bzw. im normalen Loop-Pfad.
@@ -1197,6 +1249,9 @@ void loop() {
   // of "found one cost, animation still hitches" -- this covers the whole gap
   // in one pass). Only prints if the total exceeds 80ms.
   uint32_t t_loop0 = millis();
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  const uint32_t s3_loop_started_us = micros();
+#endif
 
   // Kein Wake-getriggerter Extra-Request mehr hier (frueher: wake_bridge_
   // request_pending -> publishBridgeRequest()/energy_request_day_for_tiles()).
@@ -1285,8 +1340,17 @@ void loop() {
     Serial.println("[Loop] lv_timer_handler()...");
     Serial.flush();
   }
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  const uint32_t s3_pre_lvgl_us = micros() - s3_loop_started_us;
+  const uint32_t s3_lvgl_started_us = micros();
+#endif
   yield();  // Watchdog füttern
   lv_timer_handler();
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  GuitionS3Diagnostics::noteUiLoop(
+      s3_pre_lvgl_us, micros() - s3_lvgl_started_us);
+#endif
+  GuitionS3Diagnostics::service();
   yield();  // Watchdog füttern
   if (first_run) {
     Serial.println("[Loop] lv_timer_handler() KOMPLETT!");
