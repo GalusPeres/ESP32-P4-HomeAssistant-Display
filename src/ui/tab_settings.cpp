@@ -195,6 +195,7 @@ static lv_obj_t *screensaver_slider = nullptr;
 static lv_obj_t *screensaver_time_label = nullptr;
 static lv_obj_t *screensaver_label = nullptr;
 static lv_obj_t *screensaver_brightness_slider = nullptr;
+static lv_timer_t *screensaver_brightness_preview_timer = nullptr;
 
 // Power Status Labels (stubs -> no battery display)
 static lv_obj_t *power_status_label = nullptr;
@@ -216,8 +217,6 @@ static const int kSettingsSectionActionPct = 30;
 static const int kSettingsDisplayValueWidth = popup_layout::scale(56);
 static const int kSettingsInlineLabelWidth = popup_layout::scale(98);
 static const int kSettingsInlineSliderWidth = popup_layout::scale(116);
-static const uint8_t kSettingsBrightnessRawMin = 121;
-static const uint8_t kSettingsBrightnessRawMax = 255;
 static const int kSettingsBrightnessPctMin = 1;
 static const int kSettingsBrightnessPctMax = 100;
 static const int kSettingsSliderValueWidth = popup_layout::scale(70);
@@ -340,26 +339,53 @@ static void sync_display_rotation_state(uint8_t rotation_quarters) {
 }
 
 static int brightness_pct_from_raw(int raw) {
-  if (raw < kSettingsBrightnessRawMin) raw = kSettingsBrightnessRawMin;
-  if (raw > kSettingsBrightnessRawMax) raw = kSettingsBrightnessRawMax;
-  const int span = kSettingsBrightnessRawMax - kSettingsBrightnessRawMin;
-  if (span <= 0) return kSettingsBrightnessPctMax;
-  return kSettingsBrightnessPctMin + static_cast<int>((static_cast<long>(raw - kSettingsBrightnessRawMin) * (kSettingsBrightnessPctMax - kSettingsBrightnessPctMin) + (span / 2)) / span);
+  if (raw < 0) raw = 0;
+  if (raw > 255) raw = 255;
+  return Device::backlightPercentFromRaw(static_cast<uint8_t>(raw));
 }
 
 static uint8_t brightness_raw_from_pct(int pct) {
   if (pct < kSettingsBrightnessPctMin) pct = kSettingsBrightnessPctMin;
   if (pct > kSettingsBrightnessPctMax) pct = kSettingsBrightnessPctMax;
-  const int span = kSettingsBrightnessRawMax - kSettingsBrightnessRawMin;
-  const int pct_span = kSettingsBrightnessPctMax - kSettingsBrightnessPctMin;
-  int raw = kSettingsBrightnessRawMin;
-  if (pct_span > 0) {
-    raw = kSettingsBrightnessRawMin + static_cast<int>((static_cast<long>(pct - kSettingsBrightnessPctMin) * span + (pct_span / 2)) / pct_span);
-  }
-  if (raw < kSettingsBrightnessRawMin) raw = kSettingsBrightnessRawMin;
-  if (raw > kSettingsBrightnessRawMax) raw = kSettingsBrightnessRawMax;
-  return static_cast<uint8_t>(raw);
+  return Device::backlightRawFromPercent(static_cast<uint8_t>(pct));
 }
+
+static void restore_normal_brightness_after_preview() {
+  // A real screensaver owns the backlight until its exit frame has been
+  // presented. The settings preview only runs over the normal UI.
+  if (is_image_screensaver_visible()) return;
+  powerManager.setDisplayBrightness(
+      configManager.getConfig().display_brightness);
+}
+
+static void on_screensaver_brightness_preview_timeout(lv_timer_t* timer) {
+  if (timer != screensaver_brightness_preview_timer) return;
+  screensaver_brightness_preview_timer = nullptr;
+  restore_normal_brightness_after_preview();
+}
+
+static void schedule_screensaver_brightness_preview_restore() {
+  constexpr uint32_t kPreviewDurationMs = 1000;
+  if (!screensaver_brightness_preview_timer) {
+    screensaver_brightness_preview_timer = lv_timer_create(
+        on_screensaver_brightness_preview_timeout, kPreviewDurationMs,
+        nullptr);
+    if (screensaver_brightness_preview_timer) {
+      lv_timer_set_repeat_count(screensaver_brightness_preview_timer, 1);
+    }
+    return;
+  }
+  lv_timer_set_period(screensaver_brightness_preview_timer,
+                      kPreviewDurationMs);
+  lv_timer_reset(screensaver_brightness_preview_timer);
+}
+
+static void cancel_screensaver_brightness_preview() {
+  if (!screensaver_brightness_preview_timer) return;
+  lv_timer_delete(screensaver_brightness_preview_timer);
+  screensaver_brightness_preview_timer = nullptr;
+}
+
 static const char* wake_mode_text(uint8_t mode) {
   (void)mode;
   return tr().touch_label;
@@ -473,10 +499,12 @@ static void on_screensaver_brightness(lv_event_t *e) {
       code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
     // Auch ein blosses Antippen (oder Ziehen am 1-/100-%-Anschlag) muss die
     // gewaehlte Stufe sichtbar machen. LVGL sendet dort kein VALUE_CHANGED.
-    // Die Vorschau bleibt bis zum Schliessen des Popups aktiv, damit der
-    // Regler nach dem Loslassen nicht wie ein wirkungsloser No-op aussieht.
     powerManager.setDisplayBrightness(
         Device::backlightRawFromPercent(static_cast<uint8_t>(pct)));
+    // Jede Bewegung verlaengert die Vorschau. Eine Sekunde nach dem letzten
+    // Ereignis kehrt das normale UI zu seiner konfigurierten Helligkeit
+    // zurueck; der gespeicherte Screensaver-Wert bleibt unveraendert.
+    schedule_screensaver_brightness_preview_restore();
   }
 
   if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
@@ -1054,8 +1082,8 @@ static void close_settings_popup() {
   // Falls der Screensaver-Helligkeitsregler waehrend einer laufenden
   // Vorschau geschlossen wird, immer zur normalen Helligkeit zurueckkehren.
   if (settings_popup_kind == SettingsPopupKind::Display) {
-    powerManager.setDisplayBrightness(
-        configManager.getConfig().display_brightness);
+    cancel_screensaver_brightness_preview();
+    restore_normal_brightness_after_preview();
   }
   if (settings_popup_overlay) {
     lv_obj_del(settings_popup_overlay);

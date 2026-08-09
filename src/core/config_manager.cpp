@@ -206,6 +206,18 @@ ConfigManager::ConfigManager() {
   config.wifi_static_enabled = false;
 }
 
+static uint8_t normalize_display_brightness(uint8_t brightness) {
+  if (brightness >= Device::kBacklightInputMin) return brightness;
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  // The first S3 brightness test build could persist values below the panel's
+  // measured visible threshold. Upgrade those values to the new 1 % floor
+  // instead of unexpectedly jumping to the generic default.
+  return Device::kBacklightInputMin;
+#else
+  return 200;
+#endif
+}
+
 bool ConfigManager::load() {
   Preferences prefs;
 
@@ -354,9 +366,8 @@ bool ConfigManager::load() {
   apply_device_capability_limits(config);
   boot_static_enabled = config.wifi_static_enabled;
 
-  if (config.display_brightness < 121 || config.display_brightness > 255) {
-    config.display_brightness = 200;
-  }
+  config.display_brightness =
+      normalize_display_brightness(config.display_brightness);
   if (config.screensaver_brightness_pct < kScreensaverBrightnessPctMin ||
       config.screensaver_brightness_pct > kScreensaverBrightnessPctMax) {
     config.screensaver_brightness_pct =
@@ -389,7 +400,8 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
       (normalized.display_rotation_quarters == Device::kRotationFlipped);
   normalized.display_rotation_mode = rotation_mode_from_quarters(
       normalized.display_rotation_quarters, normalized.display_rotation_mode);
-  if (normalized.display_brightness < 121) normalized.display_brightness = 200;
+  normalized.display_brightness =
+      normalize_display_brightness(normalized.display_brightness);
   if (normalized.screensaver_brightness_pct < kScreensaverBrightnessPctMin ||
       normalized.screensaver_brightness_pct > kScreensaverBrightnessPctMax) {
     normalized.screensaver_brightness_pct =
@@ -520,6 +532,7 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
                                         uint8_t wake_mode_mains,
                                         uint8_t wake_mode_battery) {
   // Speichere nur Display-Settings
+  brightness = normalize_display_brightness(brightness);
   uint16_t normalized_sleep_seconds = normalize_sleep_seconds(sleep_seconds);
   uint16_t normalized_bat_seconds = normalize_sleep_seconds(sleep_battery_seconds);
   rotation_quarters = normalize_rotation_quarters(rotation_quarters);

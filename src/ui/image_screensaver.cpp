@@ -1619,11 +1619,9 @@ void hide_image_screensaver() {
   ScreensaverState* st = g_state;
   if (!st) return;
 #if defined(DEVICE_GUITION_ESP32_4848S040)
-  const bool atomic_hide =
-      DeviceImpl::displayBeginAtomicFrame("screensaver-exit");
+  DeviceImpl::displayBeginAtomicFrame("screensaver-exit");
 #endif
   g_state = nullptr;
-  restore_configured_display_brightness();
   g_live_config_refresh_requested = false;
   g_live_grid_refresh_requested = false;
   g_live_preview_wallpaper = String();
@@ -1638,12 +1636,18 @@ void hide_image_screensaver() {
   if (st->overlay) {
     lv_obj_add_flag(st->overlay, LV_OBJ_FLAG_HIDDEN);
     lv_obj_delete_async(st->overlay);
-#if defined(DEVICE_GUITION_ESP32_4848S040)
-    if (atomic_hide) lv_obj_invalidate(lv_screen_active());
-#endif
+    // Draw the normal UI completely while the backlight is still at the
+    // screensaver level. On the S3 this also completes the armed atomic swap.
+    // Only then raise the backlight, so the last screensaver frame never
+    // flashes at normal brightness during the transition.
+    lv_obj_invalidate(lv_screen_active());
+    if (lv_display_t* display = lv_display_get_default()) {
+      lv_refr_now(display);
+    }
   } else {
     delete st;
   }
+  restore_configured_display_brightness();
 }
 
 bool is_image_screensaver_visible() {

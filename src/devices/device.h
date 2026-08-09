@@ -23,9 +23,9 @@ inline constexpr uint8_t kRotationDefault = kProfile.rotation_default;
 inline constexpr uint8_t kRotationFlipped = kProfile.rotation_flipped;
 inline constexpr Capabilities kCapabilities = kProfile.capabilities;
 
-// Einheitliche Prozentwerte fuer Funktionen wie die Screensaver-Dimmung.
-// Die normale Display-Helligkeit bleibt aus Kompatibilitaetsgruenden in ihrem
-// bisherigen geraetespezifischen Rohformat gespeichert.
+// Einheitliche Prozentwerte fuer normale Display-Helligkeit, Screensaver und
+// MQTT. Gespeichert bleibt aus Kompatibilitaetsgruenden weiterhin der
+// geraetespezifische Rohwert.
 inline uint8_t backlightRawFromPercent(uint8_t percent) {
   if (percent < 1) percent = 1;
   if (percent > 100) percent = 100;

@@ -126,6 +126,10 @@ For debugging with an MQTT client (topic layout, `{id}` = panel device id):
 | `<base>/cmnd/scene` | Display → HA | Scene/script activation |
 | `<base>/cmnd/camera` | Display → HA | Open/close an experimental camera session |
 | `<base>/stat/camera` | HA → Display | Camera protocol, endpoint and status |
+| `<base>/cmnd/display_brightness` | HA → Display | Set normal display brightness (1-100%) |
+| `<base>/stat/display_brightness` | Display → HA | Current normal display brightness (1-100%) |
+| `<base>/cmnd/screensaver_brightness` | HA → Display | Set screensaver brightness (1-100%) |
+| `<base>/stat/screensaver_brightness` | Display → HA | Current screensaver brightness (1-100%) |
 | `<base>/cmnd/io/{channel_id}` | HA → Display | Local Switch command (`ON` / `OFF`) |
 | `<base>/stat/io/{channel_id}` | Display → HA | Retained local Switch or temperature state |
 

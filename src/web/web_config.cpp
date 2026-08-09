@@ -209,7 +209,7 @@ void WebConfigServer::handleSave() {
   DeviceConfig cfg = configManager.getConfig();  // enthaelt Defaultwerte (Display, Sleep, MQTT)
   if (!configManager.isConfigured()) {
     cfg.mqtt_port = 1883;
-    if (cfg.display_brightness < 121 || cfg.display_brightness > 255) {
+    if (cfg.display_brightness < Device::kBacklightInputMin) {
       cfg.display_brightness = 200;  // Sicherstellen, dass das Display nicht dunkel bleibt
     }
     if (cfg.auto_sleep_seconds == 0) {

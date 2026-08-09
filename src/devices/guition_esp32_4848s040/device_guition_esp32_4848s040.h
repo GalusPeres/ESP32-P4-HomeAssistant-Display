@@ -19,7 +19,10 @@ inline constexpr Device::Profile kProfile{
     111,
     111,
     4,
-    1,
+    // Hardware-calibrated lower visible limit: with the former raw 3..255
+    // mapping the first reliably visible setting was 15 %, i.e. raw 39.
+    // Raw 0 remains reserved for deliberately switching the backlight off.
+    39,
     Device::RotationStepMode::QuarterTurns,
     2,
     0,

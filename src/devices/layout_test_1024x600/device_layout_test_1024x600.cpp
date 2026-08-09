@@ -659,20 +659,23 @@ void apply_backlight(uint8_t value) {
     return;
   }
 
-  uint32_t scaled = value;
+  uint32_t brightness_percent = 0;
   if (value == 0) {
-    scaled = 0;
+    brightness_percent = 0;
   } else if (value <= kBacklightInputMin) {
-    scaled = 1;
+    brightness_percent = 1;
   } else if (value >= kBacklightInputMax) {
-    scaled = 255;
+    brightness_percent = 100;
   } else {
     const uint32_t span = static_cast<uint32_t>(kBacklightInputMax - kBacklightInputMin);
-    scaled = 1u + ((static_cast<uint32_t>(value - kBacklightInputMin) * 254u) + (span / 2u)) / span;
+    brightness_percent =
+        1u + ((static_cast<uint32_t>(value - kBacklightInputMin) * 99u) +
+              (span / 2u)) /
+                 span;
   }
 
   constexpr uint32_t kMaxDuty = (1u << 10) - 1u;
-  uint32_t duty = (scaled * kMaxDuty + 127u) / 255u;
+  uint32_t duty = (brightness_percent * kMaxDuty) / 100u;
   if (kBacklightActiveLow) {
     duty = kMaxDuty - duty;
   }

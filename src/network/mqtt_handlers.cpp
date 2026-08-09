@@ -802,9 +802,6 @@ static bool parseBoolPayload(const char* payload, bool* out) {
   return false;
 }
 
-static constexpr uint8_t kDisplayBrightnessMin = 121;
-static constexpr uint8_t kDisplayBrightnessMax = 255;
-
 static bool entityEquals(const char* entity_id, const char* expected) {
   if (!entity_id || !expected) return false;
   String a(entity_id);
@@ -815,21 +812,15 @@ static bool entityEquals(const char* entity_id, const char* expected) {
 }
 
 static int brightnessPctFromRaw(int raw) {
-  if (raw < kDisplayBrightnessMin) raw = kDisplayBrightnessMin;
-  if (raw > kDisplayBrightnessMax) raw = kDisplayBrightnessMax;
-  const int span = kDisplayBrightnessMax - kDisplayBrightnessMin;
-  if (span <= 0) return 100;
-  return 1 + static_cast<int>((static_cast<long>(raw - kDisplayBrightnessMin) * 99L + (span / 2)) / span);
+  if (raw < 0) raw = 0;
+  if (raw > 255) raw = 255;
+  return Device::backlightPercentFromRaw(static_cast<uint8_t>(raw));
 }
 
 static uint8_t brightnessRawFromPct(int pct) {
   if (pct < 1) pct = 1;
   if (pct > 100) pct = 100;
-  const int span = kDisplayBrightnessMax - kDisplayBrightnessMin;
-  int raw = kDisplayBrightnessMin + static_cast<int>((static_cast<long>(pct - 1) * span + 49L) / 99L);
-  if (raw < kDisplayBrightnessMin) raw = kDisplayBrightnessMin;
-  if (raw > kDisplayBrightnessMax) raw = kDisplayBrightnessMax;
-  return static_cast<uint8_t>(raw);
+  return Device::backlightRawFromPercent(static_cast<uint8_t>(pct));
 }
 
 static const char* sleepLabelFromConfig(bool enabled, uint16_t seconds) {
@@ -907,20 +898,30 @@ static bool parseSleepPayload(const char* payload, bool* enabled, uint16_t* seco
 
 static void handleDisplayBrightnessCommand(const char* payload, size_t) {
   if (!payload || !*payload) return;
-  int value = atoi(payload);
-  if (value < kDisplayBrightnessMin) value = kDisplayBrightnessMin;
-  if (value > 255) value = 255;
+  int command_value = atoi(payload);
+  uint8_t value = 0;
+  if (command_value > 100) {
+    // Compatibility with Bridge versions that used the old 121..255 raw
+    // protocol. New firmware and Bridge versions exchange 1..100 percent.
+    if (command_value > 255) command_value = 255;
+    if (command_value < Device::kBacklightInputMin) {
+      command_value = Device::kBacklightInputMin;
+    }
+    value = static_cast<uint8_t>(command_value);
+  } else {
+    value = brightnessRawFromPct(command_value);
+  }
 
   // Eine HA-Aenderung der Normalhelligkeit darf einen sichtbaren
   // Screensaver nicht aufhellen. Im Sleep wird nur der sichere Wake-Wert
   // aktualisiert, das Backlight bleibt aus.
   if (!is_image_screensaver_visible()) {
-    powerManager.setDisplayBrightness(static_cast<uint8_t>(value));
+    powerManager.setDisplayBrightness(value);
   }
 
   const DeviceConfig& cfg = configManager.getConfig();
   configManager.saveDisplaySettings(
-      static_cast<uint8_t>(value),
+      value,
       cfg.auto_sleep_enabled,
       cfg.auto_sleep_seconds,
       cfg.auto_sleep_battery_enabled,
@@ -1106,9 +1107,8 @@ static bool handle_local_switch_command(const char* entity_id, const char* actio
 static bool handle_local_light_command(const char* entity_id, const char* state, int brightness_pct) {
   if (entityEquals(entity_id, kEntityDisplayBrightness)) {
     if (brightness_pct >= 0) {
-      uint8_t raw = brightnessRawFromPct(brightness_pct);
       char buf[8];
-      snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(raw));
+      snprintf(buf, sizeof(buf), "%d", brightness_pct);
       handleDisplayBrightnessCommand(buf, 0);
     } else {
       (void)state;
@@ -1741,7 +1741,8 @@ void mqttPublishDeviceSettings() {
   };
 
   char buf[16];
-  snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(cfg.display_brightness));
+  snprintf(buf, sizeof(buf), "%d",
+           brightnessPctFromRaw(static_cast<int>(cfg.display_brightness)));
   publish_state(TopicKey::DISPLAY_BRIGHTNESS_STAT, buf);
   snprintf(buf, sizeof(buf), "%u",
            static_cast<unsigned>(cfg.screensaver_brightness_pct));
