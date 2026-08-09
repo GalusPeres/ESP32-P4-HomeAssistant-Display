@@ -60,6 +60,17 @@ SwitchTileWidgets g_tab1_switches[TILES_PER_GRID];
 SwitchTileWidgets g_tab2_switches[TILES_PER_GRID];
 SwitchTileWidgets g_screensaver_switches[TILES_PER_GRID];
 
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+WeatherTileWidgets* g_tab0_weather = nullptr;
+WeatherTileWidgets* g_tab1_weather = nullptr;
+WeatherTileWidgets* g_tab2_weather = nullptr;
+
+MediaTileWidgets* g_tab0_media = nullptr;
+MediaTileWidgets* g_tab1_media = nullptr;
+MediaTileWidgets* g_tab2_media = nullptr;
+MediaTileWidgets* g_screensaver_media = nullptr;
+static bool g_cold_state_init_attempted = false;
+#else
 WeatherTileWidgets g_tab0_weather[TILES_PER_GRID];
 WeatherTileWidgets g_tab1_weather[TILES_PER_GRID];
 WeatherTileWidgets g_tab2_weather[TILES_PER_GRID];
@@ -68,6 +79,7 @@ MediaTileWidgets g_tab0_media[TILES_PER_GRID];
 MediaTileWidgets g_tab1_media[TILES_PER_GRID];
 MediaTileWidgets g_tab2_media[TILES_PER_GRID];
 MediaTileWidgets g_screensaver_media[TILES_PER_GRID];
+#endif
 
 SwitchState g_tab0_switch_states[TILES_PER_GRID];
 SwitchState g_tab1_switch_states[TILES_PER_GRID];
@@ -112,6 +124,57 @@ static ClimateState* allocate_climate_states(const char* grid_name) {
   return states;
 }
 
+bool tile_renderer_init_cold_storage() {
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+  if (g_tab0_weather && g_tab0_media) return true;
+  if (g_cold_state_init_attempted) return false;
+  g_cold_state_init_attempted = true;
+
+  constexpr size_t kWeatherCount = TILES_PER_GRID * 3U;
+  constexpr size_t kMediaCount = TILES_PER_GRID * 4U;
+  auto* weather = static_cast<WeatherTileWidgets*>(heap_caps_malloc(
+      sizeof(WeatherTileWidgets) * kWeatherCount,
+      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  if (!weather) {
+    Serial.printf(
+        "[Tiles/Mem] ERROR: Weather-State (%u Bytes) nicht in PSRAM allokiert\n",
+        static_cast<unsigned>(sizeof(WeatherTileWidgets) * kWeatherCount));
+    return false;
+  }
+  for (size_t i = 0; i < kWeatherCount; ++i) {
+    new (&weather[i]) WeatherTileWidgets();
+  }
+
+  auto* media = static_cast<MediaTileWidgets*>(heap_caps_malloc(
+      sizeof(MediaTileWidgets) * kMediaCount,
+      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  if (!media) {
+    Serial.printf(
+        "[Tiles/Mem] ERROR: Media-State (%u Bytes) nicht in PSRAM allokiert\n",
+        static_cast<unsigned>(sizeof(MediaTileWidgets) * kMediaCount));
+    for (size_t i = 0; i < kWeatherCount; ++i) weather[i].~WeatherTileWidgets();
+    heap_caps_free(weather);
+    return false;
+  }
+  for (size_t i = 0; i < kMediaCount; ++i) {
+    new (&media[i]) MediaTileWidgets();
+  }
+
+  g_tab0_weather = weather;
+  g_tab1_weather = weather + TILES_PER_GRID;
+  g_tab2_weather = weather + TILES_PER_GRID * 2U;
+  g_tab0_media = media;
+  g_tab1_media = media + TILES_PER_GRID;
+  g_tab2_media = media + TILES_PER_GRID * 2U;
+  g_screensaver_media = media + TILES_PER_GRID * 3U;
+  Serial.printf(
+      "[Tiles/Mem] Weather=%u Bytes Media=%u Bytes in PSRAM\n",
+      static_cast<unsigned>(sizeof(WeatherTileWidgets) * kWeatherCount),
+      static_cast<unsigned>(sizeof(MediaTileWidgets) * kMediaCount));
+#endif
+  return true;
+}
+
 SensorTileWidgets* tile_renderer_get_sensor_widgets(GridType grid_type) {
   if (grid_type == GridType::SCREENSAVER) return g_screensaver_sensors;
   if (grid_type == GridType::TAB1) return g_tab1_sensors;
@@ -127,12 +190,14 @@ SwitchTileWidgets* tile_renderer_get_switch_widgets(GridType grid_type) {
 }
 
 WeatherTileWidgets* tile_renderer_get_weather_widgets(GridType grid_type) {
+  if (!tile_renderer_init_cold_storage()) return nullptr;
   if (grid_type == GridType::TAB1) return g_tab1_weather;
   if (grid_type == GridType::TAB2) return g_tab2_weather;
   return g_tab0_weather;
 }
 
 MediaTileWidgets* tile_renderer_get_media_widgets(GridType grid_type) {
+  if (!tile_renderer_init_cold_storage()) return nullptr;
   if (grid_type == GridType::SCREENSAVER) return g_screensaver_media;
   if (grid_type == GridType::TAB1) return g_tab1_media;
   if (grid_type == GridType::TAB2) return g_tab2_media;
@@ -341,26 +406,28 @@ void tile_renderer_snapshot_tab0(TileWidgetCache* out) {
   if (!out) return;
   ClimateState* climate_states =
       tile_renderer_get_climate_states(GridType::TAB0);
-  memcpy(out->sensors, g_tab0_sensors, sizeof(g_tab0_sensors));
-  memcpy(out->switches, g_tab0_switches, sizeof(g_tab0_switches));
-  memcpy(out->switch_states, g_tab0_switch_states, sizeof(g_tab0_switch_states));
-  memcpy(out->climate, g_tab0_climate, sizeof(g_tab0_climate));
+  memcpy(out->sensors, g_tab0_sensors, sizeof(out->sensors));
+  memcpy(out->switches, g_tab0_switches, sizeof(out->switches));
+  memcpy(out->switch_states, g_tab0_switch_states,
+         sizeof(out->switch_states));
+  memcpy(out->climate, g_tab0_climate, sizeof(out->climate));
   memcpy(out->climate_states, climate_states, sizeof(out->climate_states));
-  memcpy(out->weather, g_tab0_weather, sizeof(g_tab0_weather));
-  memcpy(out->media, g_tab0_media, sizeof(g_tab0_media));
+  memcpy(out->weather, g_tab0_weather, sizeof(out->weather));
+  memcpy(out->media, g_tab0_media, sizeof(out->media));
 }
 
 void tile_renderer_restore_tab0(const TileWidgetCache* in) {
   if (!in) return;
   ClimateState* climate_states =
       tile_renderer_get_climate_states(GridType::TAB0);
-  memcpy(g_tab0_sensors, in->sensors, sizeof(g_tab0_sensors));
-  memcpy(g_tab0_switches, in->switches, sizeof(g_tab0_switches));
-  memcpy(g_tab0_switch_states, in->switch_states, sizeof(g_tab0_switch_states));
-  memcpy(g_tab0_climate, in->climate, sizeof(g_tab0_climate));
+  memcpy(g_tab0_sensors, in->sensors, sizeof(in->sensors));
+  memcpy(g_tab0_switches, in->switches, sizeof(in->switches));
+  memcpy(g_tab0_switch_states, in->switch_states,
+         sizeof(in->switch_states));
+  memcpy(g_tab0_climate, in->climate, sizeof(in->climate));
   memcpy(climate_states, in->climate_states, sizeof(in->climate_states));
-  memcpy(g_tab0_weather, in->weather, sizeof(g_tab0_weather));
-  memcpy(g_tab0_media, in->media, sizeof(g_tab0_media));
+  memcpy(g_tab0_weather, in->weather, sizeof(in->weather));
+  memcpy(g_tab0_media, in->media, sizeof(in->media));
 }
 
 /* === Thread-Safe Update Queue (MQTT ��� Main Loop) === */

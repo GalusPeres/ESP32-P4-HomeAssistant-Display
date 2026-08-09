@@ -305,6 +305,10 @@ struct TileWidgetCache {
   MediaTileWidgets media[TILES_PER_GRID];
 };
 
+// Allocate the large, cold renderer bookkeeping arrays. On Waveshare 8 these
+// live in PSRAM; other profiles keep their established static storage.
+bool tile_renderer_init_cold_storage();
+
 // Rendert ein komplettes Tile-Grid (4x4)
 void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType grid_type,
                       scene_publish_cb_t scene_cb = nullptr, lv_obj_t** out_tile_objs = nullptr);

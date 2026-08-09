@@ -37,23 +37,33 @@ static bool g_tiles_icon_refresh_requested = false;
 static uint32_t g_tiles_icon_generation = 1;
 
 static constexpr uint16_t kInvalidFolderId = 0xFFFF;
-// The Waveshare 8 keeps the visible folder plus up to four direct navigation
+// The Waveshare 8 keeps the visible folder plus up to five direct navigation
 // targets. Other devices retain the previous root + three recent working set.
 // FolderCacheEntry storage itself lives in PSRAM; slots beyond the guaranteed
-// first three are still admitted only while the measured internal-heap guard
-// below remains healthy.
+// first three are admitted only while the measured post-build reserves below
+// remain healthy.
 static constexpr size_t kMinResidentFolderUiCaches = 3;
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
-static constexpr size_t kMaxResidentFolderUiCaches = 5;
-static constexpr size_t kMaxNavigationPreloadTargets = 4;
+static constexpr size_t kMaxResidentFolderUiCaches = 6;
+static constexpr size_t kMaxNavigationPreloadTargets = 5;
 static constexpr uint32_t kNavigationPreloadIdleMs = 750;
 static constexpr uint32_t kNavigationPreloadInitialDelayMs = 3000;
 static constexpr uint32_t kNavigationPreloadStepGapMs = 250;
+// Existing device logs show 125-130 KB internal free RAM and 69-71 KB as the
+// largest block after network start. Creating or deleting a folder grid changes
+// total internal RAM by only 1-4 KB and does not change that largest block. The
+// old 72-KB-largest-block gate therefore measured the 72-KB LVGL draw band, not
+// the cost of the next grid. Keep real post-build reserves instead and budget
+// the largest observed cost of a previous grid before admitting the next one.
+static constexpr uint32_t kFolderCacheMinInternalAfterBuild = 96UL * 1024UL;
+static constexpr uint32_t kFolderCacheMinDmaAfterBuild = 48UL * 1024UL;
+static constexpr uint32_t kFolderCacheMinLargestDmaBlock = 24UL * 1024UL;
+static constexpr uint32_t kFolderCacheInitialEstimatedCost = 8UL * 1024UL;
 #else
 static constexpr size_t kMaxResidentFolderUiCaches = 4;
-#endif
 static constexpr uint32_t kFolderCacheGrowMinInternalFreeBytes = 112UL * 1024UL;
 static constexpr uint32_t kFolderCacheGrowMinLargestInternalBytes = 72UL * 1024UL;
+#endif
 
 struct FolderCacheEntry {
   uint16_t folder_id = kInvalidFolderId;
@@ -83,11 +93,15 @@ static TileWidgetCache* g_cache_build_saved_widgets = nullptr;
 static bool g_folder_switch_pending = false;
 static uint16_t g_pending_folder_id = kInvalidFolderId;
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
-static uint16_t g_navigation_preload_targets[kMaxNavigationPreloadTargets] = {
-    kInvalidFolderId, kInvalidFolderId, kInvalidFolderId, kInvalidFolderId};
+static uint16_t g_navigation_preload_targets[kMaxNavigationPreloadTargets] = {};
 static size_t g_navigation_preload_target_count = 0;
 static size_t g_navigation_preload_cursor = 0;
 static uint32_t g_navigation_preload_not_before_ms = 0;
+static uint16_t g_navigation_parent_folder_id = kInvalidFolderId;
+static uint32_t g_folder_cache_observed_internal_cost =
+    kFolderCacheInitialEstimatedCost;
+static uint32_t g_folder_cache_observed_dma_cost =
+    kFolderCacheInitialEstimatedCost;
 #endif
 static bool g_visible_cache_refresh_requested = false;
 static bool g_bridge_cache_refresh_requested = false;
@@ -194,10 +208,12 @@ static void clear_navigation_preload_plan() {
   g_navigation_preload_target_count = 0;
   g_navigation_preload_cursor = 0;
   g_navigation_preload_not_before_ms = 0;
+  g_navigation_parent_folder_id = kInvalidFolderId;
 }
 
 static bool navigation_preload_add_target(uint16_t source_folder_id,
-                                          uint16_t target_folder_id) {
+                                          uint16_t target_folder_id,
+                                          bool is_parent = false) {
   if (target_folder_id == kInvalidFolderId ||
       target_folder_id == source_folder_id ||
       !tileConfig.folderExists(target_folder_id)) {
@@ -211,12 +227,25 @@ static bool navigation_preload_add_target(uint16_t source_folder_id,
   }
   g_navigation_preload_targets[g_navigation_preload_target_count++] =
       target_folder_id;
+  if (is_parent) g_navigation_parent_folder_id = target_folder_id;
   return true;
 }
 
 static uint16_t navigation_folder_id_from_tile(const Tile& tile) {
   return static_cast<uint16_t>(
       (static_cast<uint16_t>(tile.key_modifier) << 8) | tile.key_code);
+}
+
+static size_t navigation_preload_priority(uint16_t folder_id) {
+  for (size_t i = 0; i < g_navigation_preload_target_count; ++i) {
+    if (g_navigation_preload_targets[i] == folder_id) return i;
+  }
+  return kMaxNavigationPreloadTargets;
+}
+
+static bool navigation_folder_is_parent(uint16_t folder_id) {
+  return g_navigation_parent_folder_id != kInvalidFolderId &&
+         folder_id == g_navigation_parent_folder_id;
 }
 
 static void schedule_navigation_preload(
@@ -229,13 +258,44 @@ static void schedule_navigation_preload(
   for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
     if (config.tiles[i].type != TILE_BACK) continue;
     navigation_preload_add_target(
-        source_folder_id, tileConfig.getFolderParent(source_folder_id));
+        source_folder_id, tileConfig.getFolderParent(source_folder_id), true);
+    break;
   }
+
+  struct NavigationCandidate {
+    uint16_t folder_id = kInvalidFolderId;
+    uint8_t row = 0;
+    uint8_t col = 0;
+    uint8_t config_index = 0;
+  };
+  NavigationCandidate candidates[TILES_PER_GRID]{};
+  size_t candidate_count = 0;
   for (uint8_t i = 0; i < TILES_PER_GRID; ++i) {
     const Tile& tile = config.tiles[i];
     if (tile.type != TILE_FOLDER) continue;
-    navigation_preload_add_target(source_folder_id,
-                                  navigation_folder_id_from_tile(tile));
+    candidates[candidate_count++] = {
+        navigation_folder_id_from_tile(tile), tile.row, tile.col, i};
+  }
+  // Config entries are not guaranteed to be stored in visual order. A stable
+  // insertion sort keeps preload priority equal to what the user sees: top to
+  // bottom, left to right, with config index as deterministic tie breaker.
+  for (size_t i = 1; i < candidate_count; ++i) {
+    const NavigationCandidate value = candidates[i];
+    size_t pos = i;
+    while (pos > 0) {
+      const NavigationCandidate& prev = candidates[pos - 1];
+      const bool before = value.row < prev.row ||
+                          (value.row == prev.row && value.col < prev.col) ||
+                          (value.row == prev.row && value.col == prev.col &&
+                           value.config_index < prev.config_index);
+      if (!before) break;
+      candidates[pos] = prev;
+      --pos;
+    }
+    candidates[pos] = value;
+  }
+  for (size_t i = 0; i < candidate_count; ++i) {
+    navigation_preload_add_target(source_folder_id, candidates[i].folder_id);
     if (g_navigation_preload_target_count >=
         kMaxNavigationPreloadTargets) {
       break;
@@ -243,8 +303,9 @@ static void schedule_navigation_preload(
   }
 
   g_navigation_preload_not_before_ms = millis() + initial_delay_ms;
-  Serial.printf("[Tiles] nav-preload plan folder=%u targets=%u",
+  Serial.printf("[Tiles] nav-preload plan folder=%u parent=%u targets=%u",
                 static_cast<unsigned>(source_folder_id),
+                static_cast<unsigned>(g_navigation_parent_folder_id),
                 static_cast<unsigned>(g_navigation_preload_target_count));
   for (size_t i = 0; i < g_navigation_preload_target_count; ++i) {
     Serial.printf(" %u",
@@ -253,13 +314,6 @@ static void schedule_navigation_preload(
   Serial.println();
 }
 
-static bool folder_is_in_navigation_working_set(uint16_t folder_id) {
-  if (g_active_cache && g_active_cache->folder_id == folder_id) return true;
-  for (size_t i = 0; i < g_navigation_preload_target_count; ++i) {
-    if (g_navigation_preload_targets[i] == folder_id) return true;
-  }
-  return false;
-}
 #endif
 
 static void build_grid_track_descriptors(lv_coord_t* dsc, uint8_t count, lv_coord_t cell_size) {
@@ -280,8 +334,39 @@ struct EntityCacheEntry {
 };
 
 static constexpr size_t kEntityCacheSize = TILES_PER_GRID * 8;
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+static EntityCacheEntry* g_entity_cache = nullptr;
+static bool g_entity_cache_init_attempted = false;
+#else
 static EntityCacheEntry g_entity_cache[kEntityCacheSize];
+#endif
 static size_t g_entity_cache_cursor = 0;
+
+static bool ensure_entity_cache_storage() {
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+  if (g_entity_cache) return true;
+  if (g_entity_cache_init_attempted) return false;
+  g_entity_cache_init_attempted = true;
+  void* memory = heap_caps_malloc(
+      sizeof(EntityCacheEntry) * kEntityCacheSize,
+      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!memory) {
+    Serial.printf(
+        "[Tiles/Mem] ERROR: Entity-Cache (%u Bytes) nicht in PSRAM allokiert; "
+        "Cache deaktiviert\n",
+        static_cast<unsigned>(sizeof(EntityCacheEntry) * kEntityCacheSize));
+    return false;
+  }
+  g_entity_cache = static_cast<EntityCacheEntry*>(memory);
+  for (size_t i = 0; i < kEntityCacheSize; ++i) {
+    new (&g_entity_cache[i]) EntityCacheEntry();
+  }
+  Serial.printf("[Tiles/Mem] Entity-Cache=%u Bytes in PSRAM\n",
+                static_cast<unsigned>(sizeof(EntityCacheEntry) *
+                                      kEntityCacheSize));
+#endif
+  return true;
+}
 
 static uint32_t hash_entity_payload(const char* payload, size_t length) {
   uint32_t hash = 2166136261u;
@@ -328,6 +413,7 @@ static bool merge_cached_cover_fields(const String& old_payload, String& new_pay
 
 static void cache_entity_payload_at(const char* entity_id, const char* payload, uint32_t updated_ms, bool keep_newer) {
   if (!entity_id || !payload || entity_id[0] == '\0') return;
+  if (!ensure_entity_cache_storage()) return;
   if (updated_ms == 0) updated_ms = millis();
 
   for (size_t i = 0; i < kEntityCacheSize; ++i) {
@@ -388,6 +474,7 @@ static void cache_entity_payload_from_bridge(const char* entity_id, const char* 
 
 static bool get_cached_entity_payload(const char* entity_id, String& out) {
   if (!entity_id || entity_id[0] == '\0') return false;
+  if (!ensure_entity_cache_storage()) return false;
   for (size_t i = 0; i < kEntityCacheSize; ++i) {
     const EntityCacheEntry& entry = g_entity_cache[i];
     if (entry.valid && entry.entity_id.equalsIgnoreCase(entity_id)) {
@@ -406,6 +493,7 @@ bool tiles_get_cached_entity_payload_signature(const char* entity_id,
                                                uint32_t& hash_out,
                                                size_t& length_out) {
   if (!entity_id || entity_id[0] == '\0') return false;
+  if (!ensure_entity_cache_storage()) return false;
   for (size_t i = 0; i < kEntityCacheSize; ++i) {
     const EntityCacheEntry& entry = g_entity_cache[i];
     if (!entry.valid || !entry.entity_id.equalsIgnoreCase(entity_id)) continue;
@@ -684,13 +772,70 @@ static size_t resident_folder_cache_count() {
   return count;
 }
 
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+struct FolderCacheMemorySnapshot {
+  uint32_t internal_free = 0;
+  uint32_t dma_free = 0;
+  uint32_t dma_largest = 0;
+  uint32_t psram_free = 0;
+};
+
+static FolderCacheMemorySnapshot folder_cache_memory_snapshot() {
+  FolderCacheMemorySnapshot snapshot;
+  snapshot.internal_free =
+      heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  snapshot.dma_free = heap_caps_get_free_size(
+      MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+  snapshot.dma_largest = heap_caps_get_largest_free_block(
+      MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+  snapshot.psram_free =
+      heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  return snapshot;
+}
+
+static bool folder_cache_post_build_reserve_ok(
+    const FolderCacheMemorySnapshot& snapshot) {
+  return snapshot.internal_free >= kFolderCacheMinInternalAfterBuild &&
+         snapshot.dma_free >= kFolderCacheMinDmaAfterBuild &&
+         snapshot.dma_largest >= kFolderCacheMinLargestDmaBlock &&
+         snapshot.psram_free >= kFolderPreloadMinPsramBytes;
+}
+
+static void observe_folder_cache_build_cost(
+    const FolderCacheMemorySnapshot& before,
+    const FolderCacheMemorySnapshot& after) {
+  const uint32_t internal_cost = before.internal_free > after.internal_free
+                                     ? before.internal_free - after.internal_free
+                                     : 0;
+  const uint32_t dma_cost =
+      before.dma_free > after.dma_free ? before.dma_free - after.dma_free : 0;
+  if (internal_cost > g_folder_cache_observed_internal_cost) {
+    g_folder_cache_observed_internal_cost = internal_cost;
+  }
+  if (dma_cost > g_folder_cache_observed_dma_cost) {
+    g_folder_cache_observed_dma_cost = dma_cost;
+  }
+}
+#endif
+
 static bool folder_cache_has_growth_headroom() {
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+  const FolderCacheMemorySnapshot snapshot = folder_cache_memory_snapshot();
+  return snapshot.internal_free >=
+             kFolderCacheMinInternalAfterBuild +
+                 g_folder_cache_observed_internal_cost &&
+         snapshot.dma_free >=
+             kFolderCacheMinDmaAfterBuild + g_folder_cache_observed_dma_cost &&
+         snapshot.dma_largest >= kFolderCacheMinLargestDmaBlock &&
+         snapshot.psram_free >= kFolderPreloadMinPsramBytes;
+#else
   const uint32_t internal_free =
       heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   const uint32_t largest_internal =
       heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   return internal_free >= kFolderCacheGrowMinInternalFreeBytes &&
          largest_internal >= kFolderCacheGrowMinLargestInternalBytes;
+#endif
 }
 
 static bool folder_cache_requires_eviction_before_build() {
@@ -701,6 +846,19 @@ static bool folder_cache_requires_eviction_before_build() {
   if (resident < kMinResidentFolderUiCaches) return false;
   if (folder_cache_has_growth_headroom()) return false;
 
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+  const FolderCacheMemorySnapshot snapshot = folder_cache_memory_snapshot();
+  Serial.printf(
+      "[Tiles] folder-cache growth stopped at %u grids | int=%lu KB "
+      "dma=%lu KB largest_dma=%lu KB psram=%lu KB estimate=%lu/%lu KB\n",
+      static_cast<unsigned>(resident),
+      static_cast<unsigned long>(snapshot.internal_free / 1024),
+      static_cast<unsigned long>(snapshot.dma_free / 1024),
+      static_cast<unsigned long>(snapshot.dma_largest / 1024),
+      static_cast<unsigned long>(snapshot.psram_free / 1024),
+      static_cast<unsigned long>(g_folder_cache_observed_internal_cost / 1024),
+      static_cast<unsigned long>(g_folder_cache_observed_dma_cost / 1024));
+#else
   Serial.printf(
       "[Tiles] folder-cache growth stopped at %u grids | int=%lu KB largest=%lu KB\n",
       static_cast<unsigned>(resident),
@@ -709,17 +867,20 @@ static bool folder_cache_requires_eviction_before_build() {
       static_cast<unsigned long>(heap_caps_get_largest_free_block(
                                      MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) /
                                  1024));
+#endif
   return true;
 }
 
 static FolderCacheEntry* find_folder_cache_eviction_candidate(
-    uint16_t requested_folder_id) {
+    uint16_t requested_folder_id, bool for_preload) {
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
-  FolderCacheEntry* oldest_outside_working_set = nullptr;
-  FolderCacheEntry* oldest_protected_fallback = nullptr;
-  uint32_t oldest_outside_age = 0;
-  uint32_t oldest_fallback_age = 0;
+  FolderCacheEntry* best = nullptr;
+  bool best_outside_working_set = false;
+  size_t best_priority = 0;
+  uint32_t best_age = 0;
   const uint32_t now = millis();
+  const size_t requested_priority =
+      navigation_preload_priority(requested_folder_id);
 
   for (size_t i = 0; i < g_folder_cache_slot_count; ++i) {
     FolderCacheEntry& entry = g_folder_cache[i];
@@ -727,22 +888,44 @@ static FolderCacheEntry* find_folder_cache_eviction_candidate(
         entry.folder_id == requested_folder_id) {
       continue;
     }
+    // Parent/back is the one target that must survive every lower-priority
+    // preload and every normal child navigation. The active grid is excluded
+    // above and becomes the new parent after entering a child.
+    if (navigation_folder_is_parent(entry.folder_id)) continue;
+
     const uint32_t age = now - entry.last_used_ms;
-    if (!folder_is_in_navigation_working_set(entry.folder_id)) {
-      if (!oldest_outside_working_set || age > oldest_outside_age) {
-        oldest_outside_working_set = &entry;
-        oldest_outside_age = age;
-      }
-    } else if (!oldest_protected_fallback || age > oldest_fallback_age) {
-      // Only used on reduced-slot/low-headroom fallbacks. With five healthy
-      // slots, current + four navigation targets never reaches this branch.
-      oldest_protected_fallback = &entry;
-      oldest_fallback_age = age;
+    const size_t priority = navigation_preload_priority(entry.folder_id);
+    const bool outside_working_set =
+        priority >= g_navigation_preload_target_count;
+
+    // A background preload may replace stale/outside entries or a strictly
+    // lower-priority target only. It must never evict an already resident
+    // higher-priority target to make room for a later one.
+    if (for_preload && !outside_working_set &&
+        requested_priority < g_navigation_preload_target_count &&
+        priority <= requested_priority) {
+      continue;
     }
+
+    bool prefer = !best;
+    if (best) {
+      if (outside_working_set != best_outside_working_set) {
+        prefer = outside_working_set;
+      } else if (!outside_working_set && priority != best_priority) {
+        prefer = priority > best_priority;
+      } else {
+        prefer = age > best_age;
+      }
+    }
+    if (!prefer) continue;
+    best = &entry;
+    best_outside_working_set = outside_working_set;
+    best_priority = priority;
+    best_age = age;
   }
-  return oldest_outside_working_set ? oldest_outside_working_set
-                                    : oldest_protected_fallback;
+  return best;
 #else
+  (void)for_preload;
   static constexpr uint16_t kRootFolderId = 0;
   FolderCacheEntry* oldest = nullptr;
   FolderCacheEntry* root_fallback = nullptr;
@@ -769,9 +952,10 @@ static FolderCacheEntry* find_folder_cache_eviction_candidate(
 #endif
 }
 
-static bool evict_folder_cache_before_build(uint16_t requested_folder_id) {
+static bool evict_folder_cache_before_build(uint16_t requested_folder_id,
+                                            bool for_preload = false) {
   FolderCacheEntry* victim =
-      find_folder_cache_eviction_candidate(requested_folder_id);
+      find_folder_cache_eviction_candidate(requested_folder_id, for_preload);
   if (!victim) return false;
 
   const uint16_t victim_id = victim->folder_id;
@@ -799,11 +983,12 @@ static bool evict_folder_cache_before_build(uint16_t requested_folder_id) {
     lvgl_used_after = monitor.total_size - monitor.free_size;
   }
   Serial.printf(
-      "[Tiles] folder-cache evict folder=%u vor folder=%u in %lu ms | "
+      "[Tiles] folder-cache evict folder=%u vor folder=%u mode=%s in %lu ms | "
       "resident=%u->%u | int=%lu->%lu KB largest=%lu->%lu KB | "
       "LVGL=%lu->%lu KB | root-children=%lu->%lu\n",
       static_cast<unsigned>(victim_id),
       static_cast<unsigned>(requested_folder_id),
+      for_preload ? "preload" : "click",
       static_cast<unsigned long>(millis() - started_ms),
       static_cast<unsigned>(resident_before),
       static_cast<unsigned>(resident_folder_cache_count()),
@@ -930,19 +1115,21 @@ static void process_navigation_preload() {
 
     if (!target) target = allocate_folder_cache(folder_id);
     if (!target) {
-      if (evict_folder_cache_before_build(folder_id)) {
+      if (evict_folder_cache_before_build(folder_id, true)) {
         g_navigation_preload_not_before_ms =
             millis() + kNavigationPreloadStepGapMs;
         return;
       }
       Serial.printf("[Tiles] nav-preload no slot for folder=%u\n",
                     static_cast<unsigned>(folder_id));
-      ++g_navigation_preload_cursor;
-      continue;
+      // Later targets are lower priority and must not displace anything that
+      // was kept for this one.
+      g_navigation_preload_cursor = g_navigation_preload_target_count;
+      return;
     }
 
     if (!target->grid && folder_cache_requires_eviction_before_build()) {
-      if (evict_folder_cache_before_build(folder_id)) {
+      if (evict_folder_cache_before_build(folder_id, true)) {
         g_navigation_preload_not_before_ms =
             millis() + kNavigationPreloadStepGapMs;
         return;
@@ -950,24 +1137,51 @@ static void process_navigation_preload() {
       Serial.printf(
           "[Tiles] nav-preload stopped for folder=%u: no safe victim\n",
           static_cast<unsigned>(folder_id));
-      ++g_navigation_preload_cursor;
-      continue;
+      g_navigation_preload_cursor = g_navigation_preload_target_count;
+      return;
     }
 
+    const FolderCacheMemorySnapshot memory_before =
+        folder_cache_memory_snapshot();
     const uint32_t started_ms = millis();
     build_folder_cache_entry(*target, GridType::TAB0);
+    const FolderCacheMemorySnapshot memory_after =
+        folder_cache_memory_snapshot();
+    observe_folder_cache_build_cost(memory_before, memory_after);
     if (target->grid && target->loaded && target->widgets_valid) {
+      if (!folder_cache_post_build_reserve_ok(memory_after)) {
+        Serial.printf(
+            "[Tiles] nav-preload rollback folder=%u: reserve unterschritten | "
+            "int=%lu KB dma=%lu KB largest_dma=%lu KB psram=%lu KB\n",
+            static_cast<unsigned>(folder_id),
+            static_cast<unsigned long>(memory_after.internal_free / 1024),
+            static_cast<unsigned long>(memory_after.dma_free / 1024),
+            static_cast<unsigned long>(memory_after.dma_largest / 1024),
+            static_cast<unsigned long>(memory_after.psram_free / 1024));
+        reset_cache_entry(*target);
+        g_navigation_preload_cursor = g_navigation_preload_target_count;
+        return;
+      }
       Serial.printf(
           "[Tiles] nav-preload built folder=%u in %lu ms | resident=%u/%u "
-          "int=%lu KB largest=%lu KB\n",
+          "int=%lu KB dma=%lu KB largest_dma=%lu KB cost=%lu/%lu KB\n",
           static_cast<unsigned>(folder_id),
           static_cast<unsigned long>(millis() - started_ms),
           static_cast<unsigned>(resident_folder_cache_count()),
           static_cast<unsigned>(g_folder_cache_slot_count),
+          static_cast<unsigned long>(memory_after.internal_free / 1024),
+          static_cast<unsigned long>(memory_after.dma_free / 1024),
+          static_cast<unsigned long>(memory_after.dma_largest / 1024),
           static_cast<unsigned long>(
-              heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
+              (memory_before.internal_free > memory_after.internal_free
+                   ? memory_before.internal_free - memory_after.internal_free
+                   : 0) /
+              1024),
           static_cast<unsigned long>(
-              heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024));
+              (memory_before.dma_free > memory_after.dma_free
+                   ? memory_before.dma_free - memory_after.dma_free
+                   : 0) /
+              1024));
     } else {
       Serial.printf("[Tiles] nav-preload build failed for folder=%u\n",
                     static_cast<unsigned>(folder_id));
@@ -1250,6 +1464,15 @@ static void apply_cached_state_for_index(GridType grid_type, const TileGridConfi
 /* === Aufbau Tiles-Tab (unified) === */
 void build_tiles_tab(lv_obj_t *parent, GridType grid_type, scene_publish_cb_t scene_cb) {
   uint8_t idx = (uint8_t)grid_type;
+  if (!tile_renderer_init_cold_storage()) {
+    Serial.println("[Tiles/Mem] ERROR: Renderer-State nicht verfuegbar");
+    return;
+  }
+  if (grid_type == GridType::TAB0) {
+    // Allocate before folder grids so PSRAM use and the freed internal bytes are
+    // deterministic in the cache-build measurements below.
+    ensure_entity_cache_storage();
+  }
   g_tiles_scene_cbs[idx] = scene_cb;
 
   lv_obj_set_style_bg_color(parent, lv_color_hex(0x000000), 0);
