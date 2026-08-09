@@ -71,6 +71,7 @@ bool storageReady();
 fs::FS& storageFS();
 
 bool sdReady();
+bool sdWritable();
 fs::FS& sdFS();
 bool suspendSDCardForNetworkTransition();
 bool resumeSDCardAfterNetworkTransition();

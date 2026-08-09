@@ -84,6 +84,7 @@ public:
   void handleCoreDumpDownload();
   void handleCoreDumpErase();
   void handleCrashLogDownload();
+  void handleSdDiagnosticsDownload();
 
   // HTML-Seiten (implemented in web_admin_html.cpp)
   String getAdminPage();

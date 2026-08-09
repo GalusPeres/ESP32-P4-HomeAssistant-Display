@@ -1279,6 +1279,12 @@ String WebAdminServer::getAdminPage() {
                   <button class="btn btn-secondary" type="button" onclick="downloadCrashLog()">)html";
   html += tr.crash_log_download;
   html += R"html(</button>
+)html";
+  html += R"html(                  <button class="btn btn-secondary" type="button" onclick="window.open('/api/sd-diagnostics?ts=' + Date.now(), '_blank')">)html";
+  html += tr.sd_diagnostics_open;
+  html += R"html(</button>
+)html";
+  html += R"html(
                 </div>
                 <div class="settings-note">)html";
   html += tr.screenshot_saved_note;

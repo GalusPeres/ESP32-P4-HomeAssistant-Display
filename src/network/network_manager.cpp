@@ -422,7 +422,19 @@ bool HomeTilesNetworkManager::ensureWifiStationStarted() {
   WiFi.persistent(false);
 #endif
   if (!isWifiStationEnabled()) {
-    if (!WiFi.mode(WIFI_STA)) {
+    // On the JC1060P470C, the card is mounted on SDMMC slot 0 while
+    // ESP-Hosted starts on slot 1. Mount the card again after that shared host
+    // transition so the write test and FAT driver use the final runtime state.
+#if defined(DEVICE_GUITION_JC1060P470C)
+    const bool sd_was_mounted = Device::suspendSDCardForNetworkTransition();
+#endif
+    const bool wifi_started = WiFi.mode(WIFI_STA);
+#if defined(DEVICE_GUITION_JC1060P470C)
+    if (sd_was_mounted && !Device::resumeSDCardAfterNetworkTransition()) {
+      Serial.println("[Network] SD remount after ESP-Hosted start failed");
+    }
+#endif
+    if (!wifi_started) {
       networkTransport.setWifiDriverActive(false);
       Serial.println("WiFi: STA-Start fehlgeschlagen");
       return false;

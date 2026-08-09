@@ -31,17 +31,20 @@
 #include <esp_core_dump.h>
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
+#include <esp_vfs_fat.h>
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
 #include <img_converters.h>
 #else
 #include <driver/jpeg_encode.h>
 #endif
 #include <esp_heap_caps.h>
+#include <esp_random.h>
 #include <lvgl.h>
 #include <algorithm>
 #include <vector>
 #include <memory>
 #include <libs/tjpgd/tjpgd.h>
+#include <cerrno>
 #include <new>
 #include <stdlib.h>
 #include <string.h>
@@ -235,6 +238,41 @@ void sendJsonError(WebServer& server, int code, const String& error) {
 
 void sendJsonOk(WebServer& server) {
   server.send(200, "application/json", "{\"success\":true}");
+}
+
+bool requireFileManagerWriteAccess(WebServer& server, const String& fs_key) {
+  if (fs_key != "sd" || Device::sdWritable()) {
+    return true;
+  }
+  Serial.println("[FileManager/SD] write rejected: mounted card did not pass the write test");
+  sendJsonError(server,
+                423,
+                "microSD is readable but not writable; check the serial SD write-test error");
+  return false;
+}
+
+void logFileManagerWriteFailure(const char* operation,
+                                const String& fs_key,
+                                const String& path,
+                                int error_number) {
+  Serial.printf("[FileManager/SD] operation=%s fs=%s path=%s errno=%d (%s)\n",
+                operation ? operation : "unknown",
+                fs_key.c_str(),
+                path.c_str(),
+                error_number,
+                error_number ? strerror(error_number) : "none");
+}
+
+String fileManagerWriteError(const char* message, int error_number) {
+  String result = message ? String(message) : String("microSD write failed");
+  if (error_number) {
+    result += " (errno ";
+    result += String(error_number);
+    result += ": ";
+    result += strerror(error_number);
+    result += ")";
+  }
+  return result;
 }
 
 String fileManagerContentType(const String& path) {
@@ -2830,6 +2868,7 @@ void WebAdminServer::handleFileManagerDelete() {
     sendJsonError(server, 503, error);
     return;
   }
+  if (!requireFileManagerWriteAccess(server, fs_key)) return;
 
   const String path = normalizeFileManagerPath(server.hasArg("path") ? server.arg("path") : String());
   if (!isSafeFileManagerPath(path) || path == "/") {
@@ -2858,6 +2897,7 @@ void WebAdminServer::handleFileManagerRename() {
     sendJsonError(server, 503, error);
     return;
   }
+  if (!requireFileManagerWriteAccess(server, fs_key)) return;
 
   const String path = normalizeFileManagerPath(server.hasArg("path") ? server.arg("path") : String());
   String new_name = server.hasArg("name") ? server.arg("name") : String();
@@ -2880,8 +2920,11 @@ void WebAdminServer::handleFileManagerRename() {
     sendJsonError(server, 409, "Target already exists");
     return;
   }
+  errno = 0;
   if (!fs->rename(path, target)) {
-    sendJsonError(server, 500, "Rename failed");
+    const int saved_errno = errno;
+    logFileManagerWriteFailure("rename", fs_key, target, saved_errno);
+    sendJsonError(server, 500, fileManagerWriteError("Rename failed", saved_errno));
     return;
   }
 
@@ -2900,6 +2943,7 @@ void WebAdminServer::handleFileManagerMkdir() {
     sendJsonError(server, 503, error);
     return;
   }
+  if (!requireFileManagerWriteAccess(server, fs_key)) return;
 
   const String path = normalizeFileManagerPath(server.hasArg("path") ? server.arg("path") : String("/"));
   String name = server.hasArg("name") ? server.arg("name") : String();
@@ -2926,8 +2970,13 @@ void WebAdminServer::handleFileManagerMkdir() {
     sendJsonError(server, 409, "Folder already exists");
     return;
   }
+  errno = 0;
   if (!fs->mkdir(target)) {
-    sendJsonError(server, 500, "Could not create folder");
+    const int saved_errno = errno;
+    logFileManagerWriteFailure("mkdir", fs_key, target, saved_errno);
+    sendJsonError(server,
+                  500,
+                  fileManagerWriteError("Could not create folder", saved_errno));
     return;
   }
   sendJsonOk(server);
@@ -2958,6 +3007,12 @@ void WebAdminServer::handleFileManagerUpload() {
     String error;
     if (!resolveFileManagerFsFromRequest(server, fs, fs_key, error)) {
       g_file_manager_upload_error = error;
+      return;
+    }
+    if (!Device::sdWritable()) {
+      g_file_manager_upload_error =
+          "microSD is readable but not writable; check the serial SD write-test error";
+      Serial.println("[FileManager/SD] upload rejected: mounted card did not pass the write test");
       return;
     }
 
@@ -2991,6 +3046,7 @@ void WebAdminServer::handleFileManagerUpload() {
         g_file_manager_upload_error = "Append target missing";
         return;
       }
+      errno = 0;
       g_file_manager_upload_file = fs->open(target, FILE_APPEND);
     } else {
       if (fs->exists(target)) {
@@ -3002,10 +3058,14 @@ void WebAdminServer::handleFileManagerUpload() {
           return;
         }
       }
+      errno = 0;
       g_file_manager_upload_file = fs->open(target, FILE_WRITE);
     }
     if (!g_file_manager_upload_file) {
-      g_file_manager_upload_error = "Could not open target file";
+      const int saved_errno = errno;
+      logFileManagerWriteFailure("open-upload", fs_key, target, saved_errno);
+      g_file_manager_upload_error =
+          fileManagerWriteError("Could not open target file", saved_errno);
       return;
     }
 
@@ -3029,9 +3089,16 @@ void WebAdminServer::handleFileManagerUpload() {
       g_file_manager_upload_error = "Upload file is not open";
       return;
     }
+    errno = 0;
     const size_t written = g_file_manager_upload_file.write(upload.buf, upload.currentSize);
     if (written != upload.currentSize) {
-      g_file_manager_upload_error = "Could not write upload chunk";
+      const int saved_errno = errno;
+      logFileManagerWriteFailure("write-upload",
+                                 g_file_manager_upload_fs_key,
+                                 g_file_manager_upload_path,
+                                 saved_errno);
+      g_file_manager_upload_error =
+          fileManagerWriteError("Could not write upload chunk", saved_errno);
       logFileManagerUploadHeap("write-fehler");
       g_file_manager_upload_file.close();
       fs::FS* fs = nullptr;
@@ -3851,6 +3918,163 @@ void WebAdminServer::handleCrashLogDownload() {
   server.sendHeader("Cache-Control", "no-store");
   server.streamFile(file, "text/plain");
   file.close();
+}
+
+void WebAdminServer::handleSdDiagnosticsDownload() {
+  webAdminMarkActivity();
+
+  String report;
+  report.reserve(1400);
+  report += "HomeTiles SD diagnostic report\n";
+  report += "Firmware: hometiles-";
+  report += FW_VERSION;
+  report += '\n';
+  report += "Device profile: ";
+  report += Device::profile().key;
+  report += '\n';
+  report += "Generated at uptime: ";
+  report += String(millis());
+  report += " ms\n";
+  report += "Mode: live on-demand check; no diagnostic history is kept in RAM or flash\n";
+  report += "Test: create directory, write/read 16 bytes, remove file and directory\n\n";
+
+  auto send_report = [&]() {
+    server.sendHeader("Cache-Control", "no-store");
+    server.send(200, "text/plain; charset=utf-8", report);
+  };
+  auto append_errno = [&](const char* phase, int error_number) {
+    report += "Result: FAIL\nPhase: ";
+    report += phase ? phase : "unknown";
+    report += "\nerrno: ";
+    report += String(error_number);
+    report += " (";
+    report += error_number ? strerror(error_number) : "not provided by filesystem";
+    report += ")\n";
+  };
+
+  const bool ready = Device::sdReady();
+  report += "Mounted: ";
+  report += ready ? "yes\n" : "no\n";
+  if (!ready) {
+    report += "Result: FAIL\nPhase: mount/card availability\n";
+    send_report();
+    return;
+  }
+
+  fs::FS& fs = Device::sdFS();
+  uint64_t capacity = 0;
+  uint64_t free_bytes = 0;
+  const char* mountpoint = fs.mountpoint();
+  const esp_err_t info_result = mountpoint
+                                    ? esp_vfs_fat_info(mountpoint, &capacity,
+                                                       &free_bytes)
+                                    : ESP_ERR_INVALID_STATE;
+  if (info_result == ESP_OK) {
+    report += "Capacity: ";
+    report += String(static_cast<unsigned long long>(capacity));
+    report += " bytes\nUsed: ";
+    report += String(static_cast<unsigned long long>(capacity - free_bytes));
+    report += " bytes\n";
+  } else {
+    report += "Capacity: unavailable (";
+    report += esp_err_to_name(info_result);
+    report += ")\n";
+  }
+
+  char directory[56] = {};
+  char file_path[80] = {};
+  const unsigned long nonce = static_cast<unsigned long>(esp_random());
+  snprintf(directory, sizeof(directory), "/.hometiles-sd-check-%08lx", nonce);
+  snprintf(file_path, sizeof(file_path), "%s/probe.bin", directory);
+  static constexpr uint8_t kProbeData[] = {
+      0x48, 0x6f, 0x6d, 0x65, 0x54, 0x69, 0x6c, 0x65,
+      0x73, 0x2d, 0x53, 0x44, 0x2d, 0x52, 0x57, 0x0a,
+  };
+
+  errno = 0;
+  if (!fs.mkdir(directory)) {
+    append_errno("mkdir", errno);
+    send_report();
+    return;
+  }
+
+  errno = 0;
+  File output = fs.open(file_path, FILE_WRITE);
+  if (!output) {
+    const int saved_errno = errno;
+    fs.rmdir(directory);
+    append_errno("open for write", saved_errno);
+    send_report();
+    return;
+  }
+
+  errno = 0;
+  const size_t written = output.write(kProbeData, sizeof(kProbeData));
+  output.flush();
+  const int write_error = output.getWriteError();
+  output.close();
+  if (written != sizeof(kProbeData) || write_error != 0) {
+    const int saved_errno = errno;
+    fs.remove(file_path);
+    fs.rmdir(directory);
+    append_errno("write/flush", saved_errno);
+    report += "Written: ";
+    report += String(written);
+    report += "/";
+    report += String(sizeof(kProbeData));
+    report += " bytes\nPrint error: ";
+    report += String(write_error);
+    report += '\n';
+    send_report();
+    return;
+  }
+
+  errno = 0;
+  File input = fs.open(file_path, FILE_READ);
+  if (!input) {
+    const int saved_errno = errno;
+    fs.remove(file_path);
+    fs.rmdir(directory);
+    append_errno("open for readback", saved_errno);
+    send_report();
+    return;
+  }
+
+  uint8_t readback[sizeof(kProbeData)] = {};
+  const size_t read_count = input.read(readback, sizeof(readback));
+  input.close();
+  if (read_count != sizeof(readback) ||
+      memcmp(readback, kProbeData, sizeof(readback)) != 0) {
+    const int saved_errno = errno;
+    fs.remove(file_path);
+    fs.rmdir(directory);
+    append_errno("readback verification", saved_errno);
+    report += "Read: ";
+    report += String(read_count);
+    report += "/";
+    report += String(sizeof(readback));
+    report += " bytes\n";
+    send_report();
+    return;
+  }
+
+  errno = 0;
+  const bool file_removed = fs.remove(file_path);
+  const int remove_errno = errno;
+  errno = 0;
+  const bool directory_removed = fs.rmdir(directory);
+  const int rmdir_errno = errno;
+  if (!file_removed || !directory_removed) {
+    append_errno(!file_removed ? "remove probe file" : "remove probe directory",
+                 !file_removed ? remove_errno : rmdir_errno);
+    send_report();
+    return;
+  }
+
+  report += "Result: PASS\n";
+  report += "The card completed mkdir/write/read/remove successfully.\n";
+
+  send_report();
 }
 
 // ========== Folder API ==========

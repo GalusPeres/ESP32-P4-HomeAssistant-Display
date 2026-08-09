@@ -113,6 +113,9 @@ class ScopedStorageWrite {
 };
 
 bool sdReady();
+// True when the mounted SD backend has passed a real metadata/data write
+// check. Other profiles retain their established sdReady() semantics.
+bool sdWritable();
 fs::FS& sdFS();
 bool suspendSDCardForNetworkTransition();
 bool resumeSDCardAfterNetworkTransition();

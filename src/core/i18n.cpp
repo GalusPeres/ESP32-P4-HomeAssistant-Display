@@ -309,6 +309,7 @@ static const Strings kStringsDe = {
     "Verbergen",
 
     "Crash-Log herunterladen",
+    "SD-Diagnose öffnen",
     "Gespeicherter Core-Dump",
     "Core-Dump herunterladen",
     "Core-Dump löschen",
@@ -708,6 +709,7 @@ static const Strings kStringsEn = {
     "Hide",
 
     "Download crash log",
+    "Open SD diagnostics",
     "Stored core dump",
     "Download core dump",
     "Delete core dump",
@@ -1107,6 +1109,7 @@ static const Strings kStringsFr = {
     "Masquer",
 
     "Télécharger le journal de crash",
+    "Ouvrir le diagnostic SD",
     "Core dump enregistré",
     "Télécharger le core dump",
     "Supprimer le core dump",

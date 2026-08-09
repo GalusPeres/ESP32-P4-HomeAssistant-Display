@@ -33,11 +33,20 @@ class JC1060SDMMCFS : public FS {
              uint8_t max_open_files = 5);
   void end();
 
+  // FATFS can mount and enumerate a card even when data/metadata writes fail
+  // at the negotiated bus speed. Verify both operations before exposing the
+  // card as writable to HomeTiles.
+  bool testWritable();
+  bool writable() const;
+  int frequencyKHz() const;
+
   JC1060SdCardType cardType() const;
   uint64_t cardSize() const;
 
  private:
   sdmmc_card_t* card_;
+  bool writable_;
+  int frequency_khz_;
 };
 
 }  // namespace fs

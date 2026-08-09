@@ -321,6 +321,7 @@ struct Strings {
 
   // Web-Admin: Crash-Log-Download + Core-Dump-Verwaltung
   const char* crash_log_download;
+  const char* sd_diagnostics_open;
   const char* coredump_stored;
   const char* coredump_download;
   const char* coredump_delete;

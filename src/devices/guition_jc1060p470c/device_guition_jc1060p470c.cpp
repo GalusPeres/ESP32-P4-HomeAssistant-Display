@@ -107,6 +107,7 @@ uint8_t g_brightness = 200;
 bool g_backlight_ready = false;
 bool g_sd_init_attempted = false;
 bool g_sd_available = false;
+bool g_sd_writable = false;
 uint32_t g_sd_retry_tick_ms = 0;
 bool g_littlefs_ready = false;
 uint8_t g_rotation = DeviceGuitionJC1060P470C::kProfile.rotation_default;
@@ -1355,14 +1356,54 @@ bool DeviceGuitionJC1060P470C::initSDCard() {
   g_sd_retry_tick_ms = now;
 
   JC1060SDMMC.end();
+  g_sd_writable = false;
 
-  bool mounted = JC1060SDMMC.begin("/sdcard", SDMMC_FREQ_HIGHSPEED, 5);
-  if (!mounted) {
-    Serial.println("[Device/Guition JC1060P470C] Retrying SD at default speed");
-    mounted = JC1060SDMMC.begin("/sdcard", SDMMC_FREQ_DEFAULT, 5);
+  // A card can initialize and list files at a frequency at which FAT metadata
+  // or data writes are unreliable. Select the fastest clock that passes a
+  // non-destructive mkdir/write/read/remove test instead of trusting mount
+  // success alone. 40/20 MHz are the official SD high/default speeds; 10 MHz
+  // is the conservative signal-integrity fallback recommended by the IDF
+  // troubleshooting guidance when the default clock is still marginal.
+  static constexpr int kSdFrequenciesKHz[] = {
+      SDMMC_FREQ_HIGHSPEED,
+      SDMMC_FREQ_DEFAULT,
+      10000,
+  };
+
+  bool mounted = false;
+  for (size_t attempt = 0;
+       attempt < (sizeof(kSdFrequenciesKHz) / sizeof(kSdFrequenciesKHz[0]));
+       ++attempt) {
+    const int requested_frequency = kSdFrequenciesKHz[attempt];
+    mounted = JC1060SDMMC.begin("/sdcard", requested_frequency, 5);
+    if (!mounted) {
+      Serial.printf("[Device/Guition JC1060P470C] SD mount attempt failed at %d kHz\n",
+                    requested_frequency);
+      continue;
+    }
+
+    if (JC1060SDMMC.testWritable()) {
+      g_sd_writable = true;
+      break;
+    }
+
+    const bool last_attempt =
+        attempt + 1 == (sizeof(kSdFrequenciesKHz) / sizeof(kSdFrequenciesKHz[0]));
+    if (last_attempt) {
+      // Keep the final mount available for read-only functions such as image
+      // listing and downloads, but reject mutations with a precise error.
+      Serial.println("[Device/Guition JC1060P470C] SD remains readable but failed every write test");
+      break;
+    }
+
+    Serial.printf("[Device/Guition JC1060P470C] Retrying SD writes below %d kHz\n",
+                  JC1060SDMMC.frequencyKHz());
+    JC1060SDMMC.end();
+    mounted = false;
   }
   if (!mounted) {
     g_sd_available = false;
+    g_sd_writable = false;
     Serial.println("[Device/Guition JC1060P470C] SD card mount failed");
     return false;
   }
@@ -1370,15 +1411,18 @@ bool DeviceGuitionJC1060P470C::initSDCard() {
   const JC1060SdCardType card_type = JC1060SDMMC.cardType();
   if (card_type == JC1060_CARD_NONE) {
     g_sd_available = false;
+    g_sd_writable = false;
     Serial.println("[Device/Guition JC1060P470C] SD card absent after mount");
     JC1060SDMMC.end();
     return false;
   }
 
   g_sd_available = true;
-  Serial.printf("[Device/Guition JC1060P470C] SD card OK, type=%u, size=%llu MB\n",
+  Serial.printf("[Device/Guition JC1060P470C] SD card OK, type=%u, size=%llu MB, freq=%d kHz, writable=%u\n",
                 static_cast<unsigned>(card_type),
-                static_cast<unsigned long long>(JC1060SDMMC.cardSize() / (1024ULL * 1024ULL)));
+                static_cast<unsigned long long>(JC1060SDMMC.cardSize() / (1024ULL * 1024ULL)),
+                JC1060SDMMC.frequencyKHz(),
+                g_sd_writable ? 1u : 0u);
   return true;
 }
 
@@ -1394,6 +1438,10 @@ bool DeviceGuitionJC1060P470C::sdReady() {
   return initSDCard();
 }
 
+bool DeviceGuitionJC1060P470C::sdWritable() {
+  return initSDCard() && g_sd_writable && JC1060SDMMC.writable();
+}
+
 fs::FS& DeviceGuitionJC1060P470C::sdFS() {
   return JC1060SDMMC;
 }
@@ -1405,6 +1453,7 @@ bool DeviceGuitionJC1060P470C::suspendSDCardForNetworkTransition() {
 
   JC1060SDMMC.end();
   g_sd_available = false;
+  g_sd_writable = false;
   g_sd_init_attempted = false;
   Serial.println("[Device/Guition JC1060P470C] SD card suspended for network transition");
   return true;

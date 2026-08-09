@@ -146,6 +146,14 @@ bool sdReady() {
   return DeviceImpl::sdReady();
 }
 
+bool sdWritable() {
+#if defined(DEVICE_GUITION_JC1060P470C)
+  return DeviceImpl::sdWritable();
+#else
+  return DeviceImpl::sdReady();
+#endif
+}
+
 fs::FS& sdFS() {
   return DeviceImpl::sdFS();
 }

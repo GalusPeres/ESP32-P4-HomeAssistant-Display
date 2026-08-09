@@ -135,6 +135,8 @@ bool WebAdminServer::start() {
               [this]() { this->handleCoreDumpErase(); });
     server.on("/api/crashlog", HTTP_GET,
               [this]() { this->handleCrashLogDownload(); });
+    server.on("/api/sd-diagnostics", HTTP_GET,
+              [this]() { this->handleSdDiagnosticsDownload(); });
     routes_registered = true;
   }
 
