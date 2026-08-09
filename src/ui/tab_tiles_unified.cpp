@@ -1074,6 +1074,7 @@ static void build_folder_cache_entry(FolderCacheEntry& entry, GridType grid_type
   process_sensor_update_queue();
   process_switch_update_queue();
   process_climate_update_queue();
+  process_cover_update_queue();
   process_weather_update_queue();
   lv_obj_update_layout(entry.grid);
 
@@ -1226,7 +1227,8 @@ static void apply_cached_states(GridType grid_type, const TileGridConfig& config
     const Tile& tile = config.tiles[i];
     if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH &&
         tile.type != TILE_WEATHER && tile.type != TILE_ENERGY &&
-        tile.type != TILE_MEDIA && tile.type != TILE_CLIMATE) continue;
+        tile.type != TILE_MEDIA && tile.type != TILE_CLIMATE &&
+        tile.type != TILE_COVER) continue;
     if (!include_media && tile.type == TILE_MEDIA) continue;
     if (tile.sensor_entity.length() == 0) continue;
 
@@ -1245,6 +1247,8 @@ static void apply_cached_states(GridType grid_type, const TileGridConfig& config
       queue_media_tile_update(grid_type, i, payload.c_str());
     } else if (tile.type == TILE_CLIMATE) {
       queue_climate_tile_update(grid_type, i, payload.c_str());
+    } else if (tile.type == TILE_COVER) {
+      queue_cover_tile_update(grid_type, i, payload.c_str());
     }
   }
 }
@@ -1275,6 +1279,7 @@ void tiles_refresh_visible_from_cache() {
   process_sensor_update_queue();
   process_switch_update_queue();
   process_climate_update_queue();
+  process_cover_update_queue();
   process_weather_update_queue();
   process_media_update_queue();
 }
@@ -1319,7 +1324,8 @@ static void refresh_cache_from_grid_config(const TileGridConfig& config, uint32_
     const Tile& tile = config.tiles[i];
     if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH &&
         tile.type != TILE_WEATHER && tile.type != TILE_ENERGY &&
-        tile.type != TILE_MEDIA && tile.type != TILE_CLIMATE) continue;
+        tile.type != TILE_MEDIA && tile.type != TILE_CLIMATE &&
+        tile.type != TILE_COVER) continue;
     if (!tile.sensor_entity.length()) continue;
 
     uint32_t t_lookup0 = millis();
@@ -1339,7 +1345,8 @@ static void refresh_cache_from_entity_views(const FolderEntitySlotView* slots, s
     const FolderEntitySlotView& slot = slots[i];
     if (slot.type != TILE_SENSOR && slot.type != TILE_SWITCH &&
         slot.type != TILE_WEATHER && slot.type != TILE_ENERGY &&
-        slot.type != TILE_MEDIA && slot.type != TILE_CLIMATE) continue;
+        slot.type != TILE_MEDIA && slot.type != TILE_CLIMATE &&
+        slot.type != TILE_COVER) continue;
     if (!slot.entity[0]) continue;
 
     uint32_t t_lookup0 = millis();
@@ -1440,7 +1447,8 @@ static void apply_cached_state_for_index(GridType grid_type, const TileGridConfi
   const Tile& tile = config.tiles[index];
   if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH &&
       tile.type != TILE_WEATHER && tile.type != TILE_ENERGY &&
-      tile.type != TILE_MEDIA && tile.type != TILE_CLIMATE) return;
+      tile.type != TILE_MEDIA && tile.type != TILE_CLIMATE &&
+      tile.type != TILE_COVER) return;
   if (tile.sensor_entity.length() == 0) return;
 
   String payload;
@@ -1458,6 +1466,8 @@ static void apply_cached_state_for_index(GridType grid_type, const TileGridConfi
     queue_media_tile_update(grid_type, index, payload.c_str());
   } else if (tile.type == TILE_CLIMATE) {
     queue_climate_tile_update(grid_type, index, payload.c_str());
+  } else if (tile.type == TILE_COVER) {
+    queue_cover_tile_update(grid_type, index, payload.c_str());
   }
 }
 
@@ -1503,6 +1513,7 @@ void build_tiles_tab(lv_obj_t *parent, GridType grid_type, scene_publish_cb_t sc
         process_sensor_update_queue();
         process_switch_update_queue();
         process_climate_update_queue();
+        process_cover_update_queue();
         process_weather_update_queue();
         process_media_update_queue();
         g_active_cache->last_used_ms = millis();
@@ -1573,6 +1584,7 @@ void tiles_reload_layout(GridType grid_type) {
   reset_sensor_widgets(grid_type);
   reset_switch_widgets(grid_type);
   reset_climate_widgets(grid_type);
+  reset_cover_widgets(grid_type);
   reset_weather_widgets(grid_type);
   reset_weather_widgets(grid_type);
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
@@ -1638,6 +1650,7 @@ void tiles_reload_layout(GridType grid_type) {
   process_sensor_update_queue();
   process_switch_update_queue();
   process_climate_update_queue();
+  process_cover_update_queue();
   process_weather_update_queue();
   process_media_update_queue();
   if (disp) {
@@ -1674,6 +1687,7 @@ void tiles_release_layout(GridType grid_type) {
   if (grid_type == GridType::TAB0 && g_active_cache) {
     reset_media_widgets(grid_type);
     reset_climate_widgets(grid_type);
+    reset_cover_widgets(grid_type);
     clear_cache_entry(*g_active_cache);
     g_active_cache = nullptr;
     g_tiles_grids[idx] = nullptr;
@@ -1684,6 +1698,7 @@ void tiles_release_layout(GridType grid_type) {
   reset_sensor_widgets(grid_type);
   reset_switch_widgets(grid_type);
   reset_climate_widgets(grid_type);
+  reset_cover_widgets(grid_type);
   reset_media_widgets(grid_type);
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     g_tiles_objs[idx][i] = nullptr;
@@ -1890,6 +1905,7 @@ void tiles_process_reload_requests() {
         process_sensor_update_queue();
         process_switch_update_queue();
         process_climate_update_queue();
+        process_cover_update_queue();
         process_weather_update_queue();
         process_media_update_queue();
         if (previous && previous != target && previous->grid) {
@@ -1934,6 +1950,7 @@ void tiles_process_reload_requests() {
         process_sensor_update_queue();
         process_switch_update_queue();
         process_climate_update_queue();
+        process_cover_update_queue();
         process_weather_update_queue();
         process_media_update_queue();
         if (previous && previous != target && previous->grid) {
@@ -2087,6 +2104,7 @@ static void rebuild_tile_at_index(GridType grid_type, uint8_t index) {
   reset_sensor_widget(grid_type, index);
   reset_switch_widget(grid_type, index);
   reset_climate_widget(grid_type, index);
+  reset_cover_widget(grid_type, index);
   reset_weather_widget(grid_type, index);
 
   Tile layout_tile = tile;
@@ -2108,7 +2126,8 @@ static void tiles_refresh_icons_for_grid(GridType grid_type) {
     const Tile& tile = config.tiles[i];
     if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH &&
         tile.type != TILE_SCENE && tile.type != TILE_ENERGY &&
-        tile.type != TILE_MEDIA && tile.type != TILE_CLIMATE) continue;
+        tile.type != TILE_MEDIA && tile.type != TILE_CLIMATE &&
+        tile.type != TILE_COVER) continue;
     lv_obj_t* tile_obj = g_tiles_objs[idx][i];
     if (!tile_obj) continue;
 
@@ -2232,6 +2251,11 @@ void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, co
     if (tile.type == TILE_CLIMATE && tile.sensor_entity.equalsIgnoreCase(entity_id)) {
       queue_climate_tile_update(grid_type, i, value);
       Serial.printf("[%s] Climate %s@%u queued\n",
+                    getGridName(grid_type), entity_id, i);
+    }
+    if (tile.type == TILE_COVER && tile.sensor_entity.equalsIgnoreCase(entity_id)) {
+      queue_cover_tile_update(grid_type, i, value);
+      Serial.printf("[%s] Cover %s@%u queued\n",
                     getGridName(grid_type), entity_id, i);
     }
   }

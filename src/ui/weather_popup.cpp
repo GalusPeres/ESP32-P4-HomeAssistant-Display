@@ -3,6 +3,7 @@
 #include "src/ui/climate_popup.h"
 #include "src/ui/sensor_popup.h"
 #include "src/ui/media_popup.h"
+#include "src/ui/cover_popup.h"
 #include "src/ui/popup_layout.h"
 #include "src/ui/ui_surface_style.h"
 #include "src/network/mqtt_handlers.h"
@@ -3936,6 +3937,7 @@ bool weather_popup_has_current_cached_payload(const char* entity_id) {
 
 void show_weather_popup(const WeatherPopupInit& init) {
   hide_climate_popup();
+  hide_cover_popup();
   if (!init.entity_id.length()) return;
 
   hide_light_popup();

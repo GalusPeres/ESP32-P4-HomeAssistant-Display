@@ -10,6 +10,7 @@
 #include "src/network/mqtt_handlers.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/ui/climate_popup.h"
+#include "src/ui/cover_popup.h"
 #include "src/ui/energy_popup.h"
 #include "src/ui/light_popup.h"
 #include "src/ui/media_popup.h"
@@ -301,6 +302,7 @@ static CameraPopupContext* create_popup() {
 
 void show_camera_popup(const CameraPopupInit& init) {
   if (!init.entity_id.length()) return;
+  hide_cover_popup();
   hide_sensor_popup();
   hide_weather_popup();
   hide_energy_popup();

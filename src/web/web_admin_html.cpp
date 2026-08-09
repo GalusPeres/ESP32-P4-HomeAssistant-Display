@@ -112,6 +112,7 @@ static void appendTileTabHTML(
     const std::vector<String>& switchOptions,
     const std::vector<String>& mediaOptions,
     const std::vector<String>& climateOptions,
+    const std::vector<String>& coverOptions,
     const std::vector<String>& cameraOptions,
     const std::function<String(const String&, uint8_t)>& formatSensorValue,
     const String& navigateOptionsHtml,
@@ -629,6 +630,7 @@ static void appendTileTabHTML(
             type_ctx.switch_options = &switchOptions;
             type_ctx.media_options = &mediaOptions;
             type_ctx.climate_options = &climateOptions;
+            type_ctx.cover_options = &coverOptions;
             type_ctx.camera_options = &cameraOptions;
             type_ctx.navigate_options_html = &navigateOptionsHtml;
             append_tile_type_fields_html(html, type_ctx);
@@ -717,6 +719,7 @@ bool buildAdminFolderTabFragments(uint16_t folder_id, String& button_html, Strin
   const auto switchOptionsRaw = parseSensorList(ha.switches_text);
   const auto mediaOptions = parseSensorList(ha.media_players_text);
   const auto climateOptions = parseSensorList(ha.climates_text);
+  const auto coverOptions = parseSensorList(ha.covers_text);
   const auto cameraOptions = parseSensorList(ha.cameras_text);
   std::vector<String> switchOptions;
   switchOptions.reserve(lightOptions.size() + switchOptionsRaw.size());
@@ -778,7 +781,7 @@ bool buildAdminFolderTabFragments(uint16_t folder_id, String& button_html, Strin
   tab_html = "";
   appendTileTabHTML(tab_html, folder_id, *folder, grid, sensorOptions, energyOptions, weatherOptions,
                     sceneOptions, switchOptions, mediaOptions, climateOptions,
-                    cameraOptions,
+                    coverOptions, cameraOptions,
                     formatSensorValue, navigateOptionsHtml);
   return true;
 }
@@ -806,6 +809,7 @@ String WebAdminServer::getAdminPage() {
   const auto switchOptionsRaw = parseSensorList(ha.switches_text);
   const auto mediaOptions = parseSensorList(ha.media_players_text);
   const auto climateOptions = parseSensorList(ha.climates_text);
+  const auto coverOptions = parseSensorList(ha.covers_text);
   const auto cameraOptions = parseSensorList(ha.cameras_text);
   std::vector<String> switchOptions;
   switchOptions.reserve(lightOptions.size() + switchOptionsRaw.size());
@@ -947,7 +951,7 @@ String WebAdminServer::getAdminPage() {
     tileConfig.loadFolderGrid(entry.id, grid);
     appendTileTabHTML(html, entry.id, entry, grid, sensorOptions, energyOptions,
                       weatherOptions, sceneOptions, switchOptions, mediaOptions,
-                      climateOptions, cameraOptions, formatSensorValue,
+                      climateOptions, coverOptions, cameraOptions, formatSensorValue,
                       navigateOptionsHtml);
   }
 
@@ -961,7 +965,7 @@ String WebAdminServer::getAdminPage() {
   appendTileTabHTML(html, TileConfig::kScreensaverGridStorageId,
                     screensaver_folder, screensaverConfig.tileGrid(),
                     sensorOptions, energyOptions, weatherOptions, sceneOptions,
-                    switchOptions, mediaOptions, climateOptions, cameraOptions,
+                    switchOptions, mediaOptions, climateOptions, coverOptions, cameraOptions,
                     formatSensorValue, navigateOptionsHtml, true);
 
   html += R"html(

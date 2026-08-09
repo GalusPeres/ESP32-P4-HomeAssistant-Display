@@ -86,6 +86,15 @@ SwitchState g_tab1_switch_states[TILES_PER_GRID];
 SwitchState g_tab2_switch_states[TILES_PER_GRID];
 SwitchState g_screensaver_switch_states[TILES_PER_GRID];
 
+CoverTileWidgets g_tab0_covers[TILES_PER_GRID];
+CoverTileWidgets g_tab1_covers[TILES_PER_GRID];
+CoverTileWidgets g_tab2_covers[TILES_PER_GRID];
+CoverTileWidgets g_screensaver_covers[TILES_PER_GRID];
+CoverState g_tab0_cover_states[TILES_PER_GRID];
+CoverState g_tab1_cover_states[TILES_PER_GRID];
+CoverState g_tab2_cover_states[TILES_PER_GRID];
+CoverState g_screensaver_cover_states[TILES_PER_GRID];
+
 ClimateTileWidgets g_tab0_climate[TILES_PER_GRID];
 ClimateTileWidgets g_tab1_climate[TILES_PER_GRID];
 ClimateTileWidgets g_tab2_climate[TILES_PER_GRID];
@@ -226,6 +235,20 @@ SwitchState* tile_renderer_get_switch_states(GridType grid_type) {
   return g_tab0_switch_states;
 }
 
+CoverTileWidgets* tile_renderer_get_cover_widgets(GridType grid_type) {
+  if (grid_type == GridType::SCREENSAVER) return g_screensaver_covers;
+  if (grid_type == GridType::TAB1) return g_tab1_covers;
+  if (grid_type == GridType::TAB2) return g_tab2_covers;
+  return g_tab0_covers;
+}
+
+CoverState* tile_renderer_get_cover_states(GridType grid_type) {
+  if (grid_type == GridType::SCREENSAVER) return g_screensaver_cover_states;
+  if (grid_type == GridType::TAB1) return g_tab1_cover_states;
+  if (grid_type == GridType::TAB2) return g_tab2_cover_states;
+  return g_tab0_cover_states;
+}
+
 ClimateTileWidgets* tile_renderer_get_climate_widgets(GridType grid_type) {
   if (grid_type == GridType::TAB1) return g_tab1_climate;
   if (grid_type == GridType::TAB2) return g_tab2_climate;
@@ -334,6 +357,21 @@ void reset_switch_widgets(GridType grid_type) {
   clear_switch_widgets(grid_type);
 }
 
+void reset_cover_widget(GridType grid_type, uint8_t grid_index) {
+  if (grid_index >= TILES_PER_GRID) return;
+  tile_renderer_get_cover_widgets(grid_type)[grid_index] = {};
+  tile_renderer_get_cover_states(grid_type)[grid_index] = {};
+}
+
+void reset_cover_widgets(GridType grid_type) {
+  CoverTileWidgets* widgets = tile_renderer_get_cover_widgets(grid_type);
+  CoverState* states = tile_renderer_get_cover_states(grid_type);
+  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+    widgets[i] = {};
+    states[i] = {};
+  }
+}
+
 void reset_climate_widget(GridType grid_type, uint8_t grid_index) {
   if (grid_index >= TILES_PER_GRID) return;
   ClimateTileWidgets* widgets = tile_renderer_get_climate_widgets(grid_type);
@@ -412,6 +450,9 @@ void tile_renderer_snapshot_tab0(TileWidgetCache* out) {
          sizeof(out->switch_states));
   memcpy(out->climate, g_tab0_climate, sizeof(out->climate));
   memcpy(out->climate_states, climate_states, sizeof(out->climate_states));
+  memcpy(out->covers, g_tab0_covers, sizeof(out->covers));
+  memcpy(out->cover_states, g_tab0_cover_states,
+         sizeof(out->cover_states));
   memcpy(out->weather, g_tab0_weather, sizeof(out->weather));
   memcpy(out->media, g_tab0_media, sizeof(out->media));
 }
@@ -426,6 +467,9 @@ void tile_renderer_restore_tab0(const TileWidgetCache* in) {
          sizeof(in->switch_states));
   memcpy(g_tab0_climate, in->climate, sizeof(in->climate));
   memcpy(climate_states, in->climate_states, sizeof(in->climate_states));
+  memcpy(g_tab0_covers, in->covers, sizeof(in->covers));
+  memcpy(g_tab0_cover_states, in->cover_states,
+         sizeof(in->cover_states));
   memcpy(g_tab0_weather, in->weather, sizeof(in->weather));
   memcpy(g_tab0_media, in->media, sizeof(in->media));
 }

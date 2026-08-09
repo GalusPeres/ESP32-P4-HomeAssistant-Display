@@ -1217,7 +1217,7 @@ static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
       const FolderEntitySlotView& slot = slots[i];
       if ((slot.type == TILE_SENSOR || slot.type == TILE_ENERGY ||
            slot.type == TILE_SWITCH || slot.type == TILE_MEDIA ||
-           slot.type == TILE_CLIMATE) &&
+           slot.type == TILE_CLIMATE || slot.type == TILE_COVER) &&
           slot.entity[0]) {
         add_route(String(slot.entity), -1);
         if (slot.type == TILE_MEDIA) {
@@ -1259,7 +1259,7 @@ static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
     const Tile& tile = screensaver_grid.tiles[i];
     if ((tile.type != TILE_SENSOR && tile.type != TILE_ENERGY &&
          tile.type != TILE_SWITCH &&
-         tile.type != TILE_MEDIA) ||
+         tile.type != TILE_MEDIA && tile.type != TILE_COVER) ||
         !tile.sensor_entity.length()) {
       continue;
     }
@@ -2065,6 +2065,64 @@ void mqttPublishClimateHorizontalSwingMode(
   mqtt_publish_climate_option(
       entity_id, "set_swing_horizontal_mode",
       "swing_horizontal_mode", swing_mode, "horizontal swing");
+}
+
+void mqttPublishCoverCommand(const char* entity_id,
+                             const char* command,
+                             int position) {
+  if (!entity_id || !*entity_id || !command || !*command) return;
+
+  static const char* const kCommands[] = {
+      "open_cover", "close_cover", "stop_cover", "set_cover_position",
+      "open_cover_tilt", "close_cover_tilt", "stop_cover_tilt",
+      "set_cover_tilt_position", "toggle", "toggle_cover_tilt"};
+  bool supported_command = false;
+  for (const char* allowed : kCommands) {
+    if (strcmp(command, allowed) == 0) {
+      supported_command = true;
+      break;
+    }
+  }
+  if (!supported_command) {
+    Serial.printf("Cover command rejected: %s\n", command);
+    return;
+  }
+  if (!networkManager.isMqttConnected()) {
+    Serial.printf("Cover command skipped (MQTT offline): %s\n", entity_id);
+    return;
+  }
+
+  const char* topic = mqttTopics.topic(TopicKey::COVER_CMND);
+  if (!topic || !*topic) return;
+  if (position < 0) position = 0;
+  if (position > 100) position = 100;
+
+  char payload[384];
+  int written = 0;
+  if (strcmp(command, "set_cover_position") == 0) {
+    written = snprintf(
+        payload, sizeof(payload),
+        "{\"entity_id\":\"%s\",\"command\":\"%s\",\"position\":%d}",
+        entity_id, command, position);
+  } else if (strcmp(command, "set_cover_tilt_position") == 0) {
+    written = snprintf(
+        payload, sizeof(payload),
+        "{\"entity_id\":\"%s\",\"command\":\"%s\",\"tilt_position\":%d}",
+        entity_id, command, position);
+  } else {
+    written = snprintf(
+        payload, sizeof(payload),
+        "{\"entity_id\":\"%s\",\"command\":\"%s\"}",
+        entity_id, command);
+  }
+  if (written < 0 || static_cast<size_t>(written) >= sizeof(payload)) {
+    Serial.printf("Cover command rejected (payload too long): %s\n", entity_id);
+    return;
+  }
+  const bool queued =
+      networkManager.mqttEnqueuePublishPriority(topic, payload, false);
+  Serial.printf("Cover command -> MQTT '%s' command=%s (%s, priority)\n",
+                topic, command, queued ? "queued" : "queue-full");
 }
 
 void mqttPublishLightCommand(const char* entity_id,

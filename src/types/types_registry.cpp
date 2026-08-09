@@ -15,6 +15,7 @@
 #include "src/types/weather/renderer.h"
 #include "src/types/media/renderer.h"
 #include "src/types/climate/renderer.h"
+#include "src/types/cover/renderer.h"
 #include "src/types/camera/renderer.h"
 #include "src/types/pixelanim/renderer.h"
 
@@ -28,6 +29,7 @@
 #include "src/types/weather/web_handler.h"
 #include "src/types/media/web_handler.h"
 #include "src/types/climate/web_handler.h"
+#include "src/types/cover/web_handler.h"
 #include "src/types/camera/web_handler.h"
 #include "src/types/pixelanim/web_handler.h"
 
@@ -41,6 +43,7 @@
 #include "src/types/weather/web_html.h"
 #include "src/types/media/web_html.h"
 #include "src/types/climate/web_html.h"
+#include "src/types/cover/web_html.h"
 #include "src/types/camera/web_html.h"
 #include "src/types/pixelanim/web_html.h"
 
@@ -54,6 +57,7 @@
 #include "src/types/weather/web_scripts.h"
 #include "src/types/media/web_scripts.h"
 #include "src/types/climate/web_scripts.h"
+#include "src/types/cover/web_scripts.h"
 #include "src/types/camera/web_scripts.h"
 #include "src/types/pixelanim/web_scripts.h"
 
@@ -67,6 +71,7 @@
 #include "src/types/weather/web_styles.h"
 #include "src/types/media/web_styles.h"
 #include "src/types/climate/web_styles.h"
+#include "src/types/cover/web_styles.h"
 #include "src/types/camera/web_styles.h"
 #include "src/types/pixelanim/web_styles.h"
 
@@ -192,6 +197,16 @@ lv_obj_t* render_climate_wrapper(lv_obj_t* parent,
   return render_climate_tile(parent, col, row, tile, index, grid_type);
 }
 
+lv_obj_t* render_cover_wrapper(lv_obj_t* parent,
+                               int col,
+                               int row,
+                               const Tile& tile,
+                               uint8_t index,
+                               GridType grid_type,
+                               scene_publish_cb_t) {
+  return render_cover_tile(parent, col, row, tile, index, grid_type);
+}
+
 lv_obj_t* render_camera_wrapper(lv_obj_t* parent,
                                 int col,
                                 int row,
@@ -274,6 +289,12 @@ bool apply_climate_wrapper(WebServer& server, Tile& tile, const TileTypeApplyCon
   return true;
 }
 
+bool apply_cover_wrapper(WebServer& server, Tile& tile,
+                         const TileTypeApplyContext&) {
+  apply_cover_fields_from_request(server, tile);
+  return true;
+}
+
 bool apply_camera_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
   apply_camera_fields_from_request(server, tile);
   return true;
@@ -348,6 +369,11 @@ void append_media_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
 void append_climate_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
   append_climate_fields_html(
       html, safeString(ctx.tab_id), safeStrings(ctx.climate_options));
+}
+
+void append_cover_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
+  append_cover_fields_html(
+      html, safeString(ctx.tab_id), safeStrings(ctx.cover_options));
 }
 
 void append_camera_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
@@ -521,6 +547,24 @@ const TileTypeDescriptor kTileTypes[] = {
     append_climate_fields_wrapper,
     append_climate_styles,
     append_climate_scripts
+  },
+  {
+    TILE_COVER,
+    "Cover",
+    "cover",
+    "cover",
+    "cover",
+    nullptr,
+    "loadCoverFields",
+    "saveCoverFields",
+    "resetCoverFields",
+    0x2A2A2A,
+    false,
+    render_cover_wrapper,
+    apply_cover_wrapper,
+    append_cover_fields_wrapper,
+    append_cover_styles,
+    append_cover_scripts
   },
 #if !defined(DEVICE_GUITION_ESP32_4848S040)
   {
@@ -700,6 +744,9 @@ void append_tile_type_select_options(String& html) {
       case TILE_FOLDER: label = tr.tile_type_folder; break;
       case TILE_SWITCH: label = tr.tile_type_switch; break;
       case TILE_MEDIA: label = tr.tile_type_media; break;
+      case TILE_COVER:
+        label = i18n::cover_label(configManager.getConfig().language, 0);
+        break;
       case TILE_CAMERA: label = tr.camera_tile_type; break;
       case TILE_CLIMATE:
         label = i18n::climate_tile_type_label(
@@ -733,6 +780,9 @@ void append_tile_type_registry_js(String& html) {
       case TILE_FOLDER: label = tr.tile_type_folder; break;
       case TILE_SWITCH: label = tr.tile_type_switch; break;
       case TILE_MEDIA: label = tr.tile_type_media; break;
+      case TILE_COVER:
+        label = i18n::cover_label(configManager.getConfig().language, 0);
+        break;
       case TILE_CAMERA: label = tr.camera_tile_type; break;
       case TILE_CLIMATE:
         label = i18n::climate_tile_type_label(

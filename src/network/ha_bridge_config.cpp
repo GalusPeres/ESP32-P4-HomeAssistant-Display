@@ -69,6 +69,7 @@ bool HaBridgeConfig::load() {
   data.switches_text = "";
   data.media_players_text = "";
   data.climates_text = "";
+  data.covers_text = "";
   data.cameras_text = "";
   data.scene_alias_text = "";
   data.sensor_units_map = "";
@@ -219,6 +220,7 @@ bool HaBridgeConfig::hasData() const {
          data.switches_text.length() > 0 ||
          data.media_players_text.length() > 0 ||
          data.climates_text.length() > 0 ||
+         data.covers_text.length() > 0 ||
          data.cameras_text.length() > 0 ||
          data.scene_alias_text.length() > 0;
 }
@@ -535,6 +537,11 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
     parseArraySection(json.substring(climates_idx), merged.climates_text);
   }
 
+  int covers_idx = json.indexOf("\"covers\"");
+  if (covers_idx >= 0) {
+    parseArraySection(json.substring(covers_idx), merged.covers_text);
+  }
+
   int cameras_idx = json.indexOf("\"cameras\"");
   if (cameras_idx >= 0) {
     parseArraySection(json.substring(cameras_idx), merged.cameras_text);
@@ -562,6 +569,7 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
   parseSensorMetaSection(json, merged.sensor_units_map, merged.sensor_names_map, merged.sensor_values_map);
   parseEntityNameSection(json, "media_player_meta", merged.sensor_names_map);
   parseEntityNameSection(json, "climate_meta", merged.sensor_names_map);
+  parseEntityNameSection(json, "cover_meta", merged.sensor_names_map);
   parseEntityNameSection(json, "camera_meta", merged.sensor_names_map);
   parseIconMetaSections(json, merged.entity_icons_map);
   if (!merged.entity_icons_map.length() && prev_icons.length()) {
@@ -608,7 +616,7 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
     if (ok) {
       Serial.printf("[Bridge] Konfiguration aus Home Assistant uebernommen: "
                     "sensoren=%d energy=%d wetter=%d lichter=%d schalter=%d "
-                    "media=%d climate=%d cameras=%d szenen=%d\n",
+                    "media=%d climate=%d covers=%d cameras=%d szenen=%d\n",
                     countListEntries(data.sensors_text),
                     countListEntries(data.energy_text),
                     countListEntries(data.weathers_text),
@@ -616,6 +624,7 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
                     countListEntries(data.switches_text),
                     countListEntries(data.media_players_text),
                     countListEntries(data.climates_text),
+                    countListEntries(data.covers_text),
                     countListEntries(data.cameras_text),
                     countMapEntries(data.scene_alias_text));
       if (out_reload) {
@@ -845,6 +854,7 @@ static bool bridgeConfigEquals(const HaBridgeConfigData& a, const HaBridgeConfig
   if (!listEqualsIgnoringOrder(a.switches_text, b.switches_text)) return false;
   if (!listEqualsIgnoringOrder(a.media_players_text, b.media_players_text)) return false;
   if (!listEqualsIgnoringOrder(a.climates_text, b.climates_text)) return false;
+  if (!listEqualsIgnoringOrder(a.covers_text, b.covers_text)) return false;
   if (!listEqualsIgnoringOrder(a.cameras_text, b.cameras_text)) return false;
   if (!mapEqualsIgnoringOrder(a.scene_alias_text, b.scene_alias_text)) return false;
 
@@ -1189,6 +1199,7 @@ static void parseIconMetaSections(const String& body, String& icons) {
   parseEntityIconSection(body, "scene_meta", icons);
   parseEntityIconSection(body, "media_player_meta", icons);
   parseEntityIconSection(body, "climate_meta", icons);
+  parseEntityIconSection(body, "cover_meta", icons);
   parseEntityIconSection(body, "camera_meta", icons);
 }
 

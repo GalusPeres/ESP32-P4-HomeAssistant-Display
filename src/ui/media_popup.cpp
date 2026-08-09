@@ -16,6 +16,7 @@
 #include "src/ui/energy_popup.h"
 #include "src/ui/light_popup.h"
 #include "src/ui/climate_popup.h"
+#include "src/ui/cover_popup.h"
 #include "src/ui/popup_layout.h"
 #include "src/ui/sensor_popup.h"
 #include "src/ui/weather_popup.h"
@@ -578,6 +579,7 @@ static lv_obj_t* create_control_button(lv_obj_t* parent,
 
 void show_media_popup(const MediaPopupInit& init) {
   hide_climate_popup();
+  hide_cover_popup();
   if (!init.entity_id.length()) return;
   hide_light_popup();
   hide_sensor_popup();

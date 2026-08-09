@@ -3,6 +3,7 @@
 #include "src/ui/weather_popup.h"
 #include "src/ui/media_popup.h"
 #include "src/ui/climate_popup.h"
+#include "src/ui/cover_popup.h"
 #include "src/ui/popup_layout.h"
 #include "src/ui/ui_surface_style.h"
 #include "src/core/config_manager.h"
@@ -1942,6 +1943,7 @@ lv_color_t light_color_from_temperature_kelvin(uint16_t kelvin) {
 
 void show_light_popup(const LightPopupInit& init) {
   if (!init.entity_id.length()) return;
+  hide_cover_popup();
   hide_climate_popup();
   hide_sensor_popup();
   hide_weather_popup();

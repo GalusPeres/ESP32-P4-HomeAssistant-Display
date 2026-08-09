@@ -45,31 +45,50 @@ foreach ($variant in $variants) {
     }
     $objects += Get-Item -LiteralPath $sdioObject
 
-    foreach ($object in $objects) {
-        & $ar rs $archive $object.FullName
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to inject $($object.Name) into $archive"
-        }
-
-        $verifyDirectory = Join-Path $env:TEMP ("hometiles-esp-hosted-verify-" + [Guid]::NewGuid())
-        New-Item -ItemType Directory -Path $verifyDirectory | Out-Null
-        Push-Location $verifyDirectory
-        try {
+    $archiveChanged = $false
+    $verifyDirectory = Join-Path $env:TEMP ("hometiles-esp-hosted-verify-" + [Guid]::NewGuid())
+    New-Item -ItemType Directory -Path $verifyDirectory | Out-Null
+    Push-Location $verifyDirectory
+    try {
+        foreach ($object in $objects) {
+            $memberPath = Join-Path $verifyDirectory $object.Name
+            Remove-Item -LiteralPath $memberPath -Force -ErrorAction SilentlyContinue
             & $ar x $archive $object.Name
             if ($LASTEXITCODE -ne 0) {
                 throw "Failed to extract $($object.Name) from $archive"
             }
-            $actual = (Get-FileHash -Algorithm SHA256 $object.Name).Hash
             $expected = (Get-FileHash -Algorithm SHA256 $object.FullName).Hash
+            $actual = if (Test-Path -LiteralPath $memberPath) {
+                (Get-FileHash -Algorithm SHA256 $memberPath).Hash
+            } else {
+                ''
+            }
+            if ($actual -eq $expected) {
+                continue
+            }
+
+            & $ar rs $archive $object.FullName
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to inject $($object.Name) into $archive"
+            }
+            $archiveChanged = $true
+
+            Remove-Item -LiteralPath $memberPath -Force -ErrorAction SilentlyContinue
+            & $ar x $archive $object.Name
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $memberPath)) {
+                throw "Failed to verify $($object.Name) in $archive"
+            }
+            $actual = (Get-FileHash -Algorithm SHA256 $memberPath).Hash
             if ($actual -ne $expected) {
                 throw "Verification failed for $($object.Name) in $archive"
             }
         }
-        finally {
-            Pop-Location
-            Remove-Item -LiteralPath $verifyDirectory -Recurse -Force
-        }
+    }
+    finally {
+        Pop-Location
+        Remove-Item -LiteralPath $verifyDirectory -Recurse -Force
     }
 
-    Write-Host "Patched and verified ($EspHostedRxVariant): $archive"
+    $status = if ($archiveChanged) { 'patched and verified' } else { 'already patched' }
+    Write-Host "ESP-Hosted $status ($EspHostedRxVariant): $archive"
 }

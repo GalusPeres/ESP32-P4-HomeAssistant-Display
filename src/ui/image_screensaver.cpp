@@ -1265,11 +1265,17 @@ void refresh_slot_values(ScreensaverState* st) {
       if (payload == st->slot_payloads[i]) continue;
       st->slot_payloads[i] = payload;
       queue_media_tile_update(GridType::SCREENSAVER, static_cast<uint8_t>(i),
+                               payload.c_str());
+    } else if (tile.type == TILE_COVER) {
+      if (payload == st->slot_payloads[i]) continue;
+      st->slot_payloads[i] = payload;
+      queue_cover_tile_update(GridType::SCREENSAVER, static_cast<uint8_t>(i),
                               payload.c_str());
     }
   }
   process_sensor_update_queue();
   process_switch_update_queue();
+  process_cover_update_queue();
   process_media_update_queue();
 }
 
@@ -1314,6 +1320,7 @@ void rebuild_slot_grid(ScreensaverState* st) {
 
   reset_sensor_widgets(GridType::SCREENSAVER);
   reset_switch_widgets(GridType::SCREENSAVER);
+  reset_cover_widgets(GridType::SCREENSAVER);
   reset_media_widgets(GridType::SCREENSAVER);
   if (st->slot_grid) {
     // Den bildschirmgrossen transparenten Container stehen lassen. Sein
@@ -1515,6 +1522,7 @@ void on_global_overlay_delete(lv_event_t* e) {
   if (g_state == st) {
     reset_sensor_widgets(GridType::SCREENSAVER);
     reset_switch_widgets(GridType::SCREENSAVER);
+    reset_cover_widgets(GridType::SCREENSAVER);
     reset_media_widgets(GridType::SCREENSAVER);
     g_state = nullptr;
     restore_configured_display_brightness();
@@ -1627,6 +1635,7 @@ void hide_image_screensaver() {
   g_live_preview_wallpaper = String();
   reset_sensor_widgets(GridType::SCREENSAVER);
   reset_switch_widgets(GridType::SCREENSAVER);
+  reset_cover_widgets(GridType::SCREENSAVER);
   reset_media_widgets(GridType::SCREENSAVER);
   if (st->timer) {
     lv_timer_delete(st->timer);

@@ -8,7 +8,9 @@ param(
     [string[]]$ExtraDefine = @(),
 
     [ValidateSet('auto', 'repo-short-tail', 'repo-a8204')]
-    [string]$EspHostedRxVariant = 'auto'
+    [string]$EspHostedRxVariant = 'auto',
+
+    [switch]$Clean
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,6 +36,10 @@ $node = Get-Command node -ErrorAction Stop
 & $node.Source (Join-Path $PSScriptRoot 'generate-web-assets.mjs') --check
 if ($LASTEXITCODE -ne 0) {
     throw 'Generated WebUI assets are stale. Run tools/generate-web-assets.mjs.'
+}
+& $node.Source (Join-Path $PSScriptRoot 'test-admin-cover-editor.mjs')
+if ($LASTEXITCODE -ne 0) {
+    throw 'Admin Cover editor contract test failed.'
 }
 
 $defines = @{
@@ -100,8 +106,8 @@ $cFlags = $cppFlags
 
 Move-Item -LiteralPath $sketchProfiles -Destination $hiddenSketchProfiles
 try {
-    & $arduinoCli compile `
-        --clean `
+    $cleanArgs = if ($Clean) { @('--clean') } else { @() }
+    & $arduinoCli compile @cleanArgs `
         --fqbn $fqbn `
         --export-binaries `
         --output-dir $OutputDirectory `

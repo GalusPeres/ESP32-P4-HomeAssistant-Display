@@ -1271,8 +1271,10 @@
     .notification.show { opacity:1; transform:translateY(0); }
     body.tile-resize-active { user-select:none; cursor:default; }
   
-.tile.sensor { display:grid; grid-template-rows:auto 1fr; grid-template-columns:1fr; }
-    .tile.sensor .tile-title {
+.tile.sensor,
+    .tile.cover { display:grid; grid-template-rows:auto 1fr; grid-template-columns:1fr; }
+    .tile.sensor .tile-title,
+    .tile.cover .tile-title {
       text-align:right;
       align-self:start;
       width:auto;
@@ -1305,7 +1307,8 @@
     .tile-value.sensor-value-size-24 { font-size:var(--fs24, 12px); }
     .tile-value.sensor-value-size-20 { font-size:var(--fs20, 10px); }
     .tile-unit { color:inherit; font-size:inherit; margin-left:0.28em; }
-    .tile.sensor .tile-icon {
+    .tile.sensor .tile-icon,
+    .tile.cover .tile-icon {
       position:absolute;
       top:8px;
       left:6px;
@@ -1394,6 +1397,12 @@
     }
     .tile-switch.is-on { background: var(--switch-on-color, #3B82F6); }
     .tile-switch.is-on .tile-switch-knob { transform: translateX(30px); }
+
+.tile.cover .tile-cover-value {
+      font-size:var(--fs20, 10px);
+      line-height:1.25;
+      white-space:normal;
+    }
 
 .tile.media { position:relative; overflow:hidden; }
     .tile.media .tile-icon {

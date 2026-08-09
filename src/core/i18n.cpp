@@ -1237,6 +1237,10 @@ static const LocaleProfile kLocaleDe = {
      "Beide", "Links", "Mitte", "Rechts", "Schwenken", "Breit"},
     {"Automatisch", "Leer", "Leer / entfernen", "Leeres Feld",
      "Inhalt des ausgewählten Feldes", "Waagerecht", "Senkrecht"},
+    {"Cover", "Cover-Entität", "Position", "Lamellen",
+     "Öffnen", "Stopp", "Schließen"},
+    {"Offen", "Öffnet", "Geschlossen", "Schließt",
+     "Nicht verfügbar", "Unbekannt"},
     1,  // 24 Stunden
     1,  // Tag.Monat.Jahr
     " Uhr",
@@ -1303,6 +1307,9 @@ static const LocaleProfile kLocaleEn = {
      "Both", "Left", "Center", "Right", "Swing", "Wide"},
     {"Automatic", "Empty", "Empty / remove", "Empty field",
      "Selected field content", "Horizontal", "Vertical"},
+    {"Cover", "Cover entity", "Position", "Tilt",
+     "Open", "Stop", "Close"},
+    {"Open", "Opening", "Closed", "Closing", "Unavailable", "Unknown"},
     2,  // 12-hour
     2,  // month/day/year
     ":00",
@@ -1370,6 +1377,10 @@ static const LocaleProfile kLocaleFr = {
      "Les deux", "Gauche", "Centre", "Droite", "Oscillation", "Large"},
     {"Automatique", "Vide", "Vide / retirer", "Champ vide",
      "Contenu du champ sélectionné", "Horizontal", "Vertical"},
+    {"Volet", "Entité du volet", "Position", "Inclinaison",
+     "Ouvrir", "Arrêter", "Fermer"},
+    {"Ouvert", "Ouverture", "Fermé", "Fermeture",
+     "Indisponible", "Inconnu"},
     1,  // 24 heures
     1,  // jour/mois/année
     " h",
@@ -1735,6 +1746,25 @@ const char* climate_mini_label(
     const char* language_code, uint8_t index) {
   if (index >= 7) return "";
   return locale(language_code).climate_mini_labels[index];
+}
+
+const char* cover_label(const char* language_code, uint8_t index) {
+  if (index >= 7) return "";
+  return locale(language_code).cover_labels[index];
+}
+
+const char* cover_state_label(const char* language_code,
+                              const String& state_value) {
+  String state = state_value;
+  state.trim();
+  state.toLowerCase();
+  static const char* const kStates[] = {
+      "open", "opening", "closed", "closing", "unavailable", "unknown"};
+  const LocaleProfile& profile = locale(language_code);
+  for (uint8_t index = 0; index < 6; ++index) {
+    if (state == kStates[index]) return profile.cover_states[index];
+  }
+  return profile.cover_states[5];
 }
 
 }  // namespace i18n

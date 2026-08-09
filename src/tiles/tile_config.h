@@ -34,7 +34,8 @@ enum TileType : uint8_t {
   TILE_MEDIA = 15,
   TILE_PIXELANIM = 16,
   TILE_CLIMATE = 17,
-  TILE_CAMERA = 18
+  TILE_CAMERA = 18,
+  TILE_COVER = 19
 };
 
 static inline bool isRetiredTileType(TileType type) {
@@ -440,7 +441,8 @@ static inline uint8_t getTilePopupOpenMode(const Tile& tile) {
                : TILE_POPUP_OPEN_SHORT_PRESS;
   }
   if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER &&
-      tile.type != TILE_ENERGY && tile.type != TILE_CLIMATE) {
+      tile.type != TILE_ENERGY && tile.type != TILE_CLIMATE &&
+      tile.type != TILE_COVER) {
     return TILE_POPUP_OPEN_LONG_PRESS;
   }
   return (tile.popup_open_mode == TILE_POPUP_OPEN_SHORT_PRESS)
@@ -465,7 +467,8 @@ static inline void setTilePopupOpenMode(Tile& tile, uint8_t mode) {
     return;
   }
   if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER &&
-      tile.type != TILE_ENERGY && tile.type != TILE_CLIMATE) return;
+      tile.type != TILE_ENERGY && tile.type != TILE_CLIMATE &&
+      tile.type != TILE_COVER) return;
   tile.popup_open_mode = (mode == TILE_POPUP_OPEN_SHORT_PRESS)
                              ? TILE_POPUP_OPEN_SHORT_PRESS
                              : TILE_POPUP_OPEN_LONG_PRESS;

@@ -456,6 +456,11 @@ struct LocaleProfile {
   const char* climate_option_labels[26];
   const char* climate_mini_labels[7];
 
+  // Cover type, Web fields, actions, and runtime states. State order:
+  // open, opening, closed, closing, unavailable, unknown.
+  const char* cover_labels[7];
+  const char* cover_states[6];
+
   // Anzeigeformat-Defaults fuer "Auto (Sprache)": Werte entsprechen den
   // clock_tile::TimeFormat/DateFormat-Enums (Zeit: 1 = 24h, 2 = 12h;
   // Datum: 1 = DMY, 2 = MDY, 3 = YMD)
@@ -526,6 +531,11 @@ const char* climate_value_label(const char* language_code, uint8_t index);
 const char* climate_control_label(const char* language_code, uint8_t index);
 String climate_option_label(const char* language_code, const String& option);
 const char* climate_mini_label(const char* language_code, uint8_t index);
+// Cover UI labels: 0 type, 1 entity, 2 position, 3 tilt,
+// 4 open, 5 stop, 6 close.
+const char* cover_label(const char* language_code, uint8_t index);
+const char* cover_state_label(const char* language_code,
+                              const String& state);
 
 }  // namespace i18n
 

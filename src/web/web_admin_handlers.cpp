@@ -92,7 +92,8 @@ static bool tileTypeHasDynamicMqttRoute(TileType type) {
          type == TILE_SWITCH ||
          type == TILE_MEDIA ||
          type == TILE_WEATHER ||
-         type == TILE_CLIMATE;
+         type == TILE_CLIMATE ||
+         type == TILE_COVER;
 }
 
 static String dynamicMqttEntityForTile(const Tile& tile) {
@@ -1923,7 +1924,7 @@ void WebAdminServer::handleSaveTiles() {
 
   if (screensaver_grid && type != TILE_EMPTY && type != TILE_SENSOR &&
       type != TILE_ENERGY && type != TILE_SCENE && type != TILE_SWITCH &&
-      type != TILE_MEDIA) {
+      type != TILE_MEDIA && type != TILE_COVER) {
     server.send(400, "application/json",
                 "{\"success\":false,\"error\":\"Tile type not supported in screensaver\"}");
     return;
@@ -2543,6 +2544,8 @@ void WebAdminServer::handleGetEntityOptions() {
   appendHumanizedList(json, "weathers", parseSensorList(ha.weathers_text));
   json += ",";
   appendHumanizedList(json, "climates", parseSensorList(ha.climates_text));
+  json += ",";
+  appendHumanizedList(json, "covers", parseSensorList(ha.covers_text));
   json += ",\"cameras\":[";
   {
     bool first = true;

@@ -34,6 +34,9 @@ void mqttPublishClimateFanMode(const char* entity_id, const char* fan_mode);
 void mqttPublishClimateSwingMode(const char* entity_id, const char* swing_mode);
 void mqttPublishClimateHorizontalSwingMode(
     const char* entity_id, const char* swing_mode);
+void mqttPublishCoverCommand(const char* entity_id,
+                             const char* command,
+                             int position = -1);
 void mqttPublishLightCommand(const char* entity_id,
                              const char* state,
                              int brightness_pct,

@@ -1355,6 +1355,7 @@ function t(key) {
         rebuildEntitySelect(tab + '_switch_entity', data.switches);
         rebuildEntitySelect(tab + '_media_entity', data.media);
         rebuildEntitySelect(tab + '_climate_entity', data.climates);
+        rebuildEntitySelect(tab + '_cover_entity', data.covers);
         rebuildEntitySelect(tab + '_camera_entity', data.cameras);
         rebuildEntitySelect(tab + '_scene_alias', data.scenes);
       })
@@ -1460,6 +1461,9 @@ function t(key) {
     }
     if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'climate_entity')) {
       tile.sensor_entity = snapshot.climate_entity || '';
+    }
+    if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'cover_entity')) {
+      tile.sensor_entity = snapshot.cover_entity || '';
     }
     if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'camera_entity')) {
       tile.sensor_entity = snapshot.camera_entity || '';
@@ -2464,6 +2468,9 @@ function t(key) {
 
   function titleFromOption(option) {
     if (!option) return '';
+    // The first option is the translated "No selection" placeholder.  It is
+    // not an entity name and must never become a persisted tile title.
+    if (!String(option.value || '').trim().length) return '';
     const label = String(option.textContent || option.innerText || '').trim();
     if (!label.length) return '';
     const sep = label.indexOf(' - ');
@@ -2497,10 +2504,16 @@ function t(key) {
     const prefix = tab;
     const bindLive = (el, eventName, key, handler) => {
       if (!el) return;
-      const flag = 'liveBound' + key + eventName;
-      if (el.dataset[flag] === '1') return;
+      // Settings panels can be restored/replaced from the folder-tab HTML
+      // cache.  A serialized data-live-bound flag can survive that operation,
+      // while the JavaScript listener itself cannot.  Keep the actual handler
+      // on the live DOM node and always replace it deterministically.
+      const slot = '__homeTilesLive_' + key + '_' + eventName;
+      if (typeof el[slot] === 'function') {
+        el.removeEventListener(eventName, el[slot]);
+      }
       el.addEventListener(eventName, handler);
-      el.dataset[flag] = '1';
+      el[slot] = handler;
     };
 
     const titleInput = document.getElementById(prefix + '_tile_title');
@@ -2543,6 +2556,8 @@ function t(key) {
     const switchPopupModeSelect = document.getElementById(prefix + '_switch_popup_open_mode');
     const mediaSelect = document.getElementById(prefix + '_media_entity');
     const climateSelect = document.getElementById(prefix + '_climate_entity');
+    const coverSelect = document.getElementById(prefix + '_cover_entity');
+    const coverPopupModeSelect = document.getElementById(prefix + '_cover_popup_open_mode');
     const cameraSelect = document.getElementById(prefix + '_camera_entity');
     const climatePopupModeSelect = document.getElementById(prefix + '_climate_popup_open_mode');
     const climateSlotSelects = Array.from(
@@ -2645,6 +2660,21 @@ function t(key) {
       scheduleAutoSave(tab);
     });
     bindLive(climatePopupModeSelect, 'change', 'climatePopupMode', () => { updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(coverSelect, 'change', 'coverEntity', () => {
+      if (coverSelect.value) {
+        coverSelect.dataset.configuredValue = coverSelect.value;
+      } else {
+        delete coverSelect.dataset.configuredValue;
+      }
+      maybeFillTitleFromEntity(tab, '_cover_entity');
+      updateTilePreview(tab);
+      updateDraft(tab);
+      scheduleAutoSave(tab);
+    });
+    bindLive(coverPopupModeSelect, 'change', 'coverPopupMode', () => {
+      updateDraft(tab);
+      scheduleAutoSave(tab);
+    });
     bindLive(cameraSelect, 'change', 'cameraEntity', () => {
       if (cameraSelect.value) {
         cameraSelect.dataset.configuredValue = cameraSelect.value;
@@ -2771,6 +2801,7 @@ function t(key) {
     const switchEntity = document.getElementById(prefix + '_switch_entity')?.value || '';
     const mediaEntity = document.getElementById(prefix + '_media_entity')?.value || '';
     const climateEntity = document.getElementById(prefix + '_climate_entity')?.value || '';
+    const coverEntity = document.getElementById(prefix + '_cover_entity')?.value || '';
     const cameraEntity = document.getElementById(prefix + '_camera_entity')?.value || '';
     const iconEntity = (previewKind === 'sensor')
       ? (isEnergyType ? energyEntity : sensorEntity)
@@ -2782,7 +2813,9 @@ function t(key) {
             ? mediaEntity
             : (previewKind === 'climate'
               ? climateEntity
-              : (previewKind === 'camera' ? cameraEntity : '')))));
+              : (previewKind === 'cover'
+                ? coverEntity
+                : (previewKind === 'camera' ? cameraEntity : ''))))));
     const rawIcon = iconInput ? iconInput.value : '';
     let iconName = resolveIconName(
       rawIcon,
@@ -2799,6 +2832,15 @@ function t(key) {
       if (!normalizeMdiIconName(rawIcon) &&
           !isExplicitlyDisabledValue(rawIcon)) {
         iconName = climatePreviewIcon(climatePreviewState, iconName);
+      }
+    }
+    let coverPreviewState = null;
+    if (previewKind === 'cover') {
+      coverPreviewState = parseCoverPreviewPayload(
+        coverEntity ? (sensorMetaCache.values[coverEntity] ?? '') : '');
+      if (!normalizeMdiIconName(rawIcon) &&
+          !isExplicitlyDisabledValue(rawIcon)) {
+        iconName = coverPreviewIcon(coverPreviewState, iconName);
       }
     }
 
@@ -2843,7 +2885,9 @@ function t(key) {
     if (iconName) {
       const iconStyle = previewKind === 'climate'
         ? ' style="color:' + climatePreviewColor(climatePreviewState) + '"'
-        : '';
+        : (previewKind === 'cover'
+          ? ' style="color:' + coverPreviewColor(coverPreviewState) + '"'
+          : '');
       html += '<i class="mdi mdi-' + iconName + ' tile-icon"' + iconStyle + '></i>';
     }
 
@@ -2872,6 +2916,13 @@ function t(key) {
         currentClimateSlotConfig(tab),
         currentClimateTargetLayouts(tab),
         currentClimateGeometry(tab));
+    }
+    if (previewKind === 'cover') {
+      const value = coverPreviewState?.position !== null &&
+                    coverPreviewState?.position !== undefined
+        ? String(coverPreviewState.position) + '%' : '--%';
+      html += '<div class="tile-value tile-cover-value">' +
+        coverPreviewStateText(coverPreviewState) + '<br>' + value + '</div>';
     }
 
     if (previewKind === 'sensor') {
@@ -3808,6 +3859,11 @@ function t(key) {
       if (tile.popup_open_mode !== undefined && tile.popup_open_mode !== null) {
         fd.append('popup_open_mode', tile.popup_open_mode);
       }
+    } else if (safeType === 19) {
+      fd.append('cover_entity', tile.sensor_entity || tile.cover_entity || '');
+      if (tile.popup_open_mode !== undefined && tile.popup_open_mode !== null) {
+        fd.append('popup_open_mode', tile.popup_open_mode);
+      }
     } else if (safeType === 18) {
       fd.append('camera_entity', tile.sensor_entity || tile.camera_entity || '');
     } else if (safeType === 16) {
@@ -3940,7 +3996,8 @@ function t(key) {
       const previewKind = meta.preview || 'none';
       const iconEntity = (previewKind === 'sensor' || previewKind === 'switch' ||
                           previewKind === 'weather' || previewKind === 'media' ||
-                          previewKind === 'climate' || previewKind === 'camera')
+                          previewKind === 'climate' || previewKind === 'cover' ||
+                          previewKind === 'camera')
         ? (tile.sensor_entity || '')
         : '';
       const rawIcon = tile.icon_name || '';
@@ -3961,13 +4018,24 @@ function t(key) {
           iconName = climatePreviewIcon(climatePreviewState, iconName);
         }
       }
+      let coverPreviewState = null;
+      if (previewKind === 'cover') {
+        coverPreviewState = parseCoverPreviewPayload(
+          tile.sensor_entity ? (metaValues[tile.sensor_entity] ?? '') : '');
+        if (!normalizeMdiIconName(rawIcon) &&
+            !isExplicitlyDisabledValue(rawIcon)) {
+          iconName = coverPreviewIcon(coverPreviewState, iconName);
+        }
+      }
 
       let html = '';
 
       if (iconName) {
         const iconStyle = previewKind === 'climate'
           ? ' style="color:' + climatePreviewColor(climatePreviewState) + '"'
-          : '';
+          : (previewKind === 'cover'
+            ? ' style="color:' + coverPreviewColor(coverPreviewState) + '"'
+            : '');
         html += '<i class="mdi mdi-' + iconName + ' tile-icon"' + iconStyle + '></i>';
       }
 
@@ -4001,6 +4069,14 @@ function t(key) {
           decodeClimateSlotConfig(tile.sensor_gauge_min || 0),
           decodeClimateTargetLayouts(tile.sensor_gauge_max || 0),
           tile.climate_geometry || tile.scene_alias || '');
+      }
+      if (previewKind === 'cover') {
+        const value = coverPreviewState?.position !== null &&
+                      coverPreviewState?.position !== undefined
+          ? String(coverPreviewState.position) + '%' : '--%';
+        html += '<div class="tile-value tile-cover-value">' +
+          coverPreviewStateText(coverPreviewState) +
+          '<br>' + value + '</div>';
       }
       if (previewKind === 'clock') {
         const flags = normalizeClockFlags(tile.sensor_decimals);
@@ -6724,6 +6800,128 @@ function maybeFillTitleFromSwitch(tab) {
     if (styleEl) styleEl.value = '0';
     const popupModeEl = document.getElementById(prefix + '_switch_popup_open_mode');
     if (popupModeEl) popupModeEl.value = '1';
+  }
+
+  function parseCoverPreviewPayload(value) {
+    const out = {
+      state: 'unknown',
+      position: null,
+      tiltPosition: null,
+      deviceClass: '',
+      available: true
+    };
+    if (value === undefined || value === null) return out;
+    const text = String(value).trim();
+    if (!text.length) return out;
+    if (!text.startsWith('{')) {
+      out.state = text.toLowerCase();
+      out.available = out.state !== 'unavailable';
+      return out;
+    }
+    try {
+      const obj = JSON.parse(text);
+      if (!obj || typeof obj !== 'object') return out;
+      const attrs = obj.attributes && typeof obj.attributes === 'object'
+        ? obj.attributes : obj;
+      out.state = String(obj.state ?? attrs.state ?? 'unknown').toLowerCase();
+      out.available = obj.available !== undefined
+        ? !!obj.available : out.state !== 'unavailable';
+      const position = obj.current_position ?? attrs.current_position;
+      if (position !== undefined && position !== null &&
+          Number.isFinite(Number(position))) {
+        out.position = Math.max(0, Math.min(100, Math.round(Number(position))));
+      }
+      const tilt = obj.current_tilt_position ?? attrs.current_tilt_position;
+      if (tilt !== undefined && tilt !== null && Number.isFinite(Number(tilt))) {
+        out.tiltPosition = Math.max(0, Math.min(100, Math.round(Number(tilt))));
+      }
+      out.deviceClass = String(obj.device_class ?? attrs.device_class ?? '').toLowerCase();
+    } catch (e) {}
+    return out;
+  }
+
+  function coverPreviewIcon(state, fallback = '') {
+    if (fallback) return fallback;
+    const deviceClass = state?.deviceClass || '';
+    const open = state?.position !== null && state?.position !== undefined
+      ? state.position > 0
+      : !['closed', 'closing'].includes(state?.state || '');
+    if (deviceClass === 'awning') return 'awning';
+    if (deviceClass === 'curtain') return open ? 'curtains' : 'curtains-closed';
+    if (deviceClass === 'door') return open ? 'door-open' : 'door-closed';
+    if (deviceClass === 'garage') return open ? 'garage-open' : 'garage';
+    if (deviceClass === 'gate') return open ? 'gate-open' : 'gate';
+    if (deviceClass === 'shutter') {
+      return open ? 'window-shutter-open' : 'window-shutter';
+    }
+    if (deviceClass === 'window') return open ? 'window-open' : 'window-closed';
+    return open ? 'blinds-open' : 'blinds';
+  }
+
+  function coverPreviewColor(state) {
+    const value = String(state?.state || 'unknown').toLowerCase();
+    if (state?.available === false ||
+        value === 'closed' || value === 'unknown' || value === 'unavailable') {
+      return '#9e9e9e';
+    }
+    return '#926bc7';
+  }
+
+  function coverPreviewStateText(state) {
+    if (state?.available === false) return COVER_I18N.unavailable;
+    const labels = {
+      open: COVER_I18N.open,
+      opening: COVER_I18N.opening,
+      closed: COVER_I18N.closed,
+      closing: COVER_I18N.closing,
+      unavailable: COVER_I18N.unavailable,
+      unknown: COVER_I18N.unknown
+    };
+    return labels[String(state?.state || 'unknown').toLowerCase()] ||
+      COVER_I18N.unknown;
+  }
+
+  function loadCoverFields(tab, data) {
+    const entity = document.getElementById(tab + '_cover_entity');
+    const configured = data.sensor_entity || data.cover_entity || '';
+    if (entity) {
+      if (configured) {
+        entity.dataset.configuredValue = configured;
+        if (!Array.from(entity.options).some(option => option.value === configured)) {
+          const option = document.createElement('option');
+          option.value = configured;
+          option.textContent = configured;
+          entity.appendChild(option);
+        }
+      } else {
+        delete entity.dataset.configuredValue;
+      }
+      entity.value = configured;
+    }
+    const popup = document.getElementById(tab + '_cover_popup_open_mode');
+    if (popup) {
+      popup.value = data.popup_open_mode !== undefined
+        ? String(data.popup_open_mode) : '1';
+    }
+    maybeFillTitleFromEntity(tab, '_cover_entity');
+  }
+
+  function saveCoverFields(tab, formData) {
+    const entity = document.getElementById(tab + '_cover_entity')?.value || '';
+    formData.append('cover_entity', entity);
+    formData.append('sensor_entity', entity);
+    const popup = document.getElementById(tab + '_cover_popup_open_mode');
+    if (popup) formData.append('popup_open_mode', popup.value || '1');
+  }
+
+  function resetCoverFields(tab) {
+    const entity = document.getElementById(tab + '_cover_entity');
+    if (entity) {
+      entity.value = '';
+      delete entity.dataset.configuredValue;
+    }
+    const popup = document.getElementById(tab + '_cover_popup_open_mode');
+    if (popup) popup.value = '1';
   }
 
 function maybeFillTitleFromMedia(tab) {
