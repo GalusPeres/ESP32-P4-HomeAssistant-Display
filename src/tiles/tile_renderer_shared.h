@@ -16,7 +16,7 @@ extern SwitchTileWidgets g_tab1_switches[];
 extern SwitchTileWidgets g_tab2_switches[];
 extern SwitchTileWidgets g_screensaver_switches[];
 
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
 extern WeatherTileWidgets* g_tab0_weather;
 extern WeatherTileWidgets* g_tab1_weather;
 extern WeatherTileWidgets* g_tab2_weather;

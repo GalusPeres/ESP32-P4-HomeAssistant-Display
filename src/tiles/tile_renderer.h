@@ -340,8 +340,8 @@ struct TileWidgetCache {
   MediaTileWidgets media[TILES_PER_GRID];
 };
 
-// Allocate the large, cold renderer bookkeeping arrays. On Waveshare 8 these
-// live in PSRAM; other profiles keep their established static storage.
+// Allocate the large, cold renderer bookkeeping arrays. On ESP32-P4 these
+// live in PSRAM; non-P4 profiles keep their established static storage.
 bool tile_renderer_init_cold_storage();
 
 // Rendert ein komplettes Tile-Grid (4x4)

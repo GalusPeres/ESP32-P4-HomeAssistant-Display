@@ -38,23 +38,21 @@ static bool g_tiles_icon_refresh_requested = false;
 static uint32_t g_tiles_icon_generation = 1;
 
 static constexpr uint16_t kInvalidFolderId = 0xFFFF;
-// The Waveshare 8 keeps the visible folder plus up to five direct navigation
-// targets. Other devices retain the previous root + three recent working set.
+// ESP32-P4 devices keep the visible folder plus up to five direct navigation
+// targets. Non-P4 devices retain the previous root + three recent working set.
 // FolderCacheEntry storage itself lives in PSRAM; slots beyond the guaranteed
 // first three are admitted only while the measured post-build reserves below
 // remain healthy.
 static constexpr size_t kMinResidentFolderUiCaches = 3;
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
 static constexpr size_t kMaxResidentFolderUiCaches = 6;
 static constexpr size_t kMaxNavigationPreloadTargets = 5;
 static constexpr uint32_t kNavigationPreloadIdleMs = 750;
 static constexpr uint32_t kNavigationPreloadInitialDelayMs = 3000;
 static constexpr uint32_t kNavigationPreloadStepGapMs = 250;
-// Existing device logs show 125-130 KB internal free RAM and 69-71 KB as the
-// largest block after network start. Creating or deleting a folder grid changes
-// total internal RAM by only 1-4 KB and does not change that largest block. The
-// old 72-KB-largest-block gate therefore measured the 72-KB LVGL draw band, not
-// the cost of the next grid. Keep real post-build reserves instead and budget
+// Measured ESP32-P4 logs show that creating or deleting a folder grid changes
+// total internal RAM by only a few kilobytes while the largest block is usually
+// constrained by the LVGL draw band. Keep real post-build reserves and budget
 // the largest observed cost of a previous grid before admitting the next one.
 static constexpr uint32_t kFolderCacheMinInternalAfterBuild = 96UL * 1024UL;
 static constexpr uint32_t kFolderCacheMinDmaAfterBuild = 48UL * 1024UL;
@@ -93,7 +91,7 @@ static volatile bool g_folder_cache_invalidate_requested = false;
 static TileWidgetCache* g_cache_build_saved_widgets = nullptr;
 static bool g_folder_switch_pending = false;
 static uint16_t g_pending_folder_id = kInvalidFolderId;
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
 static uint16_t g_navigation_preload_targets[kMaxNavigationPreloadTargets] = {};
 static size_t g_navigation_preload_target_count = 0;
 static size_t g_navigation_preload_cursor = 0;
@@ -201,7 +199,7 @@ static bool can_preload_more_folders() {
   return true;
 }
 
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
 static void clear_navigation_preload_plan() {
   for (size_t i = 0; i < kMaxNavigationPreloadTargets; ++i) {
     g_navigation_preload_targets[i] = kInvalidFolderId;
@@ -335,7 +333,7 @@ struct EntityCacheEntry {
 };
 
 static constexpr size_t kEntityCacheSize = TILES_PER_GRID * 8;
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
 static EntityCacheEntry* g_entity_cache = nullptr;
 static bool g_entity_cache_init_attempted = false;
 #else
@@ -344,7 +342,7 @@ static EntityCacheEntry g_entity_cache[kEntityCacheSize];
 static size_t g_entity_cache_cursor = 0;
 
 static bool ensure_entity_cache_storage() {
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
   if (g_entity_cache) return true;
   if (g_entity_cache_init_attempted) return false;
   g_entity_cache_init_attempted = true;
@@ -773,7 +771,7 @@ static size_t resident_folder_cache_count() {
   return count;
 }
 
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
 struct FolderCacheMemorySnapshot {
   uint32_t internal_free = 0;
   uint32_t dma_free = 0;
@@ -820,7 +818,7 @@ static void observe_folder_cache_build_cost(
 #endif
 
 static bool folder_cache_has_growth_headroom() {
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
   const FolderCacheMemorySnapshot snapshot = folder_cache_memory_snapshot();
   return snapshot.internal_free >=
              kFolderCacheMinInternalAfterBuild +
@@ -847,7 +845,7 @@ static bool folder_cache_requires_eviction_before_build() {
   if (resident < kMinResidentFolderUiCaches) return false;
   if (folder_cache_has_growth_headroom()) return false;
 
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
   const FolderCacheMemorySnapshot snapshot = folder_cache_memory_snapshot();
   Serial.printf(
       "[Tiles] folder-cache growth stopped at %u grids | int=%lu KB "
@@ -874,7 +872,7 @@ static bool folder_cache_requires_eviction_before_build() {
 
 static FolderCacheEntry* find_folder_cache_eviction_candidate(
     uint16_t requested_folder_id, bool for_preload) {
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
   FolderCacheEntry* best = nullptr;
   bool best_outside_working_set = false;
   size_t best_priority = 0;
@@ -1089,7 +1087,7 @@ static void build_folder_cache_entry(FolderCacheEntry& entry, GridType grid_type
   entry.last_used_ms = millis();
 }
 
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
 static void process_navigation_preload() {
   if (g_navigation_preload_cursor >= g_navigation_preload_target_count ||
       g_folder_switch_pending || powerManager.isInSleep() ||
@@ -1519,14 +1517,14 @@ void build_tiles_tab(lv_obj_t *parent, GridType grid_type, scene_publish_cb_t sc
         process_media_update_queue();
         g_active_cache->last_used_ms = millis();
         preloaded_folder_count = 1;
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
         schedule_navigation_preload(g_active_cache->folder_id,
                                     tileConfig.getActiveGrid(),
                                     kNavigationPreloadInitialDelayMs);
 #endif
       }
     }
-#if !defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if !defined(CONFIG_IDF_TARGET_ESP32P4)
     for (const auto& folder : tileConfig.getFolders()) {
       if (g_active_cache && folder.id == g_active_cache->folder_id) continue;
       // UI setup runs before network/SDIO/MQTT allocations. Preload only the
@@ -1673,7 +1671,7 @@ void tiles_reload_layout(GridType grid_type) {
   }
   Serial.printf("[%s] Layout neu geladen\n", getGridName(grid_type));
   schedule_preview_load(grid_type);
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
   if (grid_type == GridType::TAB0 && g_active_cache) {
     schedule_navigation_preload(g_active_cache->folder_id,
                                 tileConfig.getActiveGrid());
@@ -1711,7 +1709,7 @@ void tiles_release_layout(GridType grid_type) {
 }
 
 void tiles_release_all() {
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
   clear_navigation_preload_plan();
 #endif
   for (size_t i = 0; i < g_folder_cache_slot_count; ++i) {
@@ -1799,7 +1797,7 @@ void tiles_invalidate_folder(uint16_t folder_id) {
 static void process_folder_cache_invalidation() {
   if (!g_folder_cache_invalidate_requested) return;
   g_folder_cache_invalidate_requested = false;
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
   clear_navigation_preload_plan();
 #endif
   for (size_t i = 0; i < g_folder_cache_slot_count; ++i) {
@@ -1919,7 +1917,7 @@ void tiles_process_reload_requests() {
         lv_obj_invalidate(target->grid);
         target->last_used_ms = millis();
         schedule_preview_load(GridType::TAB0);
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
         schedule_navigation_preload(folder_id, tileConfig.getActiveGrid());
 #endif
         log_folder_switch_memory("folder-switch-cached", folder_id);
@@ -1961,7 +1959,7 @@ void tiles_process_reload_requests() {
         lv_obj_invalidate(target->grid);
         target->last_used_ms = millis();
         schedule_preview_load(GridType::TAB0);
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
         schedule_navigation_preload(folder_id, tileConfig.getActiveGrid());
 #endif
         log_folder_switch_memory("folder-switch-built", folder_id);
@@ -2021,7 +2019,7 @@ void tiles_process_reload_requests() {
     }
   }
 
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
   if (!did_reload) process_navigation_preload();
 #endif
 }

@@ -71,8 +71,9 @@ Looking for something specific? [Tile Types](tiles.md) ·
 HomeTiles v0.6.5 adds feature-aware Home Assistant Cover tiles and controls,
 improves ESP32-S3 display, touch, storage and OTA stability, and makes
 brightness percentages consistent between the device, MQTT and screensaver.
-It also expands the Waveshare 8-inch folder cache and adds on-demand SD-card
-diagnostics plus a corrected JC1060 SD power sequence.
+It also expands the folder cache to six grids across all ESP32-P4 profiles and
+adds on-demand SD-card diagnostics across all supported device profiles, plus a
+corrected JC1060 SD power sequence.
 
 Update to **HomeTiles Bridge v0.6.35** before using Cover tiles. Existing tile
 types remain compatible. The JC8012 V2, JC1060 and Waveshare 7/10.1-inch

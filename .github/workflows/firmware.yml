@@ -154,6 +154,9 @@ jobs:
       - name: Verify Guition JC1060 SD power contract
         run: node tools/test-jc1060-sd-power.mjs
 
+      - name: Verify ESP32-P4 folder-cache scope
+        run: node tools/test-p4-folder-cache-scope.mjs
+
       - name: Restore Arduino cache
         uses: actions/cache@v4
         with:

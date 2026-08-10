@@ -67,7 +67,8 @@ the whole chain: MQTT broker, bridge integration, and connecting the display.
   slideshow handling.
 - Unified device, MQTT and screensaver brightness percentages while preserving
   safe device-specific PWM ranges.
-- Expanded the Waveshare 8-inch folder cache and added on-demand SD diagnostics.
+- Expanded the folder cache to six grids across all ESP32-P4 profiles.
+- Added on-demand SD diagnostics across all supported device profiles.
 - Added a separate Guition JC8012 V2 image and corrected JC1060 SD power startup.
 
 Cover entities in Home Assistant require

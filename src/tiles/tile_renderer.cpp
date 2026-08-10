@@ -60,7 +60,7 @@ SwitchTileWidgets g_tab1_switches[TILES_PER_GRID];
 SwitchTileWidgets g_tab2_switches[TILES_PER_GRID];
 SwitchTileWidgets g_screensaver_switches[TILES_PER_GRID];
 
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
 WeatherTileWidgets* g_tab0_weather = nullptr;
 WeatherTileWidgets* g_tab1_weather = nullptr;
 WeatherTileWidgets* g_tab2_weather = nullptr;
@@ -134,7 +134,7 @@ static ClimateState* allocate_climate_states(const char* grid_name) {
 }
 
 bool tile_renderer_init_cold_storage() {
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
   if (g_tab0_weather && g_tab0_media) return true;
   if (g_cold_state_init_attempted) return false;
   g_cold_state_init_attempted = true;
