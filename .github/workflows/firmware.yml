@@ -122,6 +122,12 @@ jobs:
             define: DEVICE_GUITION_JC8012P4A1
             rx_variant: repo-a8204
             publish: true
+          - label: Guition JC8012P4A1 V2 (community testing)
+            profile: guition_jc8012p4a1_v2
+            key: guition_jc8012p4a1_v2
+            define: DEVICE_GUITION_JC8012P4A1_V2
+            rx_variant: repo-a8204
+            publish: true
           - label: Guition JC1060P470C (experimental)
             profile: guition_jc1060p470c
             key: guition_jc1060p470c
@@ -149,6 +155,12 @@ jobs:
 
       - name: Verify generated WebUI assets
         run: node tools/generate-web-assets.mjs --check
+
+      - name: Verify Guition JC8012 V2 profile contract
+        run: node tools/test-guition-jc8012-v2-profile.mjs
+
+      - name: Verify Guition JC1060 SD power contract
+        run: node tools/test-jc1060-sd-power.mjs
 
       - name: Restore Arduino cache
         uses: actions/cache@v4
@@ -386,7 +398,7 @@ jobs:
         shell: bash
         run: |
           ls -la build/release-assets
-          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 16
+          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 18
 
       - name: Upload assets to GitHub release
         env:

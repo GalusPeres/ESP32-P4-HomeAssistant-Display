@@ -81,7 +81,8 @@ electrical suitability.
 | Waveshare 8 inch | GPIO 2, 3, 4, 5, 21, 22, 28, 29, 30, 31, 32, 34, 46, 47, 48, 49, 50, 51, 52 | Profile-whitelisted; verify attached hardware |
 | Waveshare 10.1 inch | GPIO 2, 3, 4, 5, 21, 22, 28, 29, 30, 31, 32, 34, 46, 47, 48, 49, 50, 51, 52 | Experimental / community validation needed |
 | Guition JC8012P4A1 | Expansion FPC GPIO 2, 3, 4, 5, 28, 29, 30, 31, 32, 33, 34, 45, 46, 47, 48 | Schematic-derived; verify the connected expansion board |
-| Guition JC1060P470C | Expand GPIO 1, 2, 3, 4, 5, 20, 32, 33, 45, 46, 47 | Experimental / community validation needed |
+| Guition JC8012P4A1 V2 | Expansion FPC GPIO 2, 3, 4, 5, 28, 29, 30, 31, 32, 33, 34, 45, 46, 47, 48 | Separate V2 profile; same reported board wiring, community validation ongoing |
+| Guition JC1060P470C | Expand GPIO 1, 2, 3, 4, 5, 20, 32, 33, 46, 47 | GPIO45 is reserved for the active-low SD-card power switch; experimental / community validation needed |
 | Guition ESP32-4848S040 | Onboard Relay 1 on GPIO 40 for relay-equipped variants | Experimental; relay-equipped variants only |
 
 !!! danger "3.3 V logic only"

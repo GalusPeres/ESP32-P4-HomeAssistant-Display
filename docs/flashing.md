@@ -21,7 +21,8 @@ Grab the file matching your device from the
 | M5Stack Tab5 | Supported | `hometiles_<version>_m5stacks_tab5_factory.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B / 86 Panel | Supported | `hometiles_<version>_waveshare_4b_factory.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-8 | Supported | `hometiles_<version>_waveshare_touch_lcd_8_factory.bin` |
-| Guition JC8012P4A1C_I_W_Y | Supported | `hometiles_<version>_guition_jc8012p4a1_factory.bin` |
+| Guition JC8012P4A1C_I_W_Y V1 (no V2 sticker) | Supported | `hometiles_<version>_guition_jc8012p4a1_factory.bin` |
+| Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Experimental | `hometiles_<version>_guition_jc8012p4a1_v2_factory.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Experimental | `hometiles_<version>_waveshare_touch_lcd_7_factory.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Experimental | `hometiles_<version>_waveshare_touch_lcd_10_1_factory.bin` |
 | Guition JC1060P470C_I_W_Y | Experimental, exact suffix required | `hometiles_<version>_guition_jc1060p470c_factory.bin` |
@@ -31,7 +32,14 @@ Grab the file matching your device from the
     Experimental targets are published for community hardware testing and have
     not yet completed the full physical-device checklist. Use only the image
     matching the exact model and report results in
-    [issues #7–#9](https://github.com/GalusPeres/HomeTiles/issues).
+    [open hardware issues](https://github.com/GalusPeres/HomeTiles/issues),
+    including [JC8012 V2 issue #18](https://github.com/GalusPeres/HomeTiles/issues/18).
+
+!!! danger "JC8012 V1 and V2 images are not interchangeable"
+    Check the rear material-number sticker before flashing. A unit marked `V2`
+    requires `guition_jc8012p4a1_v2`; the original image is only for the V1
+    panel. Using the wrong revision can leave the backlight on with a black or
+    grey-banded display.
 
 !!! note "`factory.bin` vs. plain `.bin`"
     The **factory** image is a complete flash image — bootloader, firmware, and empty

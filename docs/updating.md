@@ -66,7 +66,8 @@ Use the asset matching your device from the release page:
 | M5Stack Tab5 | Supported | `hometiles_<version>_m5stacks_tab5.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B / 86 Panel | Supported | `hometiles_<version>_waveshare_4b.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-8 | Supported | `hometiles_<version>_waveshare_touch_lcd_8.bin` |
-| Guition JC8012P4A1C_I_W_Y | Supported | `hometiles_<version>_guition_jc8012p4a1.bin` |
+| Guition JC8012P4A1C_I_W_Y V1 (no V2 sticker) | Supported | `hometiles_<version>_guition_jc8012p4a1.bin` |
+| Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Experimental | `hometiles_<version>_guition_jc8012p4a1_v2.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Experimental | `hometiles_<version>_waveshare_touch_lcd_7.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Experimental | `hometiles_<version>_waveshare_touch_lcd_10_1.bin` |
 | Guition JC1060P470C_I_W_Y | Experimental, exact suffix required | `hometiles_<version>_guition_jc1060p470c.bin` |

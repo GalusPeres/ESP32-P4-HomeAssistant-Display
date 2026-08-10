@@ -21,6 +21,8 @@ const char* apSsidForDevice() {
   return "M5Stacks_Tab5_Config";
 #elif defined(DEVICE_GUITION_JC8012P4A1)
   return "Guition_JC8012P4A1_Config";
+#elif defined(DEVICE_GUITION_JC8012P4A1_V2)
+  return "Guition_JC8012P4A1_V2_Config";
 #elif defined(DEVICE_GUITION_JC1060P470C)
   return "Guition_JC1060P470C_Config";
 #elif defined(DEVICE_GUITION_ESP32_4848S040)

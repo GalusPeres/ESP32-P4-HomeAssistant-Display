@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('tab5', 'waveshare_b4', 'waveshare_7', 'waveshare_8', 'waveshare_10_1', 'layout_test_1024x600', 'layout_test_480x480', 'guition_jc8012p4a1', 'guition_jc1060p470c', 'guition_esp32_4848s040')]
+    [ValidateSet('tab5', 'waveshare_b4', 'waveshare_7', 'waveshare_8', 'waveshare_10_1', 'layout_test_1024x600', 'layout_test_480x480', 'guition_jc8012p4a1', 'guition_jc8012p4a1_v2', 'guition_jc1060p470c', 'guition_esp32_4848s040')]
     [string]$Profile,
 
     [string]$OutputDirectory,
@@ -41,6 +41,14 @@ if ($LASTEXITCODE -ne 0) {
 if ($LASTEXITCODE -ne 0) {
     throw 'Admin Cover editor contract test failed.'
 }
+& $node.Source (Join-Path $PSScriptRoot 'test-guition-jc8012-v2-profile.mjs')
+if ($LASTEXITCODE -ne 0) {
+    throw 'Guition JC8012P4A1 V2 profile contract test failed.'
+}
+& $node.Source (Join-Path $PSScriptRoot 'test-jc1060-sd-power.mjs')
+if ($LASTEXITCODE -ne 0) {
+    throw 'Guition JC1060P470C SD power contract test failed.'
+}
 
 $defines = @{
     tab5 = 'DEVICE_M5STACKS_TAB5'
@@ -51,6 +59,7 @@ $defines = @{
     layout_test_1024x600 = 'DEVICE_LAYOUT_TEST_1024X600'
     layout_test_480x480 = 'DEVICE_LAYOUT_TEST_480X480'
     guition_jc8012p4a1 = 'DEVICE_GUITION_JC8012P4A1'
+    guition_jc8012p4a1_v2 = 'DEVICE_GUITION_JC8012P4A1_V2'
     guition_jc1060p470c = 'DEVICE_GUITION_JC1060P470C'
     guition_esp32_4848s040 = 'DEVICE_GUITION_ESP32_4848S040'
 }

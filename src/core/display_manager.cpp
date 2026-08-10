@@ -799,7 +799,7 @@ void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *
     int16_t mapped_y = tp.y;
 #if !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_X) && \
-    !defined(DEVICE_GUITION_JC8012P4A1) && \
+    !defined(DEVICE_GUITION_JC8012P4A1_FAMILY) && \
     !defined(DEVICE_GUITION_JC1060P470C) && \
     !defined(DEVICE_GUITION_ESP32_4848S040)
     switch (rotation & 0x03) {
@@ -841,7 +841,7 @@ bool DisplayManager::init() {
   BoardHAL::displayFillScreen(0x0000);  // black
 #if !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_X) && \
-    !defined(DEVICE_GUITION_JC8012P4A1) && \
+    !defined(DEVICE_GUITION_JC8012P4A1_FAMILY) && \
     !defined(DEVICE_GUITION_JC1060P470C) && \
     !defined(DEVICE_GUITION_ESP32_4848S040)
   BoardHAL::setBrightness(150);  // Wird spaeter vom Power Manager gesteuert
@@ -931,7 +931,7 @@ bool DisplayManager::init() {
                         nullptr);
 #endif
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
-    defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
     defined(DEVICE_GUITION_JC1060P470C) || \
     defined(DEVICE_GUITION_ESP32_4848S040)
   if (lv_timer_t* read_timer = lv_indev_get_read_timer(indev)) {

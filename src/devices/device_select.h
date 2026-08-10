@@ -13,6 +13,7 @@
 // #define DEVICE_LAYOUT_TEST_480X480
 // #define DEVICE_M5STACKS_TAB5
 // #define DEVICE_GUITION_JC8012P4A1
+// #define DEVICE_GUITION_JC8012P4A1_V2
 // #define DEVICE_GUITION_JC1060P470C
 // #define DEVICE_GUITION_ESP32_4848S040
 #endif
@@ -35,6 +36,7 @@
      defined(DEVICE_LAYOUT_TEST_480X480) + \
      defined(DEVICE_M5STACKS_TAB5) + \
      defined(DEVICE_GUITION_JC8012P4A1) + \
+     defined(DEVICE_GUITION_JC8012P4A1_V2) + \
      defined(DEVICE_GUITION_JC1060P470C) + \
      defined(DEVICE_GUITION_ESP32_4848S040)) > 1
 #error "Select only one device target."
@@ -48,6 +50,7 @@
     !defined(DEVICE_LAYOUT_TEST_480X480) && \
     !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_GUITION_JC8012P4A1) && \
+    !defined(DEVICE_GUITION_JC8012P4A1_V2) && \
     !defined(DEVICE_GUITION_JC1060P470C) && \
     !defined(DEVICE_GUITION_ESP32_4848S040) && \
     defined(HOMETILES_CI_TARGET)
@@ -62,10 +65,18 @@
     !defined(DEVICE_LAYOUT_TEST_480X480) && \
     !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_GUITION_JC8012P4A1) && \
+    !defined(DEVICE_GUITION_JC8012P4A1_V2) && \
     !defined(DEVICE_GUITION_JC1060P470C) && \
     !defined(DEVICE_GUITION_ESP32_4848S040) && \
     !defined(HOMETILES_CI_TARGET)
 #define DEVICE_WAVESHARE_4B
+#endif
+
+// Both JC8012 revisions share the board-level UI and lifecycle behavior, but
+// retain separate device drivers, display tables and OTA identities.
+#if defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_JC8012P4A1_V2)
+#define DEVICE_GUITION_JC8012P4A1_FAMILY
 #endif
 
 // The 7", 8" and 10.1" products share the same ESP32-P4-WIFI6-Touch-LCD-X

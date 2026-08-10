@@ -69,6 +69,18 @@ appear if the light supports them.
 ![Light popup color wheel](images/8in-light-color.png){ width="32.8%" }
 ![Light popup color temperature](images/8in-light-temperature.png){ width="32.8%" }
 
+### Cover
+
+Controls a Home Assistant `cover` entity. The tile shows the localized state
+and, when available, the current position.
+
+**Config:** Cover entity and popup trigger.
+
+**Popup:** separate position and tilt sliders plus open, close and stop buttons.
+HomeTiles uses the entity's `supported_features` mask, so only controls actually
+provided by Home Assistant appear. Missing position or tilt values remain
+unknown instead of being displayed as zero.
+
 ### Scene
 
 Triggers a scene or script with a tap — no popup. The tile references the **scene

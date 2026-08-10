@@ -6,7 +6,8 @@ states, icons, sensor history, weather forecasts, and energy data to the display
 MQTT, and executes the light/switch/media/scene commands coming back. Bridge
 v0.6.28 and newer provide the experimental local camera transport used by
 HomeTiles v0.6.3 and newer. Bridge v0.6.32 adds migration-safe entities for the
-local Hardware I/O announced by HomeTiles v0.6.4.
+local Hardware I/O announced by HomeTiles v0.6.4. Bridge v0.6.35 adds Cover
+entity state, metadata and validated commands for HomeTiles v0.6.5.
 
 Every display appears as its own device under the integration — with its base topic
 and status entities — no matter how many panels you run:
@@ -20,6 +21,7 @@ and status entities — no matter how many panels you run:
 - HomeTiles Bridge v0.6.28 or newer when Camera tiles are used
 - HomeTiles Bridge v0.6.32 or newer when panel-local Switch or temperature
   assignments should appear as Home Assistant entities
+- HomeTiles Bridge v0.6.35 or newer when Cover tiles are used
 
 ## Installation
 
@@ -69,7 +71,7 @@ Select which entities the displays may use:
 
 - **Sensors** — any entity whose state you want on sensor tiles
 - **Weather** — `weather` entities for weather tiles/forecasts
-- **Lights / Switches / Climate / Media players** — controllable from the displays
+- **Lights / Switches / Covers / Climate / Media players** — controllable from the displays
 - **Cameras** — sources for the experimental ESP32-P4 Camera tile
 - **Scenes & scripts** — each selected entry gets an auto-generated **alias**
   (used by scene tiles); you can also map aliases manually in the text box,
@@ -123,6 +125,7 @@ For debugging with an MQTT client (topic layout, `{id}` = panel device id):
 | `<base>/cmnd/switch` | Display → HA | Switch control commands |
 | `<base>/cmnd/media` | Display → HA | Media player commands |
 | `<base>/cmnd/climate` | Display → HA | Climate temperature/range, humidity, mode, preset, fan, and swing controls |
+| `<base>/cmnd/cover` | Display → HA | Validated Cover position, tilt, open, close and stop commands |
 | `<base>/cmnd/scene` | Display → HA | Scene/script activation |
 | `<base>/cmnd/camera` | Display → HA | Open/close an experimental camera session |
 | `<base>/stat/camera` | HA → Display | Camera protocol, endpoint and status |

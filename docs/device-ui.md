@@ -29,6 +29,13 @@ the bottom switches between the views; the power button toggles the light.
 Brightness is a drag slider, color is a full color wheel, and **K** selects the
 white color temperature. Views only appear if the light supports them.
 
+### Cover Control
+
+Cover tiles open a popup with the same header, card and navigation conventions
+as Light controls. Position and tilt are independent vertical sliders, while a
+second mode exposes the supported open, close and stop actions. Unsupported or
+unavailable controls stay disabled.
+
 ### Sensor History
 
 Sensor tiles chart their history — fetched live from Home Assistant through the

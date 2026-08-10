@@ -16,6 +16,8 @@ Hardware configuration:
 - Backlight PWM on GPIO23, active high
 - MIPI PHY LDO channel 3 at 2.5 V
 - TF/SD card on SDMMC slot 0 with LDO channel 4
+- Active-low TF/SD power switch on GPIO45; the driver performs the official
+  200 ms power reset before each mount attempt
 
 The HomeTiles UI uses the independently retained `DEVICE_LAYOUT_1024X600`
 layout profile. The panel itself is native landscape, so the default display

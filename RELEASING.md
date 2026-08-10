@@ -8,27 +8,27 @@ You never upload binaries by hand — you only bump the version and push a tag.
 
 ```bash
 # 1. Bump the version (only when the current state is actually ready to ship!)
-#    Edit version.txt:  #define FW_VERSION "v0.6.4"
+#    Edit version.txt:  #define FW_VERSION "v0.6.5"
 
 # 2. Commit, tag, push (the tag must match FW_VERSION exactly)
 git add version.txt
-git commit -m "Release v0.6.4"
-git tag v0.6.4
+git commit -m "Release v0.6.5"
+git tag v0.6.5
 git push --follow-tags
 ```
 
 That's it. The action then:
 
-1. Builds all eight release targets with the pinned toolchain (ESP32 core +
+1. Builds all nine release targets with the pinned toolchain (ESP32 core +
    libraries, see workflow `env`). This includes four hardware-confirmed
    profiles (covering five device products because the 86 Panel uses the 4B
-   image) and four experimental profiles. CI also builds one clearly named,
+   image) and five experimental/community profiles. CI also builds one clearly named,
    private Waveshare 8-inch short-tail A/B artifact that is not a release asset.
 2. Verifies that the tag matches `FW_VERSION` in `version.txt` — a mismatch
    fails the build on purpose.
 3. Verifies the device descriptor embedded in each binary.
 4. Creates the GitHub release with auto-generated notes and uploads all
-   16 binaries (`<device>.bin` for OTA + `<device>_factory.bin` for first flash).
+   18 binaries (`<device>.bin` for OTA + `<device>_factory.bin` for first flash).
 
 The checked-in release notes are not copied into the GitHub release
 automatically. After the workflow succeeds, replace the generated GitHub text

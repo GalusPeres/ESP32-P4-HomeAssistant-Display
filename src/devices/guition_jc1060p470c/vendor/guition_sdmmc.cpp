@@ -20,6 +20,7 @@
 #include <esp_err.h>
 #include <esp_random.h>
 #include <esp_vfs_fat.h>
+#include <esp32-hal-periman.h>
 #include <sd_protocol_defs.h>
 #include <sd_pwr_ctrl_by_on_chip_ldo.h>
 #include <sdmmc_cmd.h>
@@ -27,11 +28,19 @@
 namespace {
 
 constexpr int kSdLdoChannel = 4;
+constexpr uint32_t kSdPowerOffMs = 200;
 sd_pwr_ctrl_handle_t g_sd_power_handle = nullptr;
 
-bool ensure_sd_power() {
+static_assert(BOARD_SDMMC_POWER_CHANNEL == kSdLdoChannel,
+              "JC1060 SD power must use ESP32-P4 LDO VO4");
+static_assert(BOARD_SDMMC_POWER_PIN == 45,
+              "JC1060 SD card power switch must use GPIO45");
+static_assert(BOARD_SDMMC_POWER_ON_LEVEL == LOW,
+              "JC1060 SD card power switch must be active-low");
+
+esp_err_t ensure_sd_power() {
   if (g_sd_power_handle) {
-    return true;
+    return ESP_OK;
   }
 
   sd_pwr_ctrl_ldo_config_t config = {};
@@ -42,12 +51,28 @@ bool ensure_sd_power() {
                   kSdLdoChannel,
                   esp_err_to_name(err),
                   static_cast<unsigned>(err));
-    return false;
+    return err;
   }
 
   Serial.printf("[Device/Guition JC1060P470C] SD power control uses LDO VO%d\n",
                 kSdLdoChannel);
-  return true;
+  return ESP_OK;
+}
+
+void reset_sd_card_power() {
+  // Match Arduino-ESP32's official ESP32-P4 SD_MMC.begin() sequence. The
+  // JC1060 routes LDO VO4 through an active-low load switch controlled by
+  // GPIO45, so an SDMMC host reset alone cannot recover a card left in a bad
+  // electrical state.
+  pinMode(BOARD_SDMMC_POWER_PIN, OUTPUT);
+  digitalWrite(BOARD_SDMMC_POWER_PIN, !BOARD_SDMMC_POWER_ON_LEVEL);
+  delay(kSdPowerOffMs);
+  digitalWrite(BOARD_SDMMC_POWER_PIN, BOARD_SDMMC_POWER_ON_LEVEL);
+  perimanSetPinBusExtraType(BOARD_SDMMC_POWER_PIN, "SDMMC_POWER");
+  Serial.printf("[Device/Guition JC1060P470C] SD power reset: gpio=%d off_ms=%lu on_level=%s\n",
+                BOARD_SDMMC_POWER_PIN,
+                static_cast<unsigned long>(kSdPowerOffMs),
+                BOARD_SDMMC_POWER_ON_LEVEL == LOW ? "LOW" : "HIGH");
 }
 
 }  // namespace
@@ -55,7 +80,12 @@ bool ensure_sd_power() {
 namespace fs {
 
 JC1060SDMMCFS::JC1060SDMMCFS(FSImplPtr impl)
-    : FS(impl), card_(nullptr), writable_(false), frequency_khz_(0) {
+    : FS(impl),
+      card_(nullptr),
+      writable_(false),
+      frequency_khz_(0),
+      last_error_phase_("none"),
+      last_error_(ESP_OK) {
 }
 
 bool JC1060SDMMCFS::begin(const char* mountpoint,
@@ -64,9 +94,13 @@ bool JC1060SDMMCFS::begin(const char* mountpoint,
   if (card_) {
     return true;
   }
-  if (!ensure_sd_power()) {
+  const esp_err_t power_err = ensure_sd_power();
+  if (power_err != ESP_OK) {
+    last_error_phase_ = "power-control";
+    last_error_ = power_err;
     return false;
   }
+  reset_sd_card_power();
 
   esp_vfs_fat_sdmmc_mount_config_t mount_config = {};
   mount_config.format_if_mount_failed = false;
@@ -96,6 +130,8 @@ bool JC1060SDMMCFS::begin(const char* mountpoint,
   const esp_err_t err = esp_vfs_fat_sdmmc_mount(
       mountpoint, &host, &slot_config, &mount_config, &card_);
   if (err != ESP_OK) {
+    last_error_phase_ = "mount";
+    last_error_ = err;
     Serial.printf("[Device/Guition JC1060P470C] SD mount failed: %s (0x%x), freq=%d kHz\n",
                   esp_err_to_name(err),
                   static_cast<unsigned>(err),
@@ -108,6 +144,8 @@ bool JC1060SDMMCFS::begin(const char* mountpoint,
   _impl->mountpoint(mountpoint);
   writable_ = false;
   frequency_khz_ = card_ ? card_->real_freq_khz : sdmmc_frequency;
+  last_error_phase_ = "none";
+  last_error_ = ESP_OK;
   Serial.printf("[Device/Guition JC1060P470C] SD mounted, requested=%d kHz, real=%d kHz, host_flags=0x%lx\n",
                 sdmmc_frequency,
                 frequency_khz_,
@@ -237,6 +275,14 @@ bool JC1060SDMMCFS::writable() const {
 
 int JC1060SDMMCFS::frequencyKHz() const {
   return frequency_khz_;
+}
+
+const char* JC1060SDMMCFS::lastErrorPhase() const {
+  return last_error_phase_;
+}
+
+esp_err_t JC1060SDMMCFS::lastError() const {
+  return last_error_;
 }
 
 JC1060SdCardType JC1060SDMMCFS::cardType() const {

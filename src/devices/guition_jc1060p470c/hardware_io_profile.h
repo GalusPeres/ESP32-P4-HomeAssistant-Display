@@ -23,8 +23,6 @@ inline constexpr Device::HardwareIoPinOption kHardwareIoPins[] = {
      "Expand GPIO 32"},
     {33, Device::kHardwareIoPinSwitch | Device::kHardwareIoPinTemperature,
      "Expand GPIO 33"},
-    {45, Device::kHardwareIoPinSwitch | Device::kHardwareIoPinTemperature,
-     "Expand GPIO 45"},
     {46, Device::kHardwareIoPinSwitch | Device::kHardwareIoPinTemperature,
      "Expand GPIO 46"},
     {47, Device::kHardwareIoPinSwitch | Device::kHardwareIoPinTemperature,

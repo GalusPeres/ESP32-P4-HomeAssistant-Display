@@ -142,6 +142,24 @@ Arduino IDE:
 - Upload Speed: `921600`
 - USB Mode: `USB-OTG (TinyUSB)`
 
+## Guition JC8012P4A1 V2 (community testing)
+
+Used for:
+- `src/devices/guition_jc8012p4a1_v2`
+- build profile `guition_jc8012p4a1_v2`
+
+Important:
+- Use this profile only when the rear material-number sticker contains `V2`,
+  for example `SKU:10153002-V2`.
+- V2 uses its own JD9365 init table, 80MHz DPI clock and vertical timing
+  `4/10/30`. The original target remains at 60MHz and `4/8/20`.
+- V1 and V2 factory/OTA images are deliberately incompatible and have separate
+  embedded device keys.
+- Board, flash, PSRAM, partition, upload, touch, SDMMC and USB settings are the
+  same as the Guition JC8012P4A1 V1 section above.
+- Physical release and OTA validation is tracked in
+  [issue #18](https://github.com/GalusPeres/HomeTiles/issues/18).
+
 ## Guition JC1060P470C_I_W_Y (experimental)
 
 Used for:
@@ -155,6 +173,8 @@ Important:
   report results in [issue #8](https://github.com/GalusPeres/HomeTiles/issues/8).
 - ESP32-P4 with `16MB` flash and `32MB` PSRAM.
 - Native `1024x600` JD9165 MIPI-DSI panel with GT911 touch.
+- SDMMC slot 0 uses GPIO39-44 and LDO VO4. GPIO45 controls the active-low
+  card-power switch and is reserved from configurable hardware I/O.
 - Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.
 
 Arduino IDE:

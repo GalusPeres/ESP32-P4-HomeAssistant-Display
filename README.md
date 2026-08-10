@@ -40,6 +40,7 @@ Camera tiles require **HomeTiles Bridge v0.6.28 or newer**. Other tile types do
 not depend on the camera protocol.
 Local Hardware I/O works directly on the panel; **HomeTiles Bridge v0.6.32 or
 newer** is required to expose those assignments in Home Assistant.
+Cover tiles require **HomeTiles Bridge v0.6.35 or newer**.
 
 New to this? The [Home Assistant Setup Guide](docs/home-assistant-setup.md) walks through
 the whole chain: MQTT broker, bridge integration, and connecting the display.
@@ -228,7 +229,7 @@ Everything visible on the dashboard is tile-based and managed from the built-in 
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-4B](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm) | Supported |
 | [Waveshare ESP32-P4-86-Panel-ETH-2RO](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-4B) | Supported, including native Ethernet; uses the 4B firmware |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-8](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Supported |
-| [Guition JC8012P4A1C_I_W_Y](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | Supported |
+| [Guition JC8012P4A1C_I_W_Y](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | Supported V1 panel; no `V2` suffix on the rear material number |
 
 ### Experimental / community-testing builds
 
@@ -240,6 +241,7 @@ networking and OTA have been confirmed on the physical device.
 | --- | --- |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Experimental; feedback in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Experimental; feedback in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
+| Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Separate V2 panel image with hardware-tested JD9365 table/timing; full release/OTA validation pending in [issue #18](https://github.com/GalusPeres/HomeTiles/issues/18) |
 | [Guition JC1060P470C_I_W_Y](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | Experimental; only the `_I_W_Y` variant, see [issue #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
 | [Guition ESP32-4848S040C_I](https://www.guition.com/esp32-display-module/4-inch-esp32s3-display-module) | Experimental ESP32-S3 target; initial hardware testing is positive, while long-duration and OTA coverage are still pending in [issue #9](https://github.com/GalusPeres/HomeTiles/issues/9). Camera tiles are not available on this target. |
 
@@ -321,12 +323,13 @@ More screenshots and how everything works: [Web Admin Panel](docs/web-admin.md) 
 - On-device settings for display brightness, sleep, orientation, language, time zone, and time format
 - English and German UI/admin support, Cyrillic tile-title glyphs, and 12h/24h time formats
 - Home Assistant energy statistics tile with day and week popup charts
+- Home Assistant Cover tiles with position, tilt and feature-aware controls
 - Media player tile with cover art and playback controls
 - microSD file manager in the web admin (upload, download, rename, delete, folders)
 - Runtime storage on internal LittleFS; microSD is optional
 - Screenshot export to microSD from the web interface
-- Tile types currently include: sensor, energy, weather, scene, switch, climate,
-  camera, media, folder, clock, text, animation, and empty — see
+- Tile types currently include: sensor, energy, weather, scene, switch, cover,
+  climate, camera, media, folder, clock, text, animation, and empty — see
   [Tile Types](docs/tiles.md)
 
 ## Installation
@@ -340,7 +343,8 @@ Download the files matching your device from the [latest release](https://github
 | M5Stack Tab5 | Supported | `..._m5stacks_tab5_factory.bin` | `..._m5stacks_tab5.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B / 86 Panel | Supported | `..._waveshare_4b_factory.bin` | `..._waveshare_4b.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-8 | Supported | `..._waveshare_touch_lcd_8_factory.bin` | `..._waveshare_touch_lcd_8.bin` |
-| Guition JC8012P4A1C_I_W_Y | Supported | `..._guition_jc8012p4a1_factory.bin` | `..._guition_jc8012p4a1.bin` |
+| Guition JC8012P4A1C_I_W_Y V1 (no V2 sticker) | Supported | `..._guition_jc8012p4a1_factory.bin` | `..._guition_jc8012p4a1.bin` |
+| Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Experimental | `..._guition_jc8012p4a1_v2_factory.bin` | `..._guition_jc8012p4a1_v2.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Experimental | `..._waveshare_touch_lcd_7_factory.bin` | `..._waveshare_touch_lcd_7.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Experimental | `..._waveshare_touch_lcd_10_1_factory.bin` | `..._waveshare_touch_lcd_10_1.bin` |
 | Guition JC1060P470C_I_W_Y | Experimental | `..._guition_jc1060p470c_factory.bin` | `..._guition_jc1060p470c.bin` |

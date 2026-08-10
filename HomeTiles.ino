@@ -79,7 +79,7 @@ static uint32_t tab5_brightness_cap_wait_since = 0;
 static constexpr uint32_t kBootSplashMinVisibleMs = 2500;
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
-    defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
     defined(DEVICE_GUITION_ESP32_4848S040)
 static constexpr uint32_t kBootBlackWarmupMs = 90;
 static constexpr uint32_t kBootBlackGapMs = 60;
@@ -127,7 +127,7 @@ static void log_memory_status(const char* tag) {
 
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
-    defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
     defined(DEVICE_GUITION_ESP32_4848S040)
 static void boot_black_warmup(const char* label) {
   Serial.printf("[Boot] Black display warmup: %s\n", label ? label : "?");
@@ -654,7 +654,7 @@ void setup() {
   Serial.flush();
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
-    defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
     defined(DEVICE_GUITION_ESP32_4848S040)
   boot_black_warmup("after-display");
 #endif
@@ -695,7 +695,7 @@ void setup() {
   // aufblitzen. Deshalb Panel dunkel, Splash fertig rendern, dann erst sichtbar.
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
-    defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
     defined(DEVICE_GUITION_ESP32_4848S040)
   BoardHAL::displaySleep();
   delay(kBootBlackGapMs);
@@ -710,7 +710,7 @@ void setup() {
   lv_obj_update_layout(lv_screen_active());
 #if !defined(DEVICE_WAVESHARE_TOUCH_LCD_X) && \
     !defined(DEVICE_M5STACKS_TAB5) && \
-    !defined(DEVICE_GUITION_JC8012P4A1) && \
+    !defined(DEVICE_GUITION_JC8012P4A1_FAMILY) && \
     !defined(DEVICE_GUITION_ESP32_4848S040)
   BoardHAL::displayWake();
 #endif
@@ -733,7 +733,7 @@ void setup() {
 #endif
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
-    defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
     defined(DEVICE_GUITION_ESP32_4848S040)
   BoardHAL::displayWake();
   BoardHAL::displayWaitDisplay();

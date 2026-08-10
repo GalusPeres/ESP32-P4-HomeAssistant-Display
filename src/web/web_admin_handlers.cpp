@@ -26,6 +26,9 @@
 #include "src/core/firmware_metadata.h"
 #include "src/core/firmware_version.h"
 #include "src/devices/guition_esp32_4848s040/s3_diagnostics.h"
+#if defined(DEVICE_GUITION_JC1060P470C)
+#include "src/devices/guition_jc1060p470c/vendor/guition_sdmmc.h"
+#endif
 #include <LittleFS.h>
 #include <Update.h>
 #include <esp_core_dump.h>
@@ -3956,6 +3959,17 @@ void WebAdminServer::handleSdDiagnosticsDownload() {
   };
 
   const bool ready = Device::sdReady();
+#if defined(DEVICE_GUITION_JC1060P470C)
+  report += "SD bus: SDMMC slot 0, 4-bit, CLK=43 CMD=44 D0-D3=39-42\n";
+  report += "SD power: LDO VO4, GPIO45 active-low, 200 ms reset before each mount attempt\n";
+  report += "Last driver phase: ";
+  report += JC1060SDMMC.lastErrorPhase();
+  report += "\nLast driver result: ";
+  report += esp_err_to_name(JC1060SDMMC.lastError());
+  report += " (0x";
+  report += String(static_cast<unsigned>(JC1060SDMMC.lastError()), HEX);
+  report += ")\n";
+#endif
   report += "Mounted: ";
   report += ready ? "yes\n" : "no\n";
   if (!ready) {
