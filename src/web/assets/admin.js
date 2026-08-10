@@ -6843,19 +6843,45 @@ function maybeFillTitleFromSwitch(tab) {
   function coverPreviewIcon(state, fallback = '') {
     if (fallback) return fallback;
     const deviceClass = state?.deviceClass || '';
-    const open = state?.position !== null && state?.position !== undefined
-      ? state.position > 0
-      : !['closed', 'closing'].includes(state?.state || '');
-    if (deviceClass === 'awning') return 'awning';
-    if (deviceClass === 'curtain') return open ? 'curtains' : 'curtains-closed';
-    if (deviceClass === 'door') return open ? 'door-open' : 'door-closed';
-    if (deviceClass === 'garage') return open ? 'garage-open' : 'garage';
-    if (deviceClass === 'gate') return open ? 'gate-open' : 'gate';
-    if (deviceClass === 'shutter') {
-      return open ? 'window-shutter-open' : 'window-shutter';
+    const value = String(state?.state || '').toLowerCase();
+    const resolve = (defaultIcon, closedIcon, closingIcon, openingIcon) => {
+      if (value === 'closed' && closedIcon) return closedIcon;
+      if (value === 'closing' && closingIcon) return closingIcon;
+      if (value === 'opening' && openingIcon) return openingIcon;
+      return defaultIcon;
+    };
+    if (deviceClass === 'blind') {
+      return resolve('blinds-horizontal', 'blinds-horizontal-closed',
+        'arrow-down-box', 'arrow-up-box');
     }
-    if (deviceClass === 'window') return open ? 'window-open' : 'window-closed';
-    return open ? 'blinds-open' : 'blinds';
+    if (deviceClass === 'curtain') {
+      return resolve('curtains', 'curtains-closed',
+        'arrow-collapse-horizontal', 'arrow-split-vertical');
+    }
+    if (deviceClass === 'damper') {
+      return resolve('circle', 'circle-slice-8');
+    }
+    if (deviceClass === 'door') return resolve('door-open', 'door-closed');
+    if (deviceClass === 'garage') {
+      return resolve('garage-open', 'garage', 'arrow-down-box', 'arrow-up-box');
+    }
+    if (deviceClass === 'gate') {
+      return resolve('gate-open', 'gate', 'arrow-right', 'arrow-right');
+    }
+    if (deviceClass === 'shade') {
+      return resolve('roller-shade', 'roller-shade-closed',
+        'arrow-down-box', 'arrow-up-box');
+    }
+    if (deviceClass === 'shutter') {
+      return resolve('window-shutter-open', 'window-shutter',
+        'arrow-down-box', 'arrow-up-box');
+    }
+    if (deviceClass === 'window') {
+      return resolve('window-open', 'window-closed',
+        'arrow-down-box', 'arrow-up-box');
+    }
+    return resolve('window-open', 'window-closed',
+      'arrow-down-box', 'arrow-up-box');
   }
 
   function coverPreviewColor(state) {

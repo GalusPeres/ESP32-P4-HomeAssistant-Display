@@ -275,6 +275,25 @@ if (JSON.stringify(localizedCoverStates) !== JSON.stringify(expectedCoverStates)
     `Cover state localization failed: ${JSON.stringify(localizedCoverStates)}`);
 }
 
+const officialCoverIcons = vm.runInContext(`[
+  coverPreviewIcon({ deviceClass: 'blind', state: 'open' }),
+  coverPreviewIcon({ deviceClass: 'blind', state: 'closed' }),
+  coverPreviewIcon({ deviceClass: 'curtain', state: 'closing' }),
+  coverPreviewIcon({ deviceClass: 'curtain', state: 'opening' }),
+  coverPreviewIcon({ deviceClass: 'damper', state: 'closed' }),
+  coverPreviewIcon({ deviceClass: 'shade', state: 'closed' }),
+  coverPreviewIcon({ deviceClass: '', state: 'opening' })
+]`, sandbox);
+const expectedCoverIcons = [
+  'blinds-horizontal', 'blinds-horizontal-closed',
+  'arrow-collapse-horizontal', 'arrow-split-vertical',
+  'circle-slice-8', 'roller-shade-closed', 'arrow-up-box'
+];
+if (JSON.stringify(officialCoverIcons) !== JSON.stringify(expectedCoverIcons)) {
+  throw new Error(
+    `Cover icons no longer match Home Assistant: ${JSON.stringify(officialCoverIcons)}`);
+}
+
 const adminCss = fs.readFileSync(
   new URL('../src/web/assets/admin.css', import.meta.url), 'utf8');
 if (!/\.tile\.sensor,\s*\.tile\.cover\s*\{/.test(adminCss) ||
@@ -290,10 +309,29 @@ for (const marker of [
   'tile_layout::header_title_font()',
   'lv_obj_set_width(widget.title_label, LV_PCT(70))',
   'lv_obj_set_style_text_line_space(widget.value_label, 8, 0)',
-  'tile_layout::scale(28)'
+  'tile_layout::scale(28)',
+  'resolve("blinds-horizontal", "blinds-horizontal-closed"',
+  '"arrow-collapse-horizontal", "arrow-split-vertical"',
+  'resolve("window-open", "window-closed", "arrow-down-box"',
+  'bool is_standard_cover_icon(const String& icon_name)',
+  'String cover_resolve_icon(const Tile& tile, const CoverState& state',
+  'if (icon.length() && !is_standard_cover_icon(icon)) return icon;',
+  'cover_resolve_icon(*tile, init.state)'
 ]) {
   if (!coverRenderer.includes(marker)) {
     throw new Error(`Cover renderer lost Sensor layout marker: ${marker}`);
+  }
+}
+const tileUiSource = fs.readFileSync(
+  new URL('../src/ui/tab_tiles_unified.cpp', import.meta.url), 'utf8');
+for (const marker of [
+  '#include "src/types/cover/renderer.h"',
+  'icon_name = cover_resolve_icon(',
+  'widgets[i].dynamic_icon = dynamic_icon',
+  'refresh_cover_popup_for_tile(grid_type, i)'
+]) {
+  if (!tileUiSource.includes(marker)) {
+    throw new Error(`Cover live-icon refresh contract is missing: ${marker}`);
   }
 }
 if (!/set_label_style\(widget\.value_label,\s*lv_color_white\(\),\s*tile_layout::header_title_font\(\)\)/s.test(coverRenderer)) {
@@ -317,10 +355,30 @@ if (!i18nSource.includes('return locale(language_code).cover_labels[index]') ||
 
 const coverPopupSource = fs.readFileSync(
   new URL('../src/ui/cover_popup.cpp', import.meta.url), 'utf8');
-if (!/if \(remote_update_blocked\(g_ctx\)\) \{\s*defer_remote_apply\(g_ctx, init\);\s*apply_remote_state_preserving_active_value\(g_ctx, init\);/s
+if (!/if \(remote_update_blocked\(g_ctx\)\) \{\s*defer_remote_apply\(g_ctx, init\);\s*return;/s
     .test(coverPopupSource)) {
   throw new Error(
-    'Cover popup may discard a live state update during the remote-value guard');
+    'Cover popup no longer defers remote state while a slider is active');
+}
+if (coverPopupSource.includes('apply_remote_state_preserving_active_value')) {
+  throw new Error(
+    'Cover popup must not rebuild the full popup for remote updates during a drag');
+}
+const coverSliderApply = coverPopupSource.match(
+  /void apply_slider_point\([\s\S]*?\n}\n\nvoid commit_slider/,
+)?.[0] ?? '';
+if (!coverSliderApply ||
+    !coverSliderApply.includes('is_preset_value(value)') ||
+    !coverSliderApply.includes('is_preset_value(old_value)') ||
+    !coverSliderApply.includes('update_preset_group')) {
+  throw new Error(
+    'Cover slider must update preset indicators only at preset boundaries');
+}
+const coverSliderCommit = coverPopupSource.match(
+  /void commit_slider\([\s\S]*?\n}\n\nvoid on_slider_track/,
+)?.[0] ?? '';
+if (!coverSliderCommit.includes('update_preset_group')) {
+  throw new Error('Cover slider must update preset selection on final release');
 }
 for (const marker of [
   'lv_timer_create(remote_apply_timer_cb, delay_ms, ctx)',
@@ -329,25 +387,76 @@ for (const marker of [
   'CoverPopupMode::Position',
   'CoverPopupMode::Controls',
   'create_slider_view(',
-  'on_tilt_slider_draw',
-  'kTiltStripeTopHeight',
-  'kTiltStripeBottomHeight',
-  'kTiltStripePitch',
+  'create_tilt_gap_mask',
+  'kTiltGapTopHeight',
+  'kTiltGapBottomHeight',
+  'kTiltGapPitch',
+  'CoverControlsLayout::Cross',
+  'CoverControlsLayout::MainLine',
+  'CoverControlsLayout::TiltLine',
+  'channel == CoverChannel::Position ? LV_ALIGN_RIGHT_MID',
+  'const bool show_mode_switch = position_available && controls_available',
+  'set_hidden(ctx->mode_row, !show_mode_switch)',
+  'constexpr uint8_t kPresetValues[kPresetCount] = {100, 75, 50, 25, 0}',
+  'create_preset_buttons(ctx, ctx->position_slider, CoverChannel::Position',
+  'create_preset_buttons(ctx, ctx->tilt_slider, CoverChannel::Tilt',
+  'slider_center_y_for_value(kPresetValues[i])',
+  'void on_preset(lv_event_t* event)',
+  'constexpr int kPresetButtonHeight = kVerticalSliderRadius * 2',
+  'constexpr int kPresetButtonGap = kSliderColumnGap',
+  'active ? LV_OPA_20 : LV_OPA_TRANSP',
+  'lv_obj_set_style_text_font(label, popup_layout::font24(), 0)',
+  '"arrow-bottom-left"',
+  '"arrow-top-right"',
+  'constexpr int kActionButtonSize = kModeButtonSize',
+  '(kVerticalSliderHeight - (3 * kActionButtonSize)) / 2',
+  'lv_obj_set_style_bg_opa(button, LV_OPA_10, 0)',
+  'lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, LV_STATE_PRESSED)',
+  'lv_obj_set_style_bg_opa(button, LV_OPA_TRANSP, 0)',
   '"format-list-bulleted"',
-  '"swap-vertical"'
+  '"swap-vertical"',
+  'constexpr uint32_t kLivePublishIntervalMs = 500',
+  'schedule_live_publish(ctx, channel)',
+  'cancel_live_publish(ctx)',
+  'lv_obj_invalidate_area(view.track, &dirty)',
+  'lv_color_hex(kHaCoverActive)'
 ]) {
   if (!coverPopupSource.includes(marker)) {
     throw new Error(`Cover popup deferred-update contract is missing: ${marker}`);
   }
 }
-if (/preset_row|preset_buttons|kPresets/.test(coverPopupSource)) {
-  throw new Error('Cover popup restored the removed fixed-position presets');
+if (coverPopupSource.includes('kAccent') ||
+    !coverPopupSource.includes('constexpr uint32_t kHaCoverActive = 0x926BC7')) {
+  throw new Error(
+    'Cover popup controls and state icon must use one fixed HA accent color');
+}
+if (!/kPresetLabels\[kPresetCount\][\s\S]*"100%", "75%", "50%", "25%", "0%"/.test(
+      coverPopupSource)) {
+  throw new Error('Cover popup preset labels no longer match slider heights');
 }
 if (coverPopupSource.includes('ctx->state.position > 0') ||
     !coverPopupSource.includes(
       'lv_area_t middle = {area.x1, top_center_y, area.x2, center_y}')) {
   throw new Error(
     'Cover position fill must run from the fixed top cap to the moving edge');
+}
+if (coverPopupSource.includes('LV_GRAD_DIR_VER') ||
+    !coverPopupSource.includes(
+      'lv_obj_set_style_bg_grad_dir(view.track, LV_GRAD_DIR_NONE, 0)') ||
+    !coverPopupSource.includes('lv_obj_set_size(gap, LV_PCT(100), gap_height)') ||
+    !coverPopupSource.includes('lv_obj_set_style_clip_corner(view.track, true, 0)')) {
+  throw new Error(
+    'Cover tilt gaps must be full-width children clipped by a uniform rounded track');
+}
+if (coverPopupSource.includes('view.value_label') ||
+    coverPopupSource.includes('update_slider_label')) {
+  throw new Error('Cover sliders restored the removed labels below the tracks');
+}
+if (coverPopupSource.includes('"arrow-down-left"') ||
+    coverPopupSource.includes('"arrow-up-right"') ||
+    coverPopupSource.includes('kButtonBg')) {
+  throw new Error(
+    'Cover controls restored bent tilt arrows or opaque action tiles');
 }
 
 const adminSource = fs.readFileSync(

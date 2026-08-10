@@ -10,6 +10,7 @@
 #include "src/ui/image_screensaver.h"
 #include "src/ui/ui_surface_style.h"
 #include "src/network/ha_bridge_config.h"
+#include "src/types/cover/renderer.h"
 #include "src/types/energy/energy_data.h"
 #include "src/web/web_admin.h"
 #include "src/tiles/mdi_icons.h"
@@ -2147,7 +2148,15 @@ static void tiles_refresh_icons_for_grid(GridType grid_type) {
               : base_icon;
     }
     if (!icon_disabled && !icon_name.length()) {
-      if (tile.type == TILE_SCENE) {
+      if (tile.type == TILE_COVER) {
+        CoverState* states = tile_renderer_get_cover_states(grid_type);
+        CoverTileWidgets* widgets =
+            tile_renderer_get_cover_widgets(grid_type);
+        bool dynamic_icon = false;
+        icon_name = cover_resolve_icon(
+            tile, states ? states[i] : CoverState{}, &dynamic_icon);
+        if (widgets) widgets[i].dynamic_icon = dynamic_icon;
+      } else if (tile.type == TILE_SCENE) {
         if (tile.scene_alias.length()) {
           String scene_entity = haBridgeConfig.findSceneEntity(tile.scene_alias);
           if (scene_entity.length()) {
@@ -2157,6 +2166,10 @@ static void tiles_refresh_icons_for_grid(GridType grid_type) {
       } else if (tile.sensor_entity.length()) {
         icon_name = normalizeMdiIconName(haBridgeConfig.findEntityIcon(tile.sensor_entity));
       }
+    }
+
+    if (tile.type == TILE_COVER) {
+      refresh_cover_popup_for_tile(grid_type, i);
     }
 
     String iconChar;

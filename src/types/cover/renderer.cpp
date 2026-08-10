@@ -144,21 +144,86 @@ CoverState parse_cover_payload(const char* payload) {
 String fallback_icon(const CoverState& state) {
   String device_class(state.device_class);
   device_class.toLowerCase();
-  const bool open = state.has_position
-                        ? state.position > 0
-                        : strcmp(state.state, "open") == 0 ||
-                              strcmp(state.state, "opening") == 0 ||
-                              strcmp(state.state, "closing") == 0;
-  if (device_class == "awning") return "awning";
-  if (device_class == "curtain") return open ? "curtains" : "curtains-closed";
-  if (device_class == "door") return open ? "door-open" : "door-closed";
-  if (device_class == "garage") return open ? "garage-open" : "garage";
-  if (device_class == "gate") return open ? "gate-open" : "gate";
-  if (device_class == "shutter") {
-    return open ? "window-shutter-open" : "window-shutter";
+  const bool closed = strcmp(state.state, "closed") == 0;
+  const bool closing = strcmp(state.state, "closing") == 0;
+  const bool opening = strcmp(state.state, "opening") == 0;
+  auto resolve = [&](const char* default_icon, const char* closed_icon,
+                     const char* closing_icon = nullptr,
+                     const char* opening_icon = nullptr) -> String {
+    if (closed && closed_icon) return closed_icon;
+    if (closing && closing_icon) return closing_icon;
+    if (opening && opening_icon) return opening_icon;
+    return default_icon;
+  };
+
+  if (device_class == "blind") {
+    return resolve("blinds-horizontal", "blinds-horizontal-closed",
+                   "arrow-down-box", "arrow-up-box");
   }
-  if (device_class == "window") return open ? "window-open" : "window-closed";
-  return open ? "blinds-open" : "blinds";
+  if (device_class == "curtain") {
+    return resolve("curtains", "curtains-closed",
+                   "arrow-collapse-horizontal", "arrow-split-vertical");
+  }
+  if (device_class == "damper") {
+    return resolve("circle", "circle-slice-8");
+  }
+  if (device_class == "door") {
+    return resolve("door-open", "door-closed");
+  }
+  if (device_class == "garage") {
+    return resolve("garage-open", "garage", "arrow-down-box",
+                   "arrow-up-box");
+  }
+  if (device_class == "gate") {
+    return resolve("gate-open", "gate", "arrow-right", "arrow-right");
+  }
+  if (device_class == "shade") {
+    return resolve("roller-shade", "roller-shade-closed",
+                   "arrow-down-box", "arrow-up-box");
+  }
+  if (device_class == "shutter") {
+    return resolve("window-shutter-open", "window-shutter",
+                   "arrow-down-box", "arrow-up-box");
+  }
+  if (device_class == "window") {
+    return resolve("window-open", "window-closed", "arrow-down-box",
+                   "arrow-up-box");
+  }
+  return resolve("window-open", "window-closed", "arrow-down-box",
+                 "arrow-up-box");
+}
+
+bool is_standard_cover_icon(const String& icon_name) {
+  static constexpr const char* kStateIcons[] = {
+      "window-open",
+      "window-closed",
+      "arrow-down-box",
+      "arrow-up-box",
+      "blinds-horizontal",
+      "blinds-horizontal-closed",
+      "curtains",
+      "curtains-closed",
+      "arrow-collapse-horizontal",
+      "arrow-split-vertical",
+      "circle",
+      "circle-slice-8",
+      "door-open",
+      "door-closed",
+      "garage-open",
+      "garage",
+      "gate-open",
+      "gate",
+      "arrow-right",
+      "roller-shade",
+      "roller-shade-closed",
+      "window-shutter-open",
+      "window-shutter",
+  };
+  const String normalized = normalizeMdiIconName(icon_name);
+  for (const char* state_icon : kStateIcons) {
+    if (normalized.equalsIgnoreCase(state_icon)) return true;
+  }
+  return false;
 }
 
 uint32_t cover_icon_color(const CoverState& state) {
@@ -193,13 +258,8 @@ CoverPopupInit popup_init(GridType grid_type, uint8_t index) {
   init.entity_id = tile->sensor_entity;
   init.title = tile->title.length() ? tile->title : tile->sensor_entity;
   init.state = tile_renderer_get_cover_states(grid_type)[index];
-  String icon = normalizeMdiIconName(tile->icon_name);
   init.icon_visible = !isMdiIconDisabled(tile->icon_name);
-  if (init.icon_visible && !icon.length()) {
-    icon = normalizeMdiIconName(haBridgeConfig.findEntityIcon(tile->sensor_entity));
-  }
-  if (!icon.length()) icon = fallback_icon(init.state);
-  init.icon_name = icon;
+  init.icon_name = cover_resolve_icon(*tile, init.state);
   return init;
 }
 
@@ -232,6 +292,30 @@ void apply_state(GridType grid_type, uint8_t index, const char* payload) {
 }
 
 }  // namespace
+
+String cover_resolve_icon(const Tile& tile, const CoverState& state,
+                          bool* dynamic_icon) {
+  if (dynamic_icon) *dynamic_icon = false;
+  if (isMdiIconDisabled(tile.icon_name)) return "";
+
+  String icon = normalizeMdiIconName(tile.icon_name);
+  if (icon.length()) return icon;
+
+  icon = normalizeMdiIconName(
+      haBridgeConfig.findEntityIcon(tile.sensor_entity));
+  // Bridge v0.6.34/v0.6.35 publishes Home Assistant's state-dependent Cover
+  // fallback through the asynchronous icon topic. Treat those known standard
+  // icons as dynamic and derive them atomically from the retained Cover state.
+  // A non-standard registry/entity icon remains a fixed user override.
+  if (icon.length() && !is_standard_cover_icon(icon)) return icon;
+
+  if (dynamic_icon) *dynamic_icon = true;
+  return fallback_icon(state);
+}
+
+void refresh_cover_popup_for_tile(GridType grid_type, uint8_t index) {
+  update_cover_popup(popup_init(grid_type, index));
+}
 
 lv_obj_t* render_cover_tile(lv_obj_t* parent, int col, int row,
                             const Tile& tile, uint8_t index,
@@ -266,14 +350,10 @@ lv_obj_t* render_cover_tile(lv_obj_t* parent, int col, int row,
   CoverState& state = tile_renderer_get_cover_states(grid_type)[index];
   widget = {};
 
-  String configured_icon = normalizeMdiIconName(tile.icon_name);
   const bool icon_visible = !isMdiIconDisabled(tile.icon_name);
-  if (icon_visible && !configured_icon.length()) {
-    configured_icon = normalizeMdiIconName(
-        haBridgeConfig.findEntityIcon(tile.sensor_entity));
-  }
-  widget.dynamic_icon = icon_visible && !configured_icon.length();
-  if (!configured_icon.length()) configured_icon = fallback_icon(state);
+  String configured_icon =
+      cover_resolve_icon(tile, state, &widget.dynamic_icon);
+  widget.dynamic_icon = icon_visible && widget.dynamic_icon;
 
   if (icon_visible && FONT_MDI_ICONS) {
     widget.icon_label = lv_label_create(card);
