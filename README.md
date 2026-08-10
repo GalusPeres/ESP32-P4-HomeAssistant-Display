@@ -78,6 +78,33 @@ Camera support remains experimental and is available only on ESP32-P4 targets.
 See the [v0.6.5 release notes](docs/releases/v0.6.5.md) for details.
 
 <details>
+<summary>Highlights of v0.6.4</summary>
+
+- Added configurable local hardware I/O for switches, relays and DS18B20
+  sensors, including matching Home Assistant entities through the Bridge.
+- Improved folder navigation, Weather popups, tile restoration and Web Admin
+  loading during longer sessions.
+- Made Light brightness, color and Kelvin sliders reliably deliver their newest
+  value while remaining rate-limited.
+- Improved ESP-Hosted RPC/SDIO recovery and diagnostics.
+
+See the [v0.6.4 release notes](docs/releases/v0.6.4.md) for details.
+
+</details>
+
+<details>
+<summary>Highlights of v0.6.3</summary>
+
+- Added the experimental Camera tile and popup for ESP32-P4 displays.
+- Improved Light brightness, color and color-temperature interaction.
+- Added modern Cyrillic glyphs to the common tile-title fonts.
+- Strengthened ESP-Hosted receive handling and camera buffer cleanup.
+
+See the [v0.6.3 release notes](docs/releases/v0.6.3.md) for details.
+
+</details>
+
+<details>
 <summary>Highlights of v0.6.2</summary>
 
 - Added official factory and OTA binaries for the 10.1-inch
@@ -92,6 +119,20 @@ Many thanks to [@brmo](https://github.com/brmo) for the original working display
 code, real-device testing and detailed feedback.
 
 See the [v0.6.2 release notes](docs/releases/v0.6.2.md) for details.
+
+</details>
+
+<details>
+<summary>Highlights of v0.6.1</summary>
+
+- Unified DHCP and static-IP settings across WiFi, native Ethernet and USB
+  Ethernet.
+- Added safe on-device DHCP recovery and undo actions.
+- Changed Network and MQTT Web Admin saves to update in the background without
+  disruptive full-page reloads.
+- Polished network settings and Light popup spacing.
+
+See the [v0.6.1 release notes](docs/releases/v0.6.1.md) for details.
 
 </details>
 
