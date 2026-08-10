@@ -90,7 +90,7 @@ jobs:
             define: DEVICE_WAVESHARE_4B
             rx_variant: repo-a8204
             publish: true
-          - label: Waveshare 7 inch (experimental)
+          - label: Waveshare 7 inch
             profile: waveshare_7
             key: waveshare_touch_lcd_7
             define: DEVICE_WAVESHARE_TOUCH_LCD_7
@@ -102,15 +102,7 @@ jobs:
             define: DEVICE_WAVESHARE_TOUCH_LCD_8
             rx_variant: repo-a8204
             publish: true
-          - label: Waveshare 8 inch (short-tail A/B candidate)
-            profile: waveshare_8
-            key: waveshare_touch_lcd_8_short_tail_test
-            metadata_key: waveshare_touch_lcd_8
-            define: DEVICE_WAVESHARE_TOUCH_LCD_8
-            rx_variant: repo-short-tail
-            publish: false
-            candidate: true
-          - label: Waveshare 10.1 inch (experimental)
+          - label: Waveshare 10.1 inch
             profile: waveshare_10_1
             key: waveshare_touch_lcd_10_1
             define: DEVICE_WAVESHARE_TOUCH_LCD_10_1
@@ -122,19 +114,19 @@ jobs:
             define: DEVICE_GUITION_JC8012P4A1
             rx_variant: repo-a8204
             publish: true
-          - label: Guition JC8012P4A1 V2 (community testing)
+          - label: Guition JC8012P4A1 V2
             profile: guition_jc8012p4a1_v2
             key: guition_jc8012p4a1_v2
             define: DEVICE_GUITION_JC8012P4A1_V2
             rx_variant: repo-a8204
             publish: true
-          - label: Guition JC1060P470C (experimental)
+          - label: Guition JC1060P470C
             profile: guition_jc1060p470c
             key: guition_jc1060p470c
             define: DEVICE_GUITION_JC1060P470C
             rx_variant: repo-a8204
             publish: true
-          - label: GUITION ESP32-4848S040 (experimental)
+          - label: GUITION ESP32-4848S040
             profile: guition_esp32_4848s040
             key: guition_esp32_4848s040
             define: DEVICE_GUITION_ESP32_4848S040
@@ -187,7 +179,6 @@ jobs:
           ar_bin="$(find "$HOME/.arduino15/packages/esp32/tools" -type f -path '*/bin/riscv32-esp-elf-ar' -print -quit)"
           test -x "$ar_bin"
 
-          rx_variant="${{ matrix.rx_variant }}"
           for variant in esp32p4-libs esp32p4_es-libs; do
             archive="$HOME/.arduino15/packages/esp32/tools/${variant}/${ARDUINO_CORE_VERSION}/lib/libespressif__esp_hosted.a"
             test -f "$archive"
@@ -198,11 +189,7 @@ jobs:
                 fixed_objects+=("$fixed_object")
               fi
             done
-            if [ "$rx_variant" = "repo-short-tail" ]; then
-              fixed_objects+=("$GITHUB_WORKSPACE/tools/esp-hosted-3.3.7-rx-fix/${variant}/sdio_drv.c.obj")
-            else
-              fixed_objects+=("$GITHUB_WORKSPACE/tools/esp-hosted-3.3.7-rx-fix/baseline-a8204/${variant}/sdio_drv.c.obj")
-            fi
+            fixed_objects+=("$GITHUB_WORKSPACE/tools/esp-hosted-3.3.7-rx-fix/baseline-a8204/${variant}/sdio_drv.c.obj")
 
             for fixed_object in "${fixed_objects[@]}"; do
               test -f "$fixed_object"
@@ -296,9 +283,7 @@ jobs:
             grep -a -F -q "HomeTiles SDIO RX recovery active (a8204f9 raw PKT_LEN + pending drain)" "${firmware_bin}"
 
             short_tail_marker="HomeTiles SDIO RX 512-byte padding disabled (CMD53 short tail, 4-byte aligned)"
-            if [ "${{ matrix.rx_variant }}" = "repo-short-tail" ]; then
-              grep -a -F -q "${short_tail_marker}" "${firmware_bin}"
-            elif grep -a -F -q "${short_tail_marker}" "${firmware_bin}"; then
+            if grep -a -F -q "${short_tail_marker}" "${firmware_bin}"; then
               echo "Unexpected 8-inch short-tail RX patch found in ${{ matrix.label }}" >&2
               exit 1
             fi

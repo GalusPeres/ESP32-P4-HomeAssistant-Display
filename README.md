@@ -2,7 +2,7 @@
 
 # <img src="docs/images/favicon.svg" width="42" alt="" align="top"> HomeTiles
 
-**Tile-based ESP32-P4 firmware for Home Assistant dashboards<br>with an experimental ESP32-S3 image and a fully configurable web interface.**
+**Tile-based ESP32-P4 and ESP32-S3 firmware for Home Assistant dashboards<br>with a fully configurable web interface.**
 
 <a href="https://galusperes.github.io/HomeTiles/#demo"><strong>Live demo</strong></a>
 &nbsp;·&nbsp;
@@ -20,8 +20,7 @@
 
 </div>
 
-The project supports multiple ESP32-P4 touch displays plus an experimental
-ESP32-S3 image and combines:
+The project supports multiple ESP32-P4 and ESP32-S3 touch displays and combines:
 
 - touch-first, tile-based dashboard UI
 - MQTT-based Home Assistant integration
@@ -61,26 +60,21 @@ the whole chain: MQTT broker, bridge integration, and connecting the display.
 - [FAQ & Troubleshooting](docs/faq.md) — common questions and known quirks
 - [BOARD_SETTINGS.md](BOARD_SETTINGS.md) — Arduino IDE build settings per device
 
-## Highlights Of v0.6.4
+## Highlights Of v0.6.5
 
-- Added configurable local Hardware I/O for Switch outputs, the two onboard
-  relays of the ESP32-P4-86-Panel-ETH-2RO, and DS18B20 temperature inputs.
-- Added a separate screensaver brightness setting with live preview and correct
-  restoration of normal display brightness.
-- Kept folders, Weather popups, tile icons, and the web admin responsive with
-  bounded caches, navigation preloading, and generated gzip assets.
-- Fixed brightness, color, and Kelvin dragging so the 500 ms command limiter
-  preserves the newest value and both slider endpoints.
-- Hardened ESP-Hosted RPC/SDIO recovery and added persistent diagnostics for the
-  remaining upstream P4/C6 WiFi-driver wedge.
-- Added a flash-safe RGB restart path for the experimental Guition
-  ESP32-4848S040 ESP32-S3 image.
+- Added localized Home Assistant Cover tiles and feature-aware Cover controls.
+- Improved Guition ESP32-S3 display, touch, storage, OTA, screenshots and
+  slideshow handling.
+- Unified device, MQTT and screensaver brightness percentages while preserving
+  safe device-specific PWM ranges.
+- Expanded the Waveshare 8-inch folder cache and added on-demand SD diagnostics.
+- Added a separate Guition JC8012 V2 image and corrected JC1060 SD power startup.
 
-Local hardware entities in Home Assistant require
-[HomeTiles Bridge v0.6.32 or newer](https://github.com/GalusPeres/HomeTiles-Bridge/releases/tag/v0.6.32).
-Camera support and the ESP32-S3 target remain experimental.
+Cover entities in Home Assistant require
+[HomeTiles Bridge v0.6.35 or newer](https://github.com/GalusPeres/HomeTiles-Bridge/releases/tag/v0.6.35).
+Camera support remains experimental and is available only on ESP32-P4 targets.
 
-See the [v0.6.4 release notes](docs/releases/v0.6.4.md) for details.
+See the [v0.6.5 release notes](docs/releases/v0.6.5.md) for details.
 
 <details>
 <summary>Highlights of v0.6.2</summary>
@@ -230,8 +224,9 @@ Everything visible on the dashboard is tile-based and managed from the built-in 
 | [Waveshare ESP32-P4-86-Panel-ETH-2RO](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-4B) | Supported, including native Ethernet; uses the 4B firmware |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-8](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Supported |
 | [Guition JC8012P4A1C_I_W_Y](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | Supported V1 panel; no `V2` suffix on the rear material number |
+| [Guition ESP32-4848S040C_I](https://www.guition.com/esp32-display-module/4-inch-esp32s3-display-module) | Supported ESP32-S3 target; Camera tiles are unavailable |
 
-### Experimental / community-testing builds
+### Hardware validation notes
 
 These binaries are included on the release page so owners can test them. A
 successful compile does not mean that display, touch, brightness, storage,
@@ -239,11 +234,10 @@ networking and OTA have been confirmed on the physical device.
 
 | Exact device | Test status |
 | --- | --- |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Experimental; feedback in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Experimental; feedback in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Physical display, touch, storage, networking and OTA confirmation requested in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Physical display, touch, storage, networking and OTA confirmation requested in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Separate V2 panel image with hardware-tested JD9365 table/timing; full release/OTA validation pending in [issue #18](https://github.com/GalusPeres/HomeTiles/issues/18) |
-| [Guition JC1060P470C_I_W_Y](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | Experimental; only the `_I_W_Y` variant, see [issue #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
-| [Guition ESP32-4848S040C_I](https://www.guition.com/esp32-display-module/4-inch-esp32s3-display-module) | Experimental ESP32-S3 target; initial hardware testing is positive, while long-duration and OTA coverage are still pending in [issue #9](https://github.com/GalusPeres/HomeTiles/issues/9). Camera tiles are not available on this target. |
+| [Guition JC1060P470C_I_W_Y](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | Only the `_I_W_Y` variant; SD-card behavior still requires physical confirmation in [issue #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
 
 Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
 
@@ -344,11 +338,11 @@ Download the files matching your device from the [latest release](https://github
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B / 86 Panel | Supported | `..._waveshare_4b_factory.bin` | `..._waveshare_4b.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-8 | Supported | `..._waveshare_touch_lcd_8_factory.bin` | `..._waveshare_touch_lcd_8.bin` |
 | Guition JC8012P4A1C_I_W_Y V1 (no V2 sticker) | Supported | `..._guition_jc8012p4a1_factory.bin` | `..._guition_jc8012p4a1.bin` |
-| Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Experimental | `..._guition_jc8012p4a1_v2_factory.bin` | `..._guition_jc8012p4a1_v2.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Experimental | `..._waveshare_touch_lcd_7_factory.bin` | `..._waveshare_touch_lcd_7.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Experimental | `..._waveshare_touch_lcd_10_1_factory.bin` | `..._waveshare_touch_lcd_10_1.bin` |
-| Guition JC1060P470C_I_W_Y | Experimental | `..._guition_jc1060p470c_factory.bin` | `..._guition_jc1060p470c.bin` |
-| Guition ESP32-4848S040C_I | Experimental | `..._guition_esp32_4848s040_factory.bin` | `..._guition_esp32_4848s040.bin` |
+| Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Hardware validation pending | `..._guition_jc8012p4a1_v2_factory.bin` | `..._guition_jc8012p4a1_v2.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Hardware validation pending | `..._waveshare_touch_lcd_7_factory.bin` | `..._waveshare_touch_lcd_7.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Hardware validation pending | `..._waveshare_touch_lcd_10_1_factory.bin` | `..._waveshare_touch_lcd_10_1.bin` |
+| Guition JC1060P470C_I_W_Y | SD-card validation pending | `..._guition_jc1060p470c_factory.bin` | `..._guition_jc1060p470c.bin` |
+| Guition ESP32-4848S040C_I | Supported | `..._guition_esp32_4848s040_factory.bin` | `..._guition_esp32_4848s040.bin` |
 
 Use:
 - `factory.bin` for a clean first flash (ESP Flash Download Tool at address `0x00000`)
@@ -412,9 +406,8 @@ Step-by-step instructions (broker, integration, display): [Home Assistant Setup 
 - Camera tiles are experimental and available only on ESP32-P4 targets. The
   Bridge transcodes video in Home Assistant, so CPU use increases with source
   resolution, requested frame rate and the number of simultaneously open panels.
-- The Guition ESP32-4848S040 ESP32-S3 image remains experimental. Community
-  testing confirms smooth operation with the flash-safe display fix, but boot,
-  OTA, storage, and long-duration behavior still need broader validation.
+- The Guition ESP32-4848S040 ESP32-S3 target does not support Camera tiles; use
+  the exact S3 factory or OTA image listed above.
 
 ## Notes
 

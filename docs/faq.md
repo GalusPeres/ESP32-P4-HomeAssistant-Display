@@ -47,14 +47,13 @@ Home Assistant may add its normal `_2` suffix to a colliding visible entity ID.
 
 ## The ESP32-S3 screen briefly goes black while saving
 
-This is expected on the experimental Guition ESP32-4848S040 build. The stock
+This is expected on the Guition ESP32-4848S040 build. The stock
 Arduino SDK cannot feed the RGB panel safely from PSRAM while internal flash is
 being written. HomeTiles briefly blanks the backlight, writes the data, restarts
 RGB DMA on VSYNC, and then restores the image. This avoids the permanently
 shifted picture seen by early testers.
 
-The target remains experimental: boot, OTA, storage, and long-duration behavior
-still need broader real-hardware testing. Please report any repeatable failure in
+If the image does not recover immediately, report the repeatable failure in
 [issue #9](https://github.com/GalusPeres/HomeTiles/issues/9) with the serial log.
 
 ## The display is missing in Home Assistant / I deleted it there

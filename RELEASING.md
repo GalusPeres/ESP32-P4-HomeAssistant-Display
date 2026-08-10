@@ -20,10 +20,8 @@ git push --follow-tags
 That's it. The action then:
 
 1. Builds all nine release targets with the pinned toolchain (ESP32 core +
-   libraries, see workflow `env`). This includes four hardware-confirmed
-   profiles (covering five device products because the 86 Panel uses the 4B
-   image) and five experimental/community profiles. CI also builds one clearly named,
-   private Waveshare 8-inch short-tail A/B artifact that is not a release asset.
+   libraries, see workflow `env`). Device names in CI identify the exact
+   hardware profile; concrete validation notes belong in the release notes.
 2. Verifies that the tag matches `FW_VERSION` in `version.txt` — a mismatch
    fails the build on purpose.
 3. Verifies the device descriptor embedded in each binary.
@@ -34,9 +32,9 @@ The checked-in release notes are not copied into the GitHub release
 automatically. After the workflow succeeds, replace the generated GitHub text
 with the matching `docs/releases/vX.Y.Z.md` content and keep the asset list.
 
-The release notes must keep **hardware-confirmed** and **experimental /
-community-testing** devices in separate sections. A successful CI compile does
-not by itself promote a device to supported status.
+The release notes must keep **hardware-confirmed** devices and devices with
+**pending hardware validation** in separate sections. A successful CI compile
+does not by itself prove display, touch, storage, networking, or OTA behavior.
 
 Devices pick up the new version via their GitHub OTA check as soon as the
 release is published (GitHub CDN propagation can add a few minutes).
@@ -53,12 +51,9 @@ release is published (GitHub CDN propagation can add a few minutes).
 - **Don't pre-create a draft release for the tag.** The workflow can't see
   drafts and would create a second release. If you want custom release notes,
   edit them *after* the workflow finishes (web UI or `gh release edit`).
-- **Keep target-specific ESP-Hosted RX variants separated.** All published P4
-  release targets use the checked-in a8204 baseline; the ESP32-S3 target uses
-  native WiFi. CI additionally builds the experimental CMD53 short-tail object
-  as a clearly named, non-release Waveshare 8-inch A/B artifact and verifies
-  the expected markers before packaging. Do not promote that artifact until a
-  24-48 hour camera soak has passed without a wedge.
+- **Keep target-specific networking paths separated.** All published P4
+  release targets use the checked-in a8204 ESP-Hosted baseline; the ESP32-S3
+  target uses native WiFi. CI verifies the expected markers before packaging.
 
 ## Preparing a candidate without releasing
 

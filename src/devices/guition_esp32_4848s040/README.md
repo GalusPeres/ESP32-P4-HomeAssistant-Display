@@ -1,6 +1,6 @@
 # GUITION ESP32-4848S040
 
-Experimental HomeTiles target for the GUITION/Jingcai
+Supported HomeTiles target for the GUITION/Jingcai
 `ESP32-4848S040C_I` family:
 
 - ESP32-S3, 16 MB flash and 8 MB octal PSRAM

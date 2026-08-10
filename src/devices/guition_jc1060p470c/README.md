@@ -1,6 +1,7 @@
 # Guition JC1060P470C
 
-Experimental HomeTiles target for the 7-inch `JC1060P470C_I_W_Y`.
+HomeTiles target for the 7-inch `JC1060P470C_I_W_Y`. SD-card operation still
+requires confirmation on the exact hardware.
 
 This target currently claims the `_I_W_Y` variant only. Guition documents the
 `_I_W` and `_I_W_Y` suffixes as different hardware variants; its examples use

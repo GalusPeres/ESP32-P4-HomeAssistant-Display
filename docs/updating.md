@@ -67,11 +67,11 @@ Use the asset matching your device from the release page:
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B / 86 Panel | Supported | `hometiles_<version>_waveshare_4b.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-8 | Supported | `hometiles_<version>_waveshare_touch_lcd_8.bin` |
 | Guition JC8012P4A1C_I_W_Y V1 (no V2 sticker) | Supported | `hometiles_<version>_guition_jc8012p4a1.bin` |
-| Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Experimental | `hometiles_<version>_guition_jc8012p4a1_v2.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Experimental | `hometiles_<version>_waveshare_touch_lcd_7.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Experimental | `hometiles_<version>_waveshare_touch_lcd_10_1.bin` |
-| Guition JC1060P470C_I_W_Y | Experimental, exact suffix required | `hometiles_<version>_guition_jc1060p470c.bin` |
-| Guition ESP32-4848S040C_I | Experimental | `hometiles_<version>_guition_esp32_4848s040.bin` |
+| Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Hardware validation pending | `hometiles_<version>_guition_jc8012p4a1_v2.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Hardware validation pending | `hometiles_<version>_waveshare_touch_lcd_7.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Hardware validation pending | `hometiles_<version>_waveshare_touch_lcd_10_1.bin` |
+| Guition JC1060P470C_I_W_Y | SD-card validation pending; exact suffix required | `hometiles_<version>_guition_jc1060p470c.bin` |
+| Guition ESP32-4848S040C_I | Supported | `hometiles_<version>_guition_esp32_4848s040.bin` |
 
 Older devices still running v0.2.9 or earlier look for the previous
 `esp32-p4-homeassistant-display-<version>-<device>-update.bin` naming; the on-device

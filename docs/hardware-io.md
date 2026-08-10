@@ -29,7 +29,7 @@ select `Relay 1` or `Relay 2` explicitly in the GPIO list only on the exact
 86-Panel-ETH-2RO hardware. Their active-high polarity is fixed by the device
 profile. **On** energizes the relay and closes NO-COM; **Off** releases it and
 closes COM-NC. The relay-equipped Guition ESP32-4848S040 variant exposes its
-first onboard relay in the experimental ESP32-S3 firmware.
+first onboard relay in the ESP32-S3 firmware.
 
 ## DS18B20 Temperature Inputs
 
@@ -69,21 +69,21 @@ with its normal numeric suffix.
 The I/O page does not show every ESP32 GPIO. It only offers pins which are
 whitelisted by that firmware target's device profile and are not known to be
 reserved for display, touch, storage, audio, camera, boot, USB, or ESP-Hosted
-networking. Some experimental profiles are schematic-derived and still need
-community hardware validation; a successful firmware build does not validate
+networking. Some profiles are schematic-derived and still need physical
+hardware validation; a successful firmware build does not validate
 electrical suitability.
 
 | Firmware target | Offered local I/O | Validation |
 | --- | --- | --- |
 | M5Stack Tab5 | GPIO EXT 0, 1, 49, 50; Port A 53, 54; M5-Bus 2, 3, 4, 16, 17, 45, 47, 48, 51, 52 | Profile-whitelisted; attached Units and M5-Bus modules can still create conflicts |
 | Waveshare 4B | P3 GPIO 2, 3, 4, 5, 21; 86 Panel relays GPIO 32 and 46 | P3 schematic-derived; onboard relays only for the exact 86-Panel-ETH-2RO |
-| Waveshare 7 inch | GPIO 2, 3, 4, 5, 21, 22, 28, 29, 30, 31, 32, 34, 46, 47, 48, 49, 50, 51, 52 | Experimental / community validation needed |
+| Waveshare 7 inch | GPIO 2, 3, 4, 5, 21, 22, 28, 29, 30, 31, 32, 34, 46, 47, 48, 49, 50, 51, 52 | Physical hardware validation needed |
 | Waveshare 8 inch | GPIO 2, 3, 4, 5, 21, 22, 28, 29, 30, 31, 32, 34, 46, 47, 48, 49, 50, 51, 52 | Profile-whitelisted; verify attached hardware |
-| Waveshare 10.1 inch | GPIO 2, 3, 4, 5, 21, 22, 28, 29, 30, 31, 32, 34, 46, 47, 48, 49, 50, 51, 52 | Experimental / community validation needed |
+| Waveshare 10.1 inch | GPIO 2, 3, 4, 5, 21, 22, 28, 29, 30, 31, 32, 34, 46, 47, 48, 49, 50, 51, 52 | Physical hardware validation needed |
 | Guition JC8012P4A1 | Expansion FPC GPIO 2, 3, 4, 5, 28, 29, 30, 31, 32, 33, 34, 45, 46, 47, 48 | Schematic-derived; verify the connected expansion board |
 | Guition JC8012P4A1 V2 | Expansion FPC GPIO 2, 3, 4, 5, 28, 29, 30, 31, 32, 33, 34, 45, 46, 47, 48 | Separate V2 profile; same reported board wiring, community validation ongoing |
-| Guition JC1060P470C | Expand GPIO 1, 2, 3, 4, 5, 20, 32, 33, 46, 47 | GPIO45 is reserved for the active-low SD-card power switch; experimental / community validation needed |
-| Guition ESP32-4848S040 | Onboard Relay 1 on GPIO 40 for relay-equipped variants | Experimental; relay-equipped variants only |
+| Guition JC1060P470C | Expand GPIO 1, 2, 3, 4, 5, 20, 32, 33, 46, 47 | GPIO45 is reserved for the active-low SD-card power switch; physical validation needed |
+| Guition ESP32-4848S040 | Onboard Relay 1 on GPIO 40 for relay-equipped variants | Supported; relay-equipped variants only |
 
 !!! danger "3.3 V logic only"
     Never connect a relay coil, mains voltage, or another high-current load
