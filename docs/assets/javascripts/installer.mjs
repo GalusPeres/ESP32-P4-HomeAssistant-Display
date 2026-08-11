@@ -18,7 +18,7 @@ import {
   releaseAssetNames,
   resolveSameOriginAsset,
   validateFirmwareDescriptor,
-} from "./installer-contract.mjs";
+} from "./installer-contract.mjs?v=installer-ui-10";
 
 const root = document.querySelector("[data-hometiles-installer]");
 const LAST_RUN_STORAGE_KEY = "hometiles.webInstaller.lastRun.v1";

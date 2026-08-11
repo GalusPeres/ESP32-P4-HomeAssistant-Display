@@ -250,6 +250,15 @@ assert.match(
 );
 
 const installerSource = read("docs/assets/javascripts/installer.mjs");
+const installerPageSource = read("docs/installer.md");
+const installerPageVersion = installerPageSource.match(/installer\.mjs\?v=([a-z0-9-]+)/)?.[1];
+const installerContractVersion = installerSource.match(/installer-contract\.mjs\?v=([a-z0-9-]+)/)?.[1];
+assert.ok(installerPageVersion, "The installer module needs an explicit browser-cache version.");
+assert.equal(
+  installerContractVersion,
+  installerPageVersion,
+  "The installer and its contract module must use the same browser-cache version.",
+);
 assert.match(installerSource, /esptool-js@0\.6\.1\/bundle\.js/);
 assert.doesNotMatch(installerSource, /esptool-js@0\.6\.0\/bundle\.js/);
 assert.match(installerSource, /class HomeTilesESPLoader extends ESPLoader/);

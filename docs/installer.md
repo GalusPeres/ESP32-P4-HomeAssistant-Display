@@ -93,7 +93,7 @@
   </div>
 </div>
 
-<script type="module" src="../assets/javascripts/installer.mjs?v=installer-ui-9"></script>
+<script type="module" src="../assets/javascripts/installer.mjs?v=installer-ui-10"></script>
 
 ## Update HomeTiles
 
