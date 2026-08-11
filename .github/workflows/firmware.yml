@@ -27,6 +27,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Verify browser installer contract
+        run: |
+          node tools/test-installer-otadata.mjs
+          node tools/test-web-installer.mjs
+
       - name: Set up Arduino CLI
         uses: arduino/setup-arduino-cli@v2
 
@@ -372,6 +385,7 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
+      actions: write
       contents: write
 
     steps:
@@ -402,3 +416,14 @@ jobs:
           gh release upload "$GITHUB_REF_NAME" build/release-assets/*.bin \
             --repo "$GITHUB_REPOSITORY" \
             --clobber
+
+      # Release events created with GITHUB_TOKEN do not start another workflow.
+      # workflow_dispatch is the documented exception, so dispatch docs only
+      # after every release asset was uploaded successfully.
+      - name: Deploy docs after release assets are complete
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run docs.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF_NAME"

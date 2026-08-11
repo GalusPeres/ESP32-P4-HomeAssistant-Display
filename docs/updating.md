@@ -1,6 +1,6 @@
 # Firmware Updates
 
-There are three ways to get firmware onto a device. For normal operation you only ever
+There are four ways to get firmware onto a device. For normal operation you only ever
 need the first one.
 
 ## 1. On-Device Updater (recommended)
@@ -77,14 +77,40 @@ Older devices still running v0.2.9 or earlier look for the previous
 `esp32-p4-homeassistant-display-<version>-<device>-update.bin` naming; the on-device
 updater falls back to it automatically if a release doesn't have the current-named asset.
 
-## 3. Factory Flash (first installation / full reset)
+## 3. Browser Installer over USB
+
+Use the [Browser Firmware Installer](installer.md) when normal OTA is unavailable
+or when you want a guided USB update without installing a desktop flashing tool.
+Select the exact device, choose **Update — keep settings**, and connect its USB
+serial port in a current desktop Chrome or Edge browser.
+
+Before writing, the installer checks the ESP32-P4/ESP32-S3 family, flash size,
+current HomeTiles partition table, firmware device ID, file size, and SHA-256.
+It reads the redundant ESP-IDF OTA selection data, writes the regular OTA image
+only to the inactive application slot, and verifies the completed image before
+committing a new redundant OTA selection entry. NVS and LittleFS are not
+written, so Wi-Fi, MQTT, tiles, and other local settings remain intact.
+
+Keep power, USB, and the browser connected until verification is complete. If
+the transfer is interrupted while the inactive slot is being written, the
+previously selected application remains untouched and bootable. Restart the
+display to continue using the previous version, or reconnect and retry Update.
+
+Do not use this Update mode on a device with an unknown or modified partition
+layout. The installer rejects a mismatch before flashing; make a backup and use
+Factory only if a complete reset is intentional.
+
+## 4. Factory Flash (first installation / full reset)
 
 For a brand-new device or a full reset, flash the `-factory.bin` image over USB — it's
 a complete flash image that wipes and reinstalls everything: bootloader, app, and the
 stored WiFi/MQTT/tile configuration.
 
 The full walkthrough (tools, files, first boot, re-pairing after a reset) is on the
-[Flashing the Firmware](flashing.md) page.
+[Flashing the Firmware](flashing.md) page. The
+[Browser Firmware Installer](installer.md) also offers this mode, but requires a
+separate confirmation because it erases the complete flash before writing the
+full `_factory.bin` at `0x0`.
 
 ## Building From Source
 

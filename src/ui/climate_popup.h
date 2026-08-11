@@ -3,6 +3,18 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
+enum ClimateSupportedFeature : uint16_t {
+  CLIMATE_FEATURE_TARGET_TEMPERATURE = 1U << 0,
+  CLIMATE_FEATURE_TARGET_TEMPERATURE_RANGE = 1U << 1,
+  CLIMATE_FEATURE_TARGET_HUMIDITY = 1U << 2,
+  CLIMATE_FEATURE_FAN_MODE = 1U << 3,
+  CLIMATE_FEATURE_PRESET_MODE = 1U << 4,
+  CLIMATE_FEATURE_SWING_MODE = 1U << 5,
+  CLIMATE_FEATURE_TURN_OFF = 1U << 7,
+  CLIMATE_FEATURE_TURN_ON = 1U << 8,
+  CLIMATE_FEATURE_SWING_HORIZONTAL_MODE = 1U << 9,
+};
+
 struct ClimatePopupInit {
   String entity_id;
   String title;
@@ -21,6 +33,9 @@ struct ClimatePopupInit {
   String temperature_unit;
   bool icon_visible = true;
   bool dynamic_icon = true;
+  bool available = true;
+  bool has_supported_features = false;
+  uint16_t supported_features = 0;
   float current_temperature = 0.0f;
   float current_humidity = 0.0f;
   float target_temperature = 20.0f;
@@ -32,6 +47,7 @@ struct ClimatePopupInit {
   float min_humidity = 30.0f;
   float max_humidity = 99.0f;
   float target_temp_step = 0.5f;
+  float target_humidity_step = 1.0f;
   bool has_current_temperature = false;
   bool has_current_humidity = false;
   bool has_target_temperature = false;

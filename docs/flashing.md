@@ -3,6 +3,15 @@
 A brand-new device gets the firmware exactly once over USB — every update afterwards
 happens [over the air](updating.md). Flashing takes about five minutes.
 
+!!! tip "Recommended: flash directly from the documentation"
+    Open the [Browser Firmware Installer](installer.md), select the exact device,
+    choose **Factory reset**, confirm the data wipe, and connect the USB
+    serial port. It automatically uses the latest matching release image. A
+    current desktop Chrome or Edge browser and an HTTPS connection are required.
+
+The steps below are the manual alternative for users who prefer Espressif's
+desktop tool or command-line esptool.
+
 ## What You Need
 
 - Your display and a USB data cable
@@ -44,7 +53,10 @@ Grab the file matching your device from the
     The **factory** image is a complete flash image — bootloader, firmware, and empty
     configuration in one file. It is only for the first flash (or a full reset).
     The plain `.bin` of the same name is the small OTA update file used later by the
-    on-device updater and the web admin — never flash that one over USB.
+    on-device updater and the web admin. Never write that plain image manually at
+    `0x0`; the [Browser Firmware Installer](installer.md) can use it safely by
+    verifying the partition table, writing only the inactive application slot,
+    and changing the OTA boot selection only after verification succeeds.
 
 ## Step 2: Flash
 

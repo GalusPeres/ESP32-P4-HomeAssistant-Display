@@ -1227,7 +1227,8 @@ static const LocaleProfile kLocaleDe = {
     "Kühl-Sollwert",
     {"Heizbetrieb", "Vorheizen", "Kühlbetrieb", "Entfeuchtung", "Lüfter",
      "Abtauen", "Leerlauf", "Aus", "Heizen", "Kühlen", "Heizen/Kühlen",
-     "Auto", "Entfeuchten", "Lüfter", "Klima"},
+     "Auto", "Entfeuchten", "Lüfter", "Klima", "Nicht verfügbar",
+     "Unbekannt"},
     {"Aktuell", "Soll-Temperatur", "Aktuelle Luftfeuchtigkeit"},
     {"Modus", "Voreinstellung", "Lüftermodus", "Oszillationsart",
      "Horizontale Oszillationsart"},
@@ -1297,7 +1298,7 @@ static const LocaleProfile kLocaleEn = {
     "Cooling target",
     {"Heating", "Preheating", "Cooling", "Drying", "Fan", "Defrosting",
      "Idle", "Off", "Heat", "Cool", "Heat/Cool", "Auto", "Dry",
-     "Fan only", "Climate"},
+     "Fan only", "Climate", "Unavailable", "Unknown"},
     {"Current", "Target temperature", "Current humidity"},
     {"Mode", "Preset", "Fan mode", "Swing mode",
      "Horizontal swing mode"},
@@ -1367,7 +1368,7 @@ static const LocaleProfile kLocaleFr = {
     {"Chauffage", "Préchauffage", "Refroidissement", "Séchage", "Ventilation",
      "Dégivrage", "Inactif", "Éteint", "Chauffer", "Refroidir",
      "Chauffer/Refroidir", "Auto", "Déshumidifier", "Ventilateur seul",
-     "Climat"},
+     "Climat", "Indisponible", "Inconnu"},
     {"Actuel", "Température cible", "Humidité actuelle"},
     {"Mode", "Préréglage", "Mode ventilation", "Mode d'oscillation",
      "Mode d'oscillation horizontale"},
@@ -1679,6 +1680,17 @@ const char* climate_target_cool_label(const char* language_code) {
   return locale(language_code).climate_states[9];
 }
 
+const char* entity_state_label(
+    const char* language_code, const String& state_value) {
+  String state = state_value;
+  state.trim();
+  state.toLowerCase();
+  const LocaleProfile& profile = locale(language_code);
+  if (state == "unavailable") return profile.climate_states[15];
+  if (state == "unknown") return profile.climate_states[16];
+  return "";
+}
+
 const char* climate_state_label(
     const char* language_code, const String& mode_value, const String& action_value) {
   String mode = mode_value;
@@ -1686,6 +1698,10 @@ const char* climate_state_label(
   mode.toLowerCase();
   action.toLowerCase();
   const LocaleProfile& profile = locale(language_code);
+  const char* entity_state = entity_state_label(
+      language_code,
+      mode == "unavailable" || mode == "unknown" ? mode : action);
+  if (entity_state[0]) return entity_state;
   if (action == "heating") return profile.climate_states[0];
   if (action == "preheating") return profile.climate_states[1];
   if (action == "cooling") return profile.climate_states[2];

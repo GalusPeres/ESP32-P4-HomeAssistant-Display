@@ -24,7 +24,7 @@ namespace {
 constexpr uint8_t kControlCount = 5;
 constexpr uint8_t kMaxControlOptions = 10;
 constexpr uint32_t kRemoteBlockMs = 2200;
-constexpr uint32_t kTemperatureDebounceMs = 220;
+constexpr uint32_t kAdjustmentDebounceMs = 1000;
 constexpr uint32_t kModeDebounceMs = 160;
 constexpr uint32_t kCardBg = 0x2A2A2A;
 constexpr uint32_t kTrackColor = 0x444444;
@@ -143,6 +143,7 @@ struct ClimatePopupContext {
   float min_humidity = 30.0f;
   float max_humidity = 99.0f;
   float step = 0.5f;
+  float humidity_step = 1.0f;
   bool has_current = false;
   bool has_humidity = false;
   bool has_target = false;
@@ -154,6 +155,9 @@ struct ClimatePopupContext {
   bool suppress_events = false;
   bool icon_visible = true;
   bool dynamic_icon = true;
+  bool available = true;
+  bool has_supported_features = false;
+  uint16_t supported_features = 0;
   uint32_t block_remote_until_ms = 0;
 
   lv_obj_t* overlay = nullptr;
@@ -210,6 +214,8 @@ struct ClimatePopupContext {
 ClimatePopupContext* g_climate_popup = nullptr;
 
 void close_control_menu(ClimatePopupContext* ctx);
+void flush_pending_climate_commands(ClimatePopupContext* ctx);
+void discard_pending_climate_commands(ClimatePopupContext* ctx);
 
 float clamp_temperature(float value, float min_temp, float max_temp) {
   if (max_temp <= min_temp) {
@@ -266,8 +272,50 @@ float active_target(const ClimatePopupContext* ctx) {
              : target_center(ctx);
 }
 
+bool climate_feature_supported(
+    const ClimatePopupContext* ctx, uint16_t feature,
+    bool legacy_supported) {
+  if (!ctx) return false;
+  if (!ctx->has_supported_features) return legacy_supported;
+  return (ctx->supported_features & feature) != 0;
+}
+
+bool temperature_control_available(const ClimatePopupContext* ctx) {
+  if (!ctx) return false;
+  if (ctx->has_range) {
+    return climate_feature_supported(
+        ctx, CLIMATE_FEATURE_TARGET_TEMPERATURE_RANGE, true);
+  }
+  return ctx->has_target && climate_feature_supported(
+                                ctx, CLIMATE_FEATURE_TARGET_TEMPERATURE, true);
+}
+
 bool humidity_control_available(const ClimatePopupContext* ctx) {
-  return ctx && (ctx->has_humidity || ctx->has_target_humidity);
+  return ctx && ctx->has_target_humidity && climate_feature_supported(
+             ctx, CLIMATE_FEATURE_TARGET_HUMIDITY, true);
+}
+
+bool climate_control_available(
+    const ClimatePopupContext* ctx, ClimateControlType type) {
+  if (!ctx) return false;
+  const ClimatePopupControl& control =
+      ctx->controls[static_cast<uint8_t>(type)];
+  if (control.option_count == 0) return false;
+  switch (type) {
+    case ClimateControlType::HVAC:
+      return true;
+    case ClimateControlType::PRESET:
+      return climate_feature_supported(
+          ctx, CLIMATE_FEATURE_PRESET_MODE, true);
+    case ClimateControlType::FAN:
+      return climate_feature_supported(ctx, CLIMATE_FEATURE_FAN_MODE, true);
+    case ClimateControlType::SWING:
+      return climate_feature_supported(ctx, CLIMATE_FEATURE_SWING_MODE, true);
+    case ClimateControlType::SWING_HORIZONTAL:
+      return climate_feature_supported(
+          ctx, CLIMATE_FEATURE_SWING_HORIZONTAL_MODE, true);
+  }
+  return false;
 }
 
 int active_angle(const ClimatePopupContext* ctx, float value) {
@@ -450,8 +498,12 @@ void refresh_header_visuals(ClimatePopupContext* ctx) {
   lv_label_set_text(ctx->icon_label, icon.c_str());
   lv_obj_set_style_text_color(
       ctx->icon_label,
-      lv_color_hex(climate_visuals::state_foreground_color(
-          ctx->hvac_mode, ctx->hvac_action)), 0);
+      lv_color_hex(
+          ctx->available
+              ? climate_visuals::state_foreground_color(
+                    ctx->hvac_mode, ctx->hvac_action)
+              : 0x9E9E9E),
+      0);
   lv_obj_clear_flag(ctx->icon_label, LV_OBJ_FLAG_HIDDEN);
 }
 
@@ -510,8 +562,41 @@ void refresh_step_buttons(ClimatePopupContext* ctx) {
   apply_pressed(ctx->plus_button);
 }
 
+void set_control_disabled(lv_obj_t* object, bool disabled) {
+  if (!object) return;
+  if (disabled) {
+    lv_obj_add_state(object, LV_STATE_DISABLED);
+  } else {
+    lv_obj_clear_state(object, LV_STATE_DISABLED);
+  }
+}
+
+void refresh_interactive_state(ClimatePopupContext* ctx) {
+  if (!ctx) return;
+  const bool target_supported =
+      ctx->humidity_control_active ? humidity_control_available(ctx)
+                                   : temperature_control_available(ctx);
+  const bool target_disabled = !ctx->available || !target_supported;
+  set_control_disabled(ctx->input_arc, target_disabled);
+  set_control_disabled(ctx->minus_button, target_disabled);
+  set_control_disabled(ctx->plus_button, target_disabled);
+  set_control_disabled(ctx->target_toggle, !ctx->available);
+  set_control_disabled(ctx->temperature_toggle_button, !ctx->available);
+  set_control_disabled(ctx->humidity_toggle_button, !ctx->available);
+  for (uint8_t i = 0; i < kControlCount; ++i) {
+    set_control_disabled(
+        ctx->controls[i].dropdown,
+        !ctx->available || !climate_control_available(
+                               ctx, static_cast<ClimateControlType>(i)));
+  }
+}
+
 void refresh_current_marker(ClimatePopupContext* ctx) {
   if (!ctx || !ctx->current_marker) return;
+  if (!ctx->available) {
+    lv_obj_add_flag(ctx->current_marker, LV_OBJ_FLAG_HIDDEN);
+    return;
+  }
   const bool has_current =
       ctx->humidity_control_active ? ctx->has_humidity : ctx->has_current;
   if (!has_current) {
@@ -594,7 +679,7 @@ void refresh_ring(ClimatePopupContext* ctx) {
       climate_visuals::mode_ring_color("cool");
   const uint32_t cool_foreground =
       climate_visuals::mode_foreground_color("cool");
-  const bool off = ctx->hvac_mode == "off";
+  const bool off = !ctx->available || ctx->hvac_mode == "off";
   const bool has_current =
       ctx->humidity_control_active ? ctx->has_humidity : ctx->has_current;
   const bool has_target =
@@ -855,24 +940,29 @@ void refresh_target_toggle(ClimatePopupContext* ctx) {
 void refresh_state_caption(ClimatePopupContext* ctx) {
   if (!ctx || !ctx->state_caption) return;
   const char* language = configManager.getConfig().language;
-  const bool off = ctx->hvac_mode == "off";
-  const String caption =
-      ctx->humidity_control_active && !off
-          ? String(i18n::climate_target_humidity_label(language))
-          : String(i18n::climate_state_label(
-                language, ctx->hvac_mode, ctx->hvac_action));
+  const bool state_only = !ctx->available || ctx->hvac_mode == "off";
+  const String caption = !ctx->available
+                             ? String(i18n::entity_state_label(
+                                   language, "unavailable"))
+                         : ctx->humidity_control_active && !state_only
+                             ? String(i18n::climate_target_humidity_label(
+                                   language))
+                             : String(i18n::climate_state_label(
+                                   language, ctx->hvac_mode,
+                                   ctx->hvac_action));
   lv_label_set_text(ctx->state_caption, caption.c_str());
   lv_obj_set_style_text_font(
       ctx->state_caption,
-      off ? popup_layout::font40() : popup_layout::font20(), 0);
+      state_only ? popup_layout::font40() : popup_layout::font20(), 0);
   const bool show_range =
       !ctx->humidity_control_active && ctx->has_range;
   lv_obj_align(
       ctx->state_caption, LV_ALIGN_CENTER, 0,
-      off ? kTargetLabelCenterY
+      state_only
+          ? kTargetLabelCenterY
           : (show_range ? kRangeStateCenterY : kStateCaptionOffsetY));
   if (ctx->target_label) {
-    if (off) {
+    if (state_only) {
       lv_obj_add_flag(ctx->target_label, LV_OBJ_FLAG_HIDDEN);
     } else {
       lv_obj_clear_flag(ctx->target_label, LV_OBJ_FLAG_HIDDEN);
@@ -885,8 +975,8 @@ void refresh_labels(ClimatePopupContext* ctx) {
   const char* language = configManager.getConfig().language;
   refresh_target_label(ctx);
 
-  const bool show_temperature = ctx->has_current;
-  const bool show_humidity = ctx->has_humidity;
+  const bool show_temperature = ctx->available && ctx->has_current;
+  const bool show_humidity = ctx->available && ctx->has_humidity;
   if (ctx->top_caption_label) {
     String caption = i18n::climate_value_label(language, 0);
     lv_label_set_text(ctx->top_caption_label, caption.c_str());
@@ -922,7 +1012,7 @@ void refresh_control(
   const uint8_t index = static_cast<uint8_t>(type);
   ClimatePopupControl& control = ctx->controls[index];
   if (!control.dropdown) return;
-  if (control.option_count == 0) {
+  if (!climate_control_available(ctx, type)) {
     lv_obj_add_flag(control.dropdown, LV_OBJ_FLAG_HIDDEN);
     return;
   }
@@ -937,7 +1027,7 @@ void refresh_control(
           ? i18n::climate_option_label(language, *current)
           : String();
   const bool colored_mode =
-      type == ClimateControlType::HVAC && current &&
+      ctx->available && type == ClimateControlType::HVAC && current &&
       current->length() && !current->equalsIgnoreCase("off");
   const lv_color_t control_bg =
       colored_mode
@@ -1018,7 +1108,10 @@ void refresh_controls(ClimatePopupContext* ctx) {
   }
   for (uint8_t i = 0; i < kControlCount; ++i) {
     ClimatePopupControl& control = ctx->controls[i];
-    if (!control.dropdown || control.option_count == 0) continue;
+    if (!control.dropdown || !climate_control_available(
+                                 ctx, static_cast<ClimateControlType>(i))) {
+      continue;
+    }
     lv_obj_set_width(control.dropdown, kPillWidth);
     lv_obj_set_flex_grow(control.dropdown, 0);
     if (control.value) lv_obj_set_width(control.value, kPillWidth - 16);
@@ -1030,16 +1123,23 @@ void refresh_all(ClimatePopupContext* ctx) {
   refresh_labels(ctx);
   refresh_ring(ctx);
   refresh_controls(ctx);
+  refresh_interactive_state(ctx);
 }
 
 void apply_init(ClimatePopupContext* ctx, const ClimatePopupInit& init) {
   if (!ctx) return;
   const bool same_entity =
       ctx->entity_id.equalsIgnoreCase(init.entity_id);
+  if (!same_entity) {
+    flush_pending_climate_commands(ctx);
+  }
   ctx->entity_id = init.entity_id;
   ctx->icon_name = init.icon_name;
   ctx->icon_visible = init.icon_visible;
   ctx->dynamic_icon = init.dynamic_icon;
+  ctx->available = init.available;
+  ctx->has_supported_features = init.has_supported_features;
+  ctx->supported_features = init.supported_features;
   ctx->hvac_mode = init.hvac_mode;
   ctx->hvac_mode.toLowerCase();
   ctx->hvac_action = init.hvac_action;
@@ -1084,11 +1184,15 @@ void apply_init(ClimatePopupContext* ctx, const ClimatePopupInit& init) {
   ctx->min_humidity = init.min_humidity;
   ctx->max_humidity = init.max_humidity;
   ctx->step = init.target_temp_step;
+  ctx->humidity_step = init.target_humidity_step;
   if (ctx->max_temp <= ctx->min_temp) {
     ctx->min_temp = 7.0f;
     ctx->max_temp = 35.0f;
   }
   if (ctx->step <= 0.0f || ctx->step > 10.0f) ctx->step = 0.5f;
+  if (ctx->humidity_step <= 0.0f || ctx->humidity_step > 100.0f) {
+    ctx->humidity_step = 1.0f;
+  }
   if (ctx->max_humidity <= ctx->min_humidity) {
     ctx->min_humidity = 30.0f;
     ctx->max_humidity = 99.0f;
@@ -1116,6 +1220,17 @@ void apply_init(ClimatePopupContext* ctx, const ClimatePopupInit& init) {
       ctx->controls[
           static_cast<uint8_t>(ClimateControlType::SWING_HORIZONTAL)],
       init.swing_horizontal_modes, ctx->swing_horizontal_mode);
+  if (!ctx->available) {
+    ctx->dragging = false;
+    discard_pending_climate_commands(ctx);
+  }
+  if (!ctx->available ||
+      (ctx->open_control_index >= 0 &&
+       !climate_control_available(
+           ctx, static_cast<ClimateControlType>(
+                    ctx->open_control_index)))) {
+    close_control_menu(ctx);
+  }
   refresh_all(ctx);
 }
 
@@ -1189,6 +1304,25 @@ void publish_pending_temperature(ClimatePopupContext* ctx) {
   ctx->pending_temperature_entity = "";
 }
 
+void capture_pending_temperature(ClimatePopupContext* ctx) {
+  if (!ctx) return;
+  ctx->pending_temperature_entity = ctx->entity_id;
+  ctx->pending_target_temperature = ctx->target_temperature;
+  ctx->pending_target_range = ctx->has_range;
+  ctx->pending_target_temp_low = ctx->target_temp_low;
+  ctx->pending_target_temp_high = ctx->target_temp_high;
+  ctx->block_remote_until_ms = millis() + kRemoteBlockMs;
+}
+
+void commit_pending_temperature(ClimatePopupContext* ctx) {
+  if (!ctx) return;
+  if (ctx->temperature_publish_timer) {
+    lv_timer_delete(ctx->temperature_publish_timer);
+    ctx->temperature_publish_timer = nullptr;
+  }
+  publish_pending_temperature(ctx);
+}
+
 void temperature_publish_timer_cb(lv_timer_t* timer) {
   ClimatePopupContext* ctx =
       static_cast<ClimatePopupContext*>(lv_timer_get_user_data(timer));
@@ -1202,25 +1336,22 @@ void schedule_temperature_publish(ClimatePopupContext* ctx) {
   if (ctx->temperature_publish_timer &&
       ctx->pending_temperature_entity.length() &&
       !ctx->pending_temperature_entity.equalsIgnoreCase(ctx->entity_id)) {
-    publish_pending_temperature(ctx);
     lv_timer_delete(ctx->temperature_publish_timer);
     ctx->temperature_publish_timer = nullptr;
+    publish_pending_temperature(ctx);
   }
-  ctx->pending_temperature_entity = ctx->entity_id;
-  ctx->pending_target_temperature = ctx->target_temperature;
-  ctx->pending_target_range = ctx->has_range;
-  ctx->pending_target_temp_low = ctx->target_temp_low;
-  ctx->pending_target_temp_high = ctx->target_temp_high;
-  ctx->block_remote_until_ms = millis() + kRemoteBlockMs;
+  capture_pending_temperature(ctx);
   if (ctx->temperature_publish_timer) {
     lv_timer_reset(ctx->temperature_publish_timer);
     return;
   }
   ctx->temperature_publish_timer =
       lv_timer_create(
-          temperature_publish_timer_cb, kTemperatureDebounceMs, ctx);
+          temperature_publish_timer_cb, kAdjustmentDebounceMs, ctx);
   if (ctx->temperature_publish_timer) {
     lv_timer_set_repeat_count(ctx->temperature_publish_timer, 1);
+  } else {
+    publish_pending_temperature(ctx);
   }
 }
 
@@ -1231,6 +1362,22 @@ void publish_pending_humidity(ClimatePopupContext* ctx) {
       ctx->pending_humidity_entity.c_str(),
       ctx->pending_target_humidity);
   ctx->pending_humidity_entity = "";
+}
+
+void capture_pending_humidity(ClimatePopupContext* ctx) {
+  if (!ctx) return;
+  ctx->pending_humidity_entity = ctx->entity_id;
+  ctx->pending_target_humidity = ctx->target_humidity;
+  ctx->block_remote_until_ms = millis() + kRemoteBlockMs;
+}
+
+void commit_pending_humidity(ClimatePopupContext* ctx) {
+  if (!ctx) return;
+  if (ctx->humidity_publish_timer) {
+    lv_timer_delete(ctx->humidity_publish_timer);
+    ctx->humidity_publish_timer = nullptr;
+  }
+  publish_pending_humidity(ctx);
 }
 
 void humidity_publish_timer_cb(lv_timer_t* timer) {
@@ -1246,31 +1393,27 @@ void schedule_humidity_publish(ClimatePopupContext* ctx) {
   if (ctx->humidity_publish_timer &&
       ctx->pending_humidity_entity.length() &&
       !ctx->pending_humidity_entity.equalsIgnoreCase(ctx->entity_id)) {
-    publish_pending_humidity(ctx);
     lv_timer_delete(ctx->humidity_publish_timer);
     ctx->humidity_publish_timer = nullptr;
+    publish_pending_humidity(ctx);
   }
-  ctx->pending_humidity_entity = ctx->entity_id;
-  ctx->pending_target_humidity = ctx->target_humidity;
-  ctx->block_remote_until_ms = millis() + kRemoteBlockMs;
+  capture_pending_humidity(ctx);
   if (ctx->humidity_publish_timer) {
     lv_timer_reset(ctx->humidity_publish_timer);
     return;
   }
   ctx->humidity_publish_timer =
       lv_timer_create(
-          humidity_publish_timer_cb, kTemperatureDebounceMs, ctx);
+          humidity_publish_timer_cb, kAdjustmentDebounceMs, ctx);
   if (ctx->humidity_publish_timer) {
     lv_timer_set_repeat_count(ctx->humidity_publish_timer, 1);
+  } else {
+    publish_pending_humidity(ctx);
   }
 }
 
-void mode_publish_timer_cb(lv_timer_t* timer) {
-  ClimatePopupContext* ctx =
-      static_cast<ClimatePopupContext*>(lv_timer_get_user_data(timer));
-  if (!ctx) return;
-  ctx->mode_publish_timer = nullptr;
-  if (!ctx->pending_mode_entity.length() ||
+void publish_pending_mode(ClimatePopupContext* ctx) {
+  if (!ctx || !ctx->pending_mode_entity.length() ||
       !ctx->pending_hvac_mode.length()) {
     return;
   }
@@ -1280,19 +1423,58 @@ void mode_publish_timer_cb(lv_timer_t* timer) {
   ctx->pending_hvac_mode = "";
 }
 
+void mode_publish_timer_cb(lv_timer_t* timer) {
+  ClimatePopupContext* ctx =
+      static_cast<ClimatePopupContext*>(lv_timer_get_user_data(timer));
+  if (!ctx) return;
+  ctx->mode_publish_timer = nullptr;
+  publish_pending_mode(ctx);
+}
+
+void commit_pending_mode(ClimatePopupContext* ctx) {
+  if (!ctx) return;
+  if (ctx->mode_publish_timer) {
+    lv_timer_delete(ctx->mode_publish_timer);
+    ctx->mode_publish_timer = nullptr;
+  }
+  publish_pending_mode(ctx);
+}
+
+void flush_pending_climate_commands(ClimatePopupContext* ctx) {
+  if (!ctx) return;
+  commit_pending_temperature(ctx);
+  commit_pending_humidity(ctx);
+  commit_pending_mode(ctx);
+}
+
+void discard_pending_climate_commands(ClimatePopupContext* ctx) {
+  if (!ctx) return;
+  if (ctx->temperature_publish_timer) {
+    lv_timer_delete(ctx->temperature_publish_timer);
+    ctx->temperature_publish_timer = nullptr;
+  }
+  if (ctx->humidity_publish_timer) {
+    lv_timer_delete(ctx->humidity_publish_timer);
+    ctx->humidity_publish_timer = nullptr;
+  }
+  if (ctx->mode_publish_timer) {
+    lv_timer_delete(ctx->mode_publish_timer);
+    ctx->mode_publish_timer = nullptr;
+  }
+  ctx->pending_temperature_entity = "";
+  ctx->pending_humidity_entity = "";
+  ctx->pending_mode_entity = "";
+  ctx->pending_hvac_mode = "";
+  ctx->block_remote_until_ms = 0;
+}
+
 void schedule_mode_publish(ClimatePopupContext* ctx) {
   if (!ctx) return;
   if (ctx->mode_publish_timer && ctx->pending_mode_entity.length() &&
       !ctx->pending_mode_entity.equalsIgnoreCase(ctx->entity_id)) {
-    if (ctx->pending_hvac_mode.length()) {
-      mqttPublishClimateHvacMode(
-          ctx->pending_mode_entity.c_str(),
-          ctx->pending_hvac_mode.c_str());
-    }
-    ctx->pending_mode_entity = "";
-    ctx->pending_hvac_mode = "";
     lv_timer_delete(ctx->mode_publish_timer);
     ctx->mode_publish_timer = nullptr;
+    publish_pending_mode(ctx);
   }
   ctx->pending_mode_entity = ctx->entity_id;
   ctx->pending_hvac_mode = ctx->hvac_mode;
@@ -1305,16 +1487,20 @@ void schedule_mode_publish(ClimatePopupContext* ctx) {
       lv_timer_create(mode_publish_timer_cb, kModeDebounceMs, ctx);
   if (ctx->mode_publish_timer) {
     lv_timer_set_repeat_count(ctx->mode_publish_timer, 1);
+  } else {
+    publish_pending_mode(ctx);
   }
 }
 
 void shift_target(ClimatePopupContext* ctx, float delta) {
-  if (!ctx) return;
+  if (!ctx || !ctx->available) return;
   if (ctx->humidity_control_active) {
+    if (!humidity_control_available(ctx)) return;
     ctx->target_humidity = clamp_temperature(
-        quantize_temperature(ctx->target_humidity + delta, 1.0f),
+        ctx->target_humidity + delta,
         ctx->min_humidity, ctx->max_humidity);
   } else if (ctx->has_range) {
+    if (!temperature_control_available(ctx)) return;
     if (ctx->range_drag_high) {
       ctx->target_temp_high = clamp_temperature(
           quantize_temperature(
@@ -1327,6 +1513,7 @@ void shift_target(ClimatePopupContext* ctx, float delta) {
           ctx->min_temp, ctx->target_temp_high);
     }
   } else {
+    if (!temperature_control_available(ctx)) return;
     ctx->target_temperature = clamp_temperature(
         quantize_temperature(
             ctx->target_temperature + delta, ctx->step),
@@ -1347,6 +1534,7 @@ void on_close(lv_event_t* event) {
   ClimatePopupContext* ctx =
       static_cast<ClimatePopupContext*>(lv_event_get_user_data(event));
   if (!ctx || !ctx->card || !ctx->overlay) return;
+  flush_pending_climate_commands(ctx);
   close_control_menu(ctx);
   lv_obj_add_flag(ctx->card, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
@@ -1364,7 +1552,8 @@ float snapped_active_target_value(
   if (!ctx) return value;
   const float minimum = active_minimum(ctx);
   const float maximum = active_maximum(ctx);
-  const float step = ctx->humidity_control_active ? 1.0f : ctx->step;
+  const float step =
+      ctx->humidity_control_active ? ctx->humidity_step : ctx->step;
   value = clamp_temperature(
       quantize_temperature(value, step), minimum, maximum);
   if (!ctx->humidity_control_active && ctx->has_range) {
@@ -1416,8 +1605,8 @@ bool target_value_from_point(
   const float distance = sqrtf((dx * dx) + (dy * dy));
   const float radius =
       ((width < height ? width : height) - kArcWidth) * 0.5f;
-  // Nur ein Tipp auf den sichtbaren Ring darf den Sollwert versetzen.
-  // Beruehrungen in der Mitte gehoeren weiterhin den Labels/Umschaltern.
+  // Only a press on the visible ring may move the target value. Touches in
+  // the center still belong to the labels and target selector.
   if (fabsf(distance - radius) > (kArcWidth + 20.0f)) return false;
 
   float angle = atan2f(dy, dx) * 180.0f / kPi;
@@ -1425,8 +1614,8 @@ bool target_value_from_point(
   float relative = angle - static_cast<float>(kGaugeRotation);
   while (relative < 0.0f) relative += 360.0f;
   while (relative >= 360.0f) relative -= 360.0f;
-  // Im offenen 90-Grad-Segment auf den jeweils naechsten Endpunkt
-  // begrenzen, statt quer ueber den gesamten Wertebereich zu springen.
+  // Clamp the open 90-degree segment to its nearest endpoint instead of
+  // jumping across the full value range.
   if (relative > static_cast<float>(kGaugeSweep)) {
     relative =
         relative >= 315.0f ? 0.0f : static_cast<float>(kGaugeSweep);
@@ -1442,7 +1631,11 @@ bool target_value_from_point(
 void on_arc_event(lv_event_t* event) {
   ClimatePopupContext* ctx =
       static_cast<ClimatePopupContext*>(lv_event_get_user_data(event));
-  if (!ctx || ctx->suppress_events) return;
+  if (!ctx || ctx->suppress_events || !ctx->available) return;
+  const bool target_supported =
+      ctx->humidity_control_active ? humidity_control_available(ctx)
+                                   : temperature_control_available(ctx);
+  if (!target_supported) return;
   const lv_event_code_t code = lv_event_get_code(event);
   if (code == LV_EVENT_PRESSED) {
     close_control_menu(ctx);
@@ -1504,9 +1697,11 @@ void on_arc_event(lv_event_t* event) {
     if (was_dragging) {
       refresh_ring(ctx);
       if (ctx->humidity_control_active) {
-        schedule_humidity_publish(ctx);
+        capture_pending_humidity(ctx);
+        commit_pending_humidity(ctx);
       } else {
-        schedule_temperature_publish(ctx);
+        capture_pending_temperature(ctx);
+        commit_pending_temperature(ctx);
       }
     }
   }
@@ -1516,10 +1711,13 @@ void on_minus(lv_event_t* event) {
   if (lv_event_get_code(event) != LV_EVENT_CLICKED) return;
   ClimatePopupContext* ctx =
       static_cast<ClimatePopupContext*>(lv_event_get_user_data(event));
-  if (ctx) {
+  if (ctx && ctx->available &&
+      (ctx->humidity_control_active ? humidity_control_available(ctx)
+                                    : temperature_control_available(ctx))) {
     close_control_menu(ctx);
     shift_target(
-        ctx, ctx->humidity_control_active ? -1.0f : -ctx->step);
+        ctx,
+        ctx->humidity_control_active ? -ctx->humidity_step : -ctx->step);
   }
 }
 
@@ -1527,10 +1725,13 @@ void on_plus(lv_event_t* event) {
   if (lv_event_get_code(event) != LV_EVENT_CLICKED) return;
   ClimatePopupContext* ctx =
       static_cast<ClimatePopupContext*>(lv_event_get_user_data(event));
-  if (ctx) {
+  if (ctx && ctx->available &&
+      (ctx->humidity_control_active ? humidity_control_available(ctx)
+                                    : temperature_control_available(ctx))) {
     close_control_menu(ctx);
     shift_target(
-        ctx, ctx->humidity_control_active ? 1.0f : ctx->step);
+        ctx,
+        ctx->humidity_control_active ? ctx->humidity_step : ctx->step);
   }
 }
 
@@ -1538,7 +1739,10 @@ void on_target_toggle(lv_event_t* event) {
   if (lv_event_get_code(event) != LV_EVENT_CLICKED) return;
   ClimatePopupContext* ctx =
       static_cast<ClimatePopupContext*>(lv_event_get_user_data(event));
-  if (!ctx || !humidity_control_available(ctx) || ctx->dragging) return;
+  if (!ctx || !ctx->available || !humidity_control_available(ctx) ||
+      ctx->dragging) {
+    return;
+  }
   close_control_menu(ctx);
   lv_obj_t* target =
       static_cast<lv_obj_t*>(lv_event_get_current_target(event));
@@ -1569,11 +1773,12 @@ void close_control_menu(ClimatePopupContext* ctx) {
 
 void apply_control_selection(
     ClimatePopupContext* ctx, uint8_t control_index, uint8_t selected) {
-  if (!ctx || control_index >= kControlCount) return;
+  if (!ctx || !ctx->available || control_index >= kControlCount) return;
   ClimatePopupControl& control = ctx->controls[control_index];
-  if (selected >= control.option_count) return;
   const ClimateControlType type =
       static_cast<ClimateControlType>(control_index);
+  if (!climate_control_available(ctx, type)) return;
+  if (selected >= control.option_count) return;
   String* current = current_control_value(ctx, type);
   if (!current) return;
   *current = control.options[selected];
@@ -1634,9 +1839,13 @@ void on_control_menu_current_click(lv_event_t* event) {
 }
 
 void open_control_menu(ClimatePopupContext* ctx, uint8_t control_index) {
-  if (!ctx || control_index >= kControlCount) return;
+  if (!ctx || !ctx->available || control_index >= kControlCount) return;
   ClimatePopupControl& control = ctx->controls[control_index];
-  if (!control.dropdown || control.option_count == 0) return;
+  if (!control.dropdown || !climate_control_available(
+                               ctx, static_cast<ClimateControlType>(
+                                        control_index))) {
+    return;
+  }
   if (ctx->control_menu &&
       ctx->open_control_index == static_cast<int8_t>(control_index)) {
     close_control_menu(ctx);
@@ -1699,9 +1908,8 @@ void open_control_menu(ClimatePopupContext* ctx, uint8_t control_index) {
   ctx->menu_option_button_count = 0;
   for (lv_obj_t*& button : ctx->menu_option_buttons) button = nullptr;
   lv_obj_set_size(ctx->control_menu, kPillWidth, menu_height);
-  // Die sichtbaren Shells zeichnen die dezente Kontur selbst. Dadurch koennen
-  // oberer Listenradius (32 px) und unterer Pillenradius (46 px) exakt
-  // voneinander abweichen, ohne dass die Elternform an einer Seite hervorsteht.
+  // The visible shells draw their own subtle outline. This lets the upper
+  // list radius and lower pill radius differ without exposing the parent.
   lv_obj_set_style_bg_color(
       ctx->control_menu, lv_color_hex(kPillBg), 0);
   lv_obj_set_style_bg_opa(ctx->control_menu, LV_OPA_TRANSP, 0);
@@ -2128,26 +2336,7 @@ void on_overlay_delete(lv_event_t* event) {
   ClimatePopupContext* ctx =
       static_cast<ClimatePopupContext*>(lv_event_get_user_data(event));
   if (g_climate_popup == ctx) g_climate_popup = nullptr;
-  if (ctx && ctx->temperature_publish_timer) {
-    publish_pending_temperature(ctx);
-    lv_timer_delete(ctx->temperature_publish_timer);
-    ctx->temperature_publish_timer = nullptr;
-  }
-  if (ctx && ctx->humidity_publish_timer) {
-    publish_pending_humidity(ctx);
-    lv_timer_delete(ctx->humidity_publish_timer);
-    ctx->humidity_publish_timer = nullptr;
-  }
-  if (ctx && ctx->mode_publish_timer) {
-    if (ctx->pending_mode_entity.length() &&
-        ctx->pending_hvac_mode.length()) {
-      mqttPublishClimateHvacMode(
-          ctx->pending_mode_entity.c_str(),
-          ctx->pending_hvac_mode.c_str());
-    }
-    lv_timer_delete(ctx->mode_publish_timer);
-    ctx->mode_publish_timer = nullptr;
-  }
+  flush_pending_climate_commands(ctx);
   if (ctx && ctx->remote_apply_timer) {
     lv_timer_delete(ctx->remote_apply_timer);
     ctx->remote_apply_timer = nullptr;
@@ -2671,6 +2860,19 @@ void update_climate_popup(const ClimatePopupInit& init) {
   if (!ctx || !ctx->card || !ctx->overlay) return;
   if (!ctx->entity_id.equalsIgnoreCase(init.entity_id)) return;
   if (lv_obj_has_flag(ctx->card, LV_OBJ_FLAG_HIDDEN)) return;
+  const bool capability_removed =
+      ctx->has_supported_features && init.has_supported_features &&
+      (ctx->supported_features & ~init.supported_features) != 0;
+  const bool safety_contract_changed =
+      init.available != ctx->available || capability_removed;
+  if (safety_contract_changed) {
+    cancel_deferred_remote_apply(ctx);
+    if (!init.available || capability_removed) {
+      discard_pending_climate_commands(ctx);
+    }
+    apply_init(ctx, init);
+    return;
+  }
   if (ctx->dragging || millis() < ctx->block_remote_until_ms) {
     defer_remote_apply(ctx, init);
     return;
@@ -2715,6 +2917,8 @@ void hide_climate_popup() {
       !g_climate_popup->overlay) {
     return;
   }
+  flush_pending_climate_commands(g_climate_popup);
+  close_control_menu(g_climate_popup);
   lv_obj_add_flag(g_climate_popup->card, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(
       g_climate_popup->overlay, LV_OBJ_FLAG_CLICKABLE);

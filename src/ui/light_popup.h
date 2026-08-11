@@ -22,6 +22,7 @@ struct LightPopupInit {
   bool supports_color = false;
   bool supports_brightness = false;
   bool supports_temperature = false;
+  bool available = true;
   bool is_light = true;
   bool is_on = true;
   bool keep_icon_white = false;

@@ -39,7 +39,7 @@ struct ClimateAdjustEventData {
 };
 
 constexpr uint32_t kMiniTargetRemoteBlockMs = 2200;
-constexpr uint32_t kMiniTargetDebounceMs = 220;
+constexpr uint32_t kMiniTargetDebounceMs = 1000;
 
 enum class ClimateMiniTargetCommand : uint8_t {
   NONE = 0,
@@ -70,6 +70,38 @@ bool slot_is_adjustable(ClimateTileSlotKind kind) {
          kind == ClimateTileSlotKind::TARGET_HUMIDITY;
 }
 
+bool climate_state_feature_supported(
+    const ClimateState& state, uint16_t feature, bool legacy_supported) {
+  if (!state.has_supported_features) return legacy_supported;
+  return (state.supported_features & feature) != 0;
+}
+
+bool slot_is_interactive(
+    ClimateTileSlotKind kind, const ClimateState& state) {
+  if (!state.available) return false;
+  switch (kind) {
+    case ClimateTileSlotKind::TARGET_TEMPERATURE:
+      return state.has_target_temperature && climate_state_feature_supported(
+          state, CLIMATE_FEATURE_TARGET_TEMPERATURE, true);
+    case ClimateTileSlotKind::TARGET_TEMPERATURE_LOW:
+    case ClimateTileSlotKind::TARGET_TEMPERATURE_HIGH:
+      return state.has_target_range && climate_state_feature_supported(
+          state, CLIMATE_FEATURE_TARGET_TEMPERATURE_RANGE, true);
+    case ClimateTileSlotKind::TARGET_HUMIDITY:
+      return state.has_target_humidity && climate_state_feature_supported(
+          state, CLIMATE_FEATURE_TARGET_HUMIDITY, true);
+    default:
+      return false;
+  }
+}
+
+float humidity_step_for(const ClimateState& state) {
+  return state.target_humidity_step > 0.0f &&
+                 state.target_humidity_step <= 100.0f
+             ? state.target_humidity_step
+             : 1.0f;
+}
+
 float clamp_value(float value, float minimum, float maximum) {
   return std::max(minimum, std::min(value, maximum));
 }
@@ -97,6 +129,34 @@ ClimateMiniTargetCommand mini_target_command_for(
       return ClimateMiniTargetCommand::HUMIDITY;
     default:
       return ClimateMiniTargetCommand::NONE;
+  }
+}
+
+void clear_pending_mini_target() {
+  if (g_mini_target.publish_timer) {
+    lv_timer_delete(g_mini_target.publish_timer);
+    g_mini_target.publish_timer = nullptr;
+  }
+  g_mini_target.entity_id = "";
+  g_mini_target.command = ClimateMiniTargetCommand::NONE;
+  g_mini_target.block_remote_until_ms = 0;
+}
+
+bool mini_target_command_supported(
+    const ClimateState& state, ClimateMiniTargetCommand command) {
+  if (!state.available) return false;
+  switch (command) {
+    case ClimateMiniTargetCommand::TEMPERATURE:
+      return state.has_target_temperature && climate_state_feature_supported(
+          state, CLIMATE_FEATURE_TARGET_TEMPERATURE, true);
+    case ClimateMiniTargetCommand::RANGE:
+      return state.has_target_range && climate_state_feature_supported(
+          state, CLIMATE_FEATURE_TARGET_TEMPERATURE_RANGE, true);
+    case ClimateMiniTargetCommand::HUMIDITY:
+      return state.has_target_humidity && climate_state_feature_supported(
+          state, CLIMATE_FEATURE_TARGET_HUMIDITY, true);
+    default:
+      return false;
   }
 }
 
@@ -228,10 +288,16 @@ String climate_slot_text(
                  state.target_humidity,
                  0) +
              "%";
-    case ClimateTileSlotKind::HVAC_MODE:
+    case ClimateTileSlotKind::HVAC_MODE: {
       if (!state.hvac_mode[0]) return "--";
+      const char* entity_state = i18n::entity_state_label(
+          configManager.getConfig().language, String(state.hvac_mode));
+      if (entity_state[0]) {
+        return entity_state;
+      }
       return i18n::climate_option_label(
           configManager.getConfig().language, String(state.hvac_mode));
+    }
     default:
       return "";
   }
@@ -308,6 +374,13 @@ uint8_t build_automatic_slot_kinds(
 
   const uint8_t span_w = std::max<uint8_t>(1, tile.span_w);
   const uint8_t span_h = std::max<uint8_t>(1, tile.span_h);
+
+  const String mode = state.hvac_mode;
+  if (!state.available || mode.equalsIgnoreCase("unavailable") ||
+      mode.equalsIgnoreCase("unknown")) {
+    append(ClimateTileSlotKind::HVAC_MODE);
+    return count;
+  }
 
   auto append_primary_target = [&]() {
     if (state.has_target_range) {
@@ -846,6 +919,9 @@ ClimatePopupInit popup_init_for(const ClimateEventData* data) {
   String configured_icon = normalizeMdiIconName(tile->icon_name);
   init.icon_visible = !isMdiIconDisabled(tile->icon_name);
   init.dynamic_icon = init.icon_visible && !configured_icon.length();
+  init.available = state.available;
+  init.has_supported_features = state.has_supported_features;
+  init.supported_features = state.supported_features;
   init.icon_name = climate_tile_base_icon(*tile);
   init.hvac_mode = state.hvac_mode;
   init.hvac_action = state.hvac_action;
@@ -871,6 +947,7 @@ ClimatePopupInit popup_init_for(const ClimateEventData* data) {
   init.min_humidity = state.min_humidity;
   init.max_humidity = state.max_humidity;
   init.target_temp_step = state.target_temp_step;
+  init.target_humidity_step = state.target_humidity_step;
   init.has_current_temperature = state.has_current_temperature;
   init.has_current_humidity = state.has_current_humidity;
   init.has_target_temperature = state.has_target_temperature;
@@ -902,6 +979,7 @@ void climate_adjust_event_cb(lv_event_t* event) {
   const ClimateTileSlotKind kind =
       static_cast<ClimateTileSlotKind>(
           widgets[data->index].slot_kinds[data->slot_index]);
+  if (!slot_is_interactive(kind, state)) return;
   const float direction = data->direction < 0 ? -1.0f : 1.0f;
   const float temperature_step =
       (state.target_temp_step > 0.0f &&
@@ -939,9 +1017,12 @@ void climate_adjust_event_cb(lv_event_t* event) {
       break;
     case ClimateTileSlotKind::TARGET_HUMIDITY:
       if (!state.has_target_humidity) return;
-      state.target_humidity = clamp_value(
-          roundf(state.target_humidity + direction),
-          state.min_humidity, state.max_humidity);
+      {
+        const float humidity_step = humidity_step_for(state);
+        state.target_humidity = clamp_value(
+            state.target_humidity + direction * humidity_step,
+            state.min_humidity, state.max_humidity);
+      }
       break;
     default:
       return;
@@ -1054,9 +1135,11 @@ bool reconcile_climate_mini_target_state(
   if (!tile ||
       !tile->sensor_entity.equalsIgnoreCase(
           g_mini_target.entity_id)) {
-    g_mini_target.entity_id = "";
-    g_mini_target.command = ClimateMiniTargetCommand::NONE;
-    g_mini_target.block_remote_until_ms = 0;
+    clear_pending_mini_target();
+    return false;
+  }
+  if (!mini_target_command_supported(state, g_mini_target.command)) {
+    clear_pending_mini_target();
     return false;
   }
 
@@ -1092,9 +1175,7 @@ bool reconcile_climate_mini_target_state(
 
   // A matching state after the debounced publish is the acknowledgement.
   if (!g_mini_target.publish_timer && confirmed) {
-    g_mini_target.entity_id = "";
-    g_mini_target.command = ClimateMiniTargetCommand::NONE;
-    g_mini_target.block_remote_until_ms = 0;
+    clear_pending_mini_target();
     return false;
   }
 
@@ -1102,9 +1183,7 @@ bool reconcile_climate_mini_target_state(
       g_mini_target.publish_timer ||
       mini_target_block_active(g_mini_target, millis());
   if (!protect_local_value) {
-    g_mini_target.entity_id = "";
-    g_mini_target.command = ClimateMiniTargetCommand::NONE;
-    g_mini_target.block_remote_until_ms = 0;
+    clear_pending_mini_target();
     return false;
   }
 
@@ -1190,7 +1269,7 @@ void refresh_climate_tile_content(
     widget.slot_layouts[i] = static_cast<uint8_t>(layouts[i]);
     widget.slot_geometry[i] = geometry[i];
     const bool adjustable = slot_is_adjustable(kind);
-    const bool interactive_control = adjustable;
+    const bool interactive_control = slot_is_interactive(kind, state);
     lv_obj_set_style_bg_opa(
         root, interactive_control ? LV_OPA_COVER : LV_OPA_TRANSP,
         LV_PART_MAIN);
@@ -1202,12 +1281,22 @@ void refresh_climate_tile_content(
     lv_obj_t* caption = lv_obj_get_child(root, 3);
     if (minus) {
       if (interactive_control) {
+        lv_obj_clear_state(minus, LV_STATE_DISABLED);
+      } else {
+        lv_obj_add_state(minus, LV_STATE_DISABLED);
+      }
+      if (interactive_control) {
         lv_obj_clear_flag(minus, LV_OBJ_FLAG_HIDDEN);
       } else {
         lv_obj_add_flag(minus, LV_OBJ_FLAG_HIDDEN);
       }
     }
     if (plus) {
+      if (interactive_control) {
+        lv_obj_clear_state(plus, LV_STATE_DISABLED);
+      } else {
+        lv_obj_add_state(plus, LV_STATE_DISABLED);
+      }
       if (interactive_control) {
         lv_obj_clear_flag(plus, LV_OBJ_FLAG_HIDDEN);
       } else {

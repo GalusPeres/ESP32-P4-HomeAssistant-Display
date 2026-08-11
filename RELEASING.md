@@ -28,6 +28,29 @@ That's it. The action then:
 4. Creates the GitHub release with auto-generated notes and uploads all
    18 binaries (`<device>.bin` for OTA + `<device>_factory.bin` for first flash).
 
+After all 18 assets were uploaded successfully, the release job explicitly
+dispatches the documentation workflow for the release tag. This explicit
+`workflow_dispatch` is required because GitHub suppresses ordinary follow-up
+workflow events created with `GITHUB_TOKEN`. The documentation workflow
+validates the installer device/asset contract, downloads the same 18 published
+release assets, verifies their GitHub SHA-256 digests, and places them in the
+generated documentation site under `firmware/latest/`. Normal documentation
+changes pushed to `master` still deploy through the workflow's filtered `push`
+trigger. The browser installer must fetch firmware from that same HTTPS origin
+because GitHub release downloads do not provide the cross-origin response
+header required by browser flashing. The `gh-pages` deployment is an orphan
+snapshot so successive full-size factory images do not accumulate in the
+branch history.
+
+Keep the two browser operations distinct. **Factory** must erase the full chip
+and write the merged image at `0x0`. **Update** must never use that merged image
+or an install flow that can opt into a full erase; it verifies `partitions.csv`
+and the current redundant OTA selection, writes the regular app image once to
+the inactive slot, verifies it, and only then commits a new redundant OTA
+selection entry. NVS and LittleFS remain untouched.
+`tools/test-installer-otadata.mjs` and `tools/test-web-installer.mjs` guard this
+contract.
+
 The checked-in release notes are not copied into the GitHub release
 automatically. After the workflow succeeds, replace the generated GitHub text
 with the matching `docs/releases/vX.Y.Z.md` content and keep the asset list.

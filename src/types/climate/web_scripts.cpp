@@ -66,5 +66,11 @@ void append_climate_scripts(String& html) {
   append_i18n(
       "genericClimate",
       i18n::climate_state_label(language, "", ""));
+  append_i18n(
+      "unavailable",
+      i18n::entity_state_label(language, "unavailable"));
+  append_i18n(
+      "unknown",
+      i18n::entity_state_label(language, "unknown"));
   html += "  });\n  </script>\n";
 }

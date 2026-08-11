@@ -65,6 +65,8 @@ struct CoverTileWidgets {
 
 struct ClimateState {
   bool valid = false;
+  bool available = true;
+  bool has_supported_features = false;
   bool has_current_temperature = false;
   bool has_current_humidity = false;
   bool has_target_temperature = false;
@@ -81,6 +83,8 @@ struct ClimateState {
   float min_humidity = 30.0f;
   float max_humidity = 99.0f;
   float target_temp_step = 0.5f;
+  float target_humidity_step = 1.0f;
+  uint16_t supported_features = 0;
   char hvac_mode[16] = {};
   char hvac_action[16] = {};
   char fan_mode[16] = {};
@@ -308,6 +312,7 @@ struct MediaTileWidgets {
 };
 
 struct SwitchState {
+  bool available = true;
   bool has_state = false;
   bool is_on = false;
   bool has_color = false;

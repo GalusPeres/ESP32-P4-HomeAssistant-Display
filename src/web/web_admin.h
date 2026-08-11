@@ -66,6 +66,7 @@ public:
   void handleDownloadScreenshot();
   void handlePrepareOtaUpload();
   void handleOtaUpdate();
+  void handleOtaRawUpdate();
   void handleOtaUploadDone();
   void handleStartOtaInstall();
   void handleGetOtaStatus();

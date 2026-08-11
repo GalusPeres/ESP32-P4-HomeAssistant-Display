@@ -450,7 +450,10 @@ struct LocaleProfile {
   const char* climate_target_humidity;
   const char* climate_heating_target;
   const char* climate_cooling_target;
-  const char* climate_states[15];
+  // heating, preheating, cooling, drying, fan, defrosting, idle, off,
+  // heat, cool, heat_cool, auto, dry, fan_only, generic, unavailable,
+  // unknown.
+  const char* climate_states[17];
   const char* climate_value_labels[3];
   const char* climate_control_labels[5];
   const char* climate_option_labels[26];
@@ -527,6 +530,8 @@ const char* climate_target_cool_label(const char* language_code);
 const char* climate_state_label(const char* language_code,
                                 const String& mode,
                                 const String& action);
+const char* entity_state_label(const char* language_code,
+                               const String& state);
 const char* climate_value_label(const char* language_code, uint8_t index);
 const char* climate_control_label(const char* language_code, uint8_t index);
 String climate_option_label(const char* language_code, const String& option);

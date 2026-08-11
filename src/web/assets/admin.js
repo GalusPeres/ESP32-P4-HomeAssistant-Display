@@ -1065,7 +1065,9 @@ function t(key) {
     showNotification(t('otaUploading'));
 
     try {
-      const prepRes = await fetch('/api/ota/prepare?size=' + encodeURIComponent(String(file.size || 0)), {
+      const otaSize = encodeURIComponent(String(file.size || 0));
+      const otaFilename = encodeURIComponent(String(file.name || ''));
+      const prepRes = await fetch('/api/ota/prepare?size=' + otaSize + '&filename=' + otaFilename, {
         method: 'POST',
         cache: 'no-store',
         credentials: 'same-origin'
@@ -1089,11 +1091,12 @@ function t(key) {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('firmware', file);
-
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/ota/upload?size=' + encodeURIComponent(String(file.size || 0)), true);
+    const otaSize = encodeURIComponent(String(file.size || 0));
+    const otaFilename = encodeURIComponent(String(file.name || ''));
+    xhr.open('POST', '/api/ota/upload/raw?size=' + otaSize + '&filename=' + otaFilename, true);
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.setRequestHeader('X-HomeTiles-OTA-Filename', otaFilename);
 
     xhr.upload.onprogress = (event) => {
       if (!event.lengthComputable) return;
@@ -1147,7 +1150,7 @@ function t(key) {
       input.disabled = false;
     };
 
-    xhr.send(formData);
+    xhr.send(file);
   }
 
   // Tile Editor State
@@ -6655,7 +6658,13 @@ function maybeFillTitleFromSwitch(tab) {
   }
 
   function parseSwitchPayload(value) {
-    const out = { hasState: false, isOn: false, hasColor: false, color: null };
+    const out = {
+      available: true,
+      hasState: false,
+      isOn: false,
+      hasColor: false,
+      color: null
+    };
     if (value === undefined || value === null) return out;
     const text = String(value).trim();
     if (!text.length) return out;
@@ -6664,11 +6673,19 @@ function maybeFillTitleFromSwitch(tab) {
       try {
         const obj = JSON.parse(text);
         if (obj && typeof obj === 'object') {
+          if (obj.available !== undefined) {
+            out.available = obj.available !== false;
+          }
           if (obj.state !== undefined) {
-            const on = parseOnOff(obj.state);
-            if (on !== null) {
-              out.hasState = true;
-              out.isOn = on;
+            const normalizedState = String(obj.state).trim().toLowerCase();
+            if (normalizedState === 'unavailable') {
+              out.available = false;
+            } else {
+              const on = parseOnOff(obj.state);
+              if (on !== null) {
+                out.hasState = true;
+                out.isOn = on;
+              }
             }
           }
           if (obj.color) {
@@ -6691,6 +6708,10 @@ function maybeFillTitleFromSwitch(tab) {
           }
         }
       } catch (e) {}
+    }
+
+    if (text.toLowerCase() === 'unavailable') {
+      out.available = false;
     }
 
     if (!out.hasState) {
@@ -6728,6 +6749,18 @@ function maybeFillTitleFromSwitch(tab) {
     const switchEl = tileElem.querySelector('.tile-switch');
     const isToggleStyle = tileElem.classList.contains('switch-toggle');
     syncSwitchPreviewPalette(tileElem);
+    if (state.available === false) {
+      if (iconEl) iconEl.style.color = SWITCH_ICON_OFF;
+      if (switchEl) {
+        switchEl.classList.remove('is-on');
+        if (isToggleStyle) {
+          switchEl.style.setProperty('--switch-on-color', SWITCH_TOGGLE_ON);
+        } else {
+          switchEl.style.removeProperty('--switch-on-color');
+        }
+      }
+      return;
+    }
     if (!state.hasState && !state.hasColor) {
       if (iconEl && isToggleStyle) iconEl.style.color = SWITCH_ICON_NEUTRAL;
       return;
@@ -7020,6 +7053,15 @@ function maybeFillTitleFromMedia(tab) {
     AUTO: 0,
     HORIZONTAL: 1,
     VERTICAL: 2
+  });
+  const CLIMATE_SUPPORTED_FEATURE = Object.freeze({
+    TARGET_TEMPERATURE: 1,
+    TARGET_TEMPERATURE_RANGE: 2,
+    TARGET_HUMIDITY: 4,
+    FAN_MODE: 8,
+    PRESET_MODE: 16,
+    SWING_MODE: 32,
+    SWING_HORIZONTAL_MODE: 512
   });
   const CLIMATE_LAYOUT_MAGIC = 0x434c0000;
   const CLIMATE_LAYOUT_MAGIC_MASK = 0xffff0000;
@@ -7886,6 +7928,9 @@ function maybeFillTitleFromMedia(tab) {
   }
 
   function climateTargetCaption(state, kind) {
+    if (state?.available === false) return CLIMATE_I18N.unavailable;
+    const entityState = String(state?.mode || '').toLowerCase();
+    if (entityState === 'unknown') return CLIMATE_I18N.unknown;
     if (kind === CLIMATE_TILE_CONTENT.TARGET_HUMIDITY) {
       return CLIMATE_I18N.targetHumidity;
     }
@@ -7921,6 +7966,10 @@ function maybeFillTitleFromMedia(tab) {
 
   function climateModeText(state) {
     const raw = String(state?.mode || '').toLowerCase();
+    if (state?.available === false || raw === 'unavailable') {
+      return CLIMATE_I18N.unavailable;
+    }
+    if (raw === 'unknown') return CLIMATE_I18N.unknown;
     if (!raw) return '--';
     const labels = {
       off: CLIMATE_I18N.off,
@@ -7934,6 +7983,32 @@ function maybeFillTitleFromMedia(tab) {
     if (labels[raw]) return labels[raw];
     const fallback = raw.replaceAll('_', ' ');
     return fallback.charAt(0).toUpperCase() + fallback.slice(1);
+  }
+
+  function climateFeatureSupported(state, feature, legacySupported = true) {
+    if (!state?.hasSupportedFeatures) return legacySupported;
+    return (Number(state.supportedFeatures) & feature) !== 0;
+  }
+
+  function climateTargetInteractive(state, kind) {
+    if (state?.available === false) return false;
+    switch (kind) {
+      case CLIMATE_TILE_CONTENT.TARGET_TEMPERATURE:
+        return state?.target !== null &&
+          climateFeatureSupported(
+            state, CLIMATE_SUPPORTED_FEATURE.TARGET_TEMPERATURE);
+      case CLIMATE_TILE_CONTENT.TARGET_TEMPERATURE_LOW:
+      case CLIMATE_TILE_CONTENT.TARGET_TEMPERATURE_HIGH:
+        return state?.targetLow !== null && state?.targetHigh !== null &&
+          climateFeatureSupported(
+            state, CLIMATE_SUPPORTED_FEATURE.TARGET_TEMPERATURE_RANGE);
+      case CLIMATE_TILE_CONTENT.TARGET_HUMIDITY:
+        return state?.targetHumidity !== null &&
+          climateFeatureSupported(
+            state, CLIMATE_SUPPORTED_FEATURE.TARGET_HUMIDITY);
+      default:
+        return false;
+    }
   }
 
   function climateEditorContentInfo(tab, kind) {
@@ -8974,12 +9049,22 @@ function maybeFillTitleFromMedia(tab) {
       unit: '\u00B0C',
       mode: '',
       action: '',
-      preset: ''
+      preset: '',
+      available: true,
+      hasSupportedFeatures: false,
+      supportedFeatures: 0
     };
     if (value === undefined || value === null) return out;
     const text = String(value).trim();
     if (!text.length) return out;
     if (!text.startsWith('{')) {
+      const state = text.toLowerCase();
+      if (state === 'unavailable' || state === 'unknown') {
+        out.mode = state;
+        out.available = state !== 'unavailable';
+        out.valid = true;
+        return out;
+      }
       const numeric = Number(text.replace(',', '.'));
       if (Number.isFinite(numeric)) {
         out.valid = true;
@@ -9027,7 +9112,20 @@ function maybeFillTitleFromMedia(tab) {
       out.mode = String(obj.hvac_mode || obj.state || attrs.hvac_mode || '').toLowerCase();
       out.action = String(obj.hvac_action || attrs.hvac_action || '').toLowerCase();
       out.preset = String(obj.preset_mode || attrs.preset_mode || '').toLowerCase();
+      const available = obj.available ?? attrs.available;
+      out.available = available !== undefined
+        ? !!available : out.mode !== 'unavailable';
+      const supportedFeatures =
+        obj.supported_features ?? attrs.supported_features;
+      if (supportedFeatures !== undefined && supportedFeatures !== null &&
+          Number.isFinite(Number(supportedFeatures)) &&
+          Number(supportedFeatures) >= 0) {
+        out.hasSupportedFeatures = true;
+        out.supportedFeatures = Math.min(
+          65535, Math.round(Number(supportedFeatures)));
+      }
       out.valid =
+        !out.available ||
         out.current !== '--' ||
         out.currentHumidity !== null ||
         out.target !== null ||
@@ -9044,6 +9142,7 @@ function maybeFillTitleFromMedia(tab) {
     const action = String(state?.action || '').toLowerCase();
     const mode = String(state?.mode || '').toLowerCase();
     const fallback = normalizeMdiIconName(baseIcon) || 'thermostat';
+    if (state?.available === false) return fallback;
     if (action === 'heating' || action === 'preheating') return 'fire';
     if (action === 'cooling') return 'snowflake';
     if (action === 'drying') return 'water-percent';
@@ -9064,6 +9163,9 @@ function maybeFillTitleFromMedia(tab) {
   function climatePreviewColor(state) {
     const action = String(state?.action || '').toLowerCase();
     const mode = String(state?.mode || '').toLowerCase();
+    if (state?.available === false || mode === 'unavailable') {
+      return '#9e9e9e';
+    }
     if (action === 'heating' || action === 'preheating') return '#ff8a3d';
     if (action === 'cooling') return '#4fc3f7';
     if (action === 'drying') return '#ffd54f';
@@ -9126,7 +9228,11 @@ function maybeFillTitleFromMedia(tab) {
       }
     };
 
-    if (w === 1 && h === 1) {
+    const entityState = String(state?.mode || '').toLowerCase();
+    if (state?.available === false || entityState === 'unavailable' ||
+        entityState === 'unknown') {
+      addAutomatic(CLIMATE_TILE_CONTENT.HVAC_MODE);
+    } else if (w === 1 && h === 1) {
       if (!state.valid || state.current !== '--') {
         addAutomatic(CLIMATE_TILE_CONTENT.CURRENT_TEMPERATURE);
       } else {
@@ -9186,6 +9292,7 @@ function maybeFillTitleFromMedia(tab) {
             kind,
             value: temp(state.target),
             adjustable: true,
+            interactive: climateTargetInteractive(state, kind),
             caption: climateTargetCaption(state, kind)
           };
         case CLIMATE_TILE_CONTENT.TARGET_TEMPERATURE_LOW:
@@ -9193,6 +9300,7 @@ function maybeFillTitleFromMedia(tab) {
             kind,
             value: temp(state.targetLow),
             adjustable: true,
+            interactive: climateTargetInteractive(state, kind),
             caption: climateTargetCaption(state, kind)
           };
         case CLIMATE_TILE_CONTENT.TARGET_TEMPERATURE_HIGH:
@@ -9200,6 +9308,7 @@ function maybeFillTitleFromMedia(tab) {
             kind,
             value: temp(state.targetHigh),
             adjustable: true,
+            interactive: climateTargetInteractive(state, kind),
             caption: climateTargetCaption(state, kind)
           };
         case CLIMATE_TILE_CONTENT.TARGET_HUMIDITY:
@@ -9208,6 +9317,7 @@ function maybeFillTitleFromMedia(tab) {
             value: state.targetHumidity !== null
               ? state.targetHumidity + '%' : '--%',
             adjustable: true,
+            interactive: climateTargetInteractive(state, kind),
             caption: climateTargetCaption(state, kind)
           };
         case CLIMATE_TILE_CONTENT.HVAC_MODE:
@@ -9382,6 +9492,14 @@ function maybeFillTitleFromMedia(tab) {
           slot.spanW +
           ';grid-row:' + row + ' / span ' +
           slot.spanH;
+        if (!slot.adjustable || slot.interactive === false) {
+          return '<div class="climate-slot climate-slot-value' +
+            (slot.kind === CLIMATE_TILE_CONTENT.HVAC_MODE
+              ? ' climate-slot-mode' : '') +
+            '" data-climate-preview-item="' +
+            slot.itemIndex + '" style="' +
+            gridStyle + '"><strong>' + slot.value + '</strong></div>';
+        }
         if (compact) {
           return '<div class="climate-slot climate-slot-control ' +
             'climate-slot-control-compact" ' +
@@ -9390,14 +9508,6 @@ function maybeFillTitleFromMedia(tab) {
             '<span class="climate-minus" aria-hidden="true">-</span>' +
             '<strong>' + slot.value + '</strong>' +
             '<span class="climate-plus" aria-hidden="true">+</span></div>';
-        }
-        if (!slot.adjustable) {
-          return '<div class="climate-slot climate-slot-value' +
-            (slot.kind === CLIMATE_TILE_CONTENT.HVAC_MODE
-              ? ' climate-slot-mode' : '') +
-            '" data-climate-preview-item="' +
-            slot.itemIndex + '" style="' +
-            gridStyle + '"><strong>' + slot.value + '</strong></div>';
         }
         const controlClass = horizontal
           ? 'climate-slot-control-horizontal'

@@ -7,18 +7,39 @@ on:
       - "docs/**"
       - "mkdocs.yml"
       - ".github/workflows/docs.yml"
+      - "release-helper/prepare-web-installer.mjs"
+      - "tools/test-installer-otadata.mjs"
+      - "tools/test-web-installer.mjs"
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: docs
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - run: pip install mkdocs-material
-      - run: mkdocs gh-deploy --force
+      - run: pip install mkdocs-material ghp-import
+      - run: node tools/test-installer-otadata.mjs
+      - run: node tools/test-web-installer.mjs
+      - run: mkdocs build --strict
+      - name: Mirror latest release assets into the documentation origin
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node release-helper/prepare-web-installer.mjs --output site/firmware/latest
+      - name: Publish an orphan gh-pages snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ghp-import --no-jekyll --push --force --no-history site

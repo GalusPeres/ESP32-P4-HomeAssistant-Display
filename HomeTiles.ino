@@ -411,7 +411,22 @@ static GithubUpdate::CheckResult perform_fw_check() {
   // SRAM freigegeben, aber jedes Mal einen retained Subscribe-/State-Sturm
   // ausgeloest und den SDIO-DMA-Heap weiter fragmentiert.
   Serial.println("[Update] Check: MQTT bleibt verbunden (TLS in PSRAM)");
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  const bool s3_rgb_resync_required = networkTransport.isConnected();
+#endif
   GithubUpdate::CheckResult res = GithubUpdate::checkLatest();
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (s3_rgb_resync_required) {
+    // Espressif documents a permanent horizontal shift when the S3 RGB DMA
+    // loses PSRAM bandwidth. The HTTPS check does not write flash, but its TLS
+    // traffic is the only high-bandwidth work in this path and previously ran
+    // without the board's guarded canonical-fb0/one-shot-VSYNC recovery.
+    Serial.println(
+        "[Display/S3] Resynchronizing RGB scanout after update check");
+    Device::storageWriteBegin();
+    Device::storageWriteEnd();
+  }
+#endif
   if (!res.ok && res.tls_alloc_failed) {
     Serial.println(
         "[Update] Check: TLS-Speicher trotz PSRAM-Fallback fehlgeschlagen; "
@@ -938,6 +953,15 @@ void setup() {
   } else {
     Serial.println("[Setup] Ueberspringe Netzwerk (keine Config)");
   }
+
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  // Normal boot keeps automatic VSYNC restarts masked, while boot-time UI and
+  // network work can still disturb the direct PSRAM scanout after any reset.
+  // Repair possible RGB timing drift once all heavy setup work has finished.
+  Serial.println("[Display/S3] Resynchronizing RGB scanout after boot");
+  Device::storageWriteBegin();
+  Device::storageWriteEnd();
+#endif
 
   // last_activity_time wurde schon ganz am Anfang in displayManager.init()
   // gesetzt -- alles seitdem (Config-Load, Splash, UI-Build, bis zu 30s

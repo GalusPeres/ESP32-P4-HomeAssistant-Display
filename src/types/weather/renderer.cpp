@@ -13,6 +13,8 @@ struct WeatherEventData {
   String title;
   lv_obj_t* location_label = nullptr;
   uint32_t bg_color = 0;
+  bool long_press_pending = false;
+  bool popup_opened_for_press = false;
 };
 
 namespace {
@@ -380,16 +382,46 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
       card_color
     };
 
-    const lv_event_code_t popup_event =
-        (getTilePopupOpenMode(tile) == TILE_POPUP_OPEN_SHORT_PRESS)
-            ? LV_EVENT_SHORT_CLICKED
-            : LV_EVENT_LONG_PRESSED;
-
     auto show_popup = [](lv_event_t* e) {
       lv_event_code_t code = lv_event_get_code(e);
-      if (code != LV_EVENT_SHORT_CLICKED && code != LV_EVENT_LONG_PRESSED) return;
       WeatherEventData* data = static_cast<WeatherEventData*>(lv_event_get_user_data(e));
       if (!data || !data->entity_id.length()) return;
+
+      if (code == LV_EVENT_PRESSED) {
+        data->long_press_pending = false;
+        data->popup_opened_for_press = false;
+        return;
+      }
+      if (code == LV_EVENT_PRESS_LOST) {
+        data->long_press_pending = false;
+        return;
+      }
+      if (code == LV_EVENT_LONG_PRESSED) {
+        // A long press is confirmed here, but the popup must wait until the
+        // finger is released so the new overlay cannot receive this press.
+        data->long_press_pending = true;
+        return;
+      }
+
+      bool should_open = false;
+      if (code == LV_EVENT_RELEASED) {
+        should_open = data->long_press_pending;
+        data->long_press_pending = false;
+        if (should_open) {
+          lv_indev_t* indev = lv_indev_active();
+          if (indev && lv_indev_get_scroll_obj(indev)) {
+            return;
+          }
+        }
+      } else if (code == LV_EVENT_SHORT_CLICKED) {
+        // LVGL sends SHORT_CLICKED only after a non-scrolling short release.
+        should_open = true;
+      } else {
+        return;
+      }
+
+      if (!should_open || data->popup_opened_for_press) return;
+      data->popup_opened_for_press = true;
       String title = data->title;
       if (data->location_label) {
         const char* label_text = lv_label_get_text(data->location_label);
@@ -410,7 +442,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
       }
     };
 
-    lv_obj_add_event_cb(card, show_popup, popup_event, data);
+    lv_obj_add_event_cb(card, show_popup, LV_EVENT_ALL, data);
 
     lv_obj_add_event_cb(
         card,

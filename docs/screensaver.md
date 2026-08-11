@@ -16,18 +16,56 @@ the **Screensaver** tab of the web admin and runs on every supported display.
 
 ### Image Requirements
 
-- **Format:** JPEG (`.jpg` or `.jpeg`)
-- **Maximum file size:** 8 MB per image
-- **Recommended size:** at least 1280×800 pixels; 1280×800 or 1920×1080 keeps
-  files reasonably small while looking sharp on every supported display
-- **For the fastest hardware decode:** use dimensions divisible by 16 and no more
-  than about 4.2 megapixels in total
+- **Format:** baseline (non-progressive) JPEG with a `.jpg` or `.jpeg` extension
+- **Color:** normal RGB/sRGB export; do not use CMYK JPEG
+- **Size:** resize to the native resolution of the selected display whenever
+  possible. Smaller source images decode faster and need less temporary memory.
+- **One shared set for several displays:** keep the longest edge at **1920 pixels
+  or less** while preserving the aspect ratio.
+- **Maximum file size:** 8 MB per image; a native-resolution JPEG at quality
+  80-90 should normally be well below 2 MB.
 
-Larger phone or camera photos are automatically scaled down by the fallback decoder,
-but take longer to load and use more temporary memory. For best performance, resize
-them to the smallest resolution that is still at least 1280 pixels wide and 800
-pixels high while preserving the original aspect ratio. The firmware then crops the
-image to the display; **Zoom**, **Focus X**, and **Focus Y** control that crop.
+| HomeTiles target | Native landscape image size |
+| --- | ---: |
+| M5Stack Tab5 | 1280×720 |
+| Waveshare 4B / 86 Panel | 720×720 |
+| Waveshare Touch LCD 7 inch | 1280×720 |
+| Waveshare Touch LCD 8 inch | 1280×800 |
+| Waveshare Touch LCD 10.1 inch | 1280×800 |
+| Guition JC8012P4A1 V1 / V2 | 1280×800 |
+| Guition JC1060P470C_I_W_Y | 1024×600 |
+| Guition ESP32-4848S040C_I | 480×480 |
+
+If the display is deliberately rotated by 90 degrees, swap width and height.
+The screensaver crops the prepared image to the panel; **Zoom**, **Focus X**, and
+**Focus Y** control that crop.
+
+!!! warning "Baseline JPEG is required"
+    HomeTiles' software JPEG decoder supports baseline JPEG, not progressive
+    JPEG. In the image export dialog, choose **JPEG**, **RGB/sRGB**, and
+    **Baseline / Standard**, and disable **Progressive** or **Interlaced**
+    encoding. A file can have the correct `.jpg` extension and still be
+    incompatible because of its encoding or color mode.
+
+### Reliable Export Recipe
+
+1. Crop the photo to roughly the panel's aspect ratio.
+2. Resize it to the native resolution in the table. For a shared multi-device
+   image, preserve the aspect ratio and cap the longest edge at 1920 pixels.
+3. Convert the document to RGB/sRGB if the editor offers a color-mode choice.
+4. Export as baseline/non-progressive JPEG at quality 80-90.
+5. Confirm the file is below 8 MB, then copy or upload it to `/images`.
+
+Do not rely on a very large camera image being resized by the display. In
+[issue #20](https://github.com/GalusPeres/HomeTiles/issues/20), a 3072×2304 JPEG
+stayed blank on a JC1060P470C while a 2000×1500 export worked. The conservative
+recommendation remains the device's native resolution, or at most a 1920-pixel
+long edge for a shared image set.
+
+If an image remains black, re-export the original as baseline RGB JPEG at the
+native size first. If needed, reduce it further; for the reported JC1060 case,
+2000×1500 or smaller was the first confirmed working range. Check the format
+and pixel dimensions before treating this as a general microSD upload problem.
 
 Without a card or usable JPEG, the screensaver still works with a black background
 and the configured clock and tiles.

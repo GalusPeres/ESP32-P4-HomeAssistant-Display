@@ -30,12 +30,13 @@ air, connected via MQTT.
 
 <div class="ht-steps" markdown>
 
-1.  **Flash the firmware**
+1.  **Flashing the Firmware**
 
-    Download the prebuilt binaries for your device and flash them once over
-    USB — every update after that installs over the air.
+    Install or update HomeTiles directly here in the browser. Select the exact
+    device, then choose Update to keep its settings or First install / factory
+    reset for a clean installation.
 
-    [Flashing the Firmware :octicons-arrow-right-24:](flashing.md)
+    [Flashing the Firmware :octicons-arrow-right-24:](installer.md)
 
 2.  **Connect everything**
 

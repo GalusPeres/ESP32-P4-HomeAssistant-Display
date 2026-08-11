@@ -400,6 +400,7 @@ struct OtaUploadState {
   uint32_t prepared_at_ms = 0;
   size_t buffered_len = 0;
   size_t upload_total_bytes = 0;
+  size_t upload_received_bytes = 0;
   size_t install_total_bytes = 0;
   size_t install_written_bytes = 0;
   size_t next_progress_log = 0;
@@ -408,6 +409,8 @@ struct OtaUploadState {
   size_t staging_capacity = 0;
   size_t staged_bytes = 0;
   uint8_t buffered_bytes[firmware_meta::kDeviceDescriptorImageBytes] = {0};
+  String prepared_filename;
+  String upload_filename;
   String error;
 };
 
@@ -419,13 +422,12 @@ uint16_t g_ota_display_restore_attempts = 0;
 bool g_ota_storage_guard_active = false;
 
 constexpr uint32_t kOtaDisplayRestoreRetryMs = 750;
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
-    defined(DEVICE_GUITION_JC1060P470C)
-// On the P4 WiFi is provided by ESP-Hosted over SDIO. Starting Update while
-// the browser is still sending the image consumes about 75 KB of internal/DMA
-// RAM and makes the remaining RX stream fragile after longer uptime. Receive
-// the complete local image in PSRAM first; only touch flash after HTTP RX is
-// finished.
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+// Supported P4 profiles are sized for full-image PSRAM staging, and allocation
+// must succeed completely before flash writes can start. When WiFi is active,
+// ESP-Hosted uses SDIO; starting Update while the browser is still sending
+// consumes about 75 KB of internal/DMA RAM. Receive the complete image first
+// so SDIO RX and flash writes never compete for that memory.
 constexpr bool kStageWebOtaInPsram = true;
 #else
 constexpr bool kStageWebOtaInPsram = false;
@@ -436,6 +438,8 @@ constexpr bool kRequireWebOtaSize = true;
 constexpr bool kRequireWebOtaSize = kStageWebOtaInPsram;
 #endif
 constexpr size_t kOtaFlashWriteChunk = 16 * 1024;
+constexpr const char* kOtaRawContentType = "application/octet-stream";
+constexpr const char* kOtaRawFilenameHeader = "X-HomeTiles-OTA-Filename";
 
 void logOtaMemory(const char* tag) {
   Serial.printf("[OTA/Mem] %s | Int free=%u KB | DMA free=%u KB | DMA largest=%u KB | PSRAM free=%u KB | MQTT buf=%u B\n",
@@ -676,9 +680,12 @@ void resetOtaUploadState() {
   g_ota_upload_state.prepared_at_ms = 0;
   g_ota_upload_state.buffered_len = 0;
   g_ota_upload_state.upload_total_bytes = 0;
+  g_ota_upload_state.upload_received_bytes = 0;
   g_ota_upload_state.install_total_bytes = 0;
   g_ota_upload_state.install_written_bytes = 0;
   g_ota_upload_state.next_progress_log = 0;
+  g_ota_upload_state.prepared_filename = "";
+  g_ota_upload_state.upload_filename = "";
   g_ota_upload_state.error = "";
 }
 
@@ -688,16 +695,27 @@ bool otaFilenameLooksLikeFactory(const String& filename) {
   return lowered.indexOf("factory") >= 0;
 }
 
+bool parseOtaSizeValue(const String& raw, size_t& parsed) {
+  parsed = 0;
+  if (!raw.length()) return false;
+
+  size_t value = 0;
+  for (size_t i = 0; i < raw.length(); ++i) {
+    const char ch = raw.charAt(i);
+    if (ch < '0' || ch > '9') return false;
+    const size_t digit = static_cast<size_t>(ch - '0');
+    if (value > (SIZE_MAX - digit) / 10) return false;
+    value = value * 10 + digit;
+  }
+  if (value == 0) return false;
+  parsed = value;
+  return true;
+}
+
 size_t parseOtaExpectedSize(WebServer& server) {
-  if (!server.hasArg("size")) {
-    return 0;
-  }
-  const String raw = server.arg("size");
-  if (!raw.length()) {
-    return 0;
-  }
-  const unsigned long parsed = strtoul(raw.c_str(), nullptr, 10);
-  return static_cast<size_t>(parsed);
+  if (!server.hasArg("size")) return 0;
+  size_t parsed = 0;
+  return parseOtaSizeValue(server.arg("size"), parsed) ? parsed : 0;
 }
 
 bool beginDirectOtaInstall() {
@@ -820,6 +838,409 @@ bool writeDirectOtaChunk(const uint8_t* data, size_t len) {
     g_ota_upload_state.next_progress_log += 512 * 1024;
   }
   return true;
+}
+
+bool validateRawOtaImageMetadata(const uint8_t* image, size_t image_len) {
+  firmware_meta::DeviceDescriptor incoming_desc{};
+  if (!firmware_meta::parseDeviceDescriptorFromImage(
+          image, image_len, incoming_desc)) {
+    g_ota_upload_state.error = "Firmware metadata missing or invalid";
+    return false;
+  }
+  if (!firmware_meta::matchesCurrentDeviceKey(incoming_desc.device_key)) {
+    g_ota_upload_state.error =
+        String("Firmware device mismatch: got ") + incoming_desc.display_name +
+        ", expected " + firmware_meta::expectedDeviceDisplayName();
+    return false;
+  }
+  if (strcmp(incoming_desc.project_key,
+             firmware_meta::currentProjectKey()) != 0) {
+    g_ota_upload_state.error =
+        String("Firmware project mismatch: got ") + incoming_desc.project_key +
+        ", expected " + firmware_meta::currentProjectKey();
+    return false;
+  }
+  g_ota_upload_state.image_validated = true;
+  return true;
+}
+
+void beginRawOtaUpload(WebServer& server) {
+  int receive_buffer_bytes = 8 * 1024;
+  server.client().setSocketOption(SOL_SOCKET, SO_RCVBUF,
+                                  &receive_buffer_bytes,
+                                  sizeof(receive_buffer_bytes));
+
+  // Arduino-ESP32 3.3.7 does not parse query arguments in its raw-body branch.
+  // Capture the prepared contract before changing state, and use collected
+  // request headers for values that must belong to this raw request.
+  const bool was_prepared = g_ota_upload_state.upload_prepared;
+  const size_t prepared_size = g_ota_upload_state.upload_total_bytes;
+  const String prepared_filename = g_ota_upload_state.prepared_filename;
+  const String encoded_filename = server.header(kOtaRawFilenameHeader);
+  const String request_filename =
+      encoded_filename.length() ? WebServer::urlDecode(encoded_filename) : "";
+  size_t content_length = 0;
+  const bool has_valid_content_length =
+      parseOtaSizeValue(server.header("Content-Length"), content_length);
+
+  if (!was_prepared) {
+    resetOtaUploadState();
+  }
+  g_ota_upload_state.upload_started = true;
+  g_ota_upload_state.upload_prepared = false;
+  g_ota_upload_state.upload_received_bytes = 0;
+  g_ota_upload_state.upload_filename =
+      request_filename.length() ? request_filename : prepared_filename;
+  g_ota_upload_state.upload_total_bytes =
+      prepared_size ? prepared_size : content_length;
+  g_ota_upload_state.install_total_bytes =
+      g_ota_upload_state.upload_total_bytes;
+
+  if (Update.isRunning()) Update.abort();
+  endOtaStorageGuard();
+  Update.clearError();
+
+  String content_type = server.header("Content-Type");
+  const int parameters_at = content_type.indexOf(';');
+  if (parameters_at >= 0) content_type.remove(parameters_at);
+  content_type.trim();
+  if (!content_type.equalsIgnoreCase(kOtaRawContentType)) {
+    g_ota_upload_state.error =
+        "Raw OTA upload requires application/octet-stream";
+    return;
+  }
+  if (!has_valid_content_length) {
+    g_ota_upload_state.error =
+        "Raw OTA Content-Length is missing or invalid";
+    return;
+  }
+  if (prepared_size > 0 && content_length != prepared_size) {
+    g_ota_upload_state.error =
+        "Firmware size does not match the prepared upload";
+    Serial.printf(
+        "[OTA] Raw upload size mismatch: prepared=%u content_length=%u\n",
+        static_cast<unsigned>(prepared_size),
+        static_cast<unsigned>(content_length));
+    return;
+  }
+  if (prepared_filename.length() > 0 && request_filename.length() > 0 &&
+      prepared_filename != request_filename) {
+    g_ota_upload_state.error =
+        "Firmware filename does not match the prepared upload";
+    return;
+  }
+  if (!g_ota_upload_state.upload_filename.length()) {
+    g_ota_upload_state.error = "No firmware file received";
+    return;
+  }
+  if (!endsWithIgnoreCase(g_ota_upload_state.upload_filename, ".bin")) {
+    g_ota_upload_state.error = "Please upload a .bin firmware file";
+    return;
+  }
+  if (otaFilenameLooksLikeFactory(g_ota_upload_state.upload_filename)) {
+    g_ota_upload_state.error =
+        "Please upload the update.bin, not the factory.bin";
+    return;
+  }
+  if (g_ota_upload_state.upload_total_bytes == 0) {
+    g_ota_upload_state.error = "Firmware size is missing";
+    return;
+  }
+
+  if (!was_prepared) prepareDisplayForOtaInstall();
+  if (!allocateOtaStagingBuffer(g_ota_upload_state.upload_total_bytes)) {
+    return;
+  }
+  if (hasOtaStagingBuffer()) {
+    g_ota_upload_state.next_progress_log = 512 * 1024;
+  }
+  Serial.printf("[OTA] Raw upload started: %s (%u bytes)\n",
+                g_ota_upload_state.upload_filename.c_str(),
+                static_cast<unsigned>(
+                    g_ota_upload_state.upload_total_bytes));
+#if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
+  Serial.printf(
+      "[S3Diag/WebOTA] phase=raw-upload-start file=%s announced=%u "
+      "staged=%u\n",
+      g_ota_upload_state.upload_filename.c_str(),
+      static_cast<unsigned>(g_ota_upload_state.upload_total_bytes),
+      hasOtaStagingBuffer() ? 1U : 0U);
+#endif
+  Serial.flush();
+}
+
+void writeRawOtaChunk(const uint8_t* data, size_t len) {
+  if (g_ota_upload_state.error.length() > 0 ||
+      !g_ota_upload_state.upload_started || !data || len == 0) {
+    return;
+  }
+  if (g_ota_upload_state.upload_received_bytes >
+          g_ota_upload_state.upload_total_bytes ||
+      len > g_ota_upload_state.upload_total_bytes -
+                g_ota_upload_state.upload_received_bytes) {
+    g_ota_upload_state.error =
+        "Firmware upload exceeds announced size";
+    Serial.printf(
+        "[OTA] Raw upload overflow: received=%u chunk=%u expected=%u\n",
+        static_cast<unsigned>(g_ota_upload_state.upload_received_bytes),
+        static_cast<unsigned>(len),
+        static_cast<unsigned>(g_ota_upload_state.upload_total_bytes));
+    return;
+  }
+  g_ota_upload_state.upload_received_bytes += len;
+
+  if (hasOtaStagingBuffer()) {
+    if (!copyToOtaStagingBuffer(g_ota_upload_state.staged_bytes, data, len)) {
+      g_ota_upload_state.error = "Firmware staging write failed";
+      return;
+    }
+    g_ota_upload_state.staged_bytes += len;
+
+    if (!g_ota_upload_state.image_validated &&
+        g_ota_upload_state.staged_bytes >=
+            firmware_meta::kDeviceDescriptorImageBytes &&
+        !validateRawOtaImageMetadata(
+            g_ota_upload_state.staging_blocks[0],
+            std::min(g_ota_upload_state.staged_bytes,
+                     kOtaStagingBlockBytes))) {
+      return;
+    }
+    if (g_ota_upload_state.staged_bytes >=
+        g_ota_upload_state.next_progress_log) {
+      Serial.printf("[OTA] Raw upload RX progress: %u / %u bytes\n",
+                    static_cast<unsigned>(
+                        g_ota_upload_state.staged_bytes),
+                    static_cast<unsigned>(
+                        g_ota_upload_state.staging_capacity));
+      g_ota_upload_state.next_progress_log += 512 * 1024;
+    }
+    return;
+  }
+
+  size_t buffered_copy_len = 0;
+  if (g_ota_upload_state.buffered_len <
+      sizeof(g_ota_upload_state.buffered_bytes)) {
+    const size_t remaining =
+        sizeof(g_ota_upload_state.buffered_bytes) -
+        g_ota_upload_state.buffered_len;
+    buffered_copy_len = std::min(remaining, len);
+    memcpy(g_ota_upload_state.buffered_bytes +
+               g_ota_upload_state.buffered_len,
+           data, buffered_copy_len);
+    g_ota_upload_state.buffered_len += buffered_copy_len;
+  }
+
+  if (!g_ota_upload_state.image_validated) {
+    if (g_ota_upload_state.buffered_len <
+        firmware_meta::kDeviceDescriptorImageBytes) {
+      return;
+    }
+    if (!validateRawOtaImageMetadata(g_ota_upload_state.buffered_bytes,
+                                    g_ota_upload_state.buffered_len)) {
+      return;
+    }
+    if (!beginDirectOtaInstall()) return;
+    if (!writeDirectOtaChunk(g_ota_upload_state.buffered_bytes,
+                             g_ota_upload_state.buffered_len)) {
+      return;
+    }
+    g_ota_upload_state.buffered_len = 0;
+    if (len > buffered_copy_len) {
+      writeDirectOtaChunk(data + buffered_copy_len,
+                          len - buffered_copy_len);
+    }
+    return;
+  }
+
+  writeDirectOtaChunk(data, len);
+}
+
+void abortRawOtaUpload() {
+  g_ota_upload_state.error = "OTA upload aborted";
+  Serial.printf(
+      "[OTA] Raw upload aborted: received=%u / %u bytes, "
+      "flash_written=%u\n",
+      static_cast<unsigned>(g_ota_upload_state.upload_received_bytes),
+      static_cast<unsigned>(g_ota_upload_state.upload_total_bytes),
+      static_cast<unsigned>(g_ota_upload_state.install_written_bytes));
+  if (Update.isRunning()) Update.abort();
+  releaseOtaStagingBuffer();
+  if (g_ota_upload_state.upload_started ||
+      g_ota_upload_state.upload_prepared ||
+      g_ota_upload_state.install_started || g_ota_display_reduced) {
+    restoreDisplayAfterOtaFailure();
+    g_ota_upload_state.install_started = false;
+  }
+}
+
+void finishRawOtaUpload(size_t parser_total_bytes) {
+  if (g_ota_upload_state.error.length() > 0 ||
+      !g_ota_upload_state.upload_started) {
+    return;
+  }
+  if (parser_total_bytes != g_ota_upload_state.upload_received_bytes ||
+      parser_total_bytes != g_ota_upload_state.upload_total_bytes) {
+    g_ota_upload_state.error =
+        "Firmware upload ended before all bytes arrived";
+    Serial.printf(
+        "[OTA] Incomplete raw upload: parser=%u received=%u expected=%u\n",
+        static_cast<unsigned>(parser_total_bytes),
+        static_cast<unsigned>(g_ota_upload_state.upload_received_bytes),
+        static_cast<unsigned>(g_ota_upload_state.upload_total_bytes));
+    return;
+  }
+
+  if (hasOtaStagingBuffer()) {
+    if (g_ota_upload_state.staged_bytes != parser_total_bytes ||
+        g_ota_upload_state.staged_bytes !=
+            g_ota_upload_state.staging_capacity) {
+      g_ota_upload_state.error =
+          "Firmware upload ended before all bytes arrived";
+      return;
+    }
+    if (!g_ota_upload_state.image_validated) {
+      g_ota_upload_state.error =
+          "Firmware metadata missing or incomplete";
+      return;
+    }
+
+    g_ota_upload_state.upload_success = true;
+    Serial.printf(
+        "[OTA] Raw upload RX finished: %s (%u bytes in PSRAM)\n",
+        g_ota_upload_state.upload_filename.c_str(),
+        static_cast<unsigned>(parser_total_bytes));
+    Serial.println(
+        "[OTA] Network receive complete; starting flash install");
+    if (!beginDirectOtaInstall()) {
+      releaseOtaStagingBuffer();
+      return;
+    }
+
+    size_t offset = 0;
+    while (offset < g_ota_upload_state.staged_bytes) {
+      const size_t block_index = offset / kOtaStagingBlockBytes;
+      const size_t offset_in_block = offset % kOtaStagingBlockBytes;
+      if (block_index >= g_ota_upload_state.staging_block_count ||
+          !g_ota_upload_state.staging_blocks[block_index]) {
+        g_ota_upload_state.error = "Firmware staging read failed";
+        releaseOtaStagingBuffer();
+        return;
+      }
+      const size_t remaining = g_ota_upload_state.staged_bytes - offset;
+      const size_t chunk =
+          std::min(std::min(remaining, kOtaFlashWriteChunk),
+                   kOtaStagingBlockBytes - offset_in_block);
+      if (!writeDirectOtaChunk(
+              g_ota_upload_state.staging_blocks[block_index] +
+                  offset_in_block,
+              chunk)) {
+        releaseOtaStagingBuffer();
+        return;
+      }
+      offset += chunk;
+      delay(0);
+    }
+    releaseOtaStagingBuffer();
+
+    // Preserve the established P4 staging finalization semantics.
+    if (!Update.end(true)) {
+      const uint8_t update_error = Update.getError();
+      const String update_error_text = Update.errorString();
+      Serial.printf(
+          "[OTA] Install failed: Update.end(true) code=%u -> %s\n",
+          static_cast<unsigned>(update_error),
+          update_error_text.c_str());
+      Update.abort();
+      g_ota_upload_state.error =
+          String("OTA finalize failed [") +
+          String(static_cast<unsigned>(update_error)) + "]: " +
+          update_error_text;
+      g_ota_upload_state.install_started = false;
+      restoreDisplayAfterOtaFailure();
+      return;
+    }
+
+    g_ota_upload_state.install_written_bytes =
+        g_ota_upload_state.install_total_bytes;
+    g_ota_upload_state.install_success = true;
+    g_ota_upload_state.restart_pending = true;
+    g_ota_upload_state.restart_at_ms = millis() + 1200;
+    Serial.println(
+        "[OTA] Install finished successfully, restarting device...");
+    return;
+  }
+
+  if (!g_ota_upload_state.image_validated) {
+    g_ota_upload_state.error =
+        "Firmware metadata missing or incomplete";
+    return;
+  }
+  if (!g_ota_upload_state.install_started) {
+    g_ota_upload_state.error = "OTA install did not start";
+    return;
+  }
+  if (g_ota_upload_state.install_written_bytes !=
+      g_ota_upload_state.install_total_bytes) {
+    g_ota_upload_state.error =
+        "OTA finalize refused: received/written byte count mismatch";
+    Serial.printf(
+        "[OTA] Raw upload byte mismatch: received=%u announced=%u "
+        "written=%u expected=%u\n",
+        static_cast<unsigned>(parser_total_bytes),
+        static_cast<unsigned>(g_ota_upload_state.upload_total_bytes),
+        static_cast<unsigned>(g_ota_upload_state.install_written_bytes),
+        static_cast<unsigned>(g_ota_upload_state.install_total_bytes));
+    if (Update.isRunning()) Update.abort();
+    g_ota_upload_state.install_started = false;
+    restoreDisplayAfterOtaFailure();
+    return;
+  }
+  g_ota_upload_state.upload_success = true;
+  Serial.printf("[OTA] Raw upload finished: %s (%u bytes)\n",
+                g_ota_upload_state.upload_filename.c_str(),
+                static_cast<unsigned>(parser_total_bytes));
+
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (!Update.end(false)) {
+    const uint8_t update_error = Update.getError();
+    const String update_error_text = Update.errorString();
+    Serial.printf(
+        "[OTA] Install failed: Update.end(false) code=%u -> %s\n",
+        static_cast<unsigned>(update_error), update_error_text.c_str());
+    Update.abort();
+    g_ota_upload_state.error =
+        String("OTA finalize failed [") +
+        String(static_cast<unsigned>(update_error)) + "]: " +
+        update_error_text;
+    g_ota_upload_state.install_started = false;
+    restoreDisplayAfterOtaFailure();
+    return;
+  }
+#else
+  if (!Update.end(true)) {
+    const uint8_t update_error = Update.getError();
+    const String update_error_text = Update.errorString();
+    Update.abort();
+    Serial.printf(
+        "[OTA] Install failed: Update.end(true) code=%u -> %s\n",
+        static_cast<unsigned>(update_error), update_error_text.c_str());
+    g_ota_upload_state.error =
+        String("OTA finalize failed [") +
+        String(static_cast<unsigned>(update_error)) + "]: " +
+        update_error_text;
+    g_ota_upload_state.install_started = false;
+    restoreDisplayAfterOtaFailure();
+    return;
+  }
+#endif
+
+  endOtaStorageGuard();
+  g_ota_upload_state.install_success = true;
+  g_ota_upload_state.restart_pending = true;
+  g_ota_upload_state.restart_at_ms = millis() + 1200;
+  GuitionS3Diagnostics::logOtaPartitions("web-raw-end");
+  Serial.println(
+      "[OTA] Install finished successfully, restarting device...");
 }
 
 bool saveDrawBufferAsJpeg(const lv_draw_buf_t* draw_buf, const String& path, String& error) {
@@ -3189,6 +3610,22 @@ void WebAdminServer::handlePrepareOtaUpload() {
   g_ota_upload_state.prepared_at_ms = millis();
   g_ota_upload_state.upload_total_bytes = parseOtaExpectedSize(server);
   g_ota_upload_state.install_total_bytes = g_ota_upload_state.upload_total_bytes;
+  if (server.hasArg("filename")) {
+    g_ota_upload_state.prepared_filename = server.arg("filename");
+  }
+
+  if (g_ota_upload_state.prepared_filename.length() > 0 &&
+      !endsWithIgnoreCase(g_ota_upload_state.prepared_filename, ".bin")) {
+    resetOtaUploadState();
+    sendJsonError(server, 400, "Please upload a .bin firmware file");
+    return;
+  }
+  if (otaFilenameLooksLikeFactory(g_ota_upload_state.prepared_filename)) {
+    resetOtaUploadState();
+    sendJsonError(server, 400,
+                  "Please upload the update.bin, not the factory.bin");
+    return;
+  }
 
   if (kRequireWebOtaSize &&
       g_ota_upload_state.upload_total_bytes == 0) {
@@ -3615,6 +4052,25 @@ void WebAdminServer::handleOtaUpdate() {
     g_ota_upload_state.restart_at_ms = millis() + 1200;
     GuitionS3Diagnostics::logOtaPartitions("web-end");
     Serial.println("[OTA] Install finished successfully, restarting device...");
+  }
+}
+
+void WebAdminServer::handleOtaRawUpdate() {
+  HTTPRaw& raw = server.raw();
+  if (raw.status == RAW_START) {
+    beginRawOtaUpload(server);
+    return;
+  }
+  if (raw.status == RAW_WRITE) {
+    writeRawOtaChunk(raw.buf, raw.currentSize);
+    return;
+  }
+  if (raw.status == RAW_ABORTED) {
+    abortRawOtaUpload();
+    return;
+  }
+  if (raw.status == RAW_END) {
+    finishRawOtaUpload(raw.totalSize);
   }
 }
 

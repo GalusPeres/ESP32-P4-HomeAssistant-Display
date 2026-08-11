@@ -31,6 +31,12 @@ static bool is_switch_widget_tile(const Tile& tile);
 static void toggle_switch_tile(const SwitchEventData* data) {
   if (!data || !data->entity_id.length()) return;
 
+  if (is_light_entity_id(data->entity_id)) {
+    const SwitchState current =
+        get_switch_state(data->grid_type, data->index);
+    if (!current.available) return;
+  }
+
   if (data->use_switch_widget) {
     const SwitchState current = get_switch_state(data->grid_type, data->index);
     if (current.has_state) {
@@ -68,6 +74,7 @@ static LightPopupInit build_light_popup_init(const SwitchEventData* data) {
   }
 
   const SwitchState state = get_switch_state(data->grid_type, data->index);
+  init.available = !init.is_light || state.available;
   init.has_state = state.has_state;
   init.has_color = state.has_color;
   init.has_brightness = state.has_brightness;

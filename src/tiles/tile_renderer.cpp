@@ -1228,6 +1228,7 @@ static LightPopupInit build_popup_init_from_state(
   }
   init.icon_name = icon_name;
   init.is_light = is_light_entity_id(tile.sensor_entity);
+  init.available = !init.is_light || state.available;
   init.keep_icon_white = is_switch_widget_style(tile);
   init.has_tile_ref = true;
   init.tile_grid = static_cast<uint8_t>(grid_type);
@@ -1372,10 +1373,25 @@ static SwitchState parse_switch_payload(const char* payload) {
   };
 
   if (text.startsWith("{")) {
+    bool state_unavailable = false;
     String state;
     if (extract_json_string_field(text, "state", state)) {
-      out.has_state = parse_on_off(state, out.is_on);
+      String normalized_state = state;
+      normalized_state.trim();
+      normalized_state.toLowerCase();
+      if (normalized_state == "unavailable") {
+        state_unavailable = true;
+        out.available = false;
+      } else {
+        out.has_state = parse_on_off(state, out.is_on);
+      }
     }
+    bool available = true;
+    if (extract_json_bool_field_cstr(
+            text.c_str(), "available", available)) {
+      out.available = available;
+    }
+    if (state_unavailable) out.available = false;
 
     String supported_modes;
     if (extract_json_array_field(text, "supported_color_modes", supported_modes)) {
@@ -1576,6 +1592,9 @@ static SwitchState parse_switch_payload(const char* payload) {
     }
   }
 
+  if (text.equalsIgnoreCase("unavailable")) {
+    out.available = false;
+  }
   if (!out.has_state) {
     out.has_state = parse_on_off(text, out.is_on);
   }
@@ -1647,7 +1666,8 @@ void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char
   }
 
   SwitchState state = parse_switch_payload(payload);
-  if (!state.has_state &&
+  if (state.available &&
+      !state.has_state &&
       !state.has_color &&
       !state.has_brightness &&
       !state.has_color_temp &&
@@ -1715,8 +1735,10 @@ void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char
   static const uint32_t kSwitchOff = 0xFFFFFF;
   static const uint32_t kSwitchOn = 0x3B82F6;
 
+  const bool light_unavailable =
+      is_light_entity && !state.available;
   uint32_t icon_color = kIconOff;
-  if (!state.has_state || state.is_on) {
+  if (!light_unavailable && (!state.has_state || state.is_on)) {
     if (state.supports_temperature && !state.supports_color && state.has_color_temp) {
       // Reine CCT-Leuchten liefern keine echte RGB-Faehigkeit. Ihre Kachel
       // verwendet deshalb dieselbe Kelvin-Farbe wie das Popup statt der
@@ -1729,7 +1751,10 @@ void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char
     }
   }
 
-  uint32_t label_color = use_switch_widget ? kIconNeutral : icon_color;
+  uint32_t label_color =
+      light_unavailable
+          ? kIconOff
+          : (use_switch_widget ? kIconNeutral : icon_color);
   lv_color_t lv_color = lv_color_hex(label_color);
   if (widgets.icon_label) {
     lv_obj_set_style_text_color(widgets.icon_label, lv_color, 0);
@@ -1738,10 +1763,15 @@ void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char
   }
 
   if (widgets.switch_obj) {
-    if (!state.has_state || state.is_on) {
+    if (light_unavailable) {
+      lv_obj_remove_state(widgets.switch_obj, LV_STATE_CHECKED);
+      lv_obj_add_state(widgets.switch_obj, LV_STATE_DISABLED);
+    } else if (!state.has_state || state.is_on) {
       lv_obj_add_state(widgets.switch_obj, LV_STATE_CHECKED);
+      lv_obj_clear_state(widgets.switch_obj, LV_STATE_DISABLED);
     } else {
       lv_obj_remove_state(widgets.switch_obj, LV_STATE_CHECKED);
+      lv_obj_clear_state(widgets.switch_obj, LV_STATE_DISABLED);
     }
     uint32_t tile_color = tileBgColorOrDefault(tile, 0x353535);
     lv_obj_set_style_bg_color(widgets.switch_obj, lv_color_hex(tile_color), LV_PART_KNOB);
@@ -1974,6 +2004,12 @@ static ClimateState parse_climate_payload(const char* payload) {
       climate_copy_text(out.temperature_unit, sizeof(out.temperature_unit), text);
     }
 
+    bool available = true;
+    if (extract_json_bool_field_cstr(
+            source.c_str(), "available", available)) {
+      out.available = available;
+    }
+
     String modes;
     if (extract_json_array_field(source, "hvac_modes", modes)) {
       climate_normalize_modes(modes);
@@ -1998,6 +2034,13 @@ static ClimateState parse_climate_payload(const char* payload) {
     }
 
     float number = 0.0f;
+    if (extract_json_number_or_string_field(
+            source, "supported_features", number) &&
+        isfinite(number) && number >= 0.0f) {
+      out.has_supported_features = true;
+      out.supported_features = static_cast<uint16_t>(
+          number > 65535.0f ? 65535U : lroundf(number));
+    }
     if (extract_json_number_or_string_field(source, "current_temperature", number)) {
       out.has_current_temperature = true;
       out.current_temperature = number;
@@ -2039,6 +2082,10 @@ static ClimateState parse_climate_payload(const char* payload) {
         extract_json_number_or_string_field(source, "precision", number)) {
       out.target_temp_step = number;
     }
+    if (extract_json_number_or_string_field(
+            source, "target_humidity_step", number)) {
+      out.target_humidity_step = number;
+    }
   };
 
   parse_source(json);
@@ -2054,6 +2101,10 @@ static ClimateState parse_climate_payload(const char* payload) {
   if (out.target_temp_step <= 0.0f || out.target_temp_step > 10.0f) {
     out.target_temp_step = 0.5f;
   }
+  if (out.target_humidity_step <= 0.0f ||
+      out.target_humidity_step > 100.0f) {
+    out.target_humidity_step = 1.0f;
+  }
   if (out.max_humidity <= out.min_humidity) {
     out.min_humidity = 30.0f;
     out.max_humidity = 99.0f;
@@ -2063,7 +2114,10 @@ static ClimateState parse_climate_payload(const char* payload) {
         out.temperature_unit, sizeof(out.temperature_unit),
         String("\xC2\xB0") + "C");
   }
-  out.valid = out.hvac_mode[0] || out.hvac_action[0] ||
+  if (strcmp(out.hvac_mode, "unavailable") == 0) {
+    out.available = false;
+  }
+  out.valid = !out.available || out.hvac_mode[0] || out.hvac_action[0] ||
               out.has_current_temperature || out.has_target_temperature ||
               out.has_current_humidity || out.has_target_humidity ||
               out.has_target_range;
@@ -2118,6 +2172,7 @@ String climate_visual_icon(
 }
 
 uint32_t climate_visual_color(const ClimateState& state) {
+  if (!state.available) return 0x9E9E9E;
   return climate_visuals::state_foreground_color(
       state.hvac_mode, state.hvac_action);
 }
@@ -2135,6 +2190,9 @@ static ClimatePopupInit build_climate_popup_init(
   String configured_icon = normalizeMdiIconName(tile->icon_name);
   init.icon_visible = !isMdiIconDisabled(tile->icon_name);
   init.dynamic_icon = init.icon_visible && !configured_icon.length();
+  init.available = state.available;
+  init.has_supported_features = state.has_supported_features;
+  init.supported_features = state.supported_features;
   init.icon_name = climate_tile_base_icon(*tile);
   init.hvac_mode = state.hvac_mode;
   init.hvac_action = state.hvac_action;
@@ -2160,6 +2218,7 @@ static ClimatePopupInit build_climate_popup_init(
   init.min_humidity = state.min_humidity;
   init.max_humidity = state.max_humidity;
   init.target_temp_step = state.target_temp_step;
+  init.target_humidity_step = state.target_humidity_step;
   init.has_current_temperature = state.has_current_temperature;
   init.has_current_humidity = state.has_current_humidity;
   init.has_target_temperature = state.has_target_temperature;

@@ -47,6 +47,14 @@ bool WebAdminServer::start() {
   // WebServer::stop() behaelt die Handler-Liste. Ohne diesen Guard wuerde
   // jeder WLAN/AP-Zyklus alle Admin-Routen erneut im internen Heap anlegen.
   if (!routes_registered) {
+    static const char* request_headers[] = {
+        "Content-Length",
+        "Content-Type",
+        "X-HomeTiles-OTA-Filename",
+    };
+    server.collectHeaders(request_headers,
+                          sizeof(request_headers) / sizeof(request_headers[0]));
+
     server.on("/", [this]() { this->handleRoot(); });
     server.on("/assets/inter-4.1-regular.woff2", HTTP_GET,
               [this]() { sendWebFontRegular(this->server); });
@@ -101,6 +109,10 @@ bool WebAdminServer::start() {
     server.on(
         "/api/ota/upload", HTTP_POST, [this]() { this->handleOtaUploadDone(); },
         [this]() { this->handleOtaUpdate(); });
+    server.on(
+        "/api/ota/upload/raw", HTTP_POST,
+        [this]() { this->handleOtaUploadDone(); },
+        [this]() { this->handleOtaRawUpdate(); });
     server.on("/api/ota/install", HTTP_POST,
               [this]() { this->handleStartOtaInstall(); });
     server.on("/api/ota/status", HTTP_GET,

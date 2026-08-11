@@ -18,7 +18,6 @@ theme:
       accent: teal
   features:
     - navigation.sections
-    - navigation.expand
     - navigation.top
     - navigation.footer
     - content.code.copy
@@ -29,30 +28,32 @@ theme:
 nav:
   - Overview: index.md
   - Setup:
-      - Flashing the Firmware: flashing.md
+      - Flashing the Firmware: installer.md
       - Home Assistant Setup: home-assistant-setup.md
       - Bridge Integration: bridge.md
-  - Guide:
+  - Using HomeTiles:
       - Web Admin Panel: web-admin.md
-      - Local Hardware I/O: hardware-io.md
-      - Screensaver: screensaver.md
       - On-Device UI: device-ui.md
       - Tile Types: tiles.md
+      - Screensaver: screensaver.md
+      - Local Hardware I/O: hardware-io.md
   - Help:
       - Firmware Updates: updating.md
       - FAQ & Troubleshooting: faq.md
-      - v0.6.5 Release Notes: releases/v0.6.5.md
-      - v0.6.4 Release Notes: releases/v0.6.4.md
-      - v0.6.3 Release Notes: releases/v0.6.3.md
-      - v0.6.2 Release Notes: releases/v0.6.2.md
-      - v0.6.1 Release Notes: releases/v0.6.1.md
-      - v0.6.0 Release Notes: releases/v0.6.0.md
-      - v0.5.3 Release Notes: releases/v0.5.3.md
-      - v0.5.1 Release Notes: releases/v0.5.1.md
-      - v0.5.0 Release Notes: releases/v0.5.0.md
+      - Release Notes:
+          - v0.6.6: releases/v0.6.6.md
+          - v0.6.5: releases/v0.6.5.md
+          - v0.6.4: releases/v0.6.4.md
+          - v0.6.3: releases/v0.6.3.md
+          - v0.6.2: releases/v0.6.2.md
+          - v0.6.1: releases/v0.6.1.md
+          - v0.6.0: releases/v0.6.0.md
+          - v0.5.3: releases/v0.5.3.md
+          - v0.5.1: releases/v0.5.1.md
+          - v0.5.0: releases/v0.5.0.md
 
 extra_css:
-  - stylesheets/extra.css?v=header-support-1
+  - stylesheets/extra.css?v=installer-ui-5
 
 markdown_extensions:
   - admonition
