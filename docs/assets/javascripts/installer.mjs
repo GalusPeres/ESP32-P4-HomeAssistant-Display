@@ -1,4 +1,6 @@
 import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.6.1/bundle.js";
+import { ESP32P4ROM } from "https://unpkg.com/esptool-js@0.6.1/lib/targets/esp32p4.js";
+import { ESP32S3ROM } from "https://unpkg.com/esptool-js@0.6.1/lib/targets/esp32s3.js";
 
 import {
   APP_SLOTS,
@@ -12,6 +14,7 @@ import {
   buildFlashPlan,
   buildSafeOtaUpdatePlan,
   parseEspIdfPartitionTable,
+  parseEspRomChipIdentity,
   releaseAssetNames,
   resolveSameOriginAsset,
   validateFirmwareDescriptor,
@@ -24,6 +27,25 @@ const LOG_MAX_CHARACTERS = 64 * 1024;
 const LOG_MAX_LINE_CHARACTERS = 4096;
 const GUITION_S3_DEVICE_KEY = "guition_esp32_4848s040";
 const GUITION_S3_NORMAL_BOOT_RESET_SEQUENCE = "D0|R1|W100|R0|W100|D0";
+const ESP_GET_SECURITY_INFO = 0x14;
+
+class HomeTilesESPLoader extends ESPLoader {
+  async detectChip(mode = "default_reset") {
+    await this.connect(mode, 7, false);
+    this.info("Detecting chip type... ", false);
+
+    const securityInfo = await this.checkCommand(
+      "read ESP ROM chip identity",
+      ESP_GET_SECURITY_INFO,
+      new Uint8Array(0),
+      0,
+      20,
+    );
+    const identity = parseEspRomChipIdentity(securityInfo);
+    this.chip = identity.chipFamily === "ESP32-P4" ? new ESP32P4ROM() : new ESP32S3ROM();
+    this.info(this.chip.CHIP_NAME);
+  }
+}
 
 if (root) {
   const elements = {
@@ -609,7 +631,7 @@ if (root) {
       });
       const port = await navigator.serial.requestPort();
       transport = new Transport(port);
-      esploader = new ESPLoader({
+      esploader = new HomeTilesESPLoader({
         transport,
         baudrate: INSTALLER_BAUD_RATE,
         terminal,

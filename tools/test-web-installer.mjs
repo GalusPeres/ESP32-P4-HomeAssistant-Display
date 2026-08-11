@@ -12,6 +12,7 @@ import {
   buildFlashPlan,
   buildReleaseIndex,
   parseEspIdfPartitionTable,
+  parseEspRomChipIdentity,
   releaseAssetNames,
   resolveSameOriginAsset,
   validateFirmwareDescriptor,
@@ -80,6 +81,22 @@ assert.equal(
   DEVICE_PROFILES.find((device) => device.key === "guition_esp32_4848s040").chipFamily,
   "ESP32-S3",
 );
+
+function securityInfoFixture(chipId) {
+  const bytes = new Uint8Array(20);
+  new DataView(bytes.buffer).setUint32(12, chipId, true);
+  return bytes;
+}
+
+assert.deepEqual(parseEspRomChipIdentity(securityInfoFixture(18)), {
+  chipId: 18,
+  chipFamily: "ESP32-P4",
+});
+assert.deepEqual(parseEspRomChipIdentity(securityInfoFixture(9)), {
+  chipId: 9,
+  chipFamily: "ESP32-S3",
+});
+assert.throws(() => parseEspRomChipIdentity(securityInfoFixture(0x46b6b8de)), /Unsupported ESP ROM chip ID/);
 
 const sketchProfiles = read("sketch.yaml");
 for (const device of DEVICE_PROFILES) {
@@ -235,6 +252,10 @@ assert.match(
 const installerSource = read("docs/assets/javascripts/installer.mjs");
 assert.match(installerSource, /esptool-js@0\.6\.1\/bundle\.js/);
 assert.doesNotMatch(installerSource, /esptool-js@0\.6\.0\/bundle\.js/);
+assert.match(installerSource, /class HomeTilesESPLoader extends ESPLoader/);
+assert.match(installerSource, /await this\.connect\(mode, 7, false\)/);
+assert.match(installerSource, /parseEspRomChipIdentity\(securityInfo\)/);
+assert.match(installerSource, /new HomeTilesESPLoader\(/);
 assert.doesNotMatch(installerSource, /github\.com\/GalusPeres\/HomeTiles\/releases\/download/);
 assert.match(installerSource, /resolveSameOriginAsset/);
 assert.match(installerSource, /verifyExistingLayout/);

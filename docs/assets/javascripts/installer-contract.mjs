@@ -1,6 +1,29 @@
 export const INSTALLER_SCHEMA_VERSION = 1;
 export const INSTALLER_BAUD_RATE = 460800;
 
+export const ESP_ROM_CHIP_FAMILIES = Object.freeze({
+  9: "ESP32-S3",
+  18: "ESP32-P4",
+});
+
+export function parseEspRomChipIdentity(rawSecurityInfo) {
+  const bytes =
+    rawSecurityInfo instanceof Uint8Array
+      ? rawSecurityInfo
+      : new Uint8Array(rawSecurityInfo);
+  if (bytes.byteLength < 20) {
+    throw new Error("The ESP ROM returned incomplete security information.");
+  }
+
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const chipId = view.getUint32(12, true);
+  const chipFamily = ESP_ROM_CHIP_FAMILIES[chipId];
+  if (!chipFamily) {
+    throw new Error(`Unsupported ESP ROM chip ID ${chipId}.`);
+  }
+  return { chipId, chipFamily };
+}
+
 export const PARTITION_TABLE = Object.freeze({
   offset: 0x8000,
   size: 0x1000,
