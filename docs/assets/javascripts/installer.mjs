@@ -1,4 +1,4 @@
-import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.6.0/bundle.js";
+import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.6.1/bundle.js";
 
 import {
   APP_SLOTS,
@@ -561,7 +561,7 @@ if (root) {
     try {
       if (esploader && shouldReset) {
         if (device?.key === GUITION_S3_DEVICE_KEY) {
-          // esptool-js 0.6.0 hard_reset only releases RTS. This CH340 board
+          // esptool-js 0.6.1 hard_reset only releases RTS. This CH340 board
           // needs an explicit EN pulse with GPIO0 released to boot the app.
           await esploader.after("custom_reset", undefined, GUITION_S3_NORMAL_BOOT_RESET_SEQUENCE);
         } else {

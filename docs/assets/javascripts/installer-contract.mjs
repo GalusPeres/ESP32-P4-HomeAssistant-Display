@@ -304,7 +304,7 @@ export function buildSafeOtaUpdatePlan(firmwareBytes, otaDataBytes) {
   const bootSelectionWrite = buildOtaBootSelectionUpdate(otaDataBytes, targetSlotIndex);
 
   // The caller must finish and verify appWrite before performing bootSelectionWrite.
-  // esptool-js v0.6.0's main() guarantees that its stub is running; a separate
+  // esptool-js v0.6.1's main() guarantees that its stub is running; a separate
   // writeFlash call for the 32-byte entry erases only this aligned 4KB sector.
   return Object.freeze({
     eraseFirst: false,

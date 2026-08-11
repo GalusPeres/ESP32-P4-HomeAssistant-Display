@@ -233,6 +233,8 @@ assert.match(
 );
 
 const installerSource = read("docs/assets/javascripts/installer.mjs");
+assert.match(installerSource, /esptool-js@0\.6\.1\/bundle\.js/);
+assert.doesNotMatch(installerSource, /esptool-js@0\.6\.0\/bundle\.js/);
 assert.doesNotMatch(installerSource, /github\.com\/GalusPeres\/HomeTiles\/releases\/download/);
 assert.match(installerSource, /resolveSameOriginAsset/);
 assert.match(installerSource, /verifyExistingLayout/);
