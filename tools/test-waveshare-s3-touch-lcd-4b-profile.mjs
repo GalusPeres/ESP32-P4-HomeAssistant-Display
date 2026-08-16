@@ -7,6 +7,8 @@ const header = read("src/devices/waveshare_s3_touch_lcd_4b/device_waveshare_s3_t
 const selector = read("src/devices/device_select.h");
 const active = read("src/devices/active_device.h");
 const profiles = read("sketch.yaml");
+const metadata = read("src/core/firmware_metadata.cpp");
+const packager = read("release-helper/package-ci-build.js");
 
 for (const marker of [
   "constexpr uint8_t kExpanderAddress = 0x20;",
@@ -33,6 +35,9 @@ assert.match(header, /480,\s*\n\s*480,/);
 assert.match(selector, /DEVICE_WAVESHARE_S3_TOUCH_LCD_4B/);
 assert.match(active, /DeviceWaveshareS3TouchLCD4B/);
 assert.match(profiles, /\n  waveshare_s3_touch_lcd_4b:\n/);
+assert.match(metadata, /DEVICE_GUITION_ESP32_4848S040\)[\s\S]*?FW_META_TARGET_DISPLAY_NAME "GUITION ESP32-4848S040"/);
+assert.match(metadata, /DEVICE_WAVESHARE_S3_TOUCH_LCD_4B\)[\s\S]*?FW_META_TARGET_DISPLAY_NAME "Waveshare ESP32-S3-Touch-LCD-4B"/);
+assert.match(packager, /\['waveshare_s3_touch_lcd_4b', \{ key: 'waveshare_s3_touch_lcd_4b' \}\]/);
 assert.match(driver, /bool DeviceWaveshareS3TouchLCD4B::initSDCard\(\) \{[\s\S]*?return false;[\s\S]*?#if 0/);
 
 console.log("Waveshare ESP32-S3-Touch-LCD-4B profile contract: PASS");
