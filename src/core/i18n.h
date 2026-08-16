@@ -141,6 +141,7 @@ struct Strings {
   const char* tile_type_text;
   const char* tile_type_settings;
   const char* tile_type_back;
+  const char* show_settings_tile;
 
   const char* no_selection;
   const char* sensor_entity;

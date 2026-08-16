@@ -3140,6 +3140,34 @@ void WebAdminServer::handleSaveTileBorders() {
                       : "{\"success\":true,\"enabled\":false}");
 }
 
+void WebAdminServer::handleSaveSettingsTileVisibility() {
+  webAdminMarkActivity();
+  if (!server.hasArg("enabled")) {
+    sendJsonError(server, 400, "Missing enabled value");
+    return;
+  }
+
+  String value = server.arg("enabled");
+  value.trim();
+  value.toLowerCase();
+  const bool visible = value == "1" || value == "true" || value == "on";
+  if (!configManager.saveSettingsTileVisible(visible)) {
+    sendJsonError(server, 500, "Could not save Settings tile visibility");
+    return;
+  }
+
+  TileGridConfig grid{};
+  if (!tileConfig.loadFolderGrid(0, grid) ||
+      !tileConfig.saveFolderGrid(0, grid)) {
+    sendJsonError(server, 500, "Could not update Home grid");
+    return;
+  }
+  tiles_request_reload_if_loaded(GridType::TAB0);
+  server.send(200, "application/json",
+              visible ? "{\"success\":true,\"enabled\":true}"
+                      : "{\"success\":true,\"enabled\":false}");
+}
+
 void WebAdminServer::handleGetScreensaverWallpaper() {
   webAdminMarkActivity();
   if (!Device::sdReady() || !server.hasArg("name")) {

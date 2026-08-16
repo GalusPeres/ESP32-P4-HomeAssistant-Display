@@ -143,6 +143,7 @@ static const Strings kStringsDe = {
     "Text",
     "Settings",
     "Zurück",
+    "Settings-Kachel anzeigen",
 
     "Keine Auswahl",
     "Sensor Entity",
@@ -543,6 +544,7 @@ static const Strings kStringsEn = {
     "Text",
     "Settings",
     "Back",
+    "Show Settings tile",
 
     "No selection",
     "Sensor Entity",

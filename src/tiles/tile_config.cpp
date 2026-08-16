@@ -1,5 +1,6 @@
 #include "src/tiles/tile_config.h"
 #include "src/devices/device.h"
+#include "src/core/config_manager.h"
 #include <Preferences.h>
 #include <string.h>
 #include <vector>
@@ -1564,6 +1565,17 @@ static void collectFolderSubtree(const std::vector<FolderEntry>& entries, uint16
 }
 
 bool TileConfig::ensureSettingsTile(TileGridConfig& grid) {
+  if (!configManager.getConfig().settings_tile_visible) {
+    bool changed = false;
+    for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+      if (grid.tiles[i].type == TILE_SETTINGS) {
+        grid.tiles[i] = Tile();
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     const Tile& tile = grid.tiles[i];
     if (tile.type == TILE_SETTINGS) {

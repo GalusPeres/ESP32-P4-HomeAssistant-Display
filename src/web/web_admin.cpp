@@ -94,6 +94,8 @@ bool WebAdminServer::start() {
               [this]() { this->handleSaveHardwareIo(); });
     server.on("/api/display/tile-borders", HTTP_POST,
               [this]() { this->handleSaveTileBorders(); });
+    server.on("/api/display/settings-tile", HTTP_POST,
+              [this]() { this->handleSaveSettingsTileVisibility(); });
     server.on("/api/screensaver/wallpaper", HTTP_GET,
               [this]() { this->handleGetScreensaverWallpaper(); });
     server.on("/api/sd_images", HTTP_GET,

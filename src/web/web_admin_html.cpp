@@ -343,6 +343,14 @@ static void appendTileTabHTML(
   html += tr.screensaver_tile_border;
   html += R"html(</label>
 )html";
+  if (!screensaver_mode && folder_id == 0) {
+    html += R"html(              <label class="inline-checkbox"><input class="settings-tile-visibility-toggle" type="checkbox" onchange="saveSettingsTileVisibility(this.checked)" )html";
+    if (configManager.getConfig().settings_tile_visible) html += "checked";
+    html += "> ";
+    html += tr.show_settings_tile;
+    html += R"html(</label>
+)html";
+  }
   if (screensaver_mode) {
     html += R"html(              <label class="inline-checkbox"><input id="screensaverTileShadow" type="checkbox"> )html";
     html += tr.screensaver_tile_shadow;
