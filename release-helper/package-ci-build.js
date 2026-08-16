@@ -16,6 +16,7 @@ const devices = new Map([
   ['guition_jc8012p4a1_v2', { key: 'guition_jc8012p4a1_v2' }],
   ['guition_jc1060p470c', { key: 'guition_jc1060p470c' }],
   ['guition_esp32_4848s040', { key: 'guition_esp32_4848s040' }],
+  ['waveshare_s3_touch_lcd_4b', { key: 'waveshare_s3_touch_lcd_4b' }],
 ]);
 
 function readVersion() {
