@@ -41,6 +41,7 @@ static bool persisted_config_equal(const DeviceConfig& a,
          a.display_brightness == b.display_brightness &&
          a.screensaver_brightness_pct == b.screensaver_brightness_pct &&
          a.tile_borders == b.tile_borders &&
+         a.settings_tile_visible == b.settings_tile_visible &&
          a.display_rotated_180 == b.display_rotated_180 &&
          a.display_rotation_quarters == b.display_rotation_quarters &&
          a.display_rotation_mode == b.display_rotation_mode &&
@@ -189,6 +190,7 @@ ConfigManager::ConfigManager() {
   config.display_brightness = 200;
   config.screensaver_brightness_pct = kScreensaverBrightnessPctDefault;
   config.tile_borders = true;
+  config.settings_tile_visible = true;
   config.display_rotated_180 = false;
   config.display_rotation_quarters = Device::kRotationDefault;
   config.display_rotation_mode = kDisplayRotationNormal;
@@ -307,6 +309,7 @@ bool ConfigManager::load() {
   config.screensaver_brightness_pct =
       prefs.getUChar("ss_bright", kScreensaverBrightnessPctDefault);
   config.tile_borders = prefs.getBool("tile_border", true);
+  config.settings_tile_visible = prefs.getBool("settings_tile", true);
   bool rot_180 = prefs.getBool("disp_rot180", false);
   uint8_t rot_mode = rot_180 ? kDisplayRotationFlipped : kDisplayRotationNormal;
   if (prefs.isKey("disp_rot_mode")) {
@@ -472,6 +475,7 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   prefs.putUChar("disp_bright", normalized.display_brightness);
   prefs.putUChar("ss_bright", normalized.screensaver_brightness_pct);
   prefs.putBool("tile_border", normalized.tile_borders);
+  prefs.putBool("settings_tile", normalized.settings_tile_visible);
   prefs.putBool("eth_mode", normalized.ethernet_enabled);
   prefs.putBool("disp_rot180", normalized.display_rotated_180);
   prefs.putUChar("disp_rot_q", normalized.display_rotation_quarters);
@@ -669,6 +673,24 @@ bool ConfigManager::saveTileBorders(bool enabled) {
   return true;
 }
 
+bool ConfigManager::saveSettingsTileVisible(bool visible) {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (config.settings_tile_visible == visible) return true;
+#endif
+  Device::ScopedStorageWrite storage_write(
+      BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
+  if (!prefs.begin(PREF_NAMESPACE, false)) {
+    Serial.println("ConfigManager: Could not open Settings tile preferences");
+    return false;
+  }
+  prefs.putBool("settings_tile", visible);
+  if (!BatchedNvsWrite::finish(prefs)) return false;
+
+  config.settings_tile_visible = visible;
+  return true;
+}
+
 bool ConfigManager::saveEthernetEnabled(bool enabled) {
 #if defined(DEVICE_GUITION_ESP32_4848S040)
   if (config.ethernet_enabled == enabled) return true;
@@ -795,6 +817,7 @@ void ConfigManager::clear() {
   config.display_brightness = 200;
   config.screensaver_brightness_pct = kScreensaverBrightnessPctDefault;
   config.tile_borders = true;
+  config.settings_tile_visible = true;
   config.display_rotated_180 = false;
   config.display_rotation_quarters = Device::kRotationDefault;
   config.display_rotation_mode = kDisplayRotationNormal;

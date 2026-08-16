@@ -62,6 +62,7 @@ struct DeviceConfig {
   // Treiberbereich erfolgt ueber Device::backlightRawFromPercent().
   uint8_t screensaver_brightness_pct;  // 1-100
   bool tile_borders;           // Feine Rahmen um normale Dashboard-Kacheln
+  bool settings_tile_visible;  // Show the on-device Settings tile on Home
   bool display_rotated_180;    // Display 180 deg gedreht?
   uint8_t display_rotation_quarters; // 0=0°, 1=90°, 2=180°, 3=270°
   uint8_t display_rotation_mode; // 0=Normal, 1=180, 2=Auto
@@ -107,6 +108,7 @@ public:
   bool saveScreensaverTimeout(bool enabled, uint16_t seconds);
   bool saveScreensaverBrightness(uint8_t brightness_pct);
   bool saveTileBorders(bool enabled);
+  bool saveSettingsTileVisible(bool visible);
   bool saveEthernetEnabled(bool enabled);
   bool saveStaticAddressingEnabled(bool enabled);
 

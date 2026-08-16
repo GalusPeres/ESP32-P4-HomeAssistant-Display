@@ -56,6 +56,26 @@ function t(key) {
       showNotification(t('networkErrorSave'), false);
     }
   }
+  let settingsTileVisibilitySaveSequence = 0;
+  async function saveSettingsTileVisibility(enabled) {
+    const wanted = !!enabled;
+    const sequence = ++settingsTileVisibilitySaveSequence;
+    try {
+      const response = await fetch('/api/display/settings-tile', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'enabled=' + (wanted ? '1' : '0')
+      });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      window.location.reload();
+    } catch (error) {
+      if (sequence !== settingsTileVisibilitySaveSequence) return;
+      document.querySelectorAll('.settings-tile-visibility-toggle').forEach(input => {
+        input.checked = !wanted;
+      });
+      showNotification(t('networkErrorSave'), false);
+    }
+  }
   let tabSwitchSequence = 0;
 
   function folderIdFromAdminTabName(tabName) {
