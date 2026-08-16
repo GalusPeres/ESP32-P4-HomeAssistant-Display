@@ -22,6 +22,7 @@ assert.match(
 assert.match(adminHtml, /saveSettingsTileVisibility\(this\.checked\)/);
 assert.match(adminJs, /fetch\('\/api\/display\/settings-tile'/);
 assert.match(adminRoutes, /"\/api\/display\/settings-tile"/);
+assert.match(adminHandlers, /tileConfig\.saveFolderGrid\(0, grid\)/);
 assert.match(adminHandlers, /tiles_request_reload_if_loaded\(GridType::TAB0\)/);
 
 console.log("Settings tile visibility contract: PASS");
