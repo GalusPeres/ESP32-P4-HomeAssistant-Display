@@ -130,9 +130,9 @@ const packageSource = read("release-helper/package-ci-build.js");
 const packagedDeviceKeys = [...packageSource.matchAll(/\['([a-z0-9_]+)',\s*\{\s*key:/g)]
   .map((match) => match[1]);
 assert.deepEqual(
-  [...DEVICE_PROFILES.map((device) => device.key)].sort(),
+  [...DEVICE_PROFILES.map((device) => device.key), "waveshare_s3_touch_lcd_4b"].sort(),
   packagedDeviceKeys.sort(),
-  "Installer device keys must match packaged release assets.",
+  "Packaged targets must include installer releases and the experimental Waveshare S3 candidate.",
 );
 assert.match(packageSource, /const otaSlotSize = 0x680000;/);
 
