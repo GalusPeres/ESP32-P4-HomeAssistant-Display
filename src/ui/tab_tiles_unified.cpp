@@ -8,6 +8,7 @@
 #include "src/ui/sensor_popup.h"
 #include "src/ui/weather_popup.h"
 #include "src/ui/image_screensaver.h"
+#include "src/ui/ui_manager.h"
 #include "src/ui/ui_surface_style.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/types/cover/renderer.h"
@@ -1774,13 +1775,21 @@ void tiles_request_release_all() {
 
 void tiles_switch_to_folder(uint16_t folder_id) {
   const uint8_t idx = static_cast<uint8_t>(GridType::TAB0);
-  if (!g_tiles_roots[idx]) return;
-  if (!tileConfig.folderExists(folder_id)) return;
+  if (!g_tiles_roots[idx] || !tileConfig.folderExists(folder_id)) {
+    uiManager.finishFolderSwitch(folder_id, false);
+    return;
+  }
 
   // Wechsel nicht im LVGL-Event-Callback blockieren.
   stop_preview_timer();
   g_pending_folder_id = folder_id;
   g_folder_switch_pending = true;
+}
+
+void tiles_cancel_folder_switch(uint16_t folder_id) {
+  if (!g_folder_switch_pending || g_pending_folder_id != folder_id) return;
+  g_folder_switch_pending = false;
+  g_pending_folder_id = kInvalidFolderId;
 }
 
 void tiles_invalidate_folder(uint16_t folder_id) {
@@ -1823,6 +1832,7 @@ void tiles_process_reload_requests() {
     if (!g_tiles_roots[idx] || !tileConfig.folderExists(folder_id)) {
       g_folder_switch_pending = false;
       g_pending_folder_id = kInvalidFolderId;
+      uiManager.finishFolderSwitch(folder_id, false);
       return;
     }
 
@@ -1830,6 +1840,7 @@ void tiles_process_reload_requests() {
         g_active_cache->grid) {
       g_folder_switch_pending = false;
       g_pending_folder_id = kInvalidFolderId;
+      uiManager.finishFolderSwitch(folder_id, true);
       return;
     }
 
@@ -1846,13 +1857,17 @@ void tiles_process_reload_requests() {
           // victim to evict because the sole slot is necessarily active.
           g_folder_switch_pending = false;
           g_pending_folder_id = kInvalidFolderId;
-          if (!tileConfig.setActiveFolder(folder_id)) return;
+          if (!tileConfig.setActiveFolder(folder_id)) {
+            uiManager.finishFolderSwitch(folder_id, false);
+            return;
+          }
           g_active_cache->folder_id = folder_id;
           g_active_cache->grid_config = tileConfig.getActiveGrid();
           g_active_cache->grid_loaded = true;
           g_active_cache->dirty = false;
           tiles_reload_layout(GridType::TAB0);
           log_folder_switch_memory("folder-switch-single-slot", folder_id);
+          uiManager.finishFolderSwitch(folder_id, true);
           return;
         }
         if (evict_folder_cache_before_build(folder_id)) {
@@ -1865,6 +1880,7 @@ void tiles_process_reload_requests() {
         g_pending_folder_id = kInvalidFolderId;
         Serial.printf("[Tiles] ERROR: Kein Cache-Slot fuer folder=%u\n",
                       static_cast<unsigned>(folder_id));
+        uiManager.finishFolderSwitch(folder_id, false);
         return;
       }
 
@@ -1890,6 +1906,7 @@ void tiles_process_reload_requests() {
             restore_active_cache(*previous);
             lv_obj_clear_flag(previous->grid, LV_OBJ_FLAG_HIDDEN);
           }
+          uiManager.finishFolderSwitch(folder_id, false);
           return;
         }
         restore_active_cache(*target);
@@ -1911,9 +1928,9 @@ void tiles_process_reload_requests() {
           lv_obj_add_flag(previous->grid, LV_OBJ_FLAG_HIDDEN);
         }
         lv_obj_clear_flag(target->grid, LV_OBJ_FLAG_HIDDEN);
-        // tiles_process_reload_requests() runs directly before the normal
-        // lv_timer_handler(); a nested full-screen lv_refr_now() only added
-        // 94-195 ms of blocking work on cache hits.
+        // The regular path is followed by the normal LVGL refresh. The
+        // post-input fast path refreshes once after this function returns, so
+        // never nest a full-screen refresh inside the cache transaction.
         lv_obj_invalidate(target->grid);
         target->last_used_ms = millis();
         schedule_preview_load(GridType::TAB0);
@@ -1921,6 +1938,7 @@ void tiles_process_reload_requests() {
         schedule_navigation_preload(folder_id, tileConfig.getActiveGrid());
 #endif
         log_folder_switch_memory("folder-switch-cached", folder_id);
+        uiManager.finishFolderSwitch(folder_id, true);
         return;
       }
 
@@ -1930,6 +1948,7 @@ void tiles_process_reload_requests() {
           restore_active_cache(*previous);
           lv_obj_clear_flag(previous->grid, LV_OBJ_FLAG_HIDDEN);
         }
+        uiManager.finishFolderSwitch(folder_id, false);
         return;
       }
       if (!tileConfig.setActiveFolderCached(folder_id, target->grid_config)) {
@@ -1938,6 +1957,7 @@ void tiles_process_reload_requests() {
           restore_active_cache(*previous);
           lv_obj_clear_flag(previous->grid, LV_OBJ_FLAG_HIDDEN);
         }
+        uiManager.finishFolderSwitch(folder_id, false);
         return;
       }
 
@@ -1963,9 +1983,11 @@ void tiles_process_reload_requests() {
         schedule_navigation_preload(folder_id, tileConfig.getActiveGrid());
 #endif
         log_folder_switch_memory("folder-switch-built", folder_id);
+        uiManager.finishFolderSwitch(folder_id, true);
       } else if (previous && previous->grid) {
         restore_active_cache(*previous);
         lv_obj_clear_flag(previous->grid, LV_OBJ_FLAG_HIDDEN);
+        uiManager.finishFolderSwitch(folder_id, false);
       }
     }
     return;
@@ -2022,6 +2044,24 @@ void tiles_process_reload_requests() {
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
   if (!did_reload) process_navigation_preload();
 #endif
+}
+
+void tiles_process_pending_folder_switch() {
+  if (!g_folder_switch_pending) return;
+
+  // Touch callbacks run inside lv_timer_handler(). Commit only after that
+  // handler has returned, before unrelated Web/MQTT work can delay navigation.
+  tiles_process_reload_requests();
+  if (g_folder_switch_pending) return;
+
+  // The cache transaction invalidates the new grid and the PIN completion
+  // invalidates its overlay. Flush both together so the old folder is never
+  // exposed between a correct PIN and the requested folder.
+  if (lv_display_t* display = displayManager.getDisplay()) {
+    yield();
+    lv_refr_now(display);
+    yield();
+  }
 }
 
 static void tiles_refresh_all_image_previews(GridType grid_type, bool only_missing) {

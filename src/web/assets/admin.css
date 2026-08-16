@@ -446,6 +446,65 @@
     .settings-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; }
     .settings-subgrid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; }
     .settings-full { grid-column:1 / -1; }
+    .settings-access-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px 20px; }
+    .settings-access-grid .settings-full { grid-column:1 / -1; }
+    .settings-access-toggles { display:flex; flex-wrap:wrap; align-items:center; gap:10px 28px; }
+    .settings-access-toggles .settings-checkbox { margin:0; }
+    .settings-access-field { min-width:0; }
+    .settings-pin-fields { grid-column:1; }
+    .settings-edge-fields { grid-column:2; }
+    .settings-pin-control { display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
+    .settings-pin-control .password-field { width:100%; }
+    .settings-pin-control .settings-pin-apply {
+      width:auto;
+      margin:0;
+      min-height:0;
+      padding:8px 10px;
+      border-radius:12px;
+      font-size:12px;
+      line-height:normal;
+      white-space:nowrap;
+    }
+    .settings-access-tile-fields.show {
+      display:block;
+      margin-top:12px;
+      padding-top:12px;
+      border-top:1px solid #232323;
+    }
+    .settings-access-tile-fields .settings-access-toggles {
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      gap:10px 22px;
+      margin-bottom:14px;
+    }
+    .settings-access-columns {
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      align-items:stretch;
+    }
+    .settings-access-tile-fields .settings-pin-control {
+      align-items:flex-start;
+    }
+    .settings-access-tile-fields .settings-pin-control .password-field {
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      width:100%;
+    }
+    .settings-access-tile-fields .settings-pin-control .password-field input,
+    .settings-access-tile-fields .settings-pin-control .password-toggle {
+      box-sizing:border-box;
+      min-width:0;
+      margin:0;
+      padding:9px 12px;
+      font-size:13px;
+      line-height:normal;
+    }
+    .settings-access-tile-fields .settings-edge-fields select { width:100%; }
+    .settings-access-tile-fields .settings-factory-pin {
+      margin-top:14px;
+    }
     .settings-note { font-size:12px; color:var(--text-3); margin-top:4px; }
     .network-settings-group { display:flex; flex-direction:column; gap:16px; padding-top:2px; }
     .network-settings-heading {
@@ -681,6 +740,55 @@
       border-radius:21px;
       width:fit-content;
       height:fit-content;
+    }
+    .settings-hidden-parking {
+      display:flex;
+      align-items:center;
+      gap:14px;
+      width:fit-content;
+      max-width:100%;
+    }
+    .tile-grid.settings-hidden-slot {
+      grid-template-columns:var(--preview-cell-w);
+      grid-template-rows:var(--preview-cell-h);
+      width:fit-content;
+      min-width:0;
+      min-height:0;
+    }
+    .settings-hidden-tile {
+      grid-column:1;
+      grid-row:1;
+      width:auto;
+      height:auto;
+      user-select:none;
+    }
+    .settings-hidden-slot.has-tile .settings-hidden-tile { cursor:pointer; }
+    .settings-hidden-slot:not(.has-tile) .settings-hidden-tile {
+      border:2px dashed var(--line) !important;
+      background:rgba(255,255,255,0.025) !important;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:0;
+    }
+    .settings-hidden-slot:not(.has-tile) .tile-icon,
+    .settings-hidden-slot:not(.has-tile) .tile-title {
+      color:var(--muted);
+      opacity:0.85;
+    }
+    .settings-hidden-hint {
+      max-width:240px;
+      color:var(--muted);
+      font-size:14px;
+      line-height:1.35;
+    }
+    .settings-hidden-slot.drop-target .settings-hidden-tile {
+      border:3px dashed #26a69a;
+      background:rgba(38,166,154,0.12) !important;
+      box-shadow:0 0 0 2px rgba(38,166,154,0.2) inset;
+    }
+    .settings-hidden-slot.invalid .settings-hidden-tile {
+      border-color:#ef4444;
     }
     .screensaver-tile-grid {
       position:relative;
@@ -1087,6 +1195,56 @@
     .type-fields.show > select[id*="_entity"],
     .type-fields.show > select[id$="_scene_alias"],
     .type-fields.show > select[id$="_animation_file"] { grid-column:1 / -1; }
+    .type-fields.show > .folder-pin-toggle { grid-column:1 / -1; }
+    .tile-settings .folder-pin-toggle {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      min-height:20px;
+      margin:0;
+      color:var(--text);
+      font-size:12px;
+      font-weight:600;
+      line-height:16px;
+    }
+    .tile-settings .folder-pin-toggle input {
+      flex:0 0 16px;
+      width:16px;
+      height:16px;
+      margin:0;
+      padding:0;
+    }
+    .tile-settings .folder-pin-toggle span { line-height:16px; }
+    .type-fields.show > .folder-pin-control {
+      grid-column:1 / -1;
+      display:flex;
+      flex-direction:column;
+      align-items:flex-start;
+      gap:8px;
+    }
+    .type-fields.show > .folder-pin-label {
+      grid-column:1 / -1;
+      align-self:start;
+      padding:0;
+    }
+    .folder-pin-password { width:100%; min-width:0; }
+    .folder-pin-password input { min-width:0; margin:0; }
+    .folder-pin-password .password-toggle {
+      padding:9px 11px;
+      border-radius:10px;
+      font-size:12px;
+      line-height:16px;
+    }
+    .folder-pin-control .btn {
+      width:auto;
+      margin:0;
+      padding:8px 10px;
+      border-radius:12px;
+      font-size:12px;
+      line-height:normal;
+      white-space:nowrap;
+    }
+    .type-fields.show > .folder-pin-status { grid-column:1 / -1; margin:0; }
     .gauge-fields, .graph-fields {
       display:grid;
       grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);
@@ -1219,6 +1377,10 @@
       .settings-grid { grid-template-columns:1fr; }
       .settings-subgrid { grid-template-columns:1fr; }
       .settings-full { grid-column:auto; }
+      .settings-access-grid { grid-template-columns:1fr; }
+      .settings-access-grid .settings-full,
+      .settings-pin-fields,
+      .settings-edge-fields { grid-column:1; }
       .file-manager-topbar { align-items:stretch; flex-direction:column; }
       .file-manager-toolbar-group,
       .file-manager-upload-row { align-items:flex-start; }

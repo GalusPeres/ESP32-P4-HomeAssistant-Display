@@ -9,8 +9,10 @@
 #include "src/ui/media_popup.h"
 #include "src/ui/climate_popup.h"
 #include "src/ui/cover_popup.h"
+#include "src/ui/pin_popup.h"
 #include "src/core/display_manager.h"
 #include "src/core/config_manager.h"
+#include "src/core/i18n.h"
 #include "src/devices/device_select.h"
 #include "src/tiles/mdi_icons.h"
 #include "src/tiles/tile_config.h"
@@ -102,6 +104,8 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   active_tab_index = UINT8_MAX;
   nav_container = nullptr;
   tab_content_container = nullptr;
+  settings_gesture_enabled = false;
+  settings_gesture_edge = UINT8_MAX;
 
 
   tab_content_container = lv_obj_create(scr);
@@ -120,6 +124,7 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
 
   build_tiles_tab(tab_panels[0], GridType::TAB0, scene_cb);
   build_settings_tab(tab_panels[3], hotspot_cb);
+  createSettingsGestureZone();
   for (uint8_t i = 0; i < TAB_COUNT; ++i) {
     if (tab_panels[i]) {
       lv_obj_add_flag(tab_panels[i], LV_OBJ_FLAG_HIDDEN);
@@ -135,6 +140,9 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   preload_media_popup();
   preload_climate_popup();
   preload_cover_popup();
+  preload_pin_popup();
+
+  access_gesture_eligible = false;
   mqttPublishDeviceSettings();
 
   Serial.println("[UI] UI aufgebaut");
@@ -397,6 +405,350 @@ void UIManager::switchToFolder(uint16_t folder_id) {
   // Priorisiere Navigation: kurze Pause fuer Thumbnail/URL-Background-Jobs.
   tiles_switch_to_folder(folder_id);
   switchToTab(0);
+}
+
+static String make_unlock_title(const char* format, const String& tile_title) {
+  String result = format ? String(format) : String("%s");
+  result.replace("%s", tile_title);
+  return result;
+}
+
+static constexpr int kSettingsGestureCaptureWidth = popup_layout::scale(56);
+static constexpr int kSettingsGestureThreshold = popup_layout::scale(48);
+
+void UIManager::requestSettingsAccess(const String& title,
+                                      const String& icon_name,
+                                      uint32_t bg_color) {
+  const DeviceConfig& config = configManager.getConfig();
+  if (!config.settings_pin_enabled) {
+    switchToTab(3);
+    return;
+  }
+
+  pending_access_kind = PendingAccessKind::Settings;
+  pending_access_folder_id = 0;
+  const auto& tr = i18n::strings(config.language);
+  const String source_title =
+      title.length() ? title : String(tr.tile_type_settings);
+  PinPopupInit init;
+  init.title = make_unlock_title(tr.pin_popup_unlock_format, source_title);
+  init.icon_name = icon_name.length() ? icon_name : String("cog");
+  init.bg_color = bg_color;
+  init.verify = verify_pending_access;
+  init.success = complete_pending_access;
+  init.context = this;
+  show_pin_popup(init);
+}
+
+void UIManager::requestFolderAccess(uint16_t folder_id, const String& title,
+                                    const String& icon_name,
+                                    uint32_t bg_color) {
+  if (!tileConfig.isFolderPinEnabled(folder_id)) {
+    switchToFolder(folder_id);
+    return;
+  }
+
+  pending_access_kind = PendingAccessKind::Folder;
+  pending_access_folder_id = folder_id;
+  const auto& tr = i18n::strings(configManager.getConfig().language);
+  const String source_title =
+      title.length() ? title : String(tr.tile_type_folder);
+  PinPopupInit init;
+  init.title = make_unlock_title(tr.pin_popup_unlock_format, source_title);
+  init.icon_name = icon_name.length() ? icon_name : String("folder");
+  init.bg_color = bg_color;
+  init.hide_on_success = false;
+  init.verify = verify_pending_access;
+  init.success = complete_pending_access;
+  init.context = this;
+  show_pin_popup(init);
+}
+
+void UIManager::lockProtectedAccess() {
+  if (pending_access_kind == PendingAccessKind::Folder) {
+    tiles_cancel_folder_switch(pending_access_folder_id);
+  }
+  hide_pin_popup();
+  pending_access_kind = PendingAccessKind::None;
+  pending_access_folder_id = 0;
+  access_gesture_eligible = false;
+  detachSettingsGesturePressedObject();
+
+  const DeviceConfig& config = configManager.getConfig();
+  const bool settings_open =
+      config.settings_pin_enabled && active_tab_index == 3;
+
+  bool protected_folder_open = false;
+  uint16_t folder_id = tileConfig.getActiveFolderId();
+  for (size_t depth = 0;
+       folder_id != TileConfig::rootFolderId() && depth < 128; ++depth) {
+    if (tileConfig.isFolderPinEnabled(folder_id)) {
+      protected_folder_open = true;
+      break;
+    }
+    const uint16_t parent = tileConfig.getFolderParent(folder_id);
+    if (parent == folder_id) break;
+    folder_id = parent;
+  }
+
+  if (protected_folder_open) {
+    tiles_switch_to_folder(TileConfig::rootFolderId());
+  }
+  if (settings_open || protected_folder_open) {
+    switchToTab(0);
+  }
+}
+
+bool UIManager::verify_pending_access(const char* pin, void* context) {
+  UIManager* self = static_cast<UIManager*>(context);
+  if (!self) return false;
+  if (self->pending_access_kind == PendingAccessKind::Settings) {
+    return configManager.verifySettingsPin(pin);
+  }
+  if (self->pending_access_kind == PendingAccessKind::Folder) {
+    return tileConfig.verifyFolderPin(self->pending_access_folder_id, pin);
+  }
+  return false;
+}
+
+void UIManager::complete_pending_access(void* context) {
+  UIManager* self = static_cast<UIManager*>(context);
+  if (!self) return;
+  const PendingAccessKind kind = self->pending_access_kind;
+  const uint16_t folder_id = self->pending_access_folder_id;
+  if (kind == PendingAccessKind::Settings) {
+    self->pending_access_kind = PendingAccessKind::None;
+    self->pending_access_folder_id = 0;
+    self->switchToTab(3);
+  } else if (kind == PendingAccessKind::Folder) {
+    // Keep the access request alive until the asynchronous cache switch has
+    // committed. The PIN popup continues to cover the previous folder.
+    self->switchToFolder(folder_id);
+  } else {
+    self->pending_access_kind = PendingAccessKind::None;
+    self->pending_access_folder_id = 0;
+  }
+}
+
+void UIManager::finishFolderSwitch(uint16_t folder_id, bool success) {
+  if (pending_access_kind != PendingAccessKind::Folder ||
+      pending_access_folder_id != folder_id) {
+    return;
+  }
+  if (!success) {
+    resume_pin_popup_after_failed_success();
+    return;
+  }
+  pending_access_kind = PendingAccessKind::None;
+  pending_access_folder_id = 0;
+  hide_pin_popup();
+}
+
+void UIManager::createSettingsGestureZone() {
+  if (lv_indev_t* input = displayManager.getInput()) {
+    lv_indev_remove_event_cb_with_user_data(
+        input, settings_gesture_indev_event_cb, this);
+    lv_indev_add_event_cb(input, settings_gesture_indev_event_cb,
+                          LV_EVENT_PRESSED, this);
+    lv_indev_add_event_cb(input, settings_gesture_indev_event_cb,
+                          LV_EVENT_RELEASED, this);
+  }
+  syncSettingsGestureZone();
+}
+
+void UIManager::refreshSettingsGestureZone() {
+  syncSettingsGestureZone();
+}
+
+void UIManager::setSettingsGestureStyle(const String& title,
+                                        const String& icon_name,
+                                        uint32_t bg_color) {
+  settings_gesture_title = title;
+  settings_gesture_icon_name = icon_name;
+  settings_gesture_bg_color = bg_color & TILE_BG_COLOR_RGB_MASK;
+}
+
+void UIManager::syncSettingsGestureZone() {
+  const DeviceConfig& config = configManager.getConfig();
+  const bool enabled = config.settings_swipe_enabled;
+  const uint8_t edge = config.settings_reveal_edge <=
+                               static_cast<uint8_t>(SettingsRevealEdge::Bottom)
+                           ? config.settings_reveal_edge
+                           : static_cast<uint8_t>(SettingsRevealEdge::Left);
+
+  if (!enabled || settings_gesture_edge != edge) {
+    access_gesture_eligible = false;
+    detachSettingsGesturePressedObject();
+  }
+  settings_gesture_enabled = enabled;
+  settings_gesture_edge = edge;
+}
+
+void UIManager::detachSettingsGesturePressedObject() {
+  if (!access_gesture_pressed_object) return;
+  lv_obj_remove_event_cb_with_user_data(
+      access_gesture_pressed_object,
+      settings_gesture_pressed_object_event_cb, this);
+  access_gesture_pressed_object = nullptr;
+}
+
+void UIManager::processSettingsGestureMotion(lv_indev_t* input,
+                                             bool released) {
+  if (!input || !access_gesture_eligible || access_gesture_triggered) {
+    if (released) {
+      access_gesture_eligible = false;
+      detachSettingsGesturePressedObject();
+    }
+    return;
+  }
+
+  const DeviceConfig& config = configManager.getConfig();
+  if (active_tab_index != 0 || !settings_gesture_enabled ||
+      !config.settings_swipe_enabled) {
+    access_gesture_eligible = false;
+    detachSettingsGesturePressedObject();
+    return;
+  }
+
+  lv_point_t current{};
+  lv_indev_get_point(input, &current);
+  const int32_t dx = current.x - access_gesture_start.x;
+  const int32_t dy = current.y - access_gesture_start.y;
+  const int32_t abs_dx = dx < 0 ? -dx : dx;
+  const int32_t abs_dy = dy < 0 ? -dy : dy;
+  const int32_t threshold = kSettingsGestureThreshold;
+
+  bool matches = false;
+  switch (static_cast<SettingsRevealEdge>(config.settings_reveal_edge)) {
+    case SettingsRevealEdge::Left:
+      matches = dx >= threshold && abs_dx > abs_dy;
+      break;
+    case SettingsRevealEdge::Right:
+      matches = -dx >= threshold && abs_dx > abs_dy;
+      break;
+    case SettingsRevealEdge::Top:
+      matches = dy >= threshold && abs_dy > abs_dx;
+      break;
+    case SettingsRevealEdge::Bottom:
+      matches = -dy >= threshold && abs_dy > abs_dx;
+      break;
+  }
+  if (!matches) {
+    if (released) {
+      access_gesture_eligible = false;
+      detachSettingsGesturePressedObject();
+    }
+    return;
+  }
+
+  access_gesture_triggered = true;
+  access_gesture_eligible = false;
+  detachSettingsGesturePressedObject();
+
+  // Arm suppression before resetting an active contact so the confirmed
+  // swipe cannot turn into a click on the newly opened popup.
+  if (!released) lv_indev_wait_release(input);
+  lv_indev_reset(input, nullptr);
+
+  const SettingsTileSnapshot& snapshot = config.settings_tile_snapshot;
+  const uint32_t snapshot_color = snapshot.bg_color;
+  const bool use_snapshot = config.settings_tile_hidden && snapshot.valid;
+  const uint32_t bg_color =
+      use_snapshot
+          ? (snapshot_color != 0
+                 ? (snapshot_color & TILE_BG_COLOR_RGB_MASK)
+                 : 0x2A2A2A)
+          : settings_gesture_bg_color;
+  const String title = use_snapshot ? String(snapshot.title)
+                                    : settings_gesture_title;
+  const String icon_name = use_snapshot ? String(snapshot.icon_name)
+                                        : settings_gesture_icon_name;
+  requestSettingsAccess(title, icon_name, bg_color);
+}
+
+void UIManager::settings_gesture_pressed_object_event_cb(lv_event_t* event) {
+  UIManager* self = static_cast<UIManager*>(lv_event_get_user_data(event));
+  if (!self) return;
+
+  const lv_event_code_t code = lv_event_get_code(event);
+  if (code == LV_EVENT_DELETE) {
+    if (lv_event_get_current_target(event) ==
+        self->access_gesture_pressed_object) {
+      self->access_gesture_pressed_object = nullptr;
+      self->access_gesture_eligible = false;
+    }
+    return;
+  }
+  if (code != LV_EVENT_PRESSING) return;
+
+  lv_indev_t* input = static_cast<lv_indev_t*>(lv_event_get_param(event));
+  self->processSettingsGestureMotion(input, false);
+}
+
+void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
+  UIManager* self = static_cast<UIManager*>(lv_event_get_user_data(event));
+  if (!self) return;
+  lv_indev_t* input = static_cast<lv_indev_t*>(
+      lv_event_get_current_target(event));
+  if (!input) return;
+  const lv_event_code_t code = lv_event_get_code(event);
+
+  const DeviceConfig& config = configManager.getConfig();
+  if (code == LV_EVENT_PRESSED) {
+    self->detachSettingsGesturePressedObject();
+    self->access_gesture_eligible = false;
+    self->access_gesture_triggered = false;
+    if (self->active_tab_index != 0 ||
+        !self->settings_gesture_enabled ||
+        !config.settings_swipe_enabled) {
+      return;
+    }
+
+    lv_obj_t* pressed_object =
+        static_cast<lv_obj_t*>(lv_event_get_param(event));
+    bool started_on_home = false;
+    for (lv_obj_t* object = pressed_object; object;
+         object = lv_obj_get_parent(object)) {
+      if (object == self->tab_panels[0]) {
+        started_on_home = true;
+        break;
+      }
+    }
+    if (!started_on_home) return;
+
+    lv_point_t point{};
+    lv_indev_get_point(input, &point);
+    const int32_t edge_zone = kSettingsGestureCaptureWidth;
+    bool starts_at_edge = false;
+    switch (static_cast<SettingsRevealEdge>(config.settings_reveal_edge)) {
+      case SettingsRevealEdge::Left:
+        starts_at_edge = point.x < edge_zone;
+        break;
+      case SettingsRevealEdge::Right:
+        starts_at_edge = point.x >= SCREEN_WIDTH - edge_zone;
+        break;
+      case SettingsRevealEdge::Top:
+        starts_at_edge = point.y < edge_zone;
+        break;
+      case SettingsRevealEdge::Bottom:
+        starts_at_edge = point.y >= SCREEN_HEIGHT - edge_zone;
+        break;
+    }
+    if (!starts_at_edge) return;
+    self->access_gesture_start = point;
+    self->access_gesture_eligible = true;
+    self->access_gesture_pressed_object = pressed_object;
+    lv_obj_add_event_cb(pressed_object,
+                        settings_gesture_pressed_object_event_cb,
+                        LV_EVENT_PRESSING, self);
+    lv_obj_add_event_cb(pressed_object,
+                        settings_gesture_pressed_object_event_cb,
+                        LV_EVENT_DELETE, self);
+    return;
+  }
+  if (code == LV_EVENT_RELEASED) {
+    self->processSettingsGestureMotion(input, true);
+  }
 }
 
 void UIManager::nav_button_event_cb(lv_event_t *e) {

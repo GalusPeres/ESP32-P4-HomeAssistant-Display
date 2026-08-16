@@ -103,6 +103,12 @@ The settings tile (gear icon) opens the on-device settings menu:
 
 ![Settings menu](images/8in-settings.png){ width="70%" }
 
+If Settings protection is enabled in the Web Admin, opening the tile first
+shows a PIN keypad. The Settings tile can also be hidden; swipe inward from the
+configured screen edge to show the same keypad. Protected folders use the same
+popup. Entered digits are masked, and the public recovery PIN **466384537**
+works for both Settings and folders.
+
 ### Display
 
 Brightness, sleep timeout (up to *Never*), a separate screensaver timeout,

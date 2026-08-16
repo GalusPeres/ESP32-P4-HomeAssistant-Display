@@ -46,6 +46,7 @@
 #include "src/types/cover/web_html.h"
 #include "src/types/camera/web_html.h"
 #include "src/types/pixelanim/web_html.h"
+#include "src/types/settings/web_html.h"
 
 #include "src/types/clock/web_scripts.h"
 #include "src/types/navigate/web_scripts.h"
@@ -60,6 +61,7 @@
 #include "src/types/cover/web_scripts.h"
 #include "src/types/camera/web_scripts.h"
 #include "src/types/pixelanim/web_scripts.h"
+#include "src/types/settings/web_scripts.h"
 
 #include "src/types/clock/web_styles.h"
 #include "src/types/navigate/web_styles.h"
@@ -74,6 +76,7 @@
 #include "src/types/cover/web_styles.h"
 #include "src/types/camera/web_styles.h"
 #include "src/types/pixelanim/web_styles.h"
+#include "src/types/settings/web_styles.h"
 
 #include "src/core/config_manager.h"
 #include "src/core/i18n.h"
@@ -306,7 +309,10 @@ bool apply_pixelanim_wrapper(WebServer& server, Tile& tile, const TileTypeApplyC
 }
 
 bool apply_settings_wrapper(WebServer&, Tile& tile, const TileTypeApplyContext&) {
-  if (!tile.title.length()) tile.title = "Settings";
+  if (!tile.title.length()) {
+    tile.title = i18n::strings(configManager.getConfig().language)
+                     .tile_type_settings;
+  }
   if (!tile.icon_name.length()) tile.icon_name = "cog";
   tile.sensor_decimals = 0xFF;
   tile.key_code = 0;
@@ -369,6 +375,11 @@ void append_media_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
 void append_climate_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
   append_climate_fields_html(
       html, safeString(ctx.tab_id), safeStrings(ctx.climate_options));
+}
+
+void append_settings_fields_wrapper(String& html,
+                                    const TileTypeWebContext& ctx) {
+  append_settings_access_fields_html(html, safeString(ctx.tab_id));
 }
 
 void append_cover_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
@@ -644,7 +655,7 @@ const TileTypeDescriptor kTileTypes[] = {
     TILE_SETTINGS,
     "Settings",
     "navigate",
-    "navigate",
+    "settings_access",
     "none",
     nullptr,
     nullptr,
@@ -654,9 +665,9 @@ const TileTypeDescriptor kTileTypes[] = {
     true,
     render_navigate_wrapper,
     apply_settings_wrapper,
-    nullptr,
-    nullptr,
-    nullptr
+    append_settings_fields_wrapper,
+    append_settings_styles,
+    append_settings_scripts
   },
   {
     TILE_BACK,

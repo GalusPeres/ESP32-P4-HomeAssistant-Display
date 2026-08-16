@@ -1089,6 +1089,8 @@ void loop() {
       Serial.flush();
     }
 
+    tiles_process_pending_folder_switch();
+
     GuitionS3Diagnostics::service();
     webConfigServer.handle();
     // Ordner-Taps setzen nur ein Pending-Flag (tiles_switch_to_folder);
@@ -1375,6 +1377,7 @@ void loop() {
   GuitionS3Diagnostics::noteUiLoop(
       s3_pre_lvgl_us, micros() - s3_lvgl_started_us);
 #endif
+  tiles_process_pending_folder_switch();
   GuitionS3Diagnostics::service();
   yield();  // Watchdog füttern
   if (first_run) {

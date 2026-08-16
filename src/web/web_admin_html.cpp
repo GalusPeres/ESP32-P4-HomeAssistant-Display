@@ -330,7 +330,77 @@ static void appendTileTabHTML(
   html += R"html(
           </div>
           </div>
-          <div class="folder-footer">
+)html";
+  if (!screensaver_mode && folder_id == 0) {
+    const DeviceConfig& cfg = configManager.getConfig();
+    const SettingsTileSnapshot& snapshot = cfg.settings_tile_snapshot;
+    bool settings_in_grid = false;
+    for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+      if (grid.tiles[i].type == TILE_SETTINGS) {
+        settings_in_grid = true;
+        break;
+      }
+    }
+    // The root grid and the parking slot are two views of one tile. Never
+    // render the Settings tile in both places, even if a stale runtime cache
+    // briefly disagrees with the persisted visibility flag.
+    const bool hidden = cfg.settings_tile_hidden && !settings_in_grid;
+    const String hidden_title =
+        snapshot.valid && snapshot.title[0]
+            ? String(snapshot.title)
+            : String(tr.tile_type_settings);
+    String hidden_icon =
+        snapshot.valid && snapshot.icon_name[0]
+            ? String(snapshot.icon_name)
+            : String("cog");
+    hidden_icon.toLowerCase();
+    hidden_icon.trim();
+    if (hidden_icon.startsWith("mdi:")) hidden_icon.remove(0, 4);
+    else if (hidden_icon.startsWith("mdi-")) hidden_icon.remove(0, 4);
+    const uint32_t hidden_color =
+        snapshot.valid && snapshot.bg_color != 0
+            ? (snapshot.bg_color & TILE_BG_COLOR_RGB_MASK)
+            : 0x2A2A2A;
+    char hidden_color_hex[8];
+    snprintf(hidden_color_hex, sizeof(hidden_color_hex), "#%06X",
+             static_cast<unsigned>(hidden_color));
+    html += "<div class=\"settings-hidden-parking\"><div id=\"settingsHiddenSlot\" class=\"tile-grid settings-hidden-slot";
+    if (configManager.getConfig().tile_borders) html += " tiles-bordered";
+    if (hidden) html += " has-tile";
+    html += "\"><div id=\"settingsHiddenTile\" class=\"tile settings-hidden-tile ";
+    html += hidden ? "navigate" : "empty";
+    html += "\"";
+    html += hidden ? " draggable=\"true\"" : " draggable=\"false\"";
+    html += " data-hidden=\"" + String(hidden ? "1" : "0") + "\"";
+    html += " data-title=\"";
+    appendHtmlEscaped(html, hidden_title);
+    html += "\" data-icon=\"";
+    appendHtmlEscaped(html, hidden_icon);
+    html += "\" data-bg-color=\"" + String(snapshot.valid ? snapshot.bg_color : 0) + "\"";
+    html += " data-col=\"" + String(snapshot.valid ? snapshot.col : 0) + "\"";
+    html += " data-row=\"" + String(snapshot.valid ? snapshot.row : 0) + "\"";
+    html += " data-span-w=\"" +
+            String(snapshot.valid && snapshot.span_w ? snapshot.span_w : 1) +
+            "\" data-span-h=\"" +
+            String(snapshot.valid && snapshot.span_h ? snapshot.span_h : 1) +
+            "\" style=\"background:" +
+            String(hidden ? hidden_color_hex : "transparent") + "\"";
+    if (hidden) {
+      html += "><i class=\"mdi mdi-";
+      appendHtmlEscaped(html, hidden_icon);
+      html += " tile-icon\"></i><div class=\"tile-title\">";
+      appendHtmlEscaped(html, hidden_title);
+      html += "</div>";
+    } else {
+      html += "><i class=\"mdi mdi-tray-arrow-down tile-icon\"></i>";
+    }
+    html += "</div></div><div id=\"settingsHiddenHint\" class=\"settings-hidden-hint";
+    if (hidden) html += " is-hidden";
+    html += "\">";
+    appendHtmlEscaped(html, tr.settings_tile_parking);
+    html += "</div></div>";
+  }
+  html += R"html(          <div class="folder-footer">
             <div class="folder-footer-options">
 )html";
   if (screensaver_mode) {

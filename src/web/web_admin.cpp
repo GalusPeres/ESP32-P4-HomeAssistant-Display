@@ -78,6 +78,8 @@ bool WebAdminServer::start() {
     server.on("/api/folders", HTTP_GET, [this]() { this->handleGetFolders(); });
     server.on("/api/folders/tab", HTTP_GET,
               [this]() { this->handleGetFolderTab(); });
+    server.on("/api/folders/access", HTTP_POST,
+              [this]() { this->handleSaveFolderAccess(); });
     server.on("/api/folders/delete", HTTP_POST,
               [this]() { this->handleDeleteFolder(); });
     server.on("/api/sensor_values", HTTP_GET,

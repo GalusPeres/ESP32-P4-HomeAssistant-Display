@@ -1,4 +1,6 @@
 #include "src/ui/image_screensaver.h"
+#include "src/ui/pin_popup.h"
+#include "src/ui/ui_manager.h"
 
 #include <Arduino.h>
 #include <FS.h>
@@ -258,7 +260,7 @@ bool is_jpeg(const uint8_t* data, size_t len) {
 // --- Datei von SD in einen PSRAM-Puffer lesen (chunked) ---
 uint8_t* read_wallpaper_file(const String& file_name, size_t& out_len) {
   out_len = 0;
-  if (!Device::sdReady()) {
+  if (!Device::sdReadyCached()) {
     Serial.println("[Screensaver] microSD nicht bereit");
     return nullptr;
   }
@@ -998,13 +1000,13 @@ bool is_wallpaper_file(const String& file_name) {
 // die Fallback-Suche ueberspringen (from_config waere trotzdem true) und
 // direkt scheitern, obwohl andere gueltige Bilder auf der Karte liegen.
 bool sd_wallpaper_file_exists(const String& file_name) {
-  if (!is_wallpaper_file(file_name) || !Device::sdReady()) return false;
+  if (!is_wallpaper_file(file_name) || !Device::sdReadyCached()) return false;
   return Device::sdFS().exists(String(kImageDir) + "/" + file_name) ||
          Device::sdFS().exists(String(kLegacyWallpaperDir) + "/" + file_name);
 }
 
 bool find_first_sd_wallpaper(ScreensaverWallpaperConfig& out) {
-  if (!Device::sdReady()) return false;
+  if (!Device::sdReadyCached()) return false;
   const char* directories[] = {kImageDir, kLegacyWallpaperDir};
   for (const char* directory : directories) {
     fs::File dir = Device::sdFS().open(directory, FILE_READ);
@@ -1547,11 +1549,11 @@ void global_preload_timer_cb(lv_timer_t*) {
 }  // namespace
 
 void preload_image_screensaver() {
+  if (!screensaverConfig.get().use_wallpapers) return;
   ScreensaverWallpaperConfig wallpaper;
   const int index = first_enabled_wallpaper();
   if (index >= 0) wallpaper = screensaverConfig.get().wallpapers[index];
-  else if (!screensaverConfig.get().use_wallpapers ||
-           !find_first_sd_wallpaper(wallpaper)) return;
+  else if (!find_first_sd_wallpaper(wallpaper)) return;
   g_preload_wallpaper = wallpaper;
   if (g_preload_timer) lv_timer_delete(g_preload_timer);
   g_preload_timer = lv_timer_create(global_preload_timer_cb, 4000, nullptr);
@@ -1564,6 +1566,7 @@ void show_image_screensaver() {
   // dieses Abbaus waere unnoetig und macht Widget-/Cache-Lebenszeiten schwer
   // vorhersehbar.
   if (g_state || powerManager.isInSleep()) return;
+  uiManager.lockProtectedAccess();
   const uint32_t started_ms = millis();
   Serial.printf("[Screensaver] Aufbau startet | idle=%u ms | dim=%u%%\n",
                 static_cast<unsigned>(
@@ -1612,7 +1615,13 @@ void show_image_screensaver() {
   // mit "--" zusammengesetzt und erst spaeter korrigiert.
   refresh_slot_values(st);
   const int wallpaper = first_enabled_wallpaper();
-  apply_wallpaper(st, wallpaper, true);
+  const bool wallpaper_visible = apply_wallpaper(st, wallpaper, true);
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  // The wallpaper path already presents the complete overlay through the
+  // fast full-frame path. Do the same for the black fallback so a missing SD
+  // card never leaves the first clock/tile frame to a slower banded redraw.
+  if (!wallpaper_visible) present_composited_screensaver_frame(st);
+#endif
   st->next_slot_refresh_ms = millis() + 1000U;
   st->timer = lv_timer_create(global_screensaver_timer_cb, 1000, st);
   apply_configured_screensaver_brightness();

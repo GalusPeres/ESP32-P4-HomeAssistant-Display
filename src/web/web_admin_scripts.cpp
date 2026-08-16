@@ -55,6 +55,7 @@ void appendAdminScripts(String& html) {
   appendJsEntry("noCopiedTile", tr.js_no_copied_tile);
   appendJsEntry("tilePasted", tr.js_tile_pasted);
   appendJsEntry("settingsTileFixed", tr.js_settings_tile_fixed);
+  appendJsEntry("settingsTileParking", tr.settings_tile_parking);
   appendJsEntry("backTileFixed", tr.js_back_tile_fixed);
   appendJsEntry("tileCannotDelete", tr.js_tile_cannot_delete);
   appendJsEntry("folderCannotDelete", tr.js_folder_cannot_delete);

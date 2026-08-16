@@ -77,6 +77,11 @@ a back tile placed in the top-left corner for you.
 The folder tab has a **Delete Folder / Tab** button that removes the sub-page and
 all tiles on it. The back tile can be restyled (icon, color) but keeps its function.
 
+Each Folder tile can also have its own 4–8 digit PIN. Select the Folder tile,
+enable **Protect this folder with a PIN**, enter a new PIN, and press **Apply
+PIN**. Folder PINs stay on that display and are deliberately excluded from
+dashboard exports.
+
 ## Screensaver Editor
 
 The dedicated **Screensaver** tab is a live preview of the separate screensaver
@@ -107,6 +112,18 @@ on-device settings, plus a few admin-only ones:
   automatically by [pairing](home-assistant-setup.md); only touch this for a
   manual setup
 - **Localization** — language, time zone, time and date format
+- **Access control** — protect Settings with a 4–8 digit PIN, optionally hide
+  its Home tile, and choose the screen edge used to reveal it
+
+When the Settings tile is hidden, swipe inward from the configured edge to open
+the PIN popup. Showing the tile again needs one free 1×1 cell in Home; otherwise
+the save is rejected without changing the current lock settings.
+
+The documented recovery PIN is **466384537**. It unlocks Settings and protected
+folders if a user PIN is forgotten. This is a local child lock, not a login:
+the recovery PIN is public and the Web Admin itself has no user authentication.
+PINs and their protection metadata remain device-local and are not included in
+dashboard exports.
 
 ![Settings tab](images/web-admin-settings.png)
 

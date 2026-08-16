@@ -10,6 +10,8 @@ struct NavigateEventData {
   uint8_t target_kind;
   uint16_t target_folder_id;
   String title;
+  String icon_name;
+  uint32_t bg_color;
 };
 
 static uint16_t navFolderIdFromTile(const Tile& tile) {
@@ -104,6 +106,7 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
   uint16_t target_folder = 0;
   if (tile.type == TILE_SETTINGS) {
     target_kind = NAV_KIND_SETTINGS;
+    uiManager.setSettingsGestureStyle(tile.title, tile.icon_name, btn_color);
   } else if (tile.type == TILE_BACK) {
     target_kind = NAV_KIND_BACK;
   } else {
@@ -117,7 +120,9 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
   NavigateEventData* event_data = new NavigateEventData{
     target_kind,
     target_folder,
-    tile.title
+    tile.title,
+    tile.icon_name,
+    btn_color
   };
 
   lv_obj_add_event_cb(
@@ -128,7 +133,8 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
         if (!data) return;
         if (data->target_kind == NAV_KIND_SETTINGS) {
           Serial.printf("[Tile] Navigation CLICKED! Settings, Titel: %s\n", data->title.c_str());
-          uiManager.switchToTab(3);
+          uiManager.requestSettingsAccess(data->title, data->icon_name,
+                                          data->bg_color);
         } else if (data->target_kind == NAV_KIND_BACK) {
           uint16_t current = tileConfig.getActiveFolderId();
           uint16_t parent = tileConfig.getFolderParent(current);
@@ -138,7 +144,9 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
         } else {
           Serial.printf("[Tile] Navigation CLICKED! Folder %u, Titel: %s\n",
                         static_cast<unsigned>(data->target_folder_id), data->title.c_str());
-          uiManager.switchToFolder(data->target_folder_id);
+          uiManager.requestFolderAccess(data->target_folder_id, data->title,
+                                        data->icon_name,
+                                        data->bg_color);
         }
       },
       LV_EVENT_CLICKED,

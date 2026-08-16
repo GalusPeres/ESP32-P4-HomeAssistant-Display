@@ -1,5 +1,7 @@
 #include "src/tiles/tile_config.h"
 #include "src/devices/device.h"
+#include "src/core/config_manager.h"
+#include "src/core/i18n.h"
 #include <Preferences.h>
 #include <string.h>
 #include <vector>
@@ -270,6 +272,34 @@ struct FolderEntryDisk {
   char icon_name[32];
 };
 
+struct FolderAccessHeader {
+  uint32_t magic;
+  uint16_t version;
+  uint16_t count;
+};
+
+struct FolderAccessDiskV1 {
+  uint16_t folder_id;
+  uint8_t enabled;
+  uint8_t reserved;
+  uint8_t salt[pin_access::kSaltSize];
+  uint8_t hash[pin_access::kHashSize];
+};
+
+struct FolderAccessDisk {
+  uint16_t folder_id;
+  uint8_t enabled;
+  uint8_t pin_length;
+  uint8_t salt[pin_access::kSaltSize];
+  uint8_t hash[pin_access::kHashSize];
+  char pin_digits[pin_access::kUserPinMaxDigits];
+};
+
+static_assert(sizeof(FolderAccessDiskV1) == 52,
+              "Legacy folder access record layout changed");
+static_assert(sizeof(FolderAccessDisk) == 60,
+              "Folder access record layout changed");
+
 TileConfig tileConfig;
 
 TileConfig::TileConfig() = default;
@@ -327,6 +357,9 @@ static const char* kTileGridDir = "/_tile_grids";
 static const char* kFolderIndexFile = "/_tile_grids/folders.bin";
 static constexpr uint32_t kFolderIndexMagic = 0x54464C44;  // 'TFLD'
 static constexpr uint16_t kFolderIndexVersion = 1;
+static const char* kFolderAccessFile = "/_tile_grids/folder_access.bin";
+static constexpr uint32_t kFolderAccessMagic = 0x54464143;  // 'TFAC'
+static constexpr uint16_t kFolderAccessVersion = 2;
 
 static fs::FS& storageFS() {
   return Device::storageFS();
@@ -1504,31 +1537,6 @@ static void initGridDefaults(TileGridConfig& grid) {
   }
 }
 
-static bool find_free_cell_bottom_right(const TileGridConfig& grid, uint8_t& out_col, uint8_t& out_row) {
-  bool occupied[GRID_ROWS][GRID_COLS] = {};
-  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
-    const Tile& tile = grid.tiles[i];
-    if (tile.type == TILE_EMPTY) continue;
-    uint8_t col = 0;
-    uint8_t row = 0;
-    uint8_t span_w = 1;
-    uint8_t span_h = 1;
-    if (!get_tile_layout_clamped(tile, col, row, span_w, span_h)) continue;
-    mark_occupied(occupied, col, row, span_w, span_h);
-  }
-
-  for (int r = GRID_ROWS - 1; r >= 0; --r) {
-    for (int c = GRID_COLS - 1; c >= 0; --c) {
-      if (!occupied[r][c]) {
-        out_col = static_cast<uint8_t>(c);
-        out_row = static_cast<uint8_t>(r);
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 static bool find_free_cell_top_left(const TileGridConfig& grid, uint8_t& out_col, uint8_t& out_row) {
   bool occupied[GRID_ROWS][GRID_COLS] = {};
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
@@ -1554,6 +1562,55 @@ static bool find_free_cell_top_left(const TileGridConfig& grid, uint8_t& out_col
   return false;
 }
 
+static bool settings_tile_rect_is_free(const TileGridConfig& grid,
+                                       uint8_t col, uint8_t row,
+                                       uint8_t span_w, uint8_t span_h) {
+  if (span_w < 1 || span_h < 1 || col >= GRID_COLS || row >= GRID_ROWS ||
+      span_w > GRID_COLS - col || span_h > GRID_ROWS - row) {
+    return false;
+  }
+  bool occupied[GRID_ROWS][GRID_COLS] = {};
+  for (const auto& tile : grid.tiles) {
+    if (tile.type == TILE_EMPTY || tile.type == TILE_SETTINGS) continue;
+    uint8_t tile_col = 0;
+    uint8_t tile_row = 0;
+    uint8_t tile_span_w = 1;
+    uint8_t tile_span_h = 1;
+    if (!get_tile_layout_clamped(tile, tile_col, tile_row, tile_span_w,
+                                 tile_span_h)) {
+      continue;
+    }
+    mark_occupied(occupied, tile_col, tile_row, tile_span_w, tile_span_h);
+  }
+  for (uint8_t check_row = row; check_row < row + span_h; ++check_row) {
+    for (uint8_t check_col = col; check_col < col + span_w; ++check_col) {
+      if (occupied[check_row][check_col]) return false;
+    }
+  }
+  return true;
+}
+
+static bool find_settings_tile_rect_bottom_right(
+    const TileGridConfig& grid, uint8_t span_w, uint8_t span_h,
+    uint8_t& out_col, uint8_t& out_row) {
+  if (span_w < 1 || span_h < 1 || span_w > GRID_COLS ||
+      span_h > GRID_ROWS) {
+    return false;
+  }
+  for (int row = GRID_ROWS - span_h; row >= 0; --row) {
+    for (int col = GRID_COLS - span_w; col >= 0; --col) {
+      if (settings_tile_rect_is_free(
+              grid, static_cast<uint8_t>(col), static_cast<uint8_t>(row),
+              span_w, span_h)) {
+        out_col = static_cast<uint8_t>(col);
+        out_row = static_cast<uint8_t>(row);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 static void collectFolderSubtree(const std::vector<FolderEntry>& entries, uint16_t parent_id, std::vector<uint16_t>& out) {
   for (const auto& entry : entries) {
     if (entry.parent_id != parent_id) continue;
@@ -1563,7 +1620,8 @@ static void collectFolderSubtree(const std::vector<FolderEntry>& entries, uint16
   }
 }
 
-bool TileConfig::ensureSettingsTile(TileGridConfig& grid) {
+bool TileConfig::ensureSettingsTile(TileGridConfig& grid, int target_col,
+                                    int target_row) {
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     const Tile& tile = grid.tiles[i];
     if (tile.type == TILE_SETTINGS) {
@@ -1571,9 +1629,38 @@ bool TileConfig::ensureSettingsTile(TileGridConfig& grid) {
     }
   }
 
+  const SettingsTileSnapshot& snapshot =
+      configManager.getConfig().settings_tile_snapshot;
+  uint8_t span_w = snapshot.valid && snapshot.span_w >= 1
+                       ? snapshot.span_w
+                       : 1;
+  uint8_t span_h = snapshot.valid && snapshot.span_h >= 1
+                       ? snapshot.span_h
+                       : 1;
+  if (span_w > GRID_COLS) span_w = 1;
+  if (span_h > GRID_ROWS) span_h = 1;
+
   uint8_t col = 0;
   uint8_t row = 0;
-  if (!find_free_cell_bottom_right(grid, col, row)) {
+  const bool explicit_target = target_col >= 0 || target_row >= 0;
+  if (explicit_target) {
+    if (target_col < 0 || target_row < 0 || target_col >= GRID_COLS ||
+        target_row >= GRID_ROWS ||
+        !settings_tile_rect_is_free(
+            grid, static_cast<uint8_t>(target_col),
+            static_cast<uint8_t>(target_row), span_w, span_h)) {
+      return false;
+    }
+    col = static_cast<uint8_t>(target_col);
+    row = static_cast<uint8_t>(target_row);
+  } else if (snapshot.valid && snapshot.col < GRID_COLS &&
+             snapshot.row < GRID_ROWS &&
+             settings_tile_rect_is_free(grid, snapshot.col, snapshot.row,
+                                        span_w, span_h)) {
+    col = snapshot.col;
+    row = snapshot.row;
+  } else if (!find_settings_tile_rect_bottom_right(grid, span_w, span_h,
+                                                    col, row)) {
     return false;
   }
 
@@ -1591,13 +1678,36 @@ bool TileConfig::ensureSettingsTile(TileGridConfig& grid) {
   Tile& tile = grid.tiles[empty_index];
   tile = Tile();
   tile.type = TILE_SETTINGS;
-  tile.title = "Settings";
-  tile.icon_name = "cog";
+  tile.title = snapshot.valid && snapshot.title[0]
+                   ? String(snapshot.title)
+                   : String(i18n::strings(configManager.getConfig().language)
+                                .tile_type_settings);
+  tile.icon_name = snapshot.valid && snapshot.icon_name[0]
+                       ? String(snapshot.icon_name)
+                       : String("cog");
+  tile.bg_color = snapshot.valid ? snapshot.bg_color : 0;
   tile.col = col;
   tile.row = row;
-  tile.span_w = 1;
-  tile.span_h = 1;
+  tile.span_w = span_w;
+  tile.span_h = span_h;
   return true;
+}
+
+bool TileConfig::removeSettingsTiles(TileGridConfig& grid) {
+  bool changed = false;
+  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+    if (grid.tiles[i].type != TILE_SETTINGS) continue;
+    grid.tiles[i] = Tile{};
+    changed = true;
+  }
+  return changed;
+}
+
+bool TileConfig::applySettingsTilePolicy(TileGridConfig& grid) {
+  if (configManager.getConfig().settings_tile_hidden) {
+    return removeSettingsTiles(grid);
+  }
+  return ensureSettingsTile(grid);
 }
 
 bool TileConfig::ensureBackTile(uint16_t folder_id, TileGridConfig& grid) {
@@ -2251,6 +2361,7 @@ bool TileConfig::load() {
   if (folders_ok && !had_root) {
     saveFolders();
   }
+  loadFolderAccess();
 
   active_folder_id = kRootFolderId;
   return loadGrid(active_folder_id, active_grid);
@@ -2433,7 +2544,20 @@ bool TileConfig::saveFolderGrid(uint16_t folder_id, const TileGridConfig& grid) 
   if (!folderExists(folder_id)) return false;
   bool ok = saveGrid(folder_id, grid);
   if (ok && folder_id == active_folder_id) {
+    // Keep the runtime cache identical to the policy-normalized grid that was
+    // written. Normalize the existing member in place so this storage call
+    // does not add another full TileGridConfig to the WebServer task stack.
     active_grid = grid;
+    for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+      if (isRetiredTileType(active_grid.tiles[i].type)) {
+        active_grid.tiles[i] = Tile{};
+      }
+    }
+    if (folder_id == kRootFolderId) {
+      applySettingsTilePolicy(active_grid);
+    } else {
+      ensureBackTile(folder_id, active_grid);
+    }
   }
   return ok;
 }
@@ -2631,6 +2755,163 @@ bool TileConfig::saveFolders() const {
   return true;
 }
 
+bool TileConfig::loadFolderAccess() {
+  for (auto& entry : folders) {
+    entry.pin_enabled = false;
+    pin_access::clearCredential(entry.pin_salt, entry.pin_hash);
+    pin_access::secureClear(entry.pin_value, sizeof(entry.pin_value));
+  }
+  if (!storageReady()) return false;
+
+  auto read_access = [](const String& path,
+                        std::vector<FolderAccessDisk>& records) -> bool {
+    File file = storageFS().open(path, FILE_READ);
+    if (!file) return false;
+    FolderAccessHeader header{};
+    if (file.read(reinterpret_cast<uint8_t*>(&header), sizeof(header)) !=
+            sizeof(header) ||
+        header.magic != kFolderAccessMagic ||
+        (header.version != 1 && header.version != kFolderAccessVersion) ||
+        header.count > 128) {
+      file.close();
+      return false;
+    }
+
+    records.clear();
+    records.reserve(header.count);
+    for (uint16_t i = 0; i < header.count; ++i) {
+      FolderAccessDisk disk{};
+      if (header.version == 1) {
+        FolderAccessDiskV1 legacy{};
+        if (file.read(reinterpret_cast<uint8_t*>(&legacy), sizeof(legacy)) !=
+            sizeof(legacy)) {
+          file.close();
+          return false;
+        }
+        disk.folder_id = legacy.folder_id;
+        disk.enabled = legacy.enabled;
+        memcpy(disk.salt, legacy.salt, sizeof(disk.salt));
+        memcpy(disk.hash, legacy.hash, sizeof(disk.hash));
+      } else if (file.read(reinterpret_cast<uint8_t*>(&disk), sizeof(disk)) !=
+                 sizeof(disk)) {
+          file.close();
+          return false;
+      }
+      records.push_back(disk);
+    }
+    file.close();
+    return true;
+  };
+
+  const String path(kFolderAccessFile);
+  const String tmp_path = tmpPathFor(path);
+  const String backup_path = backupPathFor(path);
+  std::vector<FolderAccessDisk> records;
+  bool loaded = false;
+  if (read_access(tmp_path, records)) {
+    promoteRecoveryFile(tmp_path, path);
+    loaded = true;
+  } else if (read_access(path, records)) {
+    loaded = true;
+  } else if (read_access(backup_path, records)) {
+    promoteRecoveryFile(backup_path, path);
+    loaded = true;
+  }
+
+  if (loaded) {
+    for (const auto& disk : records) {
+      for (auto& entry : folders) {
+        if (entry.id != disk.folder_id || entry.id == kRootFolderId) continue;
+        if (disk.enabled &&
+            pin_access::credentialIsSet(disk.salt, disk.hash)) {
+          entry.pin_enabled = true;
+          memcpy(entry.pin_salt, disk.salt, sizeof(entry.pin_salt));
+          memcpy(entry.pin_hash, disk.hash, sizeof(entry.pin_hash));
+          char stored_pin_value[pin_access::kUserPinMaxDigits + 1]{};
+          const size_t stored_pin_length =
+              disk.pin_length >= pin_access::kUserPinMinDigits &&
+                      disk.pin_length <= pin_access::kUserPinMaxDigits
+                  ? disk.pin_length
+                  : 0;
+          if (stored_pin_length != 0) {
+            memcpy(stored_pin_value, disk.pin_digits, stored_pin_length);
+          }
+          const String stored_pin(stored_pin_value);
+          if (pin_access::isValidUserPin(stored_pin) &&
+              pin_access::verifyCredential(stored_pin.c_str(), disk.salt,
+                                           disk.hash)) {
+            copyString(stored_pin, entry.pin_value,
+                       sizeof(entry.pin_value));
+          }
+          pin_access::secureClear(stored_pin_value,
+                                  sizeof(stored_pin_value));
+        }
+        break;
+      }
+    }
+    return true;
+  }
+
+  // Missing access metadata means unlocked. A corrupt optional sidecar must
+  // never make folders permanently inaccessible.
+  return !storageFS().exists(path) && !storageFS().exists(tmp_path) &&
+         !storageFS().exists(backup_path);
+}
+
+bool TileConfig::saveFolderAccess() const {
+  if (!storageReady()) return false;
+  ScopedStorageWriteDisplayGuard storage_write_guard;
+  if (!ensureTileGridDir()) return false;
+
+  uint16_t count = 0;
+  for (const auto& entry : folders) {
+    if (entry.id != kRootFolderId && entry.pin_enabled &&
+        pin_access::credentialIsSet(entry.pin_salt, entry.pin_hash)) {
+      ++count;
+    }
+  }
+
+  const String path(kFolderAccessFile);
+  const String tmp_path = tmpPathFor(path);
+  if (storageFS().exists(tmp_path)) storageFS().remove(tmp_path);
+  yield();
+  File file = storageFS().open(tmp_path, FILE_WRITE);
+  if (!file) return false;
+
+  FolderAccessHeader header{kFolderAccessMagic, kFolderAccessVersion, count};
+  bool ok = file.write(reinterpret_cast<const uint8_t*>(&header),
+                       sizeof(header)) == sizeof(header);
+  for (const auto& entry : folders) {
+    if (!ok || entry.id == kRootFolderId || !entry.pin_enabled ||
+        !pin_access::credentialIsSet(entry.pin_salt, entry.pin_hash)) {
+      continue;
+    }
+    FolderAccessDisk disk{};
+    disk.folder_id = entry.id;
+    disk.enabled = 1;
+    memcpy(disk.salt, entry.pin_salt, sizeof(disk.salt));
+    memcpy(disk.hash, entry.pin_hash, sizeof(disk.hash));
+    const size_t pin_length = strnlen(entry.pin_value,
+                                     sizeof(entry.pin_value));
+    if (pin_length >= pin_access::kUserPinMinDigits &&
+        pin_length <= pin_access::kUserPinMaxDigits) {
+      disk.pin_length = static_cast<uint8_t>(pin_length);
+      memcpy(disk.pin_digits, entry.pin_value, pin_length);
+    }
+    ok = file.write(reinterpret_cast<const uint8_t*>(&disk), sizeof(disk)) ==
+         sizeof(disk);
+  }
+  file.flush();
+  file.close();
+  yield();
+
+  if (!ok || !replaceFileWithPreparedTmp(tmp_path, path)) {
+    storageFS().remove(tmp_path);
+    return false;
+  }
+  return true;
+}
+
 bool TileConfig::createFolder(uint16_t parent_id, const String& name, const String& icon, uint16_t& out_id) {
   if (!storageReady()) return false;
   ScopedStorageWriteDisplayGuard storage_write_guard;
@@ -2638,9 +2919,21 @@ bool TileConfig::createFolder(uint16_t parent_id, const String& name, const Stri
   uint16_t next_id = nextFolderId();
   if (next_id == kInvalidFolderId) return false;
 
+  const std::vector<FolderEntry> original = folders;
   FolderEntry entry = makeFolderEntry(next_id, parent_id, name, icon);
   folders.push_back(entry);
-  if (!saveFolders()) return false;
+  // Rewrite the access sidecar before accepting a reused folder ID. This
+  // prevents stale credentials from a previously deleted highest ID from
+  // being attached to the new, unlocked folder after a restart.
+  if (!saveFolderAccess()) {
+    folders = original;
+    return false;
+  }
+  if (!saveFolders()) {
+    folders = original;
+    saveFolderAccess();
+    return false;
+  }
 
   std::unique_ptr<TileGridConfig> grid(new (std::nothrow) TileGridConfig{});
   if (!grid) return false;
@@ -2670,6 +2963,133 @@ bool TileConfig::updateFolder(uint16_t folder_id, const String& name, const Stri
   return false;
 }
 
+bool TileConfig::isFolderPinEnabled(uint16_t folder_id) const {
+  const FolderEntry* entry = getFolder(folder_id);
+  return entry && entry->id != kRootFolderId && entry->pin_enabled &&
+         pin_access::credentialIsSet(entry->pin_salt, entry->pin_hash);
+}
+
+bool TileConfig::setFolderPin(uint16_t folder_id, const String& pin) {
+  if (folder_id == kRootFolderId || !pin_access::isValidUserPin(pin)) {
+    return false;
+  }
+  for (auto& entry : folders) {
+    if (entry.id != folder_id) continue;
+    const FolderEntry original = entry;
+    if (!pin_access::makeCredential(pin, entry.pin_salt, entry.pin_hash)) {
+      return false;
+    }
+    copyString(pin, entry.pin_value, sizeof(entry.pin_value));
+    entry.pin_enabled = true;
+    if (!saveFolderAccess()) {
+      entry = original;
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+bool TileConfig::clearFolderPin(uint16_t folder_id) {
+  if (folder_id == kRootFolderId) return false;
+  for (auto& entry : folders) {
+    if (entry.id != folder_id) continue;
+    if (!entry.pin_enabled) return true;
+    const FolderEntry original = entry;
+    entry.pin_enabled = false;
+    pin_access::clearCredential(entry.pin_salt, entry.pin_hash);
+    pin_access::secureClear(entry.pin_value, sizeof(entry.pin_value));
+    if (!saveFolderAccess()) {
+      entry = original;
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+bool TileConfig::verifyFolderPin(uint16_t folder_id, const char* pin) const {
+  const FolderEntry* entry = getFolder(folder_id);
+  if (!entry || !entry->pin_enabled) return true;
+  return pin_access::isRecoveryPin(pin) ||
+         pin_access::verifyCredential(pin, entry->pin_salt, entry->pin_hash);
+}
+
+bool TileConfig::getFolderPin(uint16_t folder_id, String& out) const {
+  out = "";
+  const FolderEntry* entry = getFolder(folder_id);
+  if (!entry || !isFolderPinEnabled(folder_id) ||
+      !pin_access::isValidUserPin(String(entry->pin_value)) ||
+      !pin_access::verifyCredential(entry->pin_value, entry->pin_salt,
+                                    entry->pin_hash)) {
+    return false;
+  }
+  out = entry->pin_value;
+  return true;
+}
+
+bool TileConfig::getSettingsTile(Tile& out) {
+  TileGridConfig grid{};
+  if (!loadGrid(kRootFolderId, grid, false)) return false;
+  for (const auto& tile : grid.tiles) {
+    if (tile.type != TILE_SETTINGS) continue;
+    out = tile;
+    return true;
+  }
+  return false;
+}
+
+SettingsTileVisibilityResult TileConfig::setSettingsTileVisible(
+    bool visible, int target_col, int target_row) {
+  TileGridConfig grid{};
+  if (!loadGrid(kRootFolderId, grid, false)) {
+    return SettingsTileVisibilityResult::StorageError;
+  }
+
+  bool changed = false;
+  if (visible) {
+    bool already_present = false;
+    for (const auto& tile : grid.tiles) {
+      if (tile.type == TILE_SETTINGS) {
+        already_present = true;
+        break;
+      }
+    }
+    if (!already_present) {
+      if (!ensureSettingsTile(grid, target_col, target_row)) {
+        return SettingsTileVisibilityResult::NoFreeCell;
+      }
+      changed = true;
+    }
+  } else {
+    changed = removeSettingsTiles(grid);
+  }
+
+  if (changed && !saveGrid(kRootFolderId, grid, false)) {
+    return SettingsTileVisibilityResult::StorageError;
+  }
+  if (active_folder_id == kRootFolderId) active_grid = grid;
+  return SettingsTileVisibilityResult::Success;
+}
+
+SettingsTileVisibilityResult TileConfig::validateSettingsTileVisible(
+    bool visible, int target_col, int target_row) {
+  TileGridConfig grid{};
+  if (!loadGrid(kRootFolderId, grid, false)) {
+    return SettingsTileVisibilityResult::StorageError;
+  }
+  if (!visible) return SettingsTileVisibilityResult::Success;
+
+  for (const auto& tile : grid.tiles) {
+    if (tile.type == TILE_SETTINGS) {
+      return SettingsTileVisibilityResult::Success;
+    }
+  }
+  return ensureSettingsTile(grid, target_col, target_row)
+             ? SettingsTileVisibilityResult::Success
+             : SettingsTileVisibilityResult::NoFreeCell;
+}
+
 bool TileConfig::deleteFolder(uint16_t folder_id) {
   if (folder_id == kRootFolderId) return false;
   if (!folderExists(folder_id)) return false;
@@ -2692,9 +3112,20 @@ bool TileConfig::deleteFolder(uint16_t folder_id) {
   };
   folders.erase(std::remove_if(folders.begin(), folders.end(), should_delete), folders.end());
 
+  // Access metadata is committed first. If this fails, the still-persisted
+  // folder index remains untouched and no folder ID can be reused with stale
+  // credentials.
+  if (!saveFolderAccess()) {
+    folders = original;
+    Serial.println("[TileConfig] WARN: Folder access metadata could not be updated");
+    return false;
+  }
   if (!saveFolders()) {
     folders = original;
-    Serial.println("[TileConfig] WARN: Ordner-Liste konnte nicht gespeichert werden");
+    if (!saveFolderAccess()) {
+      Serial.println("[TileConfig] ERROR: Folder access rollback failed");
+    }
+    Serial.println("[TileConfig] WARN: Folder index could not be saved");
     return false;
   }
 
@@ -2784,7 +3215,7 @@ bool TileConfig::loadGrid(uint16_t folder_id, TileGridConfig& grid,
   bool changed = false;
   if (ensure_navigation_tile) {
     if (folder_id == kRootFolderId) {
-      changed = ensureSettingsTile(grid);
+      changed = applySettingsTilePolicy(grid);
     } else {
       changed = ensureBackTile(folder_id, grid);
     }
@@ -2842,7 +3273,7 @@ bool TileConfig::saveGrid(uint16_t folder_id, const TileGridConfig& grid,
   }
   if (ensure_navigation_tile) {
     if (folder_id == kRootFolderId) {
-      ensureSettingsTile(working);
+      applySettingsTilePolicy(working);
     } else {
       ensureBackTile(folder_id, working);
     }

@@ -51,6 +51,7 @@ public:
   void handleReorderTiles();
   void handleGetFolders();
   void handleGetFolderTab();
+  void handleSaveFolderAccess();
   void handleDeleteFolder();
   void handleGetSensorValues();
   void handleGetEntityOptions();

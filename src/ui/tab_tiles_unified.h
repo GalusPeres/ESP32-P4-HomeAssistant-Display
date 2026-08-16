@@ -18,6 +18,7 @@ void tiles_refresh_image_previews_for_key(GridType grid_type, const String& raw_
 void tiles_request_release(GridType grid_type);
 void tiles_request_release_all();
 void tiles_process_reload_requests();
+void tiles_process_pending_folder_switch();
 void tiles_refresh_visible_from_cache();
 void tiles_request_visible_cache_refresh();
 void tiles_process_visible_cache_refresh(bool allow_now);
@@ -32,6 +33,7 @@ bool tiles_get_cached_entity_payload_signature(const char* entity_id,
                                                size_t& length_out);
 void tiles_cache_entity_payload(const char* entity_id, const char* payload);
 void tiles_switch_to_folder(uint16_t folder_id);
+void tiles_cancel_folder_switch(uint16_t folder_id);
 void tiles_invalidate_folder(uint16_t folder_id);
 
 #endif // TAB_TILES_UNIFIED_H

@@ -14,6 +14,7 @@
 #include "src/ui/ui_surface_style.h"
 #include "src/ui/weather_popup.h"
 #include "src/ui/cover_popup.h"
+#include "src/ui/pin_popup.h"
 
 #include <ctype.h>
 #include <cstring>
@@ -2347,6 +2348,7 @@ void on_overlay_delete(lv_event_t* event) {
 }  // namespace
 
 void show_climate_popup(const ClimatePopupInit& init) {
+  hide_pin_popup();
   if (!init.entity_id.length()) return;
   hide_cover_popup();
   hide_light_popup();

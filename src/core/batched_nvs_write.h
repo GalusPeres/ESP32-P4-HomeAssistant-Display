@@ -12,10 +12,11 @@ namespace BatchedNvsWrite {
 
 #if defined(DEVICE_GUITION_ESP32_4848S040)
 
-// Arduino Preferences commits after every put/remove call. The experimental
-// RGB S3 profile uses one native NVS transaction instead, keeping ordinary
-// settings writes short enough for the no-blackout path. LittleFS and OTA use
-// the separate full display/storage guard and never pass through this class.
+// Arduino Preferences commits after every put/remove call. The RGB S3 profile
+// uses one native NVS transaction instead, keeping the guarded flash window
+// short. Even one NVS commit can stall the flash cache long enough to
+// de-synchronise direct PSRAM RGB scanout, so the transaction must still use
+// the display/storage guard. LittleFS and OTA use the same guard separately.
 class Preferences {
  public:
   ~Preferences() {
@@ -62,6 +63,11 @@ class Preferences {
     return putUChar(key, value ? 1U : 0U);
   }
 
+  size_t putBytes(const char* key, const void* value, size_t length) {
+    if (!value && length != 0) return noteResult(ESP_ERR_INVALID_ARG, 0);
+    return noteResult(nvs_set_blob(handle_, key, value, length), length);
+  }
+
   bool remove(const char* key) {
     if (!started_) {
       noteResult(ESP_ERR_INVALID_STATE, 0);
@@ -92,7 +98,7 @@ class Preferences {
 
     Serial.printf(
         "[S3Diag/NVS] namespace=%s keys=%u commit_ms=%lu total_ms=%lu "
-        "display_guard=0 result=%s(0x%X)\n",
+        "display_guard=1 result=%s(0x%X)\n",
         namespace_name_ ? namespace_name_ : "?",
         static_cast<unsigned>(pending_writes_),
         static_cast<unsigned long>(commit_ms),
@@ -124,7 +130,7 @@ inline bool finish(Preferences& prefs) {
   return prefs.finish();
 }
 
-inline constexpr bool kNeedsDisplayGuard = false;
+inline constexpr bool kNeedsDisplayGuard = true;
 
 #else
 

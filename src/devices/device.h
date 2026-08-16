@@ -113,6 +113,9 @@ class ScopedStorageWrite {
 };
 
 bool sdReady();
+// Returns the last SD readiness result without mounting or probing the card.
+// Use this in latency-sensitive UI paths after the normal boot-time probe.
+bool sdReadyCached();
 // True when the mounted SD backend has passed a real metadata/data write
 // check. Other profiles retain their established sdReady() semantics.
 bool sdWritable();

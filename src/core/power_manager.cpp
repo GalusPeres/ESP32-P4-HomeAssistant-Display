@@ -1,4 +1,6 @@
 #include "src/core/power_manager.h"
+#include "src/ui/pin_popup.h"
+#include "src/ui/ui_manager.h"
 #include "src/core/board_hal.h"
 #include "src/core/display_manager.h"
 #include "src/core/config_manager.h"
@@ -130,6 +132,8 @@ void PowerManager::update(uint32_t last_activity_time) {
 void PowerManager::enterDisplaySleep() {
   if (is_display_sleeping) return;
   Serial.println("[Power] Sleep...");
+
+  uiManager.lockProtectedAccess();
 
   saved_brightness = BoardHAL::getBrightness();
 

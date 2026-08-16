@@ -234,6 +234,375 @@ function t(key) {
     wifi.classList.toggle('is-hidden', useEthernet);
   }
 
+  const SETTINGS_ACCESS_PREFIX = 'folder0_';
+  const HIDDEN_SETTINGS_TILE_INDEX = -2;
+  const settingsAccessElement = suffix =>
+    document.getElementById(SETTINGS_ACCESS_PREFIX + suffix);
+
+  function toggleSettingsAccessFields() {
+    const pinEnabled =
+      settingsAccessElement('settings_pin_enabled')?.checked === true;
+    const pin = settingsAccessElement('settings_pin');
+    const pinFields = settingsAccessElement('settings_pin_fields');
+    const hidden = settingsAccessElement('settings_tile_hidden');
+    const swipe = settingsAccessElement('settings_swipe_enabled');
+    const edge = settingsAccessElement('settings_reveal_edge');
+    const edgeFields = settingsAccessElement('settings_reveal_edge_fields');
+    if (pin) pin.disabled = !pinEnabled;
+    pinFields?.classList.toggle('is-hidden', !pinEnabled);
+    const tileHidden = hidden?.checked === true;
+    if (tileHidden && swipe) swipe.checked = true;
+    if (swipe) swipe.disabled = tileHidden;
+    const swipeEnabled = swipe?.checked === true;
+    if (edge) edge.disabled = !swipeEnabled;
+    edgeFields?.classList.toggle('is-hidden', !swipeEnabled);
+  }
+
+  let settingsAccessSaveQueue = Promise.resolve();
+  let settingsAccessCommittedState = null;
+  let settingsTileTransferInFlight = false;
+
+  function readSettingsAccessState() {
+    const pinToggle = settingsAccessElement('settings_pin_enabled');
+    const tileHidden =
+      settingsAccessElement('settings_tile_hidden')?.checked === true;
+    return {
+      pinEnabled: pinToggle?.checked === true,
+      pinConfigured: pinToggle?.dataset.pinConfigured === '1',
+      tileHidden,
+      swipeEnabled:
+        tileHidden ||
+        settingsAccessElement('settings_swipe_enabled')?.checked === true,
+      revealEdge:
+        String(settingsAccessElement('settings_reveal_edge')?.value || '0')
+    };
+  }
+
+  function settingsAccessStatesEqual(a, b) {
+    return !!a && !!b &&
+      a.pinEnabled === b.pinEnabled &&
+      a.pinConfigured === b.pinConfigured &&
+      a.tileHidden === b.tileHidden &&
+      a.swipeEnabled === b.swipeEnabled &&
+      a.revealEdge === b.revealEdge;
+  }
+
+  function setSettingsPinStatus(configured) {
+    const pinToggle = settingsAccessElement('settings_pin_enabled');
+    const status = settingsAccessElement('settings_pin_status');
+    if (pinToggle) pinToggle.dataset.pinConfigured = configured ? '1' : '0';
+    if (status) {
+      status.textContent = configured
+        ? (status.dataset.configuredText || '')
+        : (status.dataset.notConfiguredText || '');
+    }
+  }
+
+  function restoreSettingsAccessState(state) {
+    if (!state) return;
+    const pinToggle = settingsAccessElement('settings_pin_enabled');
+    const hidden = settingsAccessElement('settings_tile_hidden');
+    const swipe = settingsAccessElement('settings_swipe_enabled');
+    const edge = settingsAccessElement('settings_reveal_edge');
+    if (pinToggle) pinToggle.checked = state.pinEnabled;
+    if (hidden) hidden.checked = state.tileHidden;
+    if (swipe) swipe.checked = state.tileHidden || state.swipeEnabled;
+    if (edge) edge.value = state.revealEdge;
+    setSettingsPinStatus(state.pinConfigured);
+    toggleSettingsAccessFields();
+  }
+
+  function normalizeHiddenSettingsSnapshot(source = null) {
+    const hiddenTile = document.getElementById('settingsHiddenTile');
+    const editorCoordinates = source?._editor_coordinates === true ||
+      source?.icon !== undefined || source?.color !== undefined ||
+      source?.bg_color_default !== undefined;
+    const bgValue = source && source.bg_color !== undefined
+      ? Number(source.bg_color)
+      : (source && source.bgColor !== undefined
+          ? Number(source.bgColor)
+          : Number(hiddenTile?.dataset.bgColor || 0));
+    const isDefault = source && source.bg_color_default !== undefined
+      ? String(source.bg_color_default) === '1'
+      : !tileBgValueIsSet(bgValue);
+    const color = source?.color ||
+      tileBgToHex(bgValue, getTileTypeMeta('7').defaultBg || '#2A2A2A');
+    const rawCol = Number(source?.col ?? hiddenTile?.dataset.col ?? 0);
+    const rawRow = Number(source?.row ?? hiddenTile?.dataset.row ?? 0);
+    return {
+      _editor_coordinates: true,
+      type: '7',
+      title: String(source?.title ?? hiddenTile?.dataset.title ?? ''),
+      icon: String(source?.icon ?? source?.icon_name ??
+                   hiddenTile?.dataset.icon ?? 'cog'),
+      color,
+      bg_color_default: isDefault ? '1' : '0',
+      bg_color: isDefault ? 0 : makeTileBgValue(hexToRgb(color)),
+      col: String(Math.max(1, editorCoordinates ? rawCol : (rawCol + 1))),
+      row: String(Math.max(1, editorCoordinates ? rawRow : (rawRow + 1))),
+      span_w: String(source?.span_w ?? hiddenTile?.dataset.spanW ?? 1),
+      span_h: String(source?.span_h ?? hiddenTile?.dataset.spanH ?? 1)
+    };
+  }
+
+  function renderSettingsHiddenSlot(hidden, source = null) {
+    const slot = document.getElementById('settingsHiddenSlot');
+    const tile = document.getElementById('settingsHiddenTile');
+    const hint = document.getElementById('settingsHiddenHint');
+    if (!slot || !tile) return;
+    const snapshot = normalizeHiddenSettingsSnapshot(source);
+    slot.classList.toggle('has-tile', !!hidden);
+    hint?.classList.toggle('is-hidden', !!hidden);
+    tile.className = 'tile settings-hidden-tile ' +
+      (hidden ? 'navigate' : 'empty');
+    tile.draggable = !!hidden;
+    tile.dataset.hidden = hidden ? '1' : '0';
+    tile.dataset.type = hidden ? '7' : '0';
+    tile.dataset.title = snapshot.title;
+    tile.dataset.icon = snapshot.icon;
+    tile.dataset.bgColor = String(snapshot.bg_color || 0);
+    tile.dataset.col = String(Math.max(0, Number(snapshot.col || 1) - 1));
+    tile.dataset.row = String(Math.max(0, Number(snapshot.row || 1) - 1));
+    tile.dataset.spanW = String(snapshot.span_w || 1);
+    tile.dataset.spanH = String(snapshot.span_h || 1);
+    tile.innerHTML = '';
+    if (!hidden) {
+      tile.style.background = 'transparent';
+      const icon = document.createElement('i');
+      icon.className = 'mdi mdi-tray-arrow-down tile-icon';
+      tile.appendChild(icon);
+      return;
+    }
+    tile.style.background = snapshot.bg_color_default === '1'
+      ? (getTileTypeMeta('7').defaultBg || '#2A2A2A')
+      : snapshot.color;
+    const iconName = normalizeMdiIconName(snapshot.icon);
+    if (iconName) {
+      const icon = document.createElement('i');
+      icon.className = 'mdi mdi-' + iconName + ' tile-icon';
+      tile.appendChild(icon);
+    }
+    if (snapshot.title) {
+      const title = document.createElement('div');
+      title.className = 'tile-title';
+      title.textContent = snapshot.title;
+      tile.appendChild(title);
+    }
+    if (currentTileIndex === HIDDEN_SETTINGS_TILE_INDEX &&
+        currentTileTab === 'folder0') {
+      tile.classList.add('active');
+    }
+  }
+
+  function currentGridSettingsSnapshot() {
+    const tile = (getTilesData('folder0') || []).find(
+      item => Number(item?.type || 0) === 7);
+    return tile ? normalizeHiddenSettingsSnapshot(tile) : null;
+  }
+
+  async function reconcileSettingsTileUi(
+      hiddenWanted, snapshotHint = null, selectRestoredSettings = false) {
+    try {
+      const tiles = await fetchTileGridData('folder0', true);
+      tiles.forEach((tile, index) =>
+        renderTileFromData('folder0', index, tile, sensorMetaCache));
+      layoutTiles('folder0', tiles);
+      const settingsIndex = tiles.findIndex(
+        tile => Number(tile?.type || 0) === 7);
+      const hidden = !!hiddenWanted && settingsIndex < 0;
+      renderSettingsHiddenSlot(hidden, snapshotHint);
+      if (hidden) {
+        selectHiddenSettingsTile();
+      } else if (settingsIndex >= 0 &&
+                 (selectRestoredSettings ||
+                  currentTileIndex === HIDDEN_SETTINGS_TILE_INDEX)) {
+        selectTile(settingsIndex, 'folder0');
+      } else {
+        restoreCurrentTileSelectionUi();
+      }
+      return true;
+    } catch (error) {
+      showNotification(error?.message || t('networkError'), false);
+      return false;
+    }
+  }
+
+  async function saveSettingsAccess(
+      pinValue = null, target = null, tileSnapshot = null,
+      requestedState = null, reconcileAfterSave = true) {
+    const pinToggle = settingsAccessElement('settings_pin_enabled');
+    const hidden = settingsAccessElement('settings_tile_hidden');
+    const swipe = settingsAccessElement('settings_swipe_enabled');
+    const edge = settingsAccessElement('settings_reveal_edge');
+    const pinApply = settingsAccessElement('settings_pin_apply');
+    if (!pinToggle || !hidden || !swipe || !edge) return false;
+
+    const requested = requestedState || readSettingsAccessState();
+    const visibilityChanged = settingsAccessCommittedState &&
+      settingsAccessCommittedState.tileHidden !== requested.tileHidden;
+    const visibilityMismatch =
+      !!currentGridSettingsSnapshot() !== !requested.tileHidden;
+    const snapshotHint = tileSnapshot ||
+      (requested.tileHidden
+        ? (currentGridSettingsSnapshot() ||
+           normalizeHiddenSettingsSnapshot())
+        : normalizeHiddenSettingsSnapshot());
+    const hasNewPin = typeof pinValue === 'string';
+    const persistPinEnabled =
+      requested.pinEnabled && (requested.pinConfigured || hasNewPin);
+    const body = new URLSearchParams();
+    body.set('_ajax', '1');
+    body.set('_access_only', '1');
+    body.set('settings_access_present', '1');
+    if (persistPinEnabled) body.set('settings_pin_enabled', '1');
+    if (requested.tileHidden) body.set('settings_tile_hidden', '1');
+    if (requested.swipeEnabled) body.set('settings_swipe_enabled', '1');
+    body.set('settings_reveal_edge', requested.revealEdge);
+    if (hasNewPin) body.set('settings_pin', pinValue);
+    if (target && Number.isInteger(target.col) && Number.isInteger(target.row)) {
+      body.set('settings_tile_target_col', String(target.col));
+      body.set('settings_tile_target_row', String(target.row));
+    }
+    if (tileSnapshot) {
+      const snapshot = normalizeHiddenSettingsSnapshot(tileSnapshot);
+      const layout = normalizeSnapshotLayout(
+        snapshot, HIDDEN_SETTINGS_TILE_INDEX, 'folder0');
+      body.set('settings_tile_snapshot_present', '1');
+      body.set('settings_tile_title', snapshot.title);
+      body.set('settings_tile_icon', snapshot.icon);
+      body.set('settings_tile_col', String(layout.col));
+      body.set('settings_tile_row', String(layout.row));
+      body.set('settings_tile_span_w', String(layout.span_w));
+      body.set('settings_tile_span_h', String(layout.span_h));
+      if (snapshot.bg_color_default === '1') {
+        body.set('settings_tile_bg_color_default', '1');
+      } else {
+        body.set('settings_tile_bg_color',
+                 String(hexToRgb(snapshot.color)));
+      }
+    }
+
+    if (pinApply && hasNewPin) pinApply.disabled = true;
+    try {
+      const response = await fetch('/mqtt', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'},
+        body
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || t('networkErrorSave'));
+      }
+
+      const storedPin = persistPinEnabled
+        ? String(result.settings_pin || '')
+        : '';
+      // A legacy hash-only PIN cannot be returned by the device. Keep a newly
+      // typed, not-yet-applied PIN when another access option is saved.
+      const replacePinInput =
+        hasNewPin || !persistPinEnabled || storedPin.length > 0;
+      const pinInput = settingsAccessElement('settings_pin');
+      if (pinInput && replacePinInput) {
+        pinInput.value = storedPin;
+        pinInput.type = 'password';
+        const showButton = pinInput.closest('.password-field')
+          ?.querySelector('.password-toggle');
+        if (showButton) {
+          showButton.textContent = showButton.dataset.labelShow || '';
+        }
+      }
+      if (hasNewPin) {
+        setSettingsPinStatus(true);
+      } else if (!requested.pinEnabled) {
+        setSettingsPinStatus(false);
+      }
+      toggleSettingsAccessFields();
+      const savedState = {
+        ...requested,
+        pinEnabled: persistPinEnabled,
+        pinConfigured: persistPinEnabled
+      };
+      settingsAccessCommittedState = savedState;
+      if (reconcileAfterSave &&
+          (visibilityChanged || visibilityMismatch)) {
+        await reconcileSettingsTileUi(requested.tileHidden, snapshotHint);
+      } else if (reconcileAfterSave && tileSnapshot &&
+                 requested.tileHidden) {
+        renderSettingsHiddenSlot(true, tileSnapshot);
+      }
+      return true;
+    } catch (error) {
+      if (!hasNewPin &&
+          settingsAccessStatesEqual(readSettingsAccessState(), requested)) {
+        restoreSettingsAccessState(settingsAccessCommittedState);
+      }
+      showNotification(error?.message || t('networkErrorSave'), false);
+      return false;
+    } finally {
+      if (pinApply && hasNewPin) pinApply.disabled = false;
+    }
+  }
+
+  function queueSettingsAccessSave(
+      pinValue = null, target = null, tileSnapshot = null,
+      reconcileAfterSave = true) {
+    const requestedState = {...readSettingsAccessState()};
+    const requestedTarget = target ? {...target} : null;
+    const requestedSnapshot = tileSnapshot
+      ? normalizeHiddenSettingsSnapshot(tileSnapshot)
+      : null;
+    settingsAccessSaveQueue = settingsAccessSaveQueue
+      .catch(() => {})
+      .then(() => saveSettingsAccess(
+        pinValue, requestedTarget, requestedSnapshot, requestedState,
+        reconcileAfterSave));
+    return settingsAccessSaveQueue;
+  }
+
+  function initSettingsAccessControls() {
+    const pinToggle = settingsAccessElement('settings_pin_enabled');
+    const pinInput = settingsAccessElement('settings_pin');
+    const pinApply = settingsAccessElement('settings_pin_apply');
+    const hidden = settingsAccessElement('settings_tile_hidden');
+    const swipe = settingsAccessElement('settings_swipe_enabled');
+    const edge = settingsAccessElement('settings_reveal_edge');
+    if (!pinToggle || !hidden || !swipe || !edge) return;
+
+    settingsAccessCommittedState = readSettingsAccessState();
+    pinToggle.addEventListener('change', () => {
+      toggleSettingsAccessFields();
+      if (pinToggle.checked && pinToggle.dataset.pinConfigured !== '1') {
+        pinInput?.focus();
+        return;
+      }
+      queueSettingsAccessSave();
+    });
+    hidden.addEventListener('change', async () => {
+      toggleSettingsAccessFields();
+      const transferred = hidden.checked
+        ? await hideSettingsTileFromGrid()
+        : await restoreHiddenSettingsTile();
+      if (!transferred) {
+        restoreSettingsAccessState(settingsAccessCommittedState);
+      }
+    });
+    swipe.addEventListener('change', () => {
+      toggleSettingsAccessFields();
+      queueSettingsAccessSave();
+    });
+    edge.addEventListener('change', () => queueSettingsAccessSave());
+    pinApply?.addEventListener('click', () => {
+      if (!pinToggle.checked) pinToggle.checked = true;
+      toggleSettingsAccessFields();
+      queueSettingsAccessSave(pinInput?.value || '');
+    });
+    pinInput?.addEventListener('keydown', event => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      pinApply?.click();
+    });
+  }
+
   function initAdminSettingsSave() {
     const form = document.getElementById('admin_settings_form');
     if (!form) return;
@@ -255,21 +624,23 @@ function t(key) {
           headers: {'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'},
           body
         });
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        const result = await response.json();
-        if (!result.ok) throw new Error('Save rejected');
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok) {
+          throw new Error(result.error || t('networkErrorSave'));
+        }
         if (submitButton) submitButton.textContent = '\u2713 ' + originalLabel;
         // The form already contains the saved values. Re-fetching and parsing
         // the complete admin page here blocked LVGL for several seconds.
         // Only a language change requires rebuilding translated server HTML.
-        if (requestedLanguage && requestedLanguage !== currentLanguage) {
+        if (result.reload ||
+            (requestedLanguage && requestedLanguage !== currentLanguage)) {
           setTimeout(() => location.reload(), 250);
         }
         setTimeout(() => {
           if (submitButton) submitButton.textContent = originalLabel;
         }, 1800);
       } catch (error) {
-        showNotification(t('networkErrorSave'), false);
+        showNotification(error?.message || t('networkErrorSave'), false);
       } finally {
         if (submitButton) submitButton.disabled = false;
       }
@@ -1585,6 +1956,14 @@ function t(key) {
     document.querySelectorAll('.tile').forEach(t => t.classList.remove('active'));
     const settingsId = currentTileTab + 'Settings';
     document.getElementById(settingsId)?.classList.remove('hidden');
+    if (currentTileTab === 'folder0' &&
+        currentTileIndex === HIDDEN_SETTINGS_TILE_INDEX) {
+      const hiddenSettingsTile = document.getElementById('settingsHiddenTile');
+      if (hiddenSettingsTile?.dataset.hidden === '1') {
+        hiddenSettingsTile.classList.add('active');
+      }
+      return;
+    }
     const activeTile = document.getElementById(currentTileTab + '-tile-' + currentTileIndex);
     if (activeTile) {
       activeTile.classList.add('active');
@@ -2302,6 +2681,7 @@ function t(key) {
       span_w: document.getElementById(prefix + '_tile_span_w')?.value || '1',
       span_h: document.getElementById(prefix + '_tile_span_h')?.value || '1'
     };
+    if (currentTileIndex === HIDDEN_SETTINGS_TILE_INDEX) d.type = '7';
     if (isScreensaverTileTab(tab)) {
       d.background_opacity = document.getElementById('screensaver_tile_opacity')?.value || '0';
     }
@@ -2434,6 +2814,7 @@ function t(key) {
     }
     currentTileIndex = index;
     currentTileTab = tab;
+    document.getElementById('settingsHiddenTile')?.classList.remove('active');
     persistSelectedTileState();
     document.querySelectorAll(
       '#tab-tiles-' + tab + ' .tile-grid > .tile')
@@ -2460,13 +2841,50 @@ function t(key) {
         document.getElementById('screensaverClock')?.classList.remove('selected-clock');
       }
       const tileSpecific = settingsPanel.querySelector('.tile-specific-settings');
-      if (tileSpecific) tileSpecific.classList.remove('hidden');
+      if (tileSpecific) {
+        tileSpecific.classList.remove('hidden');
+      }
     }
     // Die Live-Handler sofort anbinden. Bisher geschah das erst nach dem
     // asynchronen GET der Kacheldaten; bis dahin reagierten Groesse, Position
     // und Stil in der Screensaver-Vorschau sichtbar nicht.
     setupLivePreview(tab);
     loadTileData(index, tab);
+  }
+
+  function selectHiddenSettingsTile() {
+    const hiddenTile = document.getElementById('settingsHiddenTile');
+    if (!hiddenTile || hiddenTile.dataset.hidden !== '1') return;
+    if (currentTileTab && typeof parkClimateMiniEditor === 'function') {
+      parkClimateMiniEditor(currentTileTab);
+    }
+    currentTileIndex = -2;
+    currentTileTab = 'folder0';
+    document.querySelectorAll('.tile-grid > .tile').forEach(tile => {
+      tile.classList.remove('active');
+      delete tile.dataset.selected;
+    });
+    hiddenTile.classList.add('active');
+    const panel = document.getElementById('folder0Settings');
+    const specific = panel?.querySelector('.tile-specific-settings');
+    if (specific) {
+      specific.classList.remove('hidden');
+    }
+    const snapshot = normalizeHiddenSettingsSnapshot();
+    if (!applyDraft('folder0', HIDDEN_SETTINGS_TILE_INDEX)) {
+      applyTileFormData('folder0', snapshot);
+      const col = document.getElementById('folder0_tile_col');
+      const row = document.getElementById('folder0_tile_row');
+      if (col) col.value = snapshot.col;
+      if (row) row.value = snapshot.row;
+      updateTileType('folder0');
+      updateTilePreview('folder0');
+    }
+    setupLivePreview('folder0');
+    toggleSettingsAccessFields();
+    const settingsBody = specific?.querySelector('.tile-settings-body');
+    if (settingsBody) settingsBody.scrollTop = 0;
+    updateTileSettingsMaxHeight();
   }
 
   function titleFromOption(option) {
@@ -2554,6 +2972,8 @@ function t(key) {
     const textInput = document.getElementById(prefix + '_text_value');
     const textFontInput = document.getElementById(prefix + '_text_value_font');
     const navigateSelect = document.getElementById(prefix + '_navigate_target');
+    const folderPinToggle = document.getElementById(prefix + '_folder_pin_enabled');
+    const folderPinApply = document.getElementById(prefix + '_folder_pin_apply');
     const switchSelect = document.getElementById(prefix + '_switch_entity');
     const switchStyleSelect = document.getElementById(prefix + '_switch_style');
     const switchPopupModeSelect = document.getElementById(prefix + '_switch_popup_open_mode');
@@ -2646,7 +3066,24 @@ function t(key) {
     bindLive(sceneInput, 'input', 'sceneAlias', () => { maybeFillTitleFromScene(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(textInput, 'input', 'textValue', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(textFontInput, 'change', 'textFont', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    bindLive(navigateSelect, 'change', 'navigateTarget', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(navigateSelect, 'change', 'navigateTarget', () => {
+      syncFolderPinControls(tab);
+      updateTilePreview(tab);
+      updateDraft(tab);
+      scheduleAutoSave(tab);
+    });
+    bindLive(folderPinToggle, 'change', 'folderPinToggle', () => {
+      const tile = tilesData?.[tab]?.[currentTileIndex];
+      if (!folderPinToggle.checked && tile?.folder_pin_enabled === true) {
+        syncFolderPinControls(tab);
+        applyFolderPin(tab);
+      } else {
+        syncFolderPinControls(tab);
+      }
+    });
+    bindLive(folderPinApply, 'click', 'folderPinApply', () => {
+      applyFolderPin(tab);
+    });
     bindLive(switchSelect, 'change', 'switchEntity', () => { maybeFillTitleFromSwitch(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(switchStyleSelect, 'change', 'switchStyle', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(switchPopupModeSelect, 'change', 'switchPopupMode', () => { updateDraft(tab); scheduleAutoSave(tab); });
@@ -2774,6 +3211,12 @@ function t(key) {
 
   function updateTilePreview(tab) {
     if (currentTileIndex === -1) return;
+    if (currentTileIndex === HIDDEN_SETTINGS_TILE_INDEX) {
+      const snapshot = buildTileSnapshotFromInputs(tab);
+      snapshot.type = '7';
+      renderSettingsHiddenSlot(true, snapshot);
+      return;
+    }
     if (typeof parkClimateMiniEditor === 'function') {
       // Eine Live-Aenderung baut den Preview-Inhalt neu auf. Die Auswahl
       // des bearbeiteten Mini-Tiles muss diesen Render-Zyklus ueberleben.
@@ -3127,6 +3570,7 @@ function t(key) {
     }
     syncGaugeUi(tab);
     applySpecialTileUiState(tab);
+    syncFolderPinControls(tab);
   }
 
   function showNotification(message, success = true) {
@@ -3216,9 +3660,45 @@ function t(key) {
       .catch(() => showNotification(t('networkError'), false));
   }
 
+  function saveHiddenSettingsTile(tab, silent = false) {
+    const tileIndex = HIDDEN_SETTINGS_TILE_INDEX;
+    const saveKey = getTileSaveKey(tab, tileIndex);
+    if (saveInFlightByTile[saveKey]) {
+      queueSaveAfterFlight(tab, tileIndex, silent);
+      return;
+    }
+    const snapshot = getTileSnapshotForSave(tab, tileIndex);
+    if (!snapshot) return;
+    snapshot.type = '7';
+    const requestId = ++saveRequestSeq;
+    const draftRev = Number(snapshot._rev || 0);
+    markLatestSaveRequest(tab, tileIndex, requestId);
+    saveInFlightByTile[saveKey] = true;
+    queueSettingsAccessSave(null, null, snapshot)
+      .then(success => {
+        if (!isLatestSaveRequest(tab, tileIndex, requestId) || !success) return;
+        if (!silent) showNotification(t('tileSaved'));
+        const currentDraft = drafts[tab] && drafts[tab][tileIndex];
+        if (currentDraft && currentDraft._dirty &&
+            Number(currentDraft._rev || 0) !== draftRev) {
+          queueSaveAfterFlight(tab, tileIndex, true);
+          return;
+        }
+        clearDraft(tab, tileIndex);
+      })
+      .finally(() => {
+        delete saveInFlightByTile[saveKey];
+        flushQueuedSave(tab, tileIndex);
+      });
+  }
+
   function saveTile(tab, silent = false, tileIndexOverride = null) {
     const tileIndex = tileIndexOverride !== null ? tileIndexOverride : currentTileIndex;
     if (tileIndex === -1) return;
+    if (tileIndex === HIDDEN_SETTINGS_TILE_INDEX) {
+      saveHiddenSettingsTile(tab, silent);
+      return;
+    }
     const saveKey = getTileSaveKey(tab, tileIndex);
     if (saveInFlightByTile[saveKey]) {
       queueSaveAfterFlight(tab, tileIndex, silent);
@@ -3280,7 +3760,12 @@ function t(key) {
             snapshot.navigate_target = resolvedNavTarget;
             if (tilesData[tab] && tilesData[tab][tileIndex]) {
               tilesData[tab][tileIndex].navigate_target = parseInt(resolvedNavTarget, 10) || 0;
+              tilesData[tab][tileIndex].folder_pin_enabled =
+                data?.folder_pin_enabled === true;
+              tilesData[tab][tileIndex].folder_pin =
+                String(data?.folder_pin || '');
             }
+            syncFolderPinControls(tab);
             const navTargetNum = parseInt(resolvedNavTarget, 10);
             const titleVal = snapshot.title || '';
             const iconVal = snapshot.icon || '';
@@ -3371,7 +3856,12 @@ function t(key) {
         if (!res.ok || !Array.isArray(data)) {
           throw new Error('Folder export failed');
         }
-        return data;
+        return data.map(folder => ({
+          id: Number(folder?.id || 0),
+          parent_id: Number(folder?.parent_id || 0),
+          name: String(folder?.name || ''),
+          icon_name: String(folder?.icon_name || '')
+        }));
       });
       const screensaverConfigRequest = fetch('/api/screensaver').then(async res => {
         const data = await res.json();
@@ -3383,7 +3873,12 @@ function t(key) {
       ).then(async res => {
         const data = await res.json();
         if (!res.ok || !Array.isArray(data)) throw new Error('Screensaver grid export failed');
-        return data;
+        return data.map(tile => {
+          const exported = {...tile};
+          delete exported.folder_pin_enabled;
+          delete exported.folder_pin;
+          return exported;
+        });
       });
       const [folders, screensaverData, screensaverGrid] = await Promise.all([
         foldersRequest, screensaverConfigRequest, screensaverGridRequest
@@ -3395,7 +3890,12 @@ function t(key) {
         if (!response.ok || !Array.isArray(data)) {
           throw new Error('Folder grid export failed');
         }
-        return data;
+        return data.map(tile => {
+          const exported = {...tile};
+          delete exported.folder_pin_enabled;
+          delete exported.folder_pin;
+          return exported;
+        });
       }));
 
       const grids = {};
@@ -4515,6 +5015,25 @@ function t(key) {
       GRID_COLS, GRID_ROWS, firstAllowedGridRow(tab));
   }
 
+  function canPlaceHiddenSettingsLayout(tab, candidateLayout) {
+    if (tileDataLoadedTabs.has(tab)) {
+      return canPlaceTileLayout(tab, -1, candidateLayout);
+    }
+    const layouts = [];
+    const active = new Set();
+    document.querySelectorAll('#tab-tiles-' + tab + ' .tile').forEach(tile => {
+      const index = Number(tile.dataset.index);
+      if (!Number.isInteger(index) || Number(tile.dataset.type || 0) === 0) return;
+      const layout = getTileElementLayout(tab, index);
+      if (!layout) return;
+      layouts[index] = layout;
+      active.add(index);
+    });
+    return canPlaceGridLayout(
+      layouts, active, -1, candidateLayout,
+      GRID_COLS, GRID_ROWS, firstAllowedGridRow(tab));
+  }
+
   function manhattanDistance(colA, rowA, colB, rowB) {
     return Math.abs(colA - colB) + Math.abs(rowA - rowB);
   }
@@ -4938,6 +5457,19 @@ function t(key) {
     const targetRow = clampInt(cell.row, firstAllowedGridRow(tab), GRID_ROWS - 1, sourceLayout.row);
     updateDragPlaceholder(tab, targetCol, targetRow);
 
+    if (dragSource.kind === 'hidden-settings') {
+      const candidate = {
+        col: targetCol,
+        row: targetRow,
+        span_w: sourceLayout.span_w,
+        span_h: sourceLayout.span_h
+      };
+      const valid = canPlaceHiddenSettingsLayout(tab, candidate);
+      ensureDragPlaceholder(tab)?.classList.toggle('invalid', !valid);
+      dragSource.hiddenTarget = valid ? candidate : null;
+      return;
+    }
+
     if (targetCol === sourceLayout.col && targetRow === sourceLayout.row) {
       dragSource.previewKey = targetCol + ':' + targetRow;
       dragSource.previewResult = null;
@@ -4974,6 +5506,22 @@ function t(key) {
     const targetRow = clampInt(cell.row, firstAllowedGridRow(tab), GRID_ROWS - 1, sourceLayout.row);
     const fits = (targetCol + sourceLayout.span_w <= GRID_COLS) &&
                  (targetRow + sourceLayout.span_h <= GRID_ROWS);
+
+    if (dragSource.kind === 'hidden-settings') {
+      const candidate = {
+        col: targetCol,
+        row: targetRow,
+        span_w: sourceLayout.span_w,
+        span_h: sourceLayout.span_h
+      };
+      if (!fits || !canPlaceHiddenSettingsLayout(tab, candidate)) {
+        showNotification(t('tileDoesNotFit'), false);
+        return;
+      }
+      dragSource.dropCommitted = true;
+      restoreHiddenSettingsTile(candidate.col, candidate.row);
+      return;
+    }
 
     if (!fits) {
       showNotification(t('tileDoesNotFit'), false);
@@ -5058,7 +5606,7 @@ function t(key) {
 
   function enableTileDrag(tab) {
     const grid = getTileGrid(tab);
-    const tiles = document.querySelectorAll('#tab-tiles-' + tab + ' .tile');
+    const tiles = grid ? grid.querySelectorAll(':scope > .tile') : [];
     tiles.forEach(tile => {
       tile.addEventListener('dragstart', (e) => {
         if (resizeState) {
@@ -5074,8 +5622,10 @@ function t(key) {
         const anchorCell = getDragAnchorCell(tab, layout, e.clientX, e.clientY);
         const grabOffset = getDragAnchorOffset(tab, layout, anchorCell.col, anchorCell.row, tile.getBoundingClientRect());
         dragSource = {
+          kind: 'grid-tile',
           tab,
           index: tileIndex,
+          type: Number(tile.dataset.type || 0),
           layout,
           baseLayouts: captureLayoutSnapshot(tab),
           grabCellCol: anchorCell.col,
@@ -5121,7 +5671,154 @@ function t(key) {
     if (!grid) return;
     grid.addEventListener('dragenter', (e) => handleGridDragMove(tab, e));
     grid.addEventListener('dragover', (e) => handleGridDragMove(tab, e));
+    grid.addEventListener('dragleave', event => {
+      if (!dragSource || dragSource.kind !== 'hidden-settings' ||
+          dragSource.tab !== tab) return;
+      if (event.relatedTarget instanceof Node &&
+          grid.contains(event.relatedTarget)) return;
+      dragSource.hiddenTarget = null;
+    });
     grid.addEventListener('drop', (e) => handleGridDrop(tab, e));
+  }
+
+  async function flushSettingsTileSaveBeforeHide(tab, index) {
+    if (index < 0) return true;
+    const timerKey = tab + ':' + index;
+    if (autoSaveTimers[timerKey]) {
+      clearTimeout(autoSaveTimers[timerKey]);
+      delete autoSaveTimers[timerKey];
+    }
+    saveTile(tab, true, index);
+    const saveKey = getTileSaveKey(tab, index);
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+      const draft = drafts?.[tab]?.[index];
+      if (!saveInFlightByTile[saveKey] && !queuedSaveByTile[saveKey] &&
+          !(draft && draft._dirty)) {
+        return true;
+      }
+      await new Promise(resolve => setTimeout(resolve, 40));
+    }
+    showNotification(t('networkErrorSave'), false);
+    return false;
+  }
+
+  async function hideSettingsTileFromGrid() {
+    const hidden = settingsAccessElement('settings_tile_hidden');
+    const swipe = settingsAccessElement('settings_swipe_enabled');
+    if (!hidden || settingsTileTransferInFlight) return false;
+    settingsTileTransferInFlight = true;
+    try {
+      const settingsTile = (getTilesData('folder0') || []).findIndex(
+        tile => Number(tile?.type || 0) === 7);
+      if (settingsTile < 0) {
+        return false;
+      }
+      const snapshot = normalizeHiddenSettingsSnapshot(
+        getTileSnapshotForSave('folder0', settingsTile) ||
+        currentGridSettingsSnapshot());
+      if (!(await flushSettingsTileSaveBeforeHide('folder0', settingsTile))) {
+        return false;
+      }
+      hidden.checked = true;
+      if (swipe) swipe.checked = true;
+      toggleSettingsAccessFields();
+      const saved = await queueSettingsAccessSave(
+        null, null, snapshot, false);
+      if (!saved) return false;
+      return await reconcileSettingsTileUi(true, snapshot);
+    } finally {
+      settingsTileTransferInFlight = false;
+    }
+  }
+
+  async function restoreHiddenSettingsTile(col, row) {
+    const hidden = settingsAccessElement('settings_tile_hidden');
+    if (!hidden || settingsTileTransferInFlight) return false;
+    const snapshot = normalizeHiddenSettingsSnapshot();
+    settingsTileTransferInFlight = true;
+    try {
+      hidden.checked = false;
+      toggleSettingsAccessFields();
+      const saved = await queueSettingsAccessSave(
+        null, {col, row}, null, false);
+      if (!saved) return false;
+      return await reconcileSettingsTileUi(false, snapshot, true);
+    } finally {
+      settingsTileTransferInFlight = false;
+    }
+  }
+
+  function enableSettingsHiddenSlot() {
+    const slot = document.getElementById('settingsHiddenSlot');
+    const hiddenTile = document.getElementById('settingsHiddenTile');
+    if (!slot || !hiddenTile || slot.dataset.bound === '1') return;
+    slot.dataset.bound = '1';
+    hiddenTile.addEventListener('click', () => selectHiddenSettingsTile());
+
+    const acceptsGridSettings = () => {
+      if (!dragSource || dragSource.kind !== 'grid-tile' ||
+          dragSource.tab !== 'folder0') return false;
+      const tile = getTilesData('folder0')?.[dragSource.index];
+      return Number(dragSource.type || tile?.type || 0) === 7;
+    };
+    slot.addEventListener('dragover', event => {
+      if (!acceptsGridSettings()) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      slot.classList.add('drop-target');
+    });
+    slot.addEventListener('dragleave', event => {
+      if (event.relatedTarget instanceof Node &&
+          slot.contains(event.relatedTarget)) return;
+      slot.classList.remove('drop-target');
+    });
+    slot.addEventListener('drop', event => {
+      if (!acceptsGridSettings()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      slot.classList.remove('drop-target');
+      restoreDragPreview('folder0');
+      clearDragPlaceholder();
+      if (dragSource) dragSource.dropCommitted = true;
+      hideSettingsTileFromGrid();
+    });
+
+    hiddenTile.addEventListener('dragstart', event => {
+      if (hiddenTile.dataset.hidden !== '1') {
+        event.preventDefault();
+        return;
+      }
+      const spanW = clampInt(hiddenTile.dataset.spanW, 1, GRID_COLS, 1);
+      const spanH = clampInt(hiddenTile.dataset.spanH, 1, GRID_ROWS, 1);
+      dragSource = {
+        kind: 'hidden-settings',
+        tab: 'folder0',
+        index: -1,
+        layout: {col: 0, row: 0, span_w: spanW, span_h: spanH},
+        grabCellCol: 0,
+        grabCellRow: 0,
+        baseLayouts: null,
+        dropCommitted: false,
+        hiddenTarget: null
+      };
+      event.dataTransfer.effectAllowed = 'move';
+      hiddenTile.classList.add('dragging');
+      if (event.dataTransfer.setDragImage) {
+        dragPreview = createDragPreview(hiddenTile);
+        event.dataTransfer.setDragImage(
+          dragPreview, hiddenTile.offsetWidth / 2, hiddenTile.offsetHeight / 2);
+      }
+    });
+    hiddenTile.addEventListener('dragend', () => {
+      hiddenTile.classList.remove('dragging');
+      slot.classList.remove('drop-target', 'invalid');
+      clearDragPlaceholder();
+      if (dragPreview && dragPreview.parentNode) dragPreview.parentNode.removeChild(dragPreview);
+      dragPreview = null;
+      dragSource = null;
+      flushDeferredSensorRefresh();
+    });
   }
 
   function enableTileResize(tab) {
@@ -6161,6 +6858,8 @@ function t(key) {
   document.addEventListener('DOMContentLoaded', () => {
     toggleStaticNetworkFields();
     toggleNetworkSettings();
+    toggleSettingsAccessFields();
+    initSettingsAccessControls();
     initAdminSettingsSave();
     initTileTabs();
     let initialTab = '';
@@ -6195,6 +6894,7 @@ function t(key) {
       enableTileDrag(tab);
       enableTileResize(tab);
     });
+    enableSettingsHiddenSlot();
     fillStaticClockPreviews();
     setInterval(fillStaticClockPreviews, 30000);
     updateTileSettingsMaxHeight();
@@ -6575,6 +7275,26 @@ function normalizeIconName(value) {
   }
 
   function loadNavigateFields(tab, data) {
+    const prefix = tab;
+    const toggle = document.getElementById(prefix + '_folder_pin_enabled');
+    const input = document.getElementById(prefix + '_folder_pin');
+    const status = document.getElementById(prefix + '_folder_pin_status');
+    if (toggle) toggle.checked = data?.folder_pin_enabled === true;
+    if (input) {
+      input.value = String(data?.folder_pin || '');
+      input.type = 'password';
+      const showButton = input.closest('.password-field')
+        ?.querySelector('.password-toggle');
+      if (showButton) {
+        showButton.textContent = showButton.dataset.labelShow || '';
+      }
+    }
+    if (status) {
+      status.textContent = data?.folder_pin_enabled === true
+        ? navigateText('folderPinSaved')
+        : '';
+    }
+    syncFolderPinControls(tab);
   }
 
   function saveNavigateFields(tab, formData) {
@@ -6586,6 +7306,111 @@ function normalizeIconName(value) {
   }
 
   function resetNavigateFields(tab) {
+    const prefix = tab;
+    const toggle = document.getElementById(prefix + '_folder_pin_enabled');
+    const input = document.getElementById(prefix + '_folder_pin');
+    const status = document.getElementById(prefix + '_folder_pin_status');
+    if (toggle) toggle.checked = false;
+    if (input) {
+      input.value = '';
+      input.type = 'password';
+    }
+    if (status) status.textContent = '';
+    syncFolderPinControls(tab);
+  }
+
+  function syncFolderPinControls(tab) {
+    const fields = document.getElementById(tab + '_navigate_fields');
+    const toggle = document.getElementById(tab + '_folder_pin_enabled');
+    const input = document.getElementById(tab + '_folder_pin');
+    const label = fields?.querySelector('.folder-pin-label');
+    const control = fields?.querySelector('.folder-pin-control');
+    const status = document.getElementById(tab + '_folder_pin_status');
+    const type = Number(document.getElementById(tab + '_tile_type')?.value || 0);
+    const tile = tilesData?.[tab]?.[currentTileIndex];
+    const tileEl = document.getElementById(tab + '-tile-' + currentTileIndex);
+    const targetSelect = document.getElementById(tab + '_navigate_target');
+    const folderId = Number(
+      targetSelect?.value ?? tile?.navigate_target ??
+      tileEl?.dataset.navigateTarget ?? 0);
+    const isFolderTile = type === 4 && Number.isInteger(folderId) && folderId > 0;
+    if (fields) fields.classList.toggle('is-hidden', !isFolderTile);
+
+    const showPinEditor = isFolderTile && toggle?.checked === true;
+    label?.classList.toggle('is-hidden', !showPinEditor);
+    control?.classList.toggle('is-hidden', !showPinEditor);
+    status?.classList.toggle('is-hidden', !showPinEditor);
+    if (!input) return;
+    input.disabled = !showPinEditor;
+    if (!showPinEditor) input.value = '';
+  }
+
+  function navigateText(key) {
+    return typeof NAVIGATE_I18N === 'object' && NAVIGATE_I18N?.[key]
+      ? NAVIGATE_I18N[key]
+      : t('unknownError');
+  }
+
+  async function applyFolderPin(tab) {
+    const prefix = tab;
+    const toggle = document.getElementById(prefix + '_folder_pin_enabled');
+    const input = document.getElementById(prefix + '_folder_pin');
+    const button = document.getElementById(prefix + '_folder_pin_apply');
+    const status = document.getElementById(prefix + '_folder_pin_status');
+    const tile = tilesData?.[tab]?.[currentTileIndex];
+    const tileEl = document.getElementById(tab + '-tile-' + currentTileIndex);
+    const folderId = Number(
+      tile?.navigate_target ?? tileEl?.dataset.navigateTarget ?? 0);
+    if (!Number.isInteger(folderId) || folderId <= 0) {
+      showNotification(navigateText('folderPinCreateFirst'), false);
+      return;
+    }
+
+    if (button) button.disabled = true;
+    if (status) status.textContent = '';
+    try {
+      const body = new URLSearchParams();
+      body.set('folder_id', String(folderId));
+      body.set('enabled', toggle?.checked ? '1' : '0');
+      body.set('pin', input?.value || '');
+      const response = await fetch('/api/folders/access', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'},
+        body
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || navigateText('folderPinSaveFailed'));
+      }
+      const enabled = result.pin_enabled === true;
+      const storedPin = enabled ? String(result.folder_pin || '') : '';
+      if (toggle) toggle.checked = enabled;
+      if (input) {
+        input.value = storedPin;
+        input.type = 'password';
+        const showButton = input.closest('.password-field')
+          ?.querySelector('.password-toggle');
+        if (showButton) {
+          showButton.textContent = showButton.dataset.labelShow || '';
+        }
+      }
+      if (tile) {
+        tile.folder_pin_enabled = enabled;
+        tile.folder_pin = storedPin;
+      }
+      if (tileEl) tileEl.dataset.folderPinEnabled = enabled ? '1' : '0';
+      syncFolderPinControls(tab);
+      if (status) status.textContent = navigateText('folderPinSaved');
+      showNotification(navigateText('folderPinSaved'));
+    } catch (error) {
+      const message = error?.message || navigateText('folderPinSaveFailed');
+      if (toggle && tile) toggle.checked = tile.folder_pin_enabled === true;
+      syncFolderPinControls(tab);
+      if (status) status.textContent = message;
+      showNotification(message, false);
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
 
 function maybeFillTitleFromSwitch(tab) {

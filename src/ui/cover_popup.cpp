@@ -6,6 +6,7 @@
 #include "src/tiles/mdi_icons.h"
 #include "src/tiles/tile_renderer_shared.h"
 #include "src/ui/camera_popup.h"
+#include "src/ui/pin_popup.h"
 #include "src/ui/climate_popup.h"
 #include "src/ui/energy_popup.h"
 #include "src/ui/light_popup.h"
@@ -1166,6 +1167,7 @@ void create_preset_buttons(CoverPopupContext* ctx,
 }  // namespace
 
 void show_cover_popup(const CoverPopupInit& init) {
+  hide_pin_popup();
   if (!init.entity_id.length()) return;
   hide_light_popup();
   hide_climate_popup();

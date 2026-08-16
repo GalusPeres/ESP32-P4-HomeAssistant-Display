@@ -11,6 +11,7 @@
 #include "src/tiles/mdi_icons.h"
 #include "src/ui/climate_popup.h"
 #include "src/ui/cover_popup.h"
+#include "src/ui/pin_popup.h"
 #include "src/ui/energy_popup.h"
 #include "src/ui/light_popup.h"
 #include "src/ui/media_popup.h"
@@ -301,6 +302,7 @@ static CameraPopupContext* create_popup() {
 }  // namespace
 
 void show_camera_popup(const CameraPopupInit& init) {
+  hide_pin_popup();
   if (!init.entity_id.length()) return;
   hide_cover_popup();
   hide_sensor_popup();

@@ -4,6 +4,7 @@
 #include <Arduino.h>
 
 #include "src/devices/device.h"
+#include "src/core/pin_access.h"
 
 // WiFi/MQTT Configuration Manager
 // Speichert und lädt Verbindungsdaten aus dem Flash-Speicher (Preferences)
@@ -31,6 +32,24 @@ static constexpr uint8_t kWakeModeImu = 1;
 static constexpr uint8_t kScreensaverBrightnessPctMin = 1;
 static constexpr uint8_t kScreensaverBrightnessPctMax = 100;
 static constexpr uint8_t kScreensaverBrightnessPctDefault = 25;
+
+enum class SettingsRevealEdge : uint8_t {
+  Left = 0,
+  Right = 1,
+  Top = 2,
+  Bottom = 3,
+};
+
+struct SettingsTileSnapshot {
+  bool valid;
+  char title[32];
+  char icon_name[32];
+  uint32_t bg_color;
+  uint8_t col;
+  uint8_t row;
+  uint8_t span_w;
+  uint8_t span_h;
+};
 
 struct DeviceConfig {
   char wifi_ssid[CONFIG_WIFI_SSID_MAX];
@@ -80,6 +99,17 @@ struct DeviceConfig {
   // beim Boot ausgewertet - im Ethernet-Modus startet WLAN/ESP-Hosted nie,
   // damit sich beide Stacks nicht das interne DMA-RAM streitig machen.
   bool ethernet_enabled;
+
+  // Local parental-control settings. The hash remains authoritative; the
+  // bounded recovery copy exists only so Web Admin can implement "Show".
+  bool settings_pin_enabled;
+  bool settings_tile_hidden;
+  bool settings_swipe_enabled;
+  uint8_t settings_reveal_edge;
+  uint8_t settings_pin_salt[pin_access::kSaltSize];
+  uint8_t settings_pin_hash[pin_access::kHashSize];
+  char settings_pin_value[pin_access::kUserPinMaxDigits + 1];
+  SettingsTileSnapshot settings_tile_snapshot;
 };
 
 class ConfigManager {
@@ -127,6 +157,8 @@ public:
 
   // Getter für Config-Daten
   const DeviceConfig& getConfig() const { return config; }
+  bool verifySettingsPin(const char* pin) const;
+  bool getSettingsPin(String& out) const;
 
 private:
   DeviceConfig config;

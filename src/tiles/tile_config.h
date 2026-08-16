@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "src/devices/device.h"
+#include "src/core/pin_access.h"
 
 static constexpr uint8_t GRID_COLS = Device::kGridCols;
 static constexpr uint8_t GRID_ROWS = Device::kGridRows;
@@ -502,6 +503,16 @@ struct FolderEntry {
   uint16_t parent_id;
   char name[32];
   char icon_name[32];
+  bool pin_enabled;
+  uint8_t pin_salt[pin_access::kSaltSize];
+  uint8_t pin_hash[pin_access::kHashSize];
+  char pin_value[pin_access::kUserPinMaxDigits + 1];
+};
+
+enum class SettingsTileVisibilityResult : uint8_t {
+  Success = 0,
+  NoFreeCell,
+  StorageError,
 };
 
 // Lightweight per-tile projection used by background scans (cache refresh,
@@ -531,6 +542,7 @@ public:
   // der Navigation. Gespeichert wird trotzdem im exakt gleichen gepackten
   // LittleFS-Format wie jedes normale Kachel-Grid.
   static constexpr uint16_t kScreensaverGridStorageId = 0xFFFE;
+  static constexpr uint16_t rootFolderId() { return 0; }
 
   TileConfig();
 
@@ -561,6 +573,16 @@ public:
   bool createFolder(uint16_t parent_id, const String& name, const String& icon, uint16_t& out_id);
   bool updateFolder(uint16_t folder_id, const String& name, const String& icon);
   bool deleteFolder(uint16_t folder_id);
+  bool isFolderPinEnabled(uint16_t folder_id) const;
+  bool setFolderPin(uint16_t folder_id, const String& pin);
+  bool clearFolderPin(uint16_t folder_id);
+  bool verifyFolderPin(uint16_t folder_id, const char* pin) const;
+  bool getFolderPin(uint16_t folder_id, String& out) const;
+  bool getSettingsTile(Tile& out);
+  SettingsTileVisibilityResult validateSettingsTileVisible(
+      bool visible, int target_col = -1, int target_row = -1);
+  SettingsTileVisibilityResult setSettingsTileVisible(
+      bool visible, int target_col = -1, int target_row = -1);
 
 private:
   static constexpr uint16_t kRootFolderId = 0;
@@ -585,13 +607,18 @@ private:
 
   bool loadFolders();
   bool saveFolders() const;
+  bool loadFolderAccess();
+  bool saveFolderAccess() const;
   bool loadGrid(uint16_t folder_id, TileGridConfig& grid,
                 bool ensure_navigation_tile = true);
   bool saveGrid(uint16_t folder_id, const TileGridConfig& grid,
                 bool ensure_navigation_tile = true);
   uint16_t nextFolderId() const;
   void ensureRootFolder();
-  bool ensureSettingsTile(TileGridConfig& grid);
+  bool ensureSettingsTile(TileGridConfig& grid, int target_col = -1,
+                          int target_row = -1);
+  bool removeSettingsTiles(TileGridConfig& grid);
+  bool applySettingsTilePolicy(TileGridConfig& grid);
   bool ensureBackTile(uint16_t folder_id, TileGridConfig& grid);
 };
 

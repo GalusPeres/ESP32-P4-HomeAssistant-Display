@@ -428,6 +428,37 @@ struct Strings {
   const char* admin_io_restart_unsaved_confirm;
   const char* admin_io_restarting;
 
+  // Web Admin and device UI: local parental-control PIN protection.
+  const char* admin_access_control;
+  const char* settings_lock_enable;
+  const char* settings_hide_tile;
+  const char* settings_pin_label;
+  const char* settings_pin_placeholder;
+  const char* settings_pin_configured;
+  const char* settings_pin_not_configured;
+  const char* settings_swipe_enable;
+  const char* settings_reveal_edge;
+  const char* settings_swipe_note;
+  const char* edge_left;
+  const char* edge_right;
+  const char* edge_top;
+  const char* edge_bottom;
+  const char* factory_pin_label;
+  const char* factory_pin_note;
+  const char* settings_home_full;
+  const char* pin_invalid;
+  const char* folder_pin_enable;
+  const char* folder_pin_label;
+  const char* folder_pin_placeholder;
+  const char* folder_pin_apply;
+  const char* folder_pin_saved;
+  const char* folder_pin_save_failed;
+  const char* folder_pin_create_first;
+  const char* pin_popup_settings_title;
+  const char* pin_popup_incorrect;
+  const char* pin_popup_unlock_format;
+  const char* settings_tile_parking;
+
 };
 
 // Sprachabhaengige Darstellungsregeln und kurze Laufzeittexte, die sowohl

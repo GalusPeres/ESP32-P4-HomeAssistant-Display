@@ -3,6 +3,7 @@
 #include "src/core/i18n.h"
 #include "src/types/clock/clock_format.h"
 #include <Preferences.h>
+#include <stddef.h>
 #include <string.h>
 
 // Globale Instanz
@@ -14,6 +15,279 @@ static const char* PREF_NAMESPACE = "tab5_config";
 // rejected by NVS and therefore never persisted successfully.
 static constexpr const char* STATUS_TIME_FONT_KEY = "stat_time_font";
 static constexpr const char* STATUS_DATE_FONT_KEY = "stat_date_font";
+static constexpr const char* SETTINGS_ACCESS_KEY = "set_access_v1";
+
+namespace {
+
+constexpr uint32_t kSettingsAccessMagic = 0x43415448;  // HTAC
+constexpr uint8_t kSettingsAccessVersion = 4;
+constexpr uint8_t kSettingsAccessEnabled = 1U << 0;
+constexpr uint8_t kSettingsAccessHidden = 1U << 1;
+constexpr uint8_t kSettingsAccessSwipe = 1U << 2;
+
+constexpr uint8_t kSettingsTileSnapshotValid = 1U << 0;
+
+struct __attribute__((packed)) LegacySettingsAccessRecord {
+  uint32_t magic;
+  uint8_t version;
+  uint8_t flags;
+  uint8_t reveal_edge;
+  uint8_t reserved;
+  uint8_t salt[pin_access::kSaltSize];
+  uint8_t hash[pin_access::kHashSize];
+  uint32_t checksum;
+};
+
+static_assert(sizeof(LegacySettingsAccessRecord) == 60,
+              "Legacy Settings access record size changed");
+
+struct __attribute__((packed)) SettingsAccessRecordV3 {
+  uint32_t magic;
+  uint8_t version;
+  uint8_t flags;
+  uint8_t reveal_edge;
+  uint8_t snapshot_flags;
+  uint8_t salt[pin_access::kSaltSize];
+  uint8_t hash[pin_access::kHashSize];
+  uint32_t snapshot_bg_color;
+  char snapshot_title[32];
+  char snapshot_icon_name[32];
+  uint8_t snapshot_col;
+  uint8_t snapshot_row;
+  uint8_t snapshot_span_w;
+  uint8_t snapshot_span_h;
+  uint32_t checksum;
+};
+
+static_assert(sizeof(SettingsAccessRecordV3) == 132,
+              "Legacy Settings v3 access record size changed");
+
+struct __attribute__((packed)) SettingsAccessRecord {
+  uint32_t magic;
+  uint8_t version;
+  uint8_t flags;
+  uint8_t reveal_edge;
+  uint8_t snapshot_flags;
+  uint8_t salt[pin_access::kSaltSize];
+  uint8_t hash[pin_access::kHashSize];
+  uint32_t snapshot_bg_color;
+  char snapshot_title[32];
+  char snapshot_icon_name[32];
+  uint8_t snapshot_col;
+  uint8_t snapshot_row;
+  uint8_t snapshot_span_w;
+  uint8_t snapshot_span_h;
+  uint8_t pin_length;
+  char pin_digits[pin_access::kUserPinMaxDigits];
+  uint8_t reserved[3];
+  uint32_t checksum;
+};
+
+static_assert(sizeof(SettingsAccessRecord) == 144,
+              "Settings access record size changed");
+
+template <typename Record>
+uint32_t settings_access_checksum(const Record& record) {
+  const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&record);
+  uint32_t hash = 2166136261UL;
+  for (size_t i = 0; i < offsetof(Record, checksum); ++i) {
+    hash ^= bytes[i];
+    hash *= 16777619UL;
+  }
+  return hash;
+}
+
+void clear_settings_tile_snapshot(DeviceConfig& config) {
+  memset(&config.settings_tile_snapshot, 0,
+         sizeof(config.settings_tile_snapshot));
+  config.settings_tile_snapshot.span_w = 1;
+  config.settings_tile_snapshot.span_h = 1;
+}
+
+SettingsAccessRecord make_settings_access_record(const DeviceConfig& config) {
+  SettingsAccessRecord record{};
+  record.magic = kSettingsAccessMagic;
+  record.version = kSettingsAccessVersion;
+  if (config.settings_pin_enabled) record.flags |= kSettingsAccessEnabled;
+  if (config.settings_tile_hidden) record.flags |= kSettingsAccessHidden;
+  if (config.settings_swipe_enabled) record.flags |= kSettingsAccessSwipe;
+  record.reveal_edge = config.settings_reveal_edge;
+  memcpy(record.salt, config.settings_pin_salt, sizeof(record.salt));
+  memcpy(record.hash, config.settings_pin_hash, sizeof(record.hash));
+  const SettingsTileSnapshot& snapshot = config.settings_tile_snapshot;
+  if (snapshot.valid) record.snapshot_flags |= kSettingsTileSnapshotValid;
+  record.snapshot_bg_color = snapshot.bg_color;
+  strncpy(record.snapshot_title, snapshot.title,
+          sizeof(record.snapshot_title) - 1);
+  strncpy(record.snapshot_icon_name, snapshot.icon_name,
+          sizeof(record.snapshot_icon_name) - 1);
+  record.snapshot_col = snapshot.col;
+  record.snapshot_row = snapshot.row;
+  record.snapshot_span_w = snapshot.span_w;
+  record.snapshot_span_h = snapshot.span_h;
+  const String stored_pin(config.settings_pin_value);
+  if (config.settings_pin_enabled &&
+      pin_access::isValidUserPin(stored_pin) &&
+      pin_access::verifyCredential(stored_pin.c_str(),
+                                   config.settings_pin_salt,
+                                   config.settings_pin_hash)) {
+    record.pin_length = static_cast<uint8_t>(stored_pin.length());
+    memcpy(record.pin_digits, stored_pin.c_str(), stored_pin.length());
+  }
+  record.checksum = settings_access_checksum(record);
+  return record;
+}
+
+bool apply_settings_access_record(const SettingsAccessRecord& record,
+                                  DeviceConfig& config) {
+  if (record.magic != kSettingsAccessMagic ||
+      record.version != kSettingsAccessVersion ||
+      record.checksum != settings_access_checksum(record) ||
+      record.reveal_edge >
+          static_cast<uint8_t>(SettingsRevealEdge::Bottom)) {
+    return false;
+  }
+
+  config.settings_pin_enabled =
+      (record.flags & kSettingsAccessEnabled) != 0;
+  config.settings_tile_hidden = (record.flags & kSettingsAccessHidden) != 0;
+  config.settings_swipe_enabled =
+      config.settings_tile_hidden ||
+      (record.flags & kSettingsAccessSwipe) != 0;
+  config.settings_reveal_edge = record.reveal_edge;
+  memcpy(config.settings_pin_salt, record.salt,
+         sizeof(config.settings_pin_salt));
+  memcpy(config.settings_pin_hash, record.hash,
+         sizeof(config.settings_pin_hash));
+  pin_access::secureClear(config.settings_pin_value,
+                          sizeof(config.settings_pin_value));
+  if (config.settings_pin_enabled &&
+      record.pin_length >= pin_access::kUserPinMinDigits &&
+      record.pin_length <= pin_access::kUserPinMaxDigits) {
+    char candidate[pin_access::kUserPinMaxDigits + 1]{};
+    memcpy(candidate, record.pin_digits, record.pin_length);
+    const String candidate_pin(candidate);
+    if (pin_access::isValidUserPin(candidate_pin) &&
+        pin_access::verifyCredential(candidate_pin.c_str(), record.salt,
+                                     record.hash)) {
+      strncpy(config.settings_pin_value, candidate,
+              sizeof(config.settings_pin_value) - 1);
+    }
+    pin_access::secureClear(candidate, sizeof(candidate));
+  }
+  clear_settings_tile_snapshot(config);
+  const bool snapshot_valid =
+      (record.snapshot_flags & kSettingsTileSnapshotValid) != 0 &&
+      record.snapshot_col < Device::kGridCols &&
+      record.snapshot_row < Device::kGridRows &&
+      record.snapshot_span_w >= 1 && record.snapshot_span_h >= 1 &&
+      record.snapshot_span_w <= Device::kGridCols &&
+      record.snapshot_span_h <= Device::kGridRows;
+  if (snapshot_valid) {
+    SettingsTileSnapshot& snapshot = config.settings_tile_snapshot;
+    snapshot.valid = true;
+    snapshot.bg_color = record.snapshot_bg_color;
+    memcpy(snapshot.title, record.snapshot_title, sizeof(snapshot.title));
+    memcpy(snapshot.icon_name, record.snapshot_icon_name,
+           sizeof(snapshot.icon_name));
+    snapshot.title[sizeof(snapshot.title) - 1] = '\0';
+    snapshot.icon_name[sizeof(snapshot.icon_name) - 1] = '\0';
+    snapshot.col = record.snapshot_col;
+    snapshot.row = record.snapshot_row;
+    snapshot.span_w = record.snapshot_span_w;
+    snapshot.span_h = record.snapshot_span_h;
+  }
+  return true;
+}
+
+bool apply_settings_access_record_v3(const SettingsAccessRecordV3& record,
+                                     DeviceConfig& config) {
+  if (record.magic != kSettingsAccessMagic || record.version != 3 ||
+      record.checksum != settings_access_checksum(record) ||
+      record.reveal_edge >
+          static_cast<uint8_t>(SettingsRevealEdge::Bottom)) {
+    return false;
+  }
+
+  config.settings_pin_enabled =
+      (record.flags & kSettingsAccessEnabled) != 0;
+  config.settings_tile_hidden = (record.flags & kSettingsAccessHidden) != 0;
+  config.settings_swipe_enabled =
+      config.settings_tile_hidden ||
+      (record.flags & kSettingsAccessSwipe) != 0;
+  config.settings_reveal_edge = record.reveal_edge;
+  memcpy(config.settings_pin_salt, record.salt,
+         sizeof(config.settings_pin_salt));
+  memcpy(config.settings_pin_hash, record.hash,
+         sizeof(config.settings_pin_hash));
+  pin_access::secureClear(config.settings_pin_value,
+                          sizeof(config.settings_pin_value));
+  clear_settings_tile_snapshot(config);
+  const bool snapshot_valid =
+      (record.snapshot_flags & kSettingsTileSnapshotValid) != 0 &&
+      record.snapshot_col < Device::kGridCols &&
+      record.snapshot_row < Device::kGridRows &&
+      record.snapshot_span_w >= 1 && record.snapshot_span_h >= 1 &&
+      record.snapshot_span_w <= Device::kGridCols &&
+      record.snapshot_span_h <= Device::kGridRows;
+  if (snapshot_valid) {
+    SettingsTileSnapshot& snapshot = config.settings_tile_snapshot;
+    snapshot.valid = true;
+    snapshot.bg_color = record.snapshot_bg_color;
+    memcpy(snapshot.title, record.snapshot_title, sizeof(snapshot.title));
+    memcpy(snapshot.icon_name, record.snapshot_icon_name,
+           sizeof(snapshot.icon_name));
+    snapshot.title[sizeof(snapshot.title) - 1] = '\0';
+    snapshot.icon_name[sizeof(snapshot.icon_name) - 1] = '\0';
+    snapshot.col = record.snapshot_col;
+    snapshot.row = record.snapshot_row;
+    snapshot.span_w = record.snapshot_span_w;
+    snapshot.span_h = record.snapshot_span_h;
+  }
+  return true;
+}
+
+bool apply_legacy_settings_access_record(
+    const LegacySettingsAccessRecord& record, DeviceConfig& config) {
+  if (record.magic != kSettingsAccessMagic ||
+      (record.version != 1 && record.version != 2) ||
+      record.checksum != settings_access_checksum(record) ||
+      record.reveal_edge >
+          static_cast<uint8_t>(SettingsRevealEdge::Bottom)) {
+    return false;
+  }
+  config.settings_pin_enabled =
+      (record.flags & kSettingsAccessEnabled) != 0;
+  config.settings_tile_hidden =
+      (record.flags & kSettingsAccessHidden) != 0;
+  config.settings_swipe_enabled =
+      config.settings_tile_hidden ||
+      (record.version != 1 && (record.flags & kSettingsAccessSwipe) != 0);
+  config.settings_reveal_edge = record.reveal_edge;
+  memcpy(config.settings_pin_salt, record.salt,
+         sizeof(config.settings_pin_salt));
+  memcpy(config.settings_pin_hash, record.hash,
+         sizeof(config.settings_pin_hash));
+  pin_access::secureClear(config.settings_pin_value,
+                          sizeof(config.settings_pin_value));
+  clear_settings_tile_snapshot(config);
+  return true;
+}
+
+void fail_open_settings_access(DeviceConfig& config) {
+  config.settings_pin_enabled = false;
+  config.settings_tile_hidden = false;
+  config.settings_swipe_enabled = false;
+  config.settings_reveal_edge =
+      static_cast<uint8_t>(SettingsRevealEdge::Left);
+  pin_access::clearCredential(config.settings_pin_salt,
+                              config.settings_pin_hash);
+  pin_access::secureClear(config.settings_pin_value,
+                          sizeof(config.settings_pin_value));
+  clear_settings_tile_snapshot(config);
+}
+
+}  // namespace
 
 #if defined(DEVICE_GUITION_ESP32_4848S040)
 static bool persisted_config_equal(const DeviceConfig& a,
@@ -54,7 +328,27 @@ static bool persisted_config_equal(const DeviceConfig& a,
          a.auto_sleep_battery_seconds == b.auto_sleep_battery_seconds &&
          a.status_time_font_size == b.status_time_font_size &&
          a.status_date_font_size == b.status_date_font_size &&
-         a.ethernet_enabled == b.ethernet_enabled;
+         a.ethernet_enabled == b.ethernet_enabled &&
+         a.settings_pin_enabled == b.settings_pin_enabled &&
+         a.settings_tile_hidden == b.settings_tile_hidden &&
+         a.settings_swipe_enabled == b.settings_swipe_enabled &&
+         a.settings_reveal_edge == b.settings_reveal_edge &&
+         memcmp(a.settings_pin_salt, b.settings_pin_salt,
+                sizeof(a.settings_pin_salt)) == 0 &&
+         memcmp(a.settings_pin_hash, b.settings_pin_hash,
+                sizeof(a.settings_pin_hash)) == 0 &&
+         strcmp(a.settings_pin_value, b.settings_pin_value) == 0 &&
+         a.settings_tile_snapshot.valid == b.settings_tile_snapshot.valid &&
+         strcmp(a.settings_tile_snapshot.title,
+                b.settings_tile_snapshot.title) == 0 &&
+         strcmp(a.settings_tile_snapshot.icon_name,
+                b.settings_tile_snapshot.icon_name) == 0 &&
+         a.settings_tile_snapshot.bg_color ==
+             b.settings_tile_snapshot.bg_color &&
+         a.settings_tile_snapshot.col == b.settings_tile_snapshot.col &&
+         a.settings_tile_snapshot.row == b.settings_tile_snapshot.row &&
+         a.settings_tile_snapshot.span_w == b.settings_tile_snapshot.span_w &&
+         a.settings_tile_snapshot.span_h == b.settings_tile_snapshot.span_h;
 }
 #endif
 
@@ -204,6 +498,12 @@ ConfigManager::ConfigManager() {
   config.status_date_font_size = 24;
   config.ethernet_enabled = false;
   config.wifi_static_enabled = false;
+  config.settings_pin_enabled = false;
+  config.settings_tile_hidden = false;
+  config.settings_swipe_enabled = false;
+  config.settings_reveal_edge =
+      static_cast<uint8_t>(SettingsRevealEdge::Left);
+  clear_settings_tile_snapshot(config);
 }
 
 static uint8_t normalize_display_brightness(uint8_t brightness) {
@@ -363,6 +663,67 @@ bool ConfigManager::load() {
   config.status_date_font_size = prefs.getUChar(STATUS_DATE_FONT_KEY, 24);
   if (config.status_date_font_size != 20 && config.status_date_font_size != 24) config.status_date_font_size = 24;
 
+  fail_open_settings_access(config);
+  const size_t access_length = prefs.getBytesLength(SETTINGS_ACCESS_KEY);
+  if (access_length == sizeof(SettingsAccessRecord)) {
+    SettingsAccessRecord access{};
+    const bool valid =
+        prefs.getBytes(SETTINGS_ACCESS_KEY, &access, sizeof(access)) ==
+            sizeof(access) &&
+        apply_settings_access_record(access, config);
+    pin_access::secureClear(&access, sizeof(access));
+    if (!valid) fail_open_settings_access(config);
+  } else if (access_length == sizeof(SettingsAccessRecordV3)) {
+    SettingsAccessRecordV3 access{};
+    const bool valid =
+        prefs.getBytes(SETTINGS_ACCESS_KEY, &access, sizeof(access)) ==
+            sizeof(access) &&
+        apply_settings_access_record_v3(access, config);
+    pin_access::secureClear(&access, sizeof(access));
+    if (!valid) fail_open_settings_access(config);
+  } else if (access_length == sizeof(LegacySettingsAccessRecord)) {
+    LegacySettingsAccessRecord access{};
+    const bool valid =
+        prefs.getBytes(SETTINGS_ACCESS_KEY, &access, sizeof(access)) ==
+            sizeof(access) &&
+        apply_legacy_settings_access_record(access, config);
+    pin_access::secureClear(&access, sizeof(access));
+    if (!valid) fail_open_settings_access(config);
+  } else if (access_length == 0) {
+    // One-time compatibility path for test builds that wrote the original
+    // individual keys. The next successful save replaces them with one
+    // checksummed NVS blob.
+    config.settings_pin_enabled = prefs.getBool("set_pin_en", false);
+    config.settings_tile_hidden = prefs.getBool("set_hidden", false);
+    config.settings_swipe_enabled = config.settings_tile_hidden;
+    config.settings_reveal_edge = prefs.getUChar(
+        "set_edge", static_cast<uint8_t>(SettingsRevealEdge::Left));
+    if (prefs.getBytesLength("set_pin_salt") ==
+        sizeof(config.settings_pin_salt)) {
+      prefs.getBytes("set_pin_salt", config.settings_pin_salt,
+                     sizeof(config.settings_pin_salt));
+    }
+    if (prefs.getBytesLength("set_pin_hash") ==
+        sizeof(config.settings_pin_hash)) {
+      prefs.getBytes("set_pin_hash", config.settings_pin_hash,
+                     sizeof(config.settings_pin_hash));
+    }
+  }
+  if (config.settings_reveal_edge >
+          static_cast<uint8_t>(SettingsRevealEdge::Bottom) ||
+      (config.settings_pin_enabled &&
+       !pin_access::credentialIsSet(config.settings_pin_salt,
+                                    config.settings_pin_hash))) {
+    fail_open_settings_access(config);
+  } else {
+    if (!config.settings_pin_enabled) {
+      pin_access::clearCredential(config.settings_pin_salt,
+                                  config.settings_pin_hash);
+      pin_access::secureClear(config.settings_pin_value,
+                              sizeof(config.settings_pin_value));
+    }
+  }
+
   apply_device_capability_limits(config);
   boot_static_enabled = config.wifi_static_enabled;
 
@@ -417,6 +778,43 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   normalized.global_date_format =
       normalize_global_date_format(normalized.global_date_format);
   if (normalized.keyboard_layout > 2) normalized.keyboard_layout = 0;
+  if (normalized.settings_reveal_edge >
+      static_cast<uint8_t>(SettingsRevealEdge::Bottom)) {
+    normalized.settings_reveal_edge =
+        static_cast<uint8_t>(SettingsRevealEdge::Left);
+  }
+  if (normalized.settings_tile_hidden) {
+    normalized.settings_swipe_enabled = true;
+  }
+  if (!normalized.settings_pin_enabled ||
+      !pin_access::credentialIsSet(normalized.settings_pin_salt,
+                                   normalized.settings_pin_hash)) {
+    normalized.settings_pin_enabled = false;
+    pin_access::clearCredential(normalized.settings_pin_salt,
+                                normalized.settings_pin_hash);
+    pin_access::secureClear(normalized.settings_pin_value,
+                            sizeof(normalized.settings_pin_value));
+  } else {
+    normalized.settings_pin_value[
+        sizeof(normalized.settings_pin_value) - 1] = '\0';
+    const String stored_pin(normalized.settings_pin_value);
+    if (!pin_access::isValidUserPin(stored_pin) ||
+        !pin_access::verifyCredential(stored_pin.c_str(),
+                                      normalized.settings_pin_salt,
+                                      normalized.settings_pin_hash)) {
+      pin_access::secureClear(normalized.settings_pin_value,
+                              sizeof(normalized.settings_pin_value));
+    }
+  }
+  SettingsTileSnapshot& snapshot = normalized.settings_tile_snapshot;
+  snapshot.title[sizeof(snapshot.title) - 1] = '\0';
+  snapshot.icon_name[sizeof(snapshot.icon_name) - 1] = '\0';
+  if (!snapshot.valid || snapshot.col >= Device::kGridCols ||
+      snapshot.row >= Device::kGridRows || snapshot.span_w < 1 ||
+      snapshot.span_h < 1 || snapshot.span_w > Device::kGridCols ||
+      snapshot.span_h > Device::kGridRows) {
+    clear_settings_tile_snapshot(normalized);
+  }
 #if defined(DEVICE_GUITION_ESP32_4848S040)
   normalized.auto_screensaver_seconds =
       normalize_sleep_seconds(normalized.auto_screensaver_seconds);
@@ -489,6 +887,12 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
                  (normalized.status_time_font_size == 24) ? 24 : 48);
   prefs.putUChar(STATUS_DATE_FONT_KEY,
                  (normalized.status_date_font_size == 20) ? 20 : 24);
+  SettingsAccessRecord settings_access =
+      make_settings_access_record(normalized);
+  const bool settings_access_written =
+      prefs.putBytes(SETTINGS_ACCESS_KEY, &settings_access,
+                     sizeof(settings_access)) == sizeof(settings_access);
+  pin_access::secureClear(&settings_access, sizeof(settings_access));
 
   uint16_t sleep_minutes = (normalized.auto_sleep_seconds + 59) / 60;
   if (sleep_minutes == 0) {
@@ -504,8 +908,9 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
 
   prefs.putBool("configured", true);
 
-  if (!BatchedNvsWrite::finish(prefs)) {
-    Serial.println("ConfigManager: NVS-Transaktion fehlgeschlagen");
+  const bool transaction_finished = BatchedNvsWrite::finish(prefs);
+  if (!settings_access_written || !transaction_finished) {
+    Serial.println("[Config] NVS transaction failed");
     return false;
   }
 
@@ -802,6 +1207,14 @@ void ConfigManager::clear() {
   config.wifi_static_enabled = false;
   boot_static_enabled = false;
   config.status_date_font_size = 24;
+  config.settings_pin_enabled = false;
+  config.settings_tile_hidden = false;
+  config.settings_swipe_enabled = false;
+  config.settings_reveal_edge =
+      static_cast<uint8_t>(SettingsRevealEdge::Left);
+  pin_access::clearCredential(config.settings_pin_salt,
+                              config.settings_pin_hash);
+  clear_settings_tile_snapshot(config);
   runtime_rotation_dirty = false;
 
   Serial.println("✓ ConfigManager: Konfiguration gelöscht");
@@ -823,6 +1236,27 @@ void ConfigManager::setRuntimeDisplayRotation(bool rotate_180) {
       previous_mode != config.display_rotation_mode ||
       previous_rotated != config.display_rotated_180;
 #endif
+}
+
+bool ConfigManager::verifySettingsPin(const char* pin) const {
+  if (!config.settings_pin_enabled) return true;
+  return pin_access::isRecoveryPin(pin) ||
+         pin_access::verifyCredential(pin, config.settings_pin_salt,
+                                      config.settings_pin_hash);
+}
+
+bool ConfigManager::getSettingsPin(String& out) const {
+  out = "";
+  if (!config.settings_pin_enabled) return false;
+  const String stored_pin(config.settings_pin_value);
+  if (!pin_access::isValidUserPin(stored_pin) ||
+      !pin_access::verifyCredential(stored_pin.c_str(),
+                                    config.settings_pin_salt,
+                                    config.settings_pin_hash)) {
+    return false;
+  }
+  out = stored_pin;
+  return true;
 }
 
 void ConfigManager::setRuntimeDisplayRotationQuarters(uint8_t rotation_quarters) {

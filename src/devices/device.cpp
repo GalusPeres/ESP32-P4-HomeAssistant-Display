@@ -2,6 +2,12 @@
 
 namespace Device {
 
+namespace {
+
+bool g_sd_ready_cached = false;
+
+}  // namespace
+
 const Profile& profile() {
   return kProfile;
 }
@@ -119,7 +125,8 @@ void prepareForRestart() {
 }
 
 bool initSDCard() {
-  return DeviceImpl::initSDCard();
+  g_sd_ready_cached = DeviceImpl::initSDCard();
+  return g_sd_ready_cached;
 }
 
 bool storageReady() {
@@ -143,14 +150,21 @@ void storageWriteEnd() {
 }
 
 bool sdReady() {
-  return DeviceImpl::sdReady();
+  g_sd_ready_cached = DeviceImpl::sdReady();
+  return g_sd_ready_cached;
+}
+
+bool sdReadyCached() {
+  return g_sd_ready_cached;
 }
 
 bool sdWritable() {
 #if defined(DEVICE_GUITION_JC1060P470C)
-  return DeviceImpl::sdWritable();
+  const bool writable = DeviceImpl::sdWritable();
+  if (writable) g_sd_ready_cached = true;
+  return writable;
 #else
-  return DeviceImpl::sdReady();
+  return sdReady();
 #endif
 }
 
@@ -159,11 +173,16 @@ fs::FS& sdFS() {
 }
 
 bool suspendSDCardForNetworkTransition() {
-  return DeviceImpl::suspendSDCardForNetworkTransition();
+  const bool suspended = DeviceImpl::suspendSDCardForNetworkTransition();
+  // The storage backend is unavailable throughout the transition even when
+  // there was no mounted card to suspend.
+  g_sd_ready_cached = false;
+  return suspended;
 }
 
 bool resumeSDCardAfterNetworkTransition() {
-  return DeviceImpl::resumeSDCardAfterNetworkTransition();
+  g_sd_ready_cached = DeviceImpl::resumeSDCardAfterNetworkTransition();
+  return g_sd_ready_cached;
 }
 
 bool initLittleFS() {
