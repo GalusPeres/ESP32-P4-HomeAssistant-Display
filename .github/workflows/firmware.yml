@@ -145,6 +145,13 @@ jobs:
             define: DEVICE_GUITION_ESP32_4848S040
             rx_variant: native-s3
             publish: true
+          - label: Waveshare ESP32-S3-Touch-LCD-4B experimental
+            profile: waveshare_s3_touch_lcd_4b
+            key: waveshare_s3_touch_lcd_4b
+            define: DEVICE_WAVESHARE_S3_TOUCH_LCD_4B
+            rx_variant: native-s3
+            candidate: true
+            publish: false
 
     steps:
       - name: Check out repository
@@ -166,6 +173,9 @@ jobs:
 
       - name: Verify Guition JC1060 SD power contract
         run: node tools/test-jc1060-sd-power.mjs
+
+      - name: Verify Waveshare ESP32-S3-Touch-LCD-4B profile contract
+        run: node tools/test-waveshare-s3-touch-lcd-4b-profile.mjs
 
       - name: Verify ESP32-P4 folder-cache scope
         run: node tools/test-p4-folder-cache-scope.mjs
@@ -288,7 +298,7 @@ jobs:
           # in P4 images. Native-WiFi S3 targets do not link ESP-Hosted.
           firmware_bin="build/ci/${{ matrix.key }}/HomeTiles.ino.bin"
           test -f "${firmware_bin}"
-          if [ "${{ matrix.profile }}" != "guition_esp32_4848s040" ]; then
+          if [ "${{ matrix.rx_variant }}" != "native-s3" ]; then
             for fatal_assert in copy_buff pkt_rxbuff; do
               if grep -a -q "${fatal_assert}" "${firmware_bin}"; then
                 echo "Stock ESP-Hosted assert '${fatal_assert}' found in ${firmware_bin}" >&2
