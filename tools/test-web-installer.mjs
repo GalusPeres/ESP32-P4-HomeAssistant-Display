@@ -108,12 +108,22 @@ for (const device of DEVICE_PROFILES) {
   assert.match(match[1], new RegExp(`FlashSize=${device.flashSize / (1024 * 1024)}M(?:,|$)`));
 }
 
-const firmwareWorkflowKeys = [...read(".github/workflows/firmware.yml").matchAll(/^\s+key:\s+([a-z0-9_]+)\s*$/gm)]
-  .map((match) => match[1]);
+const firmwareWorkflowEntries = read(".github/workflows/firmware.yml")
+  .split(/^\s+- label:\s+/m)
+  .slice(1);
+const firmwareWorkflowKeys = firmwareWorkflowEntries
+  .filter((entry) => /^\s*publish:\s+true\s*$/m.test(entry))
+  .map((entry) => entry.match(/^\s*key:\s+([a-z0-9_]+)\s*$/m)?.[1])
+  .filter(Boolean);
 assert.deepEqual(
   [...DEVICE_PROFILES.map((device) => device.key)].sort(),
   [...firmwareWorkflowKeys].sort(),
   "Installer device keys must match the release build matrix.",
+);
+assert.match(
+  read(".github/workflows/firmware.yml"),
+  /key:\s+waveshare_s3_touch_lcd_4b[\s\S]*?candidate:\s+true[\s\S]*?publish:\s+false/,
+  "The experimental Waveshare S3 build must remain outside published installer targets.",
 );
 
 const packageSource = read("release-helper/package-ci-build.js");
