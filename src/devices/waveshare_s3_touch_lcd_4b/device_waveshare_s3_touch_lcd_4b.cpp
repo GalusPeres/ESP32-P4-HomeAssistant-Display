@@ -655,7 +655,9 @@ bool initTouch() {
 bool initBacklight() {
   if (g_backlight_ready) return true;
   pinMode(kBacklightPin, OUTPUT);
-  digitalWrite(kBacklightPin, LOW);
+  // The board drives the backlight transistor active-low: HIGH is off and
+  // LOW is full brightness. Keep it dark until LEDC owns the pin.
+  digitalWrite(kBacklightPin, HIGH);
   if (!ledcAttach(kBacklightPin, kBacklightFrequency,
                   kBacklightResolution)) {
     Serial.println(
@@ -663,13 +665,14 @@ bool initBacklight() {
     return false;
   }
   g_backlight_ready = true;
-  ledcWrite(kBacklightPin, 0);
+  ledcWrite(kBacklightPin, kBacklightMaxDuty);
 #if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
   Serial.printf(
       "[S3Diag/Display] phase=backlight-init result=ok pin=%d pwm_hz=%lu "
-      "resolution_bits=%u duty=0\n",
+      "resolution_bits=%u duty=%u active_low=1\n",
       kBacklightPin, static_cast<unsigned long>(kBacklightFrequency),
-      static_cast<unsigned>(kBacklightResolution));
+      static_cast<unsigned>(kBacklightResolution),
+      static_cast<unsigned>(kBacklightMaxDuty));
 #endif
   return true;
 }
@@ -677,8 +680,9 @@ bool initBacklight() {
 void applyBrightness(uint8_t value, bool remember = true) {
   if (remember) g_brightness = value;
   if (!g_backlight_ready && !initBacklight()) return;
-  const uint32_t duty =
+  const uint32_t visible_duty =
       (static_cast<uint32_t>(value) * kBacklightMaxDuty + 127u) / 255u;
+  const uint32_t duty = kBacklightMaxDuty - visible_duty;
   ledcWrite(kBacklightPin, duty);
   g_applied_brightness = value;
 }
