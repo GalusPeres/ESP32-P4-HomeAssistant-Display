@@ -6,7 +6,7 @@
 #if defined(DEVICE_WAVESHARE_4B)
 #include <esp_private/system_internal.h>
 #endif
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
 #include <esp_sleep.h>
 #endif
 
@@ -89,7 +89,7 @@ void BoardHAL::restart() {
   Serial.println("[BoardHAL] Neustart via no-OS restart");
   Serial.flush();
   esp_restart_noos();
-#elif defined(DEVICE_GUITION_ESP32_4848S040)
+#elif defined(DEVICE_ESP32_S3_RGB_480)
   // A timed deep-sleep wake can resume the currently running OTA image even
   // after Update.end() selected the other slot. Use a real chip restart so
   // the second-stage bootloader evaluates otadata and boots the new image.

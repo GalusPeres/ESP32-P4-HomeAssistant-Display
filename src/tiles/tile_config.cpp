@@ -402,7 +402,7 @@ static void promoteRecoveryFile(const String& candidatePath, const String& fileP
   if (!storageReady()) return;
   if (!storageFS().exists(candidatePath)) return;
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   Device::ScopedStorageWrite storage_write;
 #endif
   if (storageFS().exists(filePath)) {
@@ -569,7 +569,7 @@ static bool writeGridSd(uint16_t folder_id, const PackedQuarterGridV7* packed, s
   return true;
 }
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
 static bool packedGridMatchesStored(uint16_t folder_id,
                                     const PackedQuarterGridV7* packed,
                                     size_t count) {
@@ -789,7 +789,7 @@ static bool writeLongEntityIdSd(uint16_t folder_id, size_t index, const String& 
   return true;
 }
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
 static bool sidecarTextMatches(bool has_sidecar, const String& file_path,
                                const String& expected,
                                bool sidecar_required) {
@@ -2803,7 +2803,7 @@ bool TileConfig::loadGrid(uint16_t folder_id, TileGridConfig& grid,
     }
   }
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   // V6 stores image paths inline. Migrating an old folder can therefore write
   // LittleFS sidecars before saveGrid() opens its own (nested) guard. Keep the
   // complete rare migration transaction protected without adding any cost to
@@ -2870,7 +2870,7 @@ bool TileConfig::saveGrid(uint16_t folder_id, const TileGridConfig& grid,
     }
   }
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   const bool legacy_v6_present =
       storageFS().exists(tileGridFileLegacyV6(folder_id));
   const bool legacy_root_present =

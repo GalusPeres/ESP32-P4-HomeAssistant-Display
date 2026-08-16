@@ -612,7 +612,7 @@ bool HardwareIoManager::load() {
   if (!Device::storageReady()) return false;
   fs::FS& fs = Device::storageFS();
   if (loadPath(kConfigTmpPath)) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     Device::ScopedStorageWrite storage_write;
 #endif
     fs.remove(kConfigPath);
@@ -622,7 +622,7 @@ bool HardwareIoManager::load() {
   }
   if (loadPath(kConfigPath)) return true;
   if (loadPath(kConfigBackupPath)) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     Device::ScopedStorageWrite storage_write;
 #endif
     fs.remove(kConfigPath);
@@ -793,7 +793,7 @@ bool HardwareIoManager::saveChannels(
 
   String json;
   serializeJson(doc, json);
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   Device::ScopedStorageWrite storage_write;
 #endif
   fs::FS& fs = Device::storageFS();

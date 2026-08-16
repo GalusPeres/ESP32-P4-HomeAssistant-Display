@@ -348,7 +348,7 @@ void UIManager::switchToTab(uint8_t index) {
     lv_display_enable_invalidation(disp, true);
 
     const uint32_t switch_started_ms = millis();
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     // The S3 log showed 70 small flushes and about 172 ms for the settings
     // switch. Invalidating each child separately fragments the refresh and
     // repeatedly rotates/copies into the live PSRAM framebuffer. One panel
@@ -378,7 +378,7 @@ void UIManager::switchToTab(uint8_t index) {
         static_cast<unsigned long>(finished_ms - cleared_ms),
         static_cast<unsigned long>(finished_ms - switch_started_ms),
         static_cast<unsigned long>(child_count),
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
         "s3-panel"
 #else
         "children"

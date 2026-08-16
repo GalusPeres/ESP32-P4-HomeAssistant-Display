@@ -15,7 +15,7 @@ static const char* PREF_NAMESPACE = "tab5_config";
 static constexpr const char* STATUS_TIME_FONT_KEY = "stat_time_font";
 static constexpr const char* STATUS_DATE_FONT_KEY = "stat_date_font";
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
 static bool persisted_config_equal(const DeviceConfig& a,
                                    const DeviceConfig& b) {
   return strcmp(a.wifi_ssid, b.wifi_ssid) == 0 &&
@@ -208,7 +208,7 @@ ConfigManager::ConfigManager() {
 
 static uint8_t normalize_display_brightness(uint8_t brightness) {
   if (brightness >= Device::kBacklightInputMin) return brightness;
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   // The first S3 brightness test build could persist values below the panel's
   // measured visible threshold. Upgrade those values to the new 1 % floor
   // instead of unexpectedly jumping to the generic default.
@@ -417,7 +417,7 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   normalized.global_date_format =
       normalize_global_date_format(normalized.global_date_format);
   if (normalized.keyboard_layout > 2) normalized.keyboard_layout = 0;
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   normalized.auto_screensaver_seconds =
       normalize_sleep_seconds(normalized.auto_screensaver_seconds);
   normalized.status_time_font_size =
@@ -556,7 +556,7 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
   sleep_battery_seconds = normalized_cfg.auto_sleep_battery_seconds;
   normalized_bat_seconds = sleep_battery_seconds;
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   if (!runtime_rotation_dirty &&
       config.display_brightness == brightness &&
       config.display_rotated_180 == rotate_180 &&
@@ -629,7 +629,7 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
 
 bool ConfigManager::saveScreensaverTimeout(bool enabled, uint16_t seconds) {
   const uint16_t normalized_seconds = normalize_sleep_seconds(seconds);
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   if (config.auto_screensaver_enabled == enabled &&
       config.auto_screensaver_seconds == normalized_seconds) {
     return true;
@@ -652,7 +652,7 @@ bool ConfigManager::saveScreensaverTimeout(bool enabled, uint16_t seconds) {
 }
 
 bool ConfigManager::saveTileBorders(bool enabled) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   if (config.tile_borders == enabled) return true;
 #endif
   Device::ScopedStorageWrite storage_write(
@@ -670,7 +670,7 @@ bool ConfigManager::saveTileBorders(bool enabled) {
 }
 
 bool ConfigManager::saveEthernetEnabled(bool enabled) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   if (config.ethernet_enabled == enabled) return true;
 #endif
   Device::ScopedStorageWrite storage_write(
@@ -694,7 +694,7 @@ bool ConfigManager::saveScreensaverBrightness(uint8_t brightness_pct) {
     brightness_pct = kScreensaverBrightnessPctMax;
   }
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   if (config.screensaver_brightness_pct == brightness_pct) return true;
 #endif
   Device::ScopedStorageWrite storage_write(
@@ -712,7 +712,7 @@ bool ConfigManager::saveScreensaverBrightness(uint8_t brightness_pct) {
 }
 
 bool ConfigManager::saveStaticAddressingEnabled(bool enabled) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   if (config.wifi_static_enabled == enabled) return true;
 #endif
   Device::ScopedStorageWrite storage_write(
@@ -732,7 +732,7 @@ bool ConfigManager::saveStaticAddressingEnabled(bool enabled) {
 }
 
 bool ConfigManager::clearStaticAddressing() {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   if (!config.wifi_static_enabled && config.wifi_static_ip[0] == '\0' &&
       config.wifi_gateway[0] == '\0' && config.wifi_subnet[0] == '\0' &&
       config.wifi_dns[0] == '\0') {
@@ -808,7 +808,7 @@ void ConfigManager::clear() {
 }
 
 void ConfigManager::setRuntimeDisplayRotation(bool rotate_180) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   const uint8_t previous_quarters = config.display_rotation_quarters;
   const uint8_t previous_mode = config.display_rotation_mode;
   const bool previous_rotated = config.display_rotated_180;
@@ -817,7 +817,7 @@ void ConfigManager::setRuntimeDisplayRotation(bool rotate_180) {
   config.display_rotation_quarters = rotation_quarters_from_legacy(rotate_180);
   config.display_rotation_mode = rotate_180 ? kDisplayRotationFlipped : kDisplayRotationNormal;
   apply_device_capability_limits(config);
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   runtime_rotation_dirty = runtime_rotation_dirty ||
       previous_quarters != config.display_rotation_quarters ||
       previous_mode != config.display_rotation_mode ||
@@ -826,7 +826,7 @@ void ConfigManager::setRuntimeDisplayRotation(bool rotate_180) {
 }
 
 void ConfigManager::setRuntimeDisplayRotationQuarters(uint8_t rotation_quarters) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   const uint8_t previous_quarters = config.display_rotation_quarters;
   const uint8_t previous_mode = config.display_rotation_mode;
   const bool previous_rotated = config.display_rotated_180;
@@ -838,7 +838,7 @@ void ConfigManager::setRuntimeDisplayRotationQuarters(uint8_t rotation_quarters)
         config.display_rotated_180 ? kDisplayRotationFlipped : kDisplayRotationNormal;
   }
   apply_device_capability_limits(config);
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   runtime_rotation_dirty = runtime_rotation_dirty ||
       previous_quarters != config.display_rotation_quarters ||
       previous_mode != config.display_rotation_mode ||

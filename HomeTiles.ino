@@ -80,7 +80,7 @@ static constexpr uint32_t kBootSplashMinVisibleMs = 2500;
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
     defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
-    defined(DEVICE_GUITION_ESP32_4848S040)
+    defined(DEVICE_ESP32_S3_RGB_480)
 static constexpr uint32_t kBootBlackWarmupMs = 90;
 static constexpr uint32_t kBootBlackGapMs = 60;
 #endif
@@ -128,7 +128,7 @@ static void log_memory_status(const char* tag) {
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
     defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
-    defined(DEVICE_GUITION_ESP32_4848S040)
+    defined(DEVICE_ESP32_S3_RGB_480)
 static void boot_black_warmup(const char* label) {
   Serial.printf("[Boot] Black display warmup: %s\n", label ? label : "?");
   Serial.flush();
@@ -411,11 +411,11 @@ static GithubUpdate::CheckResult perform_fw_check() {
   // SRAM freigegeben, aber jedes Mal einen retained Subscribe-/State-Sturm
   // ausgeloest und den SDIO-DMA-Heap weiter fragmentiert.
   Serial.println("[Update] Check: MQTT bleibt verbunden (TLS in PSRAM)");
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   const bool s3_rgb_resync_required = networkTransport.isConnected();
 #endif
   GithubUpdate::CheckResult res = GithubUpdate::checkLatest();
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   if (s3_rgb_resync_required) {
     // Espressif documents a permanent horizontal shift when the S3 RGB DMA
     // loses PSRAM bandwidth. The HTTPS check does not write flash, but its TLS
@@ -534,7 +534,7 @@ static void apply_system_reboot() {
 static bool init_nvs() {
   esp_err_t err = nvs_flash_init();
   if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     // A normal NVS scan is read-only. Only the exceptional erase/recreate path
     // can stall the S3 RGB DMA and therefore needs the display write guard.
     Device::storageWriteBegin();
@@ -670,7 +670,7 @@ void setup() {
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
     defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
-    defined(DEVICE_GUITION_ESP32_4848S040)
+    defined(DEVICE_ESP32_S3_RGB_480)
   boot_black_warmup("after-display");
 #endif
 
@@ -711,7 +711,7 @@ void setup() {
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
     defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
-    defined(DEVICE_GUITION_ESP32_4848S040)
+    defined(DEVICE_ESP32_S3_RGB_480)
   BoardHAL::displaySleep();
   delay(kBootBlackGapMs);
   BoardHAL::displayFillScreen(0x0000);
@@ -726,7 +726,7 @@ void setup() {
 #if !defined(DEVICE_WAVESHARE_TOUCH_LCD_X) && \
     !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_GUITION_JC8012P4A1_FAMILY) && \
-    !defined(DEVICE_GUITION_ESP32_4848S040)
+    !defined(DEVICE_ESP32_S3_RGB_480)
   BoardHAL::displayWake();
 #endif
   lv_obj_invalidate(lv_screen_active());
@@ -749,7 +749,7 @@ void setup() {
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
     defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
-    defined(DEVICE_GUITION_ESP32_4848S040)
+    defined(DEVICE_ESP32_S3_RGB_480)
   BoardHAL::displayWake();
   BoardHAL::displayWaitDisplay();
 #endif
@@ -812,7 +812,7 @@ void setup() {
       delay(kBootSplashMinVisibleMs - elapsed);
     }
   }
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   // Render the complete UI into the inactive S3 framebuffer while the splash
   // remains visible. The final full-screen flush changes buffers only after a
   // completed RGB frame, so no LVGL bands become visible during the handover.
@@ -868,7 +868,7 @@ void setup() {
     lv_display_enable_invalidation(disp, true);
   }
 
-#if !defined(DEVICE_GUITION_ESP32_4848S040)
+#if !defined(DEVICE_ESP32_S3_RGB_480)
   BoardHAL::displayWake();
 #endif
   lv_obj_invalidate(lv_screen_active());
@@ -879,7 +879,7 @@ void setup() {
   lv_refr_now(displayManager.getDisplay());
   BoardHAL::displayWaitDisplay();
 #endif
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   // The first full refresh already committed the completed inactive buffer.
   // Repeat only in the blackout fallback; redrawing the visible front buffer
   // again would expose LVGL's horizontal partial-render bands.
@@ -900,7 +900,7 @@ void setup() {
   BoardHAL::displayWaitDisplay();
 #endif
 #endif
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   BoardHAL::displayWake();
 #endif
   Serial.println("[Setup] Display wake OK");
@@ -954,7 +954,7 @@ void setup() {
     Serial.println("[Setup] Ueberspringe Netzwerk (keine Config)");
   }
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   // Normal boot keeps automatic VSYNC restarts masked, while boot-time UI and
   // network work can still disturb the direct PSRAM scanout after any reset.
   // Repair possible RGB timing drift once all heavy setup work has finished.

@@ -432,7 +432,7 @@ constexpr bool kStageWebOtaInPsram = true;
 #else
 constexpr bool kStageWebOtaInPsram = false;
 #endif
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
 constexpr bool kRequireWebOtaSize = true;
 #else
 constexpr bool kRequireWebOtaSize = kStageWebOtaInPsram;
@@ -458,7 +458,7 @@ void prepareDisplayForRestart() {
 }
 
 void beginOtaStorageGuard() {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   if (!g_ota_storage_guard_active) {
     Device::storageWriteBegin();
     g_ota_storage_guard_active = true;
@@ -467,7 +467,7 @@ void beginOtaStorageGuard() {
 }
 
 void endOtaStorageGuard() {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   if (g_ota_storage_guard_active) {
     g_ota_storage_guard_active = false;
     Device::storageWriteEnd();
@@ -741,7 +741,7 @@ bool beginDirectOtaInstall() {
   delay(20);
 
   const size_t ota_size = g_ota_upload_state.install_total_bytes ? g_ota_upload_state.install_total_bytes : UPDATE_SIZE_UNKNOWN;
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   GuitionS3Diagnostics::logOtaPartitions("web-begin");
   const esp_partition_t* next_partition =
       esp_ota_get_next_update_partition(nullptr);
@@ -1200,7 +1200,7 @@ void finishRawOtaUpload(size_t parser_total_bytes) {
                 g_ota_upload_state.upload_filename.c_str(),
                 static_cast<unsigned>(parser_total_bytes));
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   if (!Update.end(false)) {
     const uint8_t update_error = Update.getError();
     const String update_error_text = Update.errorString();
@@ -2779,7 +2779,7 @@ void WebAdminServer::handleGetSdIcons() {
     return;
   }
   if (!storageFS().exists("/icons")) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     Device::ScopedStorageWrite storage_write;
 #endif
     storageFS().mkdir("/icons");
@@ -2828,7 +2828,7 @@ void WebAdminServer::handleUploadIcon() {
   auto end_storage_guard = [&]() {
     if (!storage_guard_active) return;
     storage_guard_active = false;
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     Device::storageWriteEnd();
 #endif
   };
@@ -2845,7 +2845,7 @@ void WebAdminServer::handleUploadIcon() {
       Serial.println("[Icons] Upload failed: storage unavailable");
       return;
     }
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     Device::storageWriteBegin();
     storage_guard_active = true;
 #endif
@@ -3661,7 +3661,7 @@ void WebAdminServer::handleOtaUpdate() {
     server.client().setSocketOption(SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
 
     const bool was_prepared = g_ota_upload_state.upload_prepared;
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     const size_t prepared_size = g_ota_upload_state.upload_total_bytes;
 #endif
     if (!was_prepared) {
@@ -3670,7 +3670,7 @@ void WebAdminServer::handleOtaUpdate() {
     g_ota_upload_state.upload_started = true;
     g_ota_upload_state.upload_prepared = false;
     const size_t request_size = parseOtaExpectedSize(server);
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     g_ota_upload_state.upload_total_bytes =
         request_size ? request_size : (was_prepared ? prepared_size : 0);
 #else
@@ -3696,7 +3696,7 @@ void WebAdminServer::handleOtaUpdate() {
       g_ota_upload_state.error = "Please upload the update.bin, not the factory.bin";
       return;
     }
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     if (g_ota_upload_state.upload_total_bytes == 0) {
       g_ota_upload_state.error = "Firmware size is missing";
       return;
@@ -3883,7 +3883,7 @@ void WebAdminServer::handleOtaUpdate() {
   }
 
   if (upload.status == UPLOAD_FILE_END) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     if (g_ota_upload_state.upload_total_bytes == 0 && upload.totalSize > 0) {
 #else
     if (upload.totalSize > 0) {
@@ -3993,7 +3993,7 @@ void WebAdminServer::handleOtaUpdate() {
     g_ota_upload_state.upload_success = true;
     Serial.printf("[OTA] Upload finished: %s (%u bytes)\n", upload.filename.c_str(), upload.totalSize);
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     if (upload.totalSize != g_ota_upload_state.upload_total_bytes ||
         g_ota_upload_state.install_written_bytes !=
             g_ota_upload_state.install_total_bytes) {
@@ -4357,7 +4357,7 @@ void WebAdminServer::handleCoreDumpDownload() {
 
 void WebAdminServer::handleCoreDumpErase() {
   webAdminMarkActivity();
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   Device::ScopedStorageWrite storage_write;
 #endif
   const esp_err_t err = esp_core_dump_image_erase();

@@ -41,7 +41,7 @@ constexpr uint32_t kConnectTimeoutMs = 10000;
 constexpr uint32_t kReadTimeoutMs = 20000;
 constexpr uint32_t kReadPaceMs = 2;
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
 bool isRetryableTransportError(const String& error) {
   return error.startsWith("connect failed") ||
          error == "no http status" || error == "bad http status" ||
@@ -60,7 +60,7 @@ String diagnosticUrl(const String& url) {
 }
 #endif
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
 // Native WiFi does not need the ESP32-P4/ESP-Hosted separation between the
 // complete HTTPS download and flash writes. Keeping only one verified range
 // in PSRAM avoids trying to reserve a ~5.4 MB firmware image on an 8 MB board.
@@ -832,7 +832,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
     if (!fetchHttpRange(legacy_url, 0, sizeof(image_head) - 1, net_buf,
                         kInstallReadChunk, storeHeadBytes, &head_ctx, total_sz,
                         error_out, &resolved_asset_url)) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
       g_install_retryable =
           isRetryableTransportError(first_error) ||
           isRetryableTransportError(error_out);
@@ -887,7 +887,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
     }
   }
 
-#if !defined(DEVICE_GUITION_ESP32_4848S040)
+#if !defined(DEVICE_ESP32_S3_RGB_480)
   // Preserve the established P4 retry behaviour. The stricter distinction
   // between transport and deterministic OTA failures is S3-only.
   if (!failed) g_install_retryable = true;
@@ -1025,7 +1025,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
                           ? "image size changed"
                           : "range incomplete";
         }
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
         if (isRetryableTransportError(error_out)) {
           range_failure_retryable = true;
         }
@@ -1042,7 +1042,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
       }
 
       if (!range_ok) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
         g_install_retryable = range_failure_retryable;
 #endif
         failed = true;
@@ -1098,7 +1098,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
       error_out = String("Updater [") +
                   String(static_cast<unsigned>(update_error)) + "]: " +
                   Update.errorString();
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
       g_install_retryable = false;
 #endif
       failed = true;
@@ -1115,7 +1115,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
       write_ctx.error = &error_out;
       if (!writeUpdateBytes(image_head, head_ctx.len, &write_ctx)) {
         if (!error_out.length()) error_out = Update.errorString();
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
         g_install_retryable = false;
 #endif
         failed = true;
@@ -1127,7 +1127,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
         if (!writeUpdateBytes(stage.block(i), stage.blockSize(i),
                               &write_ctx)) {
           if (!error_out.length()) error_out = Update.errorString();
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
           g_install_retryable = false;
 #endif
           failed = true;
@@ -1139,7 +1139,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
   stage.release();
   if (net_buf) free(net_buf);
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   if (!failed && write_ctx.written != total_sz) {
     error_out = String("OTA byte count mismatch: written ") +
                 write_ctx.written + " expected " + total_sz;
@@ -1160,7 +1160,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
     return false;
   }
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   const bool update_end_ok = Update.end(false);
   constexpr const char* kUpdateEndMode = "false";
 #else
@@ -1173,7 +1173,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
     error_out = String("Updater [") +
                 String(static_cast<unsigned>(update_error)) + "]: " +
                 update_error_text;
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     g_install_retryable = false;
 #endif
     Serial.printf(

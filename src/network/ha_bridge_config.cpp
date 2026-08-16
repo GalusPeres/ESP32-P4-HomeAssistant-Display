@@ -47,7 +47,7 @@ static uint8_t hexValue(char c);
 
 HaBridgeConfig haBridgeConfig;
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
 static constexpr bool kWriteOnlyChangedBridgeSlots = true;
 #else
 // Preserve the existing persistence behaviour on every other device profile.

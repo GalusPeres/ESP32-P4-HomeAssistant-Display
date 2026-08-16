@@ -301,7 +301,7 @@ bool ScreensaverConfigStore::load() {
   bool config_needs_migration = false;
   fs::FS& fs = Device::storageFS();
   if (loadPath(kConfigTmpPath)) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     Device::ScopedStorageWrite storage_write;
 #endif
     fs.remove(kConfigPath);
@@ -311,7 +311,7 @@ bool ScreensaverConfigStore::load() {
   } else if (loadPath(kConfigPath)) {
     config_ok = true;
   } else if (loadPath(kConfigBackupPath)) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
     Device::ScopedStorageWrite storage_write;
 #endif
     fs.remove(kConfigPath);
@@ -415,7 +415,7 @@ String ScreensaverConfigStore::toJson(bool include_device_meta) const {
 bool ScreensaverConfigStore::save() {
   if (!Device::storageReady()) return false;
   normalize();
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   Device::ScopedStorageWrite storage_write;
 #endif
   fs::FS& fs = Device::storageFS();
@@ -483,7 +483,7 @@ bool ScreensaverConfigStore::replaceFromJson(const String& json, String& error,
   String normalized_json;
   serializeJson(doc, normalized_json);
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   Device::ScopedStorageWrite storage_write;
 #endif
   fs::FS& fs = Device::storageFS();

@@ -25,7 +25,7 @@ const char* apSsidForDevice() {
   return "Guition_JC8012P4A1_V2_Config";
 #elif defined(DEVICE_GUITION_JC1060P470C)
   return "Guition_JC1060P470C_Config";
-#elif defined(DEVICE_GUITION_ESP32_4848S040)
+#elif defined(DEVICE_ESP32_S3_RGB_480)
   return "Guition_4848S040_Config";
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_7)
   return "Waveshare_LCD7_Config";
@@ -76,7 +76,7 @@ const char* webConfigApPassword() {
 }
 
 static void restoreStaModeAfterAp() {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   // Calling persistent(false) after mode() is too late for the first
   // esp_wifi_set_mode() transition on the RGB-S3.
   WiFi.persistent(false);
@@ -100,7 +100,7 @@ bool WebConfigServer::start() {
   Serial.println("\n🌐 Starte WiFi-Konfigurationsmodus...");
 
   // Stoppe bisherige WiFi-Verbindung (hilft beim Captive Portal)
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   WiFi.persistent(false);
 #endif
   applyWifiAutoReconnectPolicy();

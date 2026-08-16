@@ -566,7 +566,7 @@ const TileTypeDescriptor kTileTypes[] = {
     append_cover_styles,
     append_cover_scripts
   },
-#if !defined(DEVICE_GUITION_ESP32_4848S040)
+#if !defined(DEVICE_ESP32_S3_RGB_480)
   {
     TILE_CAMERA,
     "Camera",

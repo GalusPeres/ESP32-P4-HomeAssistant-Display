@@ -19,7 +19,7 @@ const networkSetup = setup.indexOf('networkManager.beginMqttWorker();');
 const noConfigBranch = setup.indexOf(
   'Serial.println("[Setup] Ueberspringe Netzwerk (keine Config)");',
 );
-const guard = setup.indexOf('#if defined(DEVICE_GUITION_ESP32_4848S040)', noConfigBranch);
+const guard = setup.indexOf('#if defined(DEVICE_ESP32_S3_RGB_480)', noConfigBranch);
 const begin = setup.indexOf('Device::storageWriteBegin();', guard);
 const end = setup.indexOf('Device::storageWriteEnd();', begin);
 const activityReset = setup.indexOf('displayManager.resetActivityTimer();', end);

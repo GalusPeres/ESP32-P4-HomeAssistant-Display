@@ -50,7 +50,7 @@ requireOrder(checkBody, [
 
 const checkCall = checkBody.indexOf('GithubUpdate::checkLatest()');
 const recoveryGuard = checkBody.slice(checkCall).match(
-  /#if defined\(DEVICE_GUITION_ESP32_4848S040\)([\s\S]*?)#endif/);
+  /#if defined\(DEVICE_ESP32_S3_RGB_480\)([\s\S]*?)#endif/);
 if (!recoveryGuard) {
   throw new Error('Update-check recovery is not guarded for the exact S3 profile');
 }

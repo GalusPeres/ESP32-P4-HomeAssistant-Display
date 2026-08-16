@@ -71,7 +71,7 @@
 
 #if LV_USE_STDLIB_MALLOC == LV_STDLIB_BUILTIN
     /** Size of memory available for `lv_malloc()` in bytes (>= 2kB) */
-    #if defined(DEVICE_GUITION_ESP32_4848S040)
+    #if defined(DEVICE_ESP32_S3_RGB_480)
         /*
          * This ESP32-S3 board has 8 MB PSRAM in total. Reserving the generic
          * 12 MB LVGL arena fails and makes LVGL dereference a null TLSF pool
@@ -520,7 +520,7 @@
  *  If size is not set to 0, the decoder will fail to decode when the cache is full.
  *  If size is 0, the cache function is not enabled and the decoded memory will be
  *  released immediately after use. */
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
 #define LV_CACHE_DEF_SIZE (512 * 1024U)
 #else
 #define LV_CACHE_DEF_SIZE (6 * 1024 * 1024U)  // 6 MB Cache

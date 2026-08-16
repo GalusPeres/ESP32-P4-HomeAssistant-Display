@@ -414,7 +414,7 @@ bool HomeTilesNetworkManager::isWifiStationEnabled() const {
 bool HomeTilesNetworkManager::ensureWifiStationStarted() {
   wifi_suspended_for_wired = false;
   applyWifiAutoReconnectPolicy();
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   // Arduino-ESP32 defaults WiFi persistence to true. Set RAM storage before
   // the first WiFi.mode() call, otherwise esp_wifi_set_mode() can update NVS
   // after the S3 RGB scanout is already visible. The old call below happened

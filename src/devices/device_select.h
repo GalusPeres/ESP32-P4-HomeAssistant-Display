@@ -16,6 +16,7 @@
 // #define DEVICE_GUITION_JC8012P4A1_V2
 // #define DEVICE_GUITION_JC1060P470C
 // #define DEVICE_GUITION_ESP32_4848S040
+// #define DEVICE_WAVESHARE_S3_TOUCH_LCD_4B
 #endif
 //
 // If nothing is selected, the project defaults to Waveshare 4B.
@@ -38,7 +39,8 @@
      defined(DEVICE_GUITION_JC8012P4A1) + \
      defined(DEVICE_GUITION_JC8012P4A1_V2) + \
      defined(DEVICE_GUITION_JC1060P470C) + \
-     defined(DEVICE_GUITION_ESP32_4848S040)) > 1
+     defined(DEVICE_GUITION_ESP32_4848S040) + \
+     defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)) > 1
 #error "Select only one device target."
 #endif
 
@@ -53,6 +55,7 @@
     !defined(DEVICE_GUITION_JC8012P4A1_V2) && \
     !defined(DEVICE_GUITION_JC1060P470C) && \
     !defined(DEVICE_GUITION_ESP32_4848S040) && \
+    !defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B) && \
     defined(HOMETILES_CI_TARGET)
 #error "HOMETILES_CI_TARGET requires one DEVICE_* build flag."
 #endif
@@ -68,8 +71,14 @@
     !defined(DEVICE_GUITION_JC8012P4A1_V2) && \
     !defined(DEVICE_GUITION_JC1060P470C) && \
     !defined(DEVICE_GUITION_ESP32_4848S040) && \
+    !defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B) && \
     !defined(HOMETILES_CI_TARGET)
 #define DEVICE_WAVESHARE_4B
+#endif
+
+#if defined(DEVICE_GUITION_ESP32_4848S040) || \
+    defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)
+#define DEVICE_ESP32_S3_RGB_480
 #endif
 
 // Both JC8012 revisions share the board-level UI and lifecycle behavior, but
@@ -96,7 +105,8 @@
 #endif
 
 #if defined(DEVICE_LAYOUT_TEST_480X480) || \
-    defined(DEVICE_GUITION_ESP32_4848S040)
+    defined(DEVICE_GUITION_ESP32_4848S040) || \
+    defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)
 #define DEVICE_LAYOUT_480X480
 #endif
 

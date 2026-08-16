@@ -94,7 +94,7 @@ void displayWakeDark() {
     defined(DEVICE_M5STACKS_TAB5) || \
     defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
     defined(DEVICE_GUITION_JC1060P470C) || \
-    defined(DEVICE_GUITION_ESP32_4848S040)
+    defined(DEVICE_ESP32_S3_RGB_480)
   DeviceImpl::displayWakeDark();
 #else
   DeviceImpl::displayWake();
@@ -131,13 +131,13 @@ fs::FS& storageFS() {
 }
 
 void storageWriteBegin() {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   DeviceImpl::storageWriteBegin();
 #endif
 }
 
 void storageWriteEnd() {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   DeviceImpl::storageWriteEnd();
 #endif
 }

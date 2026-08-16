@@ -199,7 +199,7 @@ void logBootDiagnostics() {
     return;
   }
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   Device::ScopedStorageWrite storage_write;
 #endif
   rotateLogIfNeeded();
@@ -229,7 +229,7 @@ void logBootDiagnostics() {
 
 void appendOtaFailureReport(const char* target_tag, const String& error,
                             const String& detail) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   Device::ScopedStorageWrite storage_write;
 #endif
   rotateLogIfNeeded();
@@ -252,7 +252,7 @@ void appendOtaFailureReport(const char* target_tag, const String& error,
 }
 
 void appendNetworkWedgeReport(const String& detail) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   Device::ScopedStorageWrite storage_write;
 #endif
   rotateLogIfNeeded();
