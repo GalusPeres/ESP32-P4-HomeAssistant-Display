@@ -410,7 +410,7 @@ assert.match(docsNavigation, /- Flashing the Firmware: installer\.md/);
 assert.doesNotMatch(docsNavigation, /Browser Firmware Installer:/);
 assert.match(
   docsNavigation,
-  /- Release Notes:\s*\r?\n\s+- v0\.6\.6:\s*releases\/v0\.6\.6\.md\s*\r?\n\s+- v0\.6\.5:/,
+  /- Release Notes:\s*\r?\n\s+- v0\.6\.7:\s*releases\/v0\.6\.7\.md\s*\r?\n\s+- v0\.6\.6:/,
 );
 assert.doesNotMatch(docsNavigation, /navigation\.expand/);
 for (const match of docsNavigation.matchAll(/^\s+- (?:[^:\r\n]+):\s+([^\s#]+\.md)\s*$/gm)) {

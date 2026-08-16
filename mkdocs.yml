@@ -41,6 +41,7 @@ nav:
       - Firmware Updates: updating.md
       - FAQ & Troubleshooting: faq.md
       - Release Notes:
+          - v0.6.7: releases/v0.6.7.md
           - v0.6.6: releases/v0.6.6.md
           - v0.6.5: releases/v0.6.5.md
           - v0.6.4: releases/v0.6.4.md
