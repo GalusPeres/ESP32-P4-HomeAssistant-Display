@@ -14,7 +14,7 @@ You never upload binaries by hand — you only bump the version and push a tag.
 git add version.txt
 git commit -m "Release v0.6.5"
 git tag v0.6.5
-git push --follow-tags
+git push --atomic origin master refs/tags/v0.6.5
 ```
 
 That's it. The action then:
@@ -54,6 +54,16 @@ contract.
 The checked-in release notes are not copied into the GitHub release
 automatically. After the workflow succeeds, replace the generated GitHub text
 with the matching `docs/releases/vX.Y.Z.md` content and keep the asset list.
+
+Keep every release note in this order:
+
+1. One short sentence describing what the release changes. Do not start with
+   update instructions.
+2. `## Highlights` with concise user-visible changes.
+3. `## Update Notes` with the required Bridge version and image guidance.
+4. `## Hardware Confirmed`.
+5. `## Pending Hardware Validation`.
+6. Credits and the full changelog link.
 
 The release notes must keep **hardware-confirmed** devices and devices with
 **pending hardware validation** in separate sections. A successful CI compile

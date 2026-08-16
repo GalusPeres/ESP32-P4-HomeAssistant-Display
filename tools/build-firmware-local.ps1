@@ -115,7 +115,10 @@ $cFlags = $cppFlags
 
 Move-Item -LiteralPath $sketchProfiles -Destination $hiddenSketchProfiles
 try {
-    $cleanArgs = if ($Clean) { @('--clean') } else { @() }
+    [string[]]$cleanArgs = @()
+    if ($Clean) {
+        $cleanArgs += '--clean'
+    }
     & $arduinoCli compile @cleanArgs `
         --fqbn $fqbn `
         --export-binaries `
