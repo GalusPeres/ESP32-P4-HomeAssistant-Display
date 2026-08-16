@@ -15,6 +15,8 @@ for (const marker of [
   "constexpr int8_t kTouchSda = 47;",
   "constexpr int8_t kTouchScl = 48;",
   "constexpr int8_t kBacklightPin = 4;",
+  "digitalWrite(kBacklightPin, HIGH);",
+  "const uint32_t duty = kBacklightMaxDuty - visible_duty;",
   "st7701_type1_init_operations",
   "Arduino_XCA9554SWSPI",
   "kExpanderTouchReset",
