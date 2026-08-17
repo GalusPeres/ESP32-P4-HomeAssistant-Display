@@ -40,6 +40,6 @@ jobs:
         run: node release-helper/prepare-web-installer.mjs --output site/firmware/latest
       - name: Publish an orphan gh-pages snapshot
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "GalusPeres"
+          git config user.email "37831508+GalusPeres@users.noreply.github.com"
           ghp-import --no-jekyll --push --force --no-history site
