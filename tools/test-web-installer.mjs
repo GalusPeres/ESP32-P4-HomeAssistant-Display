@@ -73,14 +73,26 @@ function firmwareFixture(deviceKey, appOffset = 0) {
   return bytes;
 }
 
-assert.equal(DEVICE_PROFILES.length, 9, "Every release target needs an installer profile.");
-assert.equal(new Set(DEVICE_PROFILES.map((device) => device.key)).size, 9);
-assert.equal(DEVICE_PROFILES.filter((device) => device.chipFamily === "ESP32-S3").length, 1);
-assert.equal(DEVICE_PROFILES.filter((device) => device.chipFamily === "ESP32-P4").length, 8);
+assert.equal(DEVICE_PROFILES.length, 12, "Every release target needs an installer profile.");
+assert.equal(new Set(DEVICE_PROFILES.map((device) => device.key)).size, 12);
+assert.equal(DEVICE_PROFILES.filter((device) => device.chipFamily === "ESP32-S3").length, 2);
+assert.equal(DEVICE_PROFILES.filter((device) => device.chipFamily === "ESP32-P4").length, 10);
 assert.equal(
   DEVICE_PROFILES.find((device) => device.key === "guition_esp32_4848s040").chipFamily,
   "ESP32-S3",
 );
+for (const [key, chipFamily, flashSize, labelPattern] of [
+  ["waveshare_touch_lcd_7b", "ESP32-P4", 32 * 1024 * 1024, /7B \/ 7B-C/],
+  ["guition_jc1060p470c_v2", "ESP32-P4", 16 * 1024 * 1024, /V2 \(New Panel\)/],
+  ["waveshare_s3_touch_lcd_4b", "ESP32-S3", 16 * 1024 * 1024, /ESP32-S3 Touch LCD 4B/],
+]) {
+  const device = DEVICE_PROFILES.find((candidate) => candidate.key === key);
+  assert.ok(device, `Missing installer profile ${key}.`);
+  assert.equal(device.chipFamily, chipFamily);
+  assert.equal(device.flashSize, flashSize);
+  assert.equal(device.status, "validation-pending");
+  assert.match(device.label, labelPattern);
+}
 
 function securityInfoFixture(chipId) {
   const bytes = new Uint8Array(20);
@@ -128,7 +140,7 @@ assert.match(packageSource, /const otaSlotSize = 0x680000;/);
 
 const releaseIndex = buildReleaseIndex(fixtureRelease());
 assert.equal(releaseIndex.tag, "v0.6.5");
-assert.equal(releaseIndex.devices.length, 9);
+assert.equal(releaseIndex.devices.length, 12);
 for (const device of releaseIndex.devices) {
   const names = releaseAssetNames("v0.6.5", device.key);
   assert.equal(device.update.file, names.update);
@@ -139,7 +151,7 @@ for (const device of releaseIndex.devices) {
 
 const fullPublication = selectDevicesForPublication(releaseIndex);
 assert.equal(fullPublication.partial, false);
-assert.equal(fullPublication.devices.length, 9);
+assert.equal(fullPublication.devices.length, 12);
 const localPublication = selectDevicesForPublication(releaseIndex, "guition_esp32_4848s040");
 assert.equal(localPublication.partial, true);
 assert.deepEqual(localPublication.devices.map((device) => device.key), ["guition_esp32_4848s040"]);
@@ -151,6 +163,39 @@ assert.throws(
 const missingAssetRelease = fixtureRelease();
 missingAssetRelease.assets.pop();
 assert.throws(() => buildReleaseIndex(missingAssetRelease), /is missing/);
+assert.throws(
+  () => buildReleaseIndex(missingAssetRelease, { allowMissingProfiles: true }),
+  /is missing/,
+  "A release with only one file from an update/factory pair must remain invalid.",
+);
+const previousRelease = fixtureRelease("v0.6.7");
+const pendingDeviceKeys = new Set([
+  "waveshare_touch_lcd_7b",
+  "guition_jc1060p470c_v2",
+  "waveshare_s3_touch_lcd_4b",
+]);
+previousRelease.assets = previousRelease.assets.filter(
+  (asset) => ![...pendingDeviceKeys].some((key) => asset.name.includes(`_${key}`)),
+);
+assert.throws(
+  () => buildReleaseIndex(previousRelease),
+  /is missing/,
+  "The normal release contract must still require every configured profile.",
+);
+const previousReleaseIndex = buildReleaseIndex(previousRelease, { allowMissingProfiles: true });
+assert.equal(previousReleaseIndex.devices.length, 9);
+assert.deepEqual(
+  previousReleaseIndex.devices.map((device) => device.key).filter((key) => pendingDeviceKeys.has(key)),
+  [],
+);
+const previousReleasePublication = selectDevicesForPublication(previousReleaseIndex);
+assert.equal(previousReleasePublication.partial, true);
+assert.equal(previousReleasePublication.devices.length, 9);
+assert.throws(
+  () => selectDevicesForPublication(previousReleaseIndex, "waveshare_touch_lcd_7b"),
+  /has no complete firmware pair/,
+  "An explicit local device request must fail when that release has no matching pair.",
+);
 const wrongFactorySizeRelease = fixtureRelease();
 wrongFactorySizeRelease.assets.find((asset) => asset.name.endsWith("_factory.bin")).size -= 1;
 assert.throws(() => buildReleaseIndex(wrongFactorySizeRelease), /complete .* factory image/);
@@ -425,11 +470,13 @@ for (const [target, resolution] of [
   ["M5Stack Tab5", "1280×720"],
   ["Waveshare 4B / 86 Panel", "720×720"],
   ["Waveshare Touch LCD 7 inch", "1280×720"],
+  ["Waveshare Touch LCD 7B / 7B-C", "1024×600"],
   ["Waveshare Touch LCD 8 inch", "1280×800"],
   ["Waveshare Touch LCD 10.1 inch", "1280×800"],
   ["Guition JC8012P4A1 V1 / V2", "1280×800"],
-  ["Guition JC1060P470C_I_W_Y", "1024×600"],
+  ["Guition JC1060P470C V1 / V2", "1024×600"],
   ["Guition ESP32-4848S040C_I", "480×480"],
+  ["Waveshare ESP32-S3-Touch-LCD-4B", "480×480"],
 ]) {
   assert.ok(
     screensaverDocs.includes(`| ${target} | ${resolution} |`),

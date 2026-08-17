@@ -4,13 +4,13 @@
 #include <Preferences.h>
 #include <cstring>
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
 #include <nvs.h>
 #endif
 
 namespace BatchedNvsWrite {
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
 
 // Arduino Preferences commits after every put/remove call. The RGB S3 profile
 // uses one native NVS transaction instead, keeping the guarded flash window

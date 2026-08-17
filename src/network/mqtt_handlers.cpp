@@ -818,7 +818,9 @@ static int brightnessPctFromRaw(int raw) {
 }
 
 static uint8_t brightnessRawFromPct(int pct) {
-  if (pct < 1) pct = 1;
+  if (pct < Device::kConfiguredBrightnessPercentMin) {
+    pct = Device::kConfiguredBrightnessPercentMin;
+  }
   if (pct > 100) pct = 100;
   return Device::backlightRawFromPercent(static_cast<uint8_t>(pct));
 }
@@ -904,8 +906,10 @@ static void handleDisplayBrightnessCommand(const char* payload, size_t) {
     // Compatibility with Bridge versions that used the old 121..255 raw
     // protocol. New firmware and Bridge versions exchange 1..100 percent.
     if (command_value > 255) command_value = 255;
-    if (command_value < Device::kBacklightInputMin) {
-      command_value = Device::kBacklightInputMin;
+    const uint8_t configured_min = Device::backlightRawFromPercent(
+        Device::kConfiguredBrightnessPercentMin);
+    if (command_value < configured_min) {
+      command_value = configured_min;
     }
     value = static_cast<uint8_t>(command_value);
   } else {
@@ -937,8 +941,8 @@ static void handleDisplayBrightnessCommand(const char* payload, size_t) {
 static void handleScreensaverBrightnessCommand(const char* payload, size_t) {
   if (!payload || !*payload) return;
   int percent = atoi(payload);
-  if (percent < kScreensaverBrightnessPctMin) {
-    percent = kScreensaverBrightnessPctMin;
+  if (percent < Device::kConfiguredBrightnessPercentMin) {
+    percent = Device::kConfiguredBrightnessPercentMin;
   }
   if (percent > kScreensaverBrightnessPctMax) {
     percent = kScreensaverBrightnessPctMax;

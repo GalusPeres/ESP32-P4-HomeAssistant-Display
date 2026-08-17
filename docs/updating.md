@@ -69,9 +69,12 @@ Use the asset matching your device from the release page:
 | Guition JC8012P4A1C_I_W_Y V1 (no V2 sticker) | Supported | `hometiles_<version>_guition_jc8012p4a1.bin` |
 | Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Hardware validation pending | `hometiles_<version>_guition_jc8012p4a1_v2.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Hardware validation pending | `hometiles_<version>_waveshare_touch_lcd_7.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C | Hardware validation pending; not the older 7-inch profile | `hometiles_<version>_waveshare_touch_lcd_7b.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Hardware validation pending | `hometiles_<version>_waveshare_touch_lcd_10_1.bin` |
-| Guition JC1060P470C_I_W_Y | SD-card validation pending; exact suffix required | `hometiles_<version>_guition_jc1060p470c.bin` |
+| Guition JC1060P470C_I_W_Y V1 | SD-card validation pending; exact suffix required | `hometiles_<version>_guition_jc1060p470c.bin` |
+| Guition JC1060P470C V2 / New Panel | Hardware validation pending; use only for the marked V2 revision | `hometiles_<version>_guition_jc1060p470c_v2.bin` |
 | Guition ESP32-4848S040C_I | Supported | `hometiles_<version>_guition_esp32_4848s040.bin` |
+| Waveshare ESP32-S3-Touch-LCD-4B | Hardware validation pending; no microSD interface | `hometiles_<version>_waveshare_s3_touch_lcd_4b.bin` |
 
 Older devices still running v0.2.9 or earlier look for the previous
 `esp32-p4-homeassistant-display-<version>-<device>-update.bin` naming; the on-device

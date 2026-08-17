@@ -106,6 +106,42 @@ Arduino IDE:
 - Upload Speed: `921600`
 - USB Mode: `USB-OTG (TinyUSB)`
 
+## Waveshare Touch LCD 7B / 7B-C
+
+Used for:
+- `src/devices/waveshare_touch_lcd_7b`
+- build profile `waveshare_7b`
+
+Important:
+- This is the `1024x600` EK79007 7B/7B-C profile. It is not interchangeable
+  with the older `1280x720` Waveshare Touch LCD 7-inch profile.
+- The 7B-C uses the same display, touch, backlight, and SDMMC contract. Its
+  optional camera is not exposed by HomeTiles.
+- ESP32-P4 with `32MB` flash and `32MB` PSRAM.
+- Touch uses SDA 7 and SCL 8. The panel reset is GPIO 33.
+- The microSD interface uses SDMMC slot 0 on GPIO39-44 and P4 LDO channel 4.
+- Complete validation on both exact variants is still pending in
+  [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7).
+- Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.
+
+Arduino IDE:
+- Board: `ESP32P4 Dev Module`
+- USB CDC On Boot: `Disabled`
+- Chip Variant: `Before v3.00`
+- Core Debug Level: `None`
+- USB DFU On Boot: `Disabled`
+- Erase All Flash Before Sketch Upload: `Disabled`
+- Flash Frequency: `80MHz`
+- Flash Mode: `QIO`
+- Flash Size: `32MB (256Mb)`
+- JTAG Adapter: `Disabled`
+- USB Firmware MSC On Boot: `Disabled`
+- Partition Scheme: `32M Flash (13MB APP/6.75MB SPIFFS)`
+- PSRAM: `Enabled`
+- Upload Mode: `UART0 / Hardware CDC`
+- Upload Speed: `921600`
+- USB Mode: `USB-OTG (TinyUSB)`
+
 ## Guition JC8012P4A1
 
 Used for:
@@ -195,6 +231,46 @@ Arduino IDE:
 - Upload Speed: `921600`
 - USB Mode: `USB-OTG (TinyUSB)`
 
+## Guition JC1060P470C V2 / New Panel
+
+Used for:
+- `src/devices/guition_jc1060p470c_v2`
+- build profile `guition_jc1060p470c_v2`
+
+Important:
+- Use this profile only for the marked `JC1060P470C` V2 / New Panel revision.
+  The original `_I_W_Y` panel requires the separate
+  `guition_jc1060p470c` profile.
+- Display, touch, brightness, storage, networking, and OTA behavior still need
+  confirmation on the exact V2 hardware in
+  [issue #27](https://github.com/GalusPeres/HomeTiles/issues/27).
+- ESP32-P4 with `16MB` flash and `32MB` PSRAM.
+- Native `1024x600` JD9165 MIPI-DSI panel with two lanes at 750Mbps and GT911
+  touch on SDA 7 / SCL 8.
+- LCD reset is GPIO 5; backlight is active-high on GPIO 23 using 20kHz,
+  10-bit PWM.
+- SDMMC slot 0 uses GPIO39-44 and LDO VO4. GPIO45 controls the active-low card
+  power switch and is reserved from configurable hardware I/O.
+- Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.
+
+Arduino IDE:
+- Board: `ESP32P4 Dev Module`
+- USB CDC On Boot: `Disabled`
+- Chip Variant: `Before v3.00`
+- Core Debug Level: `None`
+- USB DFU On Boot: `Disabled`
+- Erase All Flash Before Sketch Upload: `Disabled`
+- Flash Frequency: `80MHz`
+- Flash Mode: `QIO`
+- Flash Size: `16MB (128Mb)`
+- JTAG Adapter: `Disabled`
+- USB Firmware MSC On Boot: `Disabled`
+- Partition Scheme: `Custom`
+- PSRAM: `Enabled`
+- Upload Mode: `UART0 / Hardware CDC`
+- Upload Speed: `921600`
+- USB Mode: `USB-OTG (TinyUSB)`
+
 ## GUITION ESP32-4848S040
 
 Used for:
@@ -212,6 +288,43 @@ Important:
 - Capacitive touch is GT911 on SDA 19 / SCL 45.
 - Backlight PWM is active-high on GPIO 38.
 - The microSD card uses SPI mode (`SCK 48`, `MOSI 47`, `MISO 41`, `CS 42`).
+- Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.
+
+Arduino IDE:
+- Board: `ESP32S3 Dev Module`
+- USB CDC On Boot: `Enabled`
+- CPU Frequency: `240MHz (WiFi)`
+- Core Debug Level: `None`
+- USB DFU On Boot: `Disabled`
+- Erase All Flash Before Sketch Upload: `Disabled`
+- Flash Mode: `QIO 80MHz`
+- Flash Size: `16MB (128Mb)`
+- JTAG Adapter: `Disabled`
+- USB Firmware MSC On Boot: `Disabled`
+- Partition Scheme: `Custom`
+- PSRAM: `OPI PSRAM`
+- Upload Mode: `UART0 / Hardware CDC`
+- Upload Speed: `921600`
+- USB Mode: `Hardware CDC and JTAG`
+
+## Waveshare ESP32-S3-Touch-LCD-4B
+
+Used for:
+- `src/devices/waveshare_s3_touch_lcd_4b`
+- build profile `waveshare_s3_touch_lcd_4b`
+
+Important:
+- This profile is only for the exact Waveshare ESP32-S3-Touch-LCD-4B. It is
+  not the ESP32-P4 Waveshare Touch LCD 4B / 86 Panel profile.
+- Complete physical-device validation is pending in
+  [issue #26](https://github.com/GalusPeres/HomeTiles/issues/26).
+- ESP32-S3 with `16MB` flash and `8MB` octal PSRAM.
+- The panel is a `480x480` ST7701 RGB display using the official 16MHz pixel
+  clock and Waveshare initialization table.
+- Capacitive touch is GT911 on SDA 47 / SCL 48.
+- Backlight PWM is active-low on GPIO 4 using 5kHz, 10-bit PWM.
+- This exact board has no microSD interface. Runtime files use LittleFS, and
+  Camera tiles are unavailable on this ESP32-S3 profile.
 - Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.
 
 Arduino IDE:

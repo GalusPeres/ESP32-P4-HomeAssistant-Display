@@ -414,7 +414,7 @@ bool HomeTilesNetworkManager::isWifiStationEnabled() const {
 bool HomeTilesNetworkManager::ensureWifiStationStarted() {
   wifi_suspended_for_wired = false;
   applyWifiAutoReconnectPolicy();
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   // Arduino-ESP32 defaults WiFi persistence to true. Set RAM storage before
   // the first WiFi.mode() call, otherwise esp_wifi_set_mode() can update NVS
   // after the S3 RGB scanout is already visible. The old call below happened
@@ -425,11 +425,11 @@ bool HomeTilesNetworkManager::ensureWifiStationStarted() {
     // On the JC1060P470C, the card is mounted on SDMMC slot 0 while
     // ESP-Hosted starts on slot 1. Mount the card again after that shared host
     // transition so the write test and FAT driver use the final runtime state.
-#if defined(DEVICE_GUITION_JC1060P470C)
+#if defined(DEVICE_GUITION_JC1060P470C_FAMILY)
     const bool sd_was_mounted = Device::suspendSDCardForNetworkTransition();
 #endif
     const bool wifi_started = WiFi.mode(WIFI_STA);
-#if defined(DEVICE_GUITION_JC1060P470C)
+#if defined(DEVICE_GUITION_JC1060P470C_FAMILY)
     if (sd_was_mounted && !Device::resumeSDCardAfterNetworkTransition()) {
       Serial.println("[Network] SD remount after ESP-Hosted start failed");
     }

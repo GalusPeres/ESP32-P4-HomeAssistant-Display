@@ -18,6 +18,11 @@ inline constexpr uint16_t kGridCellW = kProfile.grid_cell_w;
 inline constexpr uint16_t kGridCellH = kProfile.grid_cell_h;
 inline constexpr uint8_t kDisplayFlushBands = kProfile.display_flush_bands;
 inline constexpr uint8_t kBacklightInputMin = kProfile.backlight_input_min;
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1)
+inline constexpr uint8_t kConfiguredBrightnessPercentMin = 2;
+#else
+inline constexpr uint8_t kConfiguredBrightnessPercentMin = 1;
+#endif
 inline constexpr RotationStepMode kRotationStepMode = kProfile.rotation_step_mode;
 inline constexpr uint8_t kRotationDefault = kProfile.rotation_default;
 inline constexpr uint8_t kRotationFlipped = kProfile.rotation_flipped;
@@ -27,7 +32,9 @@ inline constexpr Capabilities kCapabilities = kProfile.capabilities;
 // MQTT. Gespeichert bleibt aus Kompatibilitaetsgruenden weiterhin der
 // geraetespezifische Rohwert.
 inline uint8_t backlightRawFromPercent(uint8_t percent) {
-  if (percent < 1) percent = 1;
+  if (percent < kConfiguredBrightnessPercentMin) {
+    percent = kConfiguredBrightnessPercentMin;
+  }
   if (percent > 100) percent = 100;
   const uint16_t span = static_cast<uint16_t>(255U - kBacklightInputMin);
   return static_cast<uint8_t>(
@@ -39,10 +46,14 @@ inline uint8_t backlightPercentFromRaw(uint8_t raw) {
   if (raw < kBacklightInputMin) raw = kBacklightInputMin;
   const uint16_t span = static_cast<uint16_t>(255U - kBacklightInputMin);
   if (span == 0) return 100;
-  return static_cast<uint8_t>(
+  uint8_t percent = static_cast<uint8_t>(
       1U + (static_cast<uint32_t>(raw - kBacklightInputMin) * 99U +
             (span / 2U)) /
                span);
+  if (percent < kConfiguredBrightnessPercentMin) {
+    percent = kConfiguredBrightnessPercentMin;
+  }
+  return percent;
 }
 
 const Profile& profile();

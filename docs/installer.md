@@ -168,10 +168,11 @@ do not guess an OTA-slot address in a desktop tool.
    port, and start flashing.
 4. Wait for **FINISH**, then restart the display.
 
-Use **ESP32-P4** for P4 displays and **ESP32-S3** only for the Guition
-ESP32-4848S040C_I. The plain `.bin` is an Update image and must not be written
-to `0x0`. The [manual flashing guide](flashing.md) contains the complete tool
-and command-line instructions.
+Use **ESP32-P4** for P4 displays. Use **ESP32-S3** only for the Guition
+ESP32-4848S040C_I and Waveshare ESP32-S3-Touch-LCD-4B. The plain `.bin` is an
+Update image and must not be written to `0x0`. The
+[manual flashing guide](flashing.md) contains the complete tool and command-line
+instructions.
 
 ## Troubleshooting
 
@@ -189,7 +190,7 @@ and command-line instructions.
 The local test continues to use the unchanged, SHA-256-verified assets from the
 currently published GitHub release. With `--device`, only the two files for the
 selected device are downloaded. Without that option, the published site always
-contains all nine device profiles.
+contains all twelve device profiles.
 
 1. Build the documentation:
    `python -m mkdocs build --strict`
@@ -206,9 +207,11 @@ contains all nine device profiles.
 
 The other valid `--device` values match the release file names:
 `m5stacks_tab5`, `waveshare_4b`, `waveshare_touch_lcd_7`,
-`waveshare_touch_lcd_8`, `waveshare_touch_lcd_10_1`,
+`waveshare_touch_lcd_7b`, `waveshare_touch_lcd_8`,
+`waveshare_touch_lcd_10_1`, `waveshare_s3_touch_lcd_4b`,
 `guition_jc8012p4a1`, `guition_jc8012p4a1_v2`,
-`guition_jc1060p470c`, and `guition_esp32_4848s040`.
+`guition_jc1060p470c`, `guition_jc1060p470c_v2`, and
+`guition_esp32_4848s040`.
 
 Implementation references: [ESP Web Tools](https://esphome.github.io/esp-web-tools/),
 [esptool-js](https://github.com/espressif/esptool-js), and Espressif's

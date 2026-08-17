@@ -7,14 +7,17 @@
 #if !defined(HOMETILES_CI_TARGET)
 #define DEVICE_WAVESHARE_4B
 // #define DEVICE_WAVESHARE_TOUCH_LCD_7
+// #define DEVICE_WAVESHARE_TOUCH_LCD_7B
 // #define DEVICE_WAVESHARE_TOUCH_LCD_8
 // #define DEVICE_WAVESHARE_TOUCH_LCD_10_1
+// #define DEVICE_WAVESHARE_S3_TOUCH_LCD_4B
 // #define DEVICE_LAYOUT_TEST_1024X600
 // #define DEVICE_LAYOUT_TEST_480X480
 // #define DEVICE_M5STACKS_TAB5
 // #define DEVICE_GUITION_JC8012P4A1
 // #define DEVICE_GUITION_JC8012P4A1_V2
 // #define DEVICE_GUITION_JC1060P470C
+// #define DEVICE_GUITION_JC1060P470C_V2
 // #define DEVICE_GUITION_ESP32_4848S040
 #endif
 //
@@ -30,28 +33,34 @@
 
 #if (defined(DEVICE_WAVESHARE_4B) + \
      defined(DEVICE_WAVESHARE_TOUCH_LCD_7) + \
+     defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) + \
      defined(DEVICE_WAVESHARE_TOUCH_LCD_8) + \
      defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) + \
+     defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B) + \
      defined(DEVICE_LAYOUT_TEST_1024X600) + \
      defined(DEVICE_LAYOUT_TEST_480X480) + \
      defined(DEVICE_M5STACKS_TAB5) + \
      defined(DEVICE_GUITION_JC8012P4A1) + \
      defined(DEVICE_GUITION_JC8012P4A1_V2) + \
      defined(DEVICE_GUITION_JC1060P470C) + \
+     defined(DEVICE_GUITION_JC1060P470C_V2) + \
      defined(DEVICE_GUITION_ESP32_4848S040)) > 1
 #error "Select only one device target."
 #endif
 
 #if !defined(DEVICE_WAVESHARE_4B) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_7) && \
+    !defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_8) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) && \
+    !defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B) && \
     !defined(DEVICE_LAYOUT_TEST_1024X600) && \
     !defined(DEVICE_LAYOUT_TEST_480X480) && \
     !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_GUITION_JC8012P4A1) && \
     !defined(DEVICE_GUITION_JC8012P4A1_V2) && \
     !defined(DEVICE_GUITION_JC1060P470C) && \
+    !defined(DEVICE_GUITION_JC1060P470C_V2) && \
     !defined(DEVICE_GUITION_ESP32_4848S040) && \
     defined(HOMETILES_CI_TARGET)
 #error "HOMETILES_CI_TARGET requires one DEVICE_* build flag."
@@ -59,14 +68,17 @@
 
 #if !defined(DEVICE_WAVESHARE_4B) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_7) && \
+    !defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_8) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) && \
+    !defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B) && \
     !defined(DEVICE_LAYOUT_TEST_1024X600) && \
     !defined(DEVICE_LAYOUT_TEST_480X480) && \
     !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_GUITION_JC8012P4A1) && \
     !defined(DEVICE_GUITION_JC8012P4A1_V2) && \
     !defined(DEVICE_GUITION_JC1060P470C) && \
+    !defined(DEVICE_GUITION_JC1060P470C_V2) && \
     !defined(DEVICE_GUITION_ESP32_4848S040) && \
     !defined(HOMETILES_CI_TARGET)
 #define DEVICE_WAVESHARE_4B
@@ -79,10 +91,12 @@
 #define DEVICE_GUITION_JC8012P4A1_FAMILY
 #endif
 
-// The 7", 8" and 10.1" products share the same ESP32-P4-WIFI6-Touch-LCD-X
+// The 7", 7B, 8" and 10.1" products share the same
+// ESP32-P4-WIFI6-Touch-LCD-X
 // base board, I2C/touch, backlight, SDMMC and ESP-Hosted wiring. Only the
 // panel controller/timing and logical layout differ.
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_7) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) || \
     defined(DEVICE_LAYOUT_TEST_1024X600) || \
@@ -90,13 +104,31 @@
 #define DEVICE_WAVESHARE_TOUCH_LCD_X
 #endif
 
+// Both JC1060 panel revisions share board-level storage, touch, backlight and
+// lifecycle behavior. Their panel reset pin, timing and init table stay in
+// separate exact device drivers.
+#if defined(DEVICE_GUITION_JC1060P470C) || \
+    defined(DEVICE_GUITION_JC1060P470C_V2)
+#define DEVICE_GUITION_JC1060P470C_FAMILY
+#endif
+
+// The two 480x480 ESP32-S3 RGB boards share only proven S3 framebuffer,
+// storage and OTA lifecycle handling. Panel wiring and init remain separate.
+#if defined(DEVICE_GUITION_ESP32_4848S040) || \
+    defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)
+#define DEVICE_ESP32_S3_RGB_480
+#endif
+
 #if defined(DEVICE_LAYOUT_TEST_1024X600) || \
-    defined(DEVICE_GUITION_JC1060P470C)
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) || \
+    defined(DEVICE_GUITION_JC1060P470C) || \
+    defined(DEVICE_GUITION_JC1060P470C_V2)
 #define DEVICE_LAYOUT_1024X600
 #endif
 
 #if defined(DEVICE_LAYOUT_TEST_480X480) || \
-    defined(DEVICE_GUITION_ESP32_4848S040)
+    defined(DEVICE_GUITION_ESP32_4848S040) || \
+    defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)
 #define DEVICE_LAYOUT_480X480
 #endif
 

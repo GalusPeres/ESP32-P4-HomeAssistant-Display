@@ -10,12 +10,15 @@ const devices = new Map([
   ['m5stacks_tab5', { key: 'm5stacks_tab5' }],
   ['waveshare_4b', { key: 'waveshare_4b' }],
   ['waveshare_touch_lcd_7', { key: 'waveshare_touch_lcd_7' }],
+  ['waveshare_touch_lcd_7b', { key: 'waveshare_touch_lcd_7b' }],
   ['waveshare_touch_lcd_8', { key: 'waveshare_touch_lcd_8' }],
   ['waveshare_touch_lcd_10_1', { key: 'waveshare_touch_lcd_10_1' }],
   ['guition_jc8012p4a1', { key: 'guition_jc8012p4a1' }],
   ['guition_jc8012p4a1_v2', { key: 'guition_jc8012p4a1_v2' }],
   ['guition_jc1060p470c', { key: 'guition_jc1060p470c' }],
+  ['guition_jc1060p470c_v2', { key: 'guition_jc1060p470c_v2' }],
   ['guition_esp32_4848s040', { key: 'guition_esp32_4848s040' }],
+  ['waveshare_s3_touch_lcd_4b', { key: 'waveshare_s3_touch_lcd_4b' }],
 ]);
 
 function readVersion() {

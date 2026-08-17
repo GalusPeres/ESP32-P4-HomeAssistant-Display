@@ -217,7 +217,8 @@ static const int kSettingsSectionActionPct = 30;
 static const int kSettingsDisplayValueWidth = popup_layout::scale(56);
 static const int kSettingsInlineLabelWidth = popup_layout::scale(98);
 static const int kSettingsInlineSliderWidth = popup_layout::scale(116);
-static const int kSettingsBrightnessPctMin = 1;
+static const int kSettingsBrightnessPctMin =
+    Device::kConfiguredBrightnessPercentMin;
 static const int kSettingsBrightnessPctMax = 100;
 static const int kSettingsSliderValueWidth = popup_layout::scale(70);
 static const int kSettingsSliderHeight = popup_layout::scale(20);
@@ -486,7 +487,9 @@ static void on_screensaver_brightness(lv_event_t *e) {
   lv_obj_t *slider = static_cast<lv_obj_t*>(lv_event_get_target(e));
   const lv_event_code_t code = lv_event_get_code(e);
   int32_t pct = lv_slider_get_value(slider);
-  if (pct < kScreensaverBrightnessPctMin) pct = kScreensaverBrightnessPctMin;
+  if (pct < Device::kConfiguredBrightnessPercentMin) {
+    pct = Device::kConfiguredBrightnessPercentMin;
+  }
   if (pct > kScreensaverBrightnessPctMax) pct = kScreensaverBrightnessPctMax;
 
   static char buf[16];
@@ -1956,7 +1959,7 @@ static void build_display_popup(lv_obj_t* parent) {
   lv_obj_set_width(screensaver_brightness_slider, 1);
   lv_obj_set_flex_grow(screensaver_brightness_slider, 1);
   lv_slider_set_range(screensaver_brightness_slider,
-                      kScreensaverBrightnessPctMin,
+                      Device::kConfiguredBrightnessPercentMin,
                       kScreensaverBrightnessPctMax);
   lv_slider_set_value(screensaver_brightness_slider,
                       cfg.screensaver_brightness_pct, LV_ANIM_OFF);

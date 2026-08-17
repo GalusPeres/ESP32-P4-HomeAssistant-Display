@@ -102,11 +102,14 @@ device notes identify the remaining physical-hardware checks.
 | Exact device | Display | Test status |
 | --- | --- | --- |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 7" 1280×720 | [Testing requested in #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7B.htm) | 7" 1024×600 | Separate EK79007 profile; [testing requested in #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 10.1" 1280×800 | [Testing requested in #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | 10.1" 1280×800 | Separate V2 image; [release/OTA testing tracked in #18](https://github.com/GalusPeres/HomeTiles/issues/18) |
-| [Guition JC1060P470C_I_W_Y](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | 7" 1024×600 | `_I_W_Y` only; [testing requested in #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
+| [Guition JC1060P470C_I_W_Y V1](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | 7" 1024×600 | `_I_W_Y` only; [testing requested in #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
+| Guition JC1060P470C V2 / New Panel | 7" 1024×600 | Separate V2 image; exact-device validation tracked in [issue #27](https://github.com/GalusPeres/HomeTiles/issues/27) |
+| [Waveshare ESP32-S3-Touch-LCD-4B](https://www.waveshare.com/esp32-s3-touch-lcd-4b.htm) | 4" 480×480 | Separate ESP32-S3 profile without microSD; validation tracked in [issue #26](https://github.com/GalusPeres/HomeTiles/issues/26) |
 
-Every release provides factory and OTA images for all nine build targets.
+Every release provides factory and OTA images for all twelve build targets.
 The notes above identify profiles whose complete display, touch, storage,
 networking, or OTA checklist still needs confirmation on the exact hardware.
 

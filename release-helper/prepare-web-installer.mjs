@@ -6,7 +6,10 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
-import { buildReleaseIndex } from "../docs/assets/javascripts/installer-contract.mjs";
+import {
+  DEVICE_PROFILES,
+  buildReleaseIndex,
+} from "../docs/assets/javascripts/installer-contract.mjs";
 
 const REPOSITORY = "GalusPeres/HomeTiles";
 const LATEST_RELEASE_API = `https://api.github.com/repos/${REPOSITORY}/releases/latest`;
@@ -65,7 +68,7 @@ async function fetchReadyLatestRelease() {
   for (let attempt = 1; attempt <= 20; attempt += 1) {
     try {
       const release = await fetchLatestRelease();
-      buildReleaseIndex(release);
+      buildReleaseIndex(release, { allowMissingProfiles: true });
       return release;
     } catch (error) {
       lastError = error;
@@ -132,15 +135,26 @@ async function downloadWithRetries(asset, outputDirectory) {
 
 export function selectDevicesForPublication(index, deviceKey = "") {
   if (!deviceKey) {
-    return Object.freeze({ ...index, partial: false });
+    return Object.freeze({
+      ...index,
+      partial: index.devices.length !== DEVICE_PROFILES.length,
+    });
+  }
+  if (!DEVICE_PROFILES.some((candidate) => candidate.key === deviceKey)) {
+    throw new Error(`Unknown installer device key: ${deviceKey}`);
   }
   const device = index.devices.find((candidate) => candidate.key === deviceKey);
-  if (!device) throw new Error(`Unknown installer device key: ${deviceKey}`);
+  if (!device) {
+    throw new Error(`Release ${index.tag} has no complete firmware pair for ${deviceKey}.`);
+  }
   return Object.freeze({ ...index, partial: true, devices: Object.freeze([device]) });
 }
 
 export async function prepareWebInstaller(outputDirectory, release, deviceKey = "") {
-  const index = selectDevicesForPublication(buildReleaseIndex(release), deviceKey);
+  const index = selectDevicesForPublication(
+    buildReleaseIndex(release, { allowMissingProfiles: true }),
+    deviceKey,
+  );
   await mkdir(outputDirectory, { recursive: true });
   for (const device of index.devices) {
     for (const mode of ["update", "factory"]) {
@@ -165,7 +179,11 @@ export async function prepareWebInstaller(outputDirectory, release, deviceKey = 
   );
   process.stdout.write(
     `[web-installer] Published same-origin assets for ${index.tag}` +
-      (index.partial ? ` (${index.devices[0].key} local subset)` : "") +
+      (deviceKey
+        ? ` (${index.devices[0].key} local subset)`
+        : index.partial
+          ? ` (${index.devices.length} release-ready devices)`
+          : "") +
       "\n",
   );
 }

@@ -4,7 +4,7 @@
 #include "src/devices/device_select.h"
 #include "src/devices/guition_esp32_4848s040/s3_diagnostics.h"
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
-    defined(DEVICE_GUITION_JC1060P470C)
+    defined(DEVICE_GUITION_JC1060P470C_FAMILY)
 #include "src/devices/active_device.h"
 #endif
 #include "esp_heap_caps.h"
@@ -171,11 +171,11 @@ static constexpr size_t kLargeDrawPsramReserveBytes = 8 * 1024 * 1024;
 
 static inline void commit_display_if_last(lv_display_t* lv_disp) {
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
-    defined(DEVICE_GUITION_JC1060P470C)
+    defined(DEVICE_GUITION_JC1060P470C_FAMILY)
   if (lv_display_flush_is_last(lv_disp)) {
     DeviceImpl::displayCommit();
   }
-#elif defined(DEVICE_GUITION_ESP32_4848S040)
+#elif defined(DEVICE_ESP32_S3_RGB_480)
   if (lv_display_flush_is_last(lv_disp)) {
     DeviceImpl::displayWaitDisplay();
   }
@@ -185,7 +185,7 @@ static inline void commit_display_if_last(lv_display_t* lv_disp) {
 }
 
 static inline void flush_cache_for_dma(const void* ptr, size_t size) {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   // This board's "DMA" entry point is a synchronous CPU copy into
   // Arduino_GFX's live framebuffer. The LVGL source buffer is never consumed
   // by GDMA, so synchronising it is both unnecessary and wrong. In Arduino
@@ -800,8 +800,8 @@ void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *
 #if !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_X) && \
     !defined(DEVICE_GUITION_JC8012P4A1_FAMILY) && \
-    !defined(DEVICE_GUITION_JC1060P470C) && \
-    !defined(DEVICE_GUITION_ESP32_4848S040)
+    !defined(DEVICE_GUITION_JC1060P470C_FAMILY) && \
+    !defined(DEVICE_ESP32_S3_RGB_480)
     switch (rotation & 0x03) {
       case 1:
         mapped_x = tp.y;
@@ -842,8 +842,8 @@ bool DisplayManager::init() {
 #if !defined(DEVICE_M5STACKS_TAB5) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_X) && \
     !defined(DEVICE_GUITION_JC8012P4A1_FAMILY) && \
-    !defined(DEVICE_GUITION_JC1060P470C) && \
-    !defined(DEVICE_GUITION_ESP32_4848S040)
+    !defined(DEVICE_GUITION_JC1060P470C_FAMILY) && \
+    !defined(DEVICE_ESP32_S3_RGB_480)
   BoardHAL::setBrightness(150);  // Wird spaeter vom Power Manager gesteuert
 #endif
   rotation = Device::kRotationDefault;
@@ -932,8 +932,8 @@ bool DisplayManager::init() {
 #endif
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
-    defined(DEVICE_GUITION_JC1060P470C) || \
-    defined(DEVICE_GUITION_ESP32_4848S040)
+    defined(DEVICE_GUITION_JC1060P470C_FAMILY) || \
+    defined(DEVICE_ESP32_S3_RGB_480)
   if (lv_timer_t* read_timer = lv_indev_get_read_timer(indev)) {
     lv_timer_set_period(read_timer, 8);
     Serial.println("[Display] Large-panel touch poll period set to 8 ms");

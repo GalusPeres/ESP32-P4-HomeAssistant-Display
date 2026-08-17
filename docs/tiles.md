@@ -158,7 +158,8 @@ display profile. Snapshot-only cameras update at their own image refresh rate.
 The feature is experimental. Video transcoding consumes CPU on the Home
 Assistant host, and opening camera popups on several panels starts several
 transcoding sessions. Camera tiles are intentionally unavailable on the
-ESP32-S3 Guition ESP32-4848S040C_I target.
+ESP32-S3 Guition ESP32-4848S040C_I and Waveshare ESP32-S3-Touch-LCD-4B
+targets.
 
 ## Local Tiles
 

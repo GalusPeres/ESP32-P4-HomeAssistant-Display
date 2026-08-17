@@ -14,12 +14,21 @@ namespace DeviceImpl = DeviceGuitionJC8012P4A1V2;
 #elif defined(DEVICE_GUITION_JC1060P470C)
 #include "src/devices/guition_jc1060p470c/device_guition_jc1060p470c.h"
 namespace DeviceImpl = DeviceGuitionJC1060P470C;
+#elif defined(DEVICE_GUITION_JC1060P470C_V2)
+#include "src/devices/guition_jc1060p470c_v2/device_guition_jc1060p470c_v2.h"
+namespace DeviceImpl = DeviceGuitionJC1060P470CV2;
 #elif defined(DEVICE_GUITION_ESP32_4848S040)
 #include "src/devices/guition_esp32_4848s040/device_guition_esp32_4848s040.h"
 namespace DeviceImpl = DeviceGuitionESP324848S040;
+#elif defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)
+#include "src/devices/waveshare_s3_touch_lcd_4b/device_waveshare_s3_touch_lcd_4b.h"
+namespace DeviceImpl = DeviceWaveshareS3TouchLCD4B;
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_7)
 #include "src/devices/waveshare_touch_lcd_7/device_waveshare_touch_lcd_7.h"
 namespace DeviceImpl = DeviceWaveshareTouchLCD7;
+#elif defined(DEVICE_WAVESHARE_TOUCH_LCD_7B)
+#include "src/devices/waveshare_touch_lcd_7b/device_waveshare_touch_lcd_7b.h"
+namespace DeviceImpl = DeviceWaveshareTouchLCD7B;
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
 #include "src/devices/waveshare_touch_lcd_8/device_waveshare_touch_lcd_8.h"
 namespace DeviceImpl = DeviceWaveshareTouchLCD8;

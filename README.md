@@ -277,9 +277,12 @@ networking and OTA have been confirmed on the physical device.
 | Exact device | Test status |
 | --- | --- |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Physical display, touch, storage, networking and OTA confirmation requested in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7B.htm) | Separate 1024×600 EK79007 profile; physical validation requested in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Physical display, touch, storage, networking and OTA confirmation requested in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Separate V2 panel image with hardware-tested JD9365 table/timing; full release/OTA validation pending in [issue #18](https://github.com/GalusPeres/HomeTiles/issues/18) |
-| [Guition JC1060P470C_I_W_Y](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | Only the `_I_W_Y` variant; SD-card behavior still requires physical confirmation in [issue #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
+| [Guition JC1060P470C_I_W_Y V1](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | Only the `_I_W_Y` variant; SD-card behavior still requires physical confirmation in [issue #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
+| Guition JC1060P470C V2 / New Panel | Separate V2 image; physical display, touch, brightness, storage, networking and OTA validation requested in [issue #27](https://github.com/GalusPeres/HomeTiles/issues/27) |
+| [Waveshare ESP32-S3-Touch-LCD-4B](https://www.waveshare.com/esp32-s3-touch-lcd-4b.htm) | ESP32-S3 profile without microSD or Camera tiles; physical validation requested in [issue #26](https://github.com/GalusPeres/HomeTiles/issues/26) |
 
 Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
 
@@ -382,9 +385,12 @@ Download the files matching your device from the [latest release](https://github
 | Guition JC8012P4A1C_I_W_Y V1 (no V2 sticker) | Supported | `..._guition_jc8012p4a1_factory.bin` | `..._guition_jc8012p4a1.bin` |
 | Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Hardware validation pending | `..._guition_jc8012p4a1_v2_factory.bin` | `..._guition_jc8012p4a1_v2.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Hardware validation pending | `..._waveshare_touch_lcd_7_factory.bin` | `..._waveshare_touch_lcd_7.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C | Hardware validation pending | `..._waveshare_touch_lcd_7b_factory.bin` | `..._waveshare_touch_lcd_7b.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Hardware validation pending | `..._waveshare_touch_lcd_10_1_factory.bin` | `..._waveshare_touch_lcd_10_1.bin` |
-| Guition JC1060P470C_I_W_Y | SD-card validation pending | `..._guition_jc1060p470c_factory.bin` | `..._guition_jc1060p470c.bin` |
+| Guition JC1060P470C_I_W_Y V1 | SD-card validation pending | `..._guition_jc1060p470c_factory.bin` | `..._guition_jc1060p470c.bin` |
+| Guition JC1060P470C V2 / New Panel | Hardware validation pending | `..._guition_jc1060p470c_v2_factory.bin` | `..._guition_jc1060p470c_v2.bin` |
 | Guition ESP32-4848S040C_I | Supported | `..._guition_esp32_4848s040_factory.bin` | `..._guition_esp32_4848s040.bin` |
+| Waveshare ESP32-S3-Touch-LCD-4B | Hardware validation pending; no microSD | `..._waveshare_s3_touch_lcd_4b_factory.bin` | `..._waveshare_s3_touch_lcd_4b.bin` |
 
 Use:
 - `factory.bin` for a clean first flash (ESP Flash Download Tool at address `0x00000`)
@@ -448,8 +454,8 @@ Step-by-step instructions (broker, integration, display): [Home Assistant Setup 
 - Camera tiles are experimental and available only on ESP32-P4 targets. The
   Bridge transcodes video in Home Assistant, so CPU use increases with source
   resolution, requested frame rate and the number of simultaneously open panels.
-- The Guition ESP32-4848S040 ESP32-S3 target does not support Camera tiles; use
-  the exact S3 factory or OTA image listed above.
+- The Guition ESP32-4848S040 and Waveshare ESP32-S3-Touch-LCD-4B targets do not
+  support Camera tiles; use the exact S3 factory or OTA image listed above.
 
 ## Notes
 

@@ -148,6 +148,34 @@ export const DEVICE_PROFILES = Object.freeze([
     status: "validation-pending",
     hardwareCheck: "The full model suffix is JC1060P470C_I_W_Y.",
   }),
+  Object.freeze({
+    key: "waveshare_touch_lcd_7b",
+    buildProfile: "waveshare_7b",
+    label: "Waveshare Touch LCD 7B / 7B-C",
+    chipFamily: "ESP32-P4",
+    flashSize: MIB_32,
+    status: "validation-pending",
+    hardwareCheck:
+      "The rear label says ESP32-P4-WIFI6-Touch-LCD-7B or 7B-C, not Touch-LCD-7.",
+  }),
+  Object.freeze({
+    key: "guition_jc1060p470c_v2",
+    buildProfile: "guition_jc1060p470c_v2",
+    label: "Guition JC1060P470C V2 (New Panel)",
+    chipFamily: "ESP32-P4",
+    flashSize: MIB_16,
+    status: "validation-pending",
+    hardwareCheck: "The device is the JC1060P470C V2 / New Panel variant.",
+  }),
+  Object.freeze({
+    key: "waveshare_s3_touch_lcd_4b",
+    buildProfile: "waveshare_s3_touch_lcd_4b",
+    label: "Waveshare ESP32-S3 Touch LCD 4B",
+    chipFamily: "ESP32-S3",
+    flashSize: MIB_16,
+    status: "validation-pending",
+    hardwareCheck: "The rear label says ESP32-S3-Touch-LCD-4B.",
+  }),
 ]);
 
 const DEVICE_KEYS = new Set(DEVICE_PROFILES.map((device) => device.key));
@@ -378,7 +406,7 @@ export function releaseAssetNames(tag, deviceKey) {
   });
 }
 
-export function buildReleaseIndex(release) {
+export function buildReleaseIndex(release, { allowMissingProfiles = false } = {}) {
   assert(release && typeof release === "object", "GitHub release metadata is missing.");
   assert(!release.draft, "The latest release is still a draft.");
   assert(!release.prerelease, "The browser installer does not publish prerelease firmware.");
@@ -393,10 +421,11 @@ export function buildReleaseIndex(release) {
   );
 
   const assets = new Map((release.assets || []).map((asset) => [asset.name, asset]));
-  const devices = DEVICE_PROFILES.map((profile) => {
+  const devices = DEVICE_PROFILES.flatMap((profile) => {
     const names = releaseAssetNames(tag, profile.key);
     const updateAsset = assets.get(names.update);
     const factoryAsset = assets.get(names.factory);
+    if (allowMissingProfiles && !updateAsset && !factoryAsset) return [];
     assert(updateAsset, `Release ${tag} is missing ${names.update}.`);
     assert(factoryAsset, `Release ${tag} is missing ${names.factory}.`);
 
@@ -428,12 +457,15 @@ export function buildReleaseIndex(release) {
       });
     };
 
-    return Object.freeze({
-      ...profile,
-      update: normalizeAsset(updateAsset, "update"),
-      factory: normalizeAsset(factoryAsset, "factory"),
-    });
+    return [
+      Object.freeze({
+        ...profile,
+        update: normalizeAsset(updateAsset, "update"),
+        factory: normalizeAsset(factoryAsset, "factory"),
+      }),
+    ];
   });
+  assert(devices.length > 0, `Release ${tag} has no complete HomeTiles firmware pairs.`);
 
   return Object.freeze({
     schemaVersion: INSTALLER_SCHEMA_VERSION,

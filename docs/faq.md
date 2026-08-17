@@ -31,7 +31,8 @@ Then check:
 Direct video sources can reach up to 24 FPS. Snapshot-only cameras update at
 the source's actual refresh rate. Transcoding uses Home Assistant host CPU and
 each simultaneously open panel creates its own experimental stream session.
-Camera tiles are not available on the ESP32-S3 Guition ESP32-4848S040C_I.
+Camera tiles are not available on either ESP32-S3 profile: Guition
+ESP32-4848S040C_I or Waveshare ESP32-S3-Touch-LCD-4B.
 
 ## A local Hardware entity is missing in Home Assistant
 
@@ -47,14 +48,18 @@ Home Assistant may add its normal `_2` suffix to a colliding visible entity ID.
 
 ## The ESP32-S3 screen briefly goes black while saving
 
-This is expected on the Guition ESP32-4848S040 build. The stock
-Arduino SDK cannot feed the RGB panel safely from PSRAM while internal flash is
-being written. HomeTiles briefly blanks the backlight, writes the data, restarts
-RGB DMA on VSYNC, and then restores the image. This avoids the permanently
-shifted picture seen by early testers.
+This is expected on the Guition ESP32-4848S040 and Waveshare
+ESP32-S3-Touch-LCD-4B builds. The stock Arduino SDK cannot feed these RGB
+panels safely from PSRAM while internal flash is being written. HomeTiles
+briefly blanks the backlight, writes the data, restarts RGB DMA on VSYNC, and
+then restores the image. This avoids the permanently shifted picture seen by
+early testers.
 
-If the image does not recover immediately, report the repeatable failure in
-[issue #9](https://github.com/GalusPeres/HomeTiles/issues/9) with the serial log.
+If the image does not recover immediately, report the repeatable failure with
+the exact model name and serial log. Guition reports are tracked in
+[issue #9](https://github.com/GalusPeres/HomeTiles/issues/9); Waveshare S3 4B
+validation is tracked in
+[issue #26](https://github.com/GalusPeres/HomeTiles/issues/26).
 
 ## The display is missing in Home Assistant / I deleted it there
 

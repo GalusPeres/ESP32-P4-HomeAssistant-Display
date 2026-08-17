@@ -33,9 +33,12 @@ Grab the file matching your device from the
 | Guition JC8012P4A1C_I_W_Y V1 (no V2 sticker) | Supported | `hometiles_<version>_guition_jc8012p4a1_factory.bin` |
 | Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Hardware validation pending | `hometiles_<version>_guition_jc8012p4a1_v2_factory.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Hardware validation pending | `hometiles_<version>_waveshare_touch_lcd_7_factory.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C | Hardware validation pending; not the older 7-inch profile | `hometiles_<version>_waveshare_touch_lcd_7b_factory.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Hardware validation pending | `hometiles_<version>_waveshare_touch_lcd_10_1_factory.bin` |
-| Guition JC1060P470C_I_W_Y | SD-card validation pending; exact suffix required | `hometiles_<version>_guition_jc1060p470c_factory.bin` |
+| Guition JC1060P470C_I_W_Y V1 | SD-card validation pending; exact suffix required | `hometiles_<version>_guition_jc1060p470c_factory.bin` |
+| Guition JC1060P470C V2 / New Panel | Hardware validation pending; use only for the marked V2 revision | `hometiles_<version>_guition_jc1060p470c_v2_factory.bin` |
 | Guition ESP32-4848S040C_I | Supported ESP32-S3 target | `hometiles_<version>_guition_esp32_4848s040_factory.bin` |
+| Waveshare ESP32-S3-Touch-LCD-4B | Hardware validation pending; no microSD interface | `hometiles_<version>_waveshare_s3_touch_lcd_4b_factory.bin` |
 
 !!! warning "Exact hardware images"
     Some targets have not yet completed the full physical-device checklist.
@@ -48,6 +51,12 @@ Grab the file matching your device from the
     requires `guition_jc8012p4a1_v2`; the original image is only for the V1
     panel. Using the wrong revision can leave the backlight on with a black or
     grey-banded display.
+
+!!! danger "Other similarly named panels also use separate images"
+    `guition_jc1060p470c_v2` is only for the marked JC1060 V2 / New Panel;
+    the original `_I_W_Y` panel uses `guition_jc1060p470c`. Likewise, the
+    1024×600 Waveshare 7B/7B-C uses `waveshare_touch_lcd_7b`, while the older
+    1280×720 Waveshare 7-inch panel uses `waveshare_touch_lcd_7`.
 
 !!! note "`factory.bin` vs. plain `.bin`"
     The **factory** image is a complete flash image — bootloader, firmware, and empty
@@ -63,8 +72,8 @@ Grab the file matching your device from the
 Connect the device to your PC via USB, then in the **Flash Download Tool**:
 
 1. Select ChipType **ESP32-P4** for every P4 target. Select **ESP32-S3** only
-   for the Guition ESP32-4848S040C_I. Use WorkMode **Develop**
-   and LoadMode **UART** → OK.
+   for the Guition ESP32-4848S040C_I or Waveshare
+   ESP32-S3-Touch-LCD-4B. Use WorkMode **Develop** and LoadMode **UART** → OK.
 2. In the first file row: select the `factory.bin`, set the address to `0x0`,
    and tick the row's checkbox.
 3. **COM**: pick the device's serial port (if none appears, try another cable/port).
@@ -77,8 +86,8 @@ Connect the device to your PC via USB, then in the **Flash Download Tool**:
     esptool --chip <esp32p4-or-esp32s3> --port <PORT> write_flash 0x0 hometiles_<version>_<device>_factory.bin
     ```
     Replace the chip placeholder with `esp32p4`, or with `esp32s3` only for the
-    Guition ESP32-4848S040C_I. Replace `<PORT>` with the serial port (for
-    example `/dev/ttyACM0`).
+    Guition ESP32-4848S040C_I or Waveshare ESP32-S3-Touch-LCD-4B. Replace
+    `<PORT>` with the serial port (for example `/dev/ttyACM0`).
 
 ## Step 3: First Boot
 

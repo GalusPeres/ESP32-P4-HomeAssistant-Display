@@ -19,26 +19,28 @@ const configManager = read('src/core/config_manager.cpp');
 const webHandlers = read('src/web/web_admin_handlers.cpp');
 const device = read(
   'src/devices/guition_esp32_4848s040/device_guition_esp32_4848s040.cpp');
+const waveshareDevice = read(
+  'src/devices/waveshare_s3_touch_lcd_4b/device_waveshare_s3_touch_lcd_4b.cpp');
 
 const s3Start = batchedNvs.indexOf(
-  '#if defined(DEVICE_GUITION_ESP32_4848S040)');
+  '#if defined(DEVICE_ESP32_S3_RGB_480)');
 const fallbackStart = batchedNvs.indexOf('\n#else', s3Start);
 if (s3Start < 0 || fallbackStart < 0) {
-  throw new Error('The exact Guition S3 NVS branch was not found');
+  throw new Error('The ESP32-S3 RGB NVS branch was not found');
 }
 const s3Branch = batchedNvs.slice(s3Start, fallbackStart);
 
 requireMarker(
   s3Branch,
   'inline constexpr bool kNeedsDisplayGuard = true;',
-  'Guition S3 native NVS transaction display guard');
+  'ESP32-S3 RGB native NVS transaction display guard');
 requireMarker(
   s3Branch,
   'display_guard=1 result=%s(0x%X)',
-  'Guition S3 NVS diagnostic');
+  'ESP32-S3 RGB NVS diagnostic');
 
 if (s3Branch.includes('kNeedsDisplayGuard = false')) {
-  throw new Error('Guition S3 NVS writes must never bypass the display guard');
+  throw new Error('ESP32-S3 RGB NVS writes must never bypass the display guard');
 }
 
 requireMarker(
@@ -71,9 +73,9 @@ const combinedGuardMarker =
   '        settings_visibility_commit_needed);';
 requireMarker(
   saveMqttBody,
-  '#if defined(DEVICE_GUITION_ESP32_4848S040)\n' +
+  '#if defined(DEVICE_ESP32_S3_RGB_480)\n' +
     '  // Hiding or restoring Settings updates NVS and LittleFS.',
-  'Exact-profile combined Settings visibility guard');
+  'S3 RGB combined Settings visibility guard');
 requireMarker(
   saveMqttBody,
   combinedGuardMarker,
@@ -95,13 +97,18 @@ if (!(commitStart >= 0 && configSave > commitStart &&
     'Settings NVS and LittleFS commits are not enclosed by one S3 guard');
 }
 
-for (const marker of [
-  'void DeviceGuitionESP324848S040::storageWriteBegin()',
-  'g_gfx->canonicalizeForStorage()',
-  'void DeviceGuitionESP324848S040::storageWriteEnd()',
-  'g_gfx ? g_gfx->restartAfterStorage(restart_wait_ms)',
+for (const [label, source, className] of [
+  ['Guition S3', device, 'DeviceGuitionESP324848S040'],
+  ['Waveshare S3', waveshareDevice, 'DeviceWaveshareS3TouchLCD4B'],
 ]) {
-  requireMarker(device, marker, 'Guition S3 RGB storage recovery');
+  for (const marker of [
+    `void ${className}::storageWriteBegin()`,
+    'g_gfx->canonicalizeForStorage()',
+    `void ${className}::storageWriteEnd()`,
+    'g_gfx ? g_gfx->restartAfterStorage(restart_wait_ms)',
+  ]) {
+    requireMarker(source, marker, `${label} RGB storage recovery`);
+  }
 }
 
-console.log('Guition ESP32-4848S040 NVS display guard: PASS');
+console.log('ESP32-S3 RGB NVS display guard: PASS');

@@ -44,11 +44,13 @@ const p4Profiles = [
   'tab5',
   'waveshare_b4',
   'waveshare_7',
+  'waveshare_7b',
   'waveshare_8',
   'waveshare_10_1',
   'guition_jc8012p4a1',
   'guition_jc8012p4a1_v2',
   'guition_jc1060p470c',
+  'guition_jc1060p470c_v2',
 ];
 
 for (const profile of p4Profiles) {
@@ -61,10 +63,16 @@ for (const profile of p4Profiles) {
   }
 }
 
-const s3 = sketch.match(
-  /\n  guition_esp32_4848s040:\r?\n([\s\S]*?)(?=\n  [A-Za-z0-9_]+:|$)/);
-if (!s3 || !s3[1].includes('esp32s3')) {
-  throw new Error('The Guition ESP32-S3 profile must remain outside the P4 cache scope');
+for (const profile of [
+  'guition_esp32_4848s040',
+  'waveshare_s3_touch_lcd_4b',
+]) {
+  const pattern = new RegExp(
+    `\\n  ${profile}:\\r?\\n([\\s\\S]*?)(?=\\n  [A-Za-z0-9_]+:|$)`);
+  const match = sketch.match(pattern);
+  if (!match || !match[1].includes('esp32s3')) {
+    throw new Error(`${profile} must remain outside the P4 cache scope`);
+  }
 }
 
 console.log('ESP32-P4 folder-cache scope: PASS');

@@ -30,11 +30,13 @@ the **Screensaver** tab of the web admin and runs on every supported display.
 | M5Stack Tab5 | 1280×720 |
 | Waveshare 4B / 86 Panel | 720×720 |
 | Waveshare Touch LCD 7 inch | 1280×720 |
+| Waveshare Touch LCD 7B / 7B-C | 1024×600 |
 | Waveshare Touch LCD 8 inch | 1280×800 |
 | Waveshare Touch LCD 10.1 inch | 1280×800 |
 | Guition JC8012P4A1 V1 / V2 | 1280×800 |
-| Guition JC1060P470C_I_W_Y | 1024×600 |
+| Guition JC1060P470C V1 / V2 | 1024×600 |
 | Guition ESP32-4848S040C_I | 480×480 |
+| Waveshare ESP32-S3-Touch-LCD-4B | 480×480 |
 
 If the display is deliberately rotated by 90 degrees, swap width and height.
 The screensaver crops the prepared image to the panel; **Zoom**, **Focus X**, and

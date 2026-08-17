@@ -9,6 +9,13 @@ const device = fs.readFileSync(
   ),
   'utf8',
 );
+const waveshareDevice = fs.readFileSync(
+  new URL(
+    '../src/devices/waveshare_s3_touch_lcd_4b/device_waveshare_s3_touch_lcd_4b.cpp',
+    import.meta.url,
+  ),
+  'utf8',
+);
 
 const setupStart = sketch.indexOf('void setup()');
 const setupEnd = sketch.indexOf('\nvoid loop()', setupStart);
@@ -19,7 +26,7 @@ const networkSetup = setup.indexOf('networkManager.beginMqttWorker();');
 const noConfigBranch = setup.indexOf(
   'Serial.println("[Setup] Ueberspringe Netzwerk (keine Config)");',
 );
-const guard = setup.indexOf('#if defined(DEVICE_GUITION_ESP32_4848S040)', noConfigBranch);
+const guard = setup.indexOf('#if defined(DEVICE_ESP32_S3_RGB_480)', noConfigBranch);
 const begin = setup.indexOf('Device::storageWriteBegin();', guard);
 const end = setup.indexOf('Device::storageWriteEnd();', begin);
 const activityReset = setup.indexOf('displayManager.resetActivityTimer();', end);
@@ -43,13 +50,21 @@ assert.doesNotMatch(
   'boot resync must not reboot the device',
 );
 
-for (const marker of [
-  'bool canonicalizeForStorage()',
-  'esp_err_t restartAfterStorage(uint32_t& wait_ms)',
-  'enableVsyncInterruptOneShot();',
-  'maskVsyncInterrupt();',
+for (const [label, source] of [
+  ['Guition', device],
+  ['Waveshare', waveshareDevice],
 ]) {
-  assert.ok(device.includes(marker), `missing guarded RGB recovery marker: ${marker}`);
+  for (const marker of [
+    'bool canonicalizeForStorage()',
+    'esp_err_t restartAfterStorage(uint32_t& wait_ms)',
+    'enableVsyncInterruptOneShot();',
+    'maskVsyncInterrupt();',
+  ]) {
+    assert.ok(
+      source.includes(marker),
+      `${label} S3 is missing guarded RGB recovery marker: ${marker}`,
+    );
+  }
 }
 
-console.log('Guition S3 boot RGB resync contract OK');
+console.log('ESP32-S3 RGB boot resync contract OK');

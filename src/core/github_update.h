@@ -3,65 +3,61 @@
 
 #include <Arduino.h>
 
-// Update-ueber-GitHub: Versions-Check ueber den /releases/latest-Redirect
-// (Location-Header genuegt - kein JSON, keine API, kein Rate-Limit) und
-// OTA-Install per HTTPS-Download des Release-Assets in die Update-Partition.
+// GitHub update: check /releases/latest through its redirect (the Location
+// header is sufficient, so no JSON API or API rate limit is involved), then
+// download the release asset over HTTPS into the OTA partition.
 //
-// Namenskonvention der GitHub-Releases (MUSS beim Anlegen eingehalten werden):
-//   Tag:   vX.Y.Z (gleiches Format wie FW_VERSION in version.txt)
-//   Asset: hometiles_<tag>_<geraete-key>.bin
-//   z.B.   hometiles_v0.3.2_waveshare_touch_lcd_8.bin
-//   (bis v0.2.9 hiess das Schema esp32-p4-homeassistant-display-*; ein Geraet
-//   auf <= v0.2.9 faellt automatisch auf diesen alten Namen zurueck, wenn der
-//   aktuelle Asset-Name auf dem Release fehlt -- siehe install() in
-//   github_update.cpp. Neue Releases muessen den alten Namen NICHT mehr
-//   mitliefern, seit v0.3.1 keine Geraete mehr auf <= v0.2.9 unterwegs sind.)
-// Die Geraete-Keys sind: waveshare_touch_lcd_7, waveshare_touch_lcd_8,
-// waveshare_touch_lcd_10_1, waveshare_4b, m5stacks_tab5 und
-// guition_jc8012p4a1 sowie guition_jc1060p470c.
+// GitHub release naming contract:
+//   Tag:   vX.Y.Z (the same format as FW_VERSION in version.txt)
+//   Asset: hometiles_<tag>_<device-key>.bin
+//   Example: hometiles_v0.3.2_waveshare_touch_lcd_8.bin
+// The active profile supplies <device-key> through
+// FirmwareMetadata::targetDeviceKey(); do not maintain a duplicate key list
+// here. Firmware up to v0.2.9 used the
+// esp32-p4-homeassistant-display-* schema. install() retains that fallback for
+// old devices, but new releases do not need to publish the legacy names.
 //
-// Repo wurde von ESP32-P4-HomeAssistant-Display auf HomeTiles umbenannt.
-// GitHub redirected die alte URL dauerhaft, d.h. Geraete mit einer aelteren
-// Firmware (die noch die alte URL einkompiliert haben) funktionieren weiter.
-// Die alte URL darf trotzdem NIE wieder als eigenes Repo angelegt werden --
-// das wuerde den Redirect kaputt machen.
+// The repository was renamed from ESP32-P4-HomeAssistant-Display to HomeTiles.
+// GitHub permanently redirects the old URL, so older firmware continues to
+// work. Never recreate a repository at the old URL because that would break
+// the redirect.
 namespace GithubUpdate {
 
 constexpr const char* kRepoUrl =
     "https://github.com/GalusPeres/HomeTiles";
 
 struct CheckResult {
-  bool ok = false;                // Anfrage erfolgreich beantwortet
-  bool update_available = false;  // latest_tag ist neuer als FW_VERSION
-  bool tls_alloc_failed = false;  // Handshake scheiterte an internem RAM
-  char latest_tag[24] = {};       // z.B. "v0.3.0"
+  bool ok = false;                // The request completed successfully.
+  bool update_available = false;  // latest_tag is newer than FW_VERSION.
+  bool tls_alloc_failed = false;  // TLS failed because internal RAM ran out.
+  char latest_tag[24] = {};       // For example, "v0.3.0".
 };
 
-// Blockiert 1-3 Sekunden (TLS-Handshake) - nur vom Loop-Task aufrufen,
-// nie direkt aus einem LVGL-Event-Callback (Pending-Flag-Muster wie beim
-// Hotspot-Toggle).
+// Blocks for 1-3 seconds during the TLS handshake. Call only from the loop
+// task, never directly from an LVGL event callback. Use the same pending-flag
+// pattern as the hotspot toggle.
 CheckResult checkLatest();
 
-// Fortschritt in Bytes; total bleibt 0, solange die Groesse unbekannt ist.
-// Der Callback ist auch der LVGL-Pump-Takt des Aufrufers.
+// Progress is measured in bytes; total remains zero while the size is
+// unknown. The callback also drives the caller's LVGL pump cadence.
 typedef void (*ProgressFn)(size_t written, size_t total);
 
-// Laedt das Asset des laufenden Geraeteprofils und schreibt es in die
-// OTA-Partition. Blockiert minutenlang; der Aufrufer legt vorher MQTT und
-// Web-Admin still (TLS braucht ~45KB internes RAM) und startet bei true
-// selbst neu. Bei false steht der Grund in error_out.
+// Downloads the active device profile's asset and writes it to the OTA
+// partition. This can block for minutes. The caller first pauses MQTT and Web
+// Admin because TLS needs about 45KB of internal RAM, and restarts the device
+// after a true result. error_out contains the reason on false.
 bool install(const char* tag, ProgressFn progress, String& error_out);
 
-// Forensik des letzten install()-Laufs (fehlgeschlagene Ranges, Versuche,
-// Speicher-/WLAN-Lage), mehrzeilig. Der Aufrufer haengt sie vor dem sicheren
-// Neustart an den Absturzbericht an, da der Neustart selbst keinen Core-Dump
-// hinterlaesst. Leer, solange kein Install lief.
+// Multiline diagnostics for the last install() run, including failed ranges,
+// attempts, memory, and WiFi state. The caller appends this to the crash report
+// before a safe restart because that restart does not create a core dump.
+// Empty until install() has run.
 String lastInstallDiag();
 
-// True, wenn der letzte install()-Fehlschlag NACH der Validierung von Asset
-// und Firmware-Metadaten passierte (Transportabriss statt inhaltlichem
-// Fehler). Nur dann lohnt ein automatischer neuer Versuch nach dem Neustart;
-// bei "device mismatch" o.ae. wuerde er nur eine Reboot-Schleife erzeugen.
+// True when the last install() failure happened after asset and firmware
+// metadata validation, such as a transport interruption. Only then is an
+// automatic retry after restart useful; retrying a device mismatch would only
+// create a reboot loop.
 bool lastInstallRetryable();
 
 }  // namespace GithubUpdate

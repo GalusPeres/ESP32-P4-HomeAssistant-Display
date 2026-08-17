@@ -25,10 +25,16 @@ const char* apSsidForDevice() {
   return "Guition_JC8012P4A1_V2_Config";
 #elif defined(DEVICE_GUITION_JC1060P470C)
   return "Guition_JC1060P470C_Config";
+#elif defined(DEVICE_GUITION_JC1060P470C_V2)
+  return "Guition_JC1060P470C_V2_Config";
 #elif defined(DEVICE_GUITION_ESP32_4848S040)
   return "Guition_4848S040_Config";
+#elif defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)
+  return "Waveshare_S3_4B_Config";
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_7)
   return "Waveshare_LCD7_Config";
+#elif defined(DEVICE_WAVESHARE_TOUCH_LCD_7B)
+  return "Waveshare_LCD7B_Config";
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
   return "Waveshare_LCD8_Config";
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1)
@@ -53,7 +59,7 @@ void applyWifiAutoReconnectPolicy() {
 }
 
 bool setWifiModeWithSdRemount(wifi_mode_t mode) {
-#if defined(DEVICE_GUITION_JC1060P470C)
+#if defined(DEVICE_GUITION_JC1060P470C_FAMILY)
   const bool sd_was_mounted = Device::suspendSDCardForNetworkTransition();
   const bool mode_ok = WiFi.mode(mode);
   if (sd_was_mounted && !Device::resumeSDCardAfterNetworkTransition()) {
@@ -76,7 +82,7 @@ const char* webConfigApPassword() {
 }
 
 static void restoreStaModeAfterAp() {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   // Calling persistent(false) after mode() is too late for the first
   // esp_wifi_set_mode() transition on the RGB-S3.
   WiFi.persistent(false);
@@ -100,7 +106,7 @@ bool WebConfigServer::start() {
   Serial.println("\n🌐 Starte WiFi-Konfigurationsmodus...");
 
   // Stoppe bisherige WiFi-Verbindung (hilft beim Captive Portal)
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_ESP32_S3_RGB_480)
   WiFi.persistent(false);
 #endif
   applyWifiAutoReconnectPolicy();

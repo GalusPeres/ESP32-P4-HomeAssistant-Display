@@ -109,6 +109,12 @@ jobs:
             define: DEVICE_WAVESHARE_TOUCH_LCD_7
             rx_variant: repo-a8204
             publish: true
+          - label: Waveshare 7B / 7B-C
+            profile: waveshare_7b
+            key: waveshare_touch_lcd_7b
+            define: DEVICE_WAVESHARE_TOUCH_LCD_7B
+            rx_variant: repo-a8204
+            publish: true
           - label: Waveshare 8 inch
             profile: waveshare_8
             key: waveshare_touch_lcd_8
@@ -139,10 +145,22 @@ jobs:
             define: DEVICE_GUITION_JC1060P470C
             rx_variant: repo-a8204
             publish: true
+          - label: Guition JC1060P470C V2
+            profile: guition_jc1060p470c_v2
+            key: guition_jc1060p470c_v2
+            define: DEVICE_GUITION_JC1060P470C_V2
+            rx_variant: repo-a8204
+            publish: true
           - label: GUITION ESP32-4848S040
             profile: guition_esp32_4848s040
             key: guition_esp32_4848s040
             define: DEVICE_GUITION_ESP32_4848S040
+            rx_variant: native-s3
+            publish: true
+          - label: Waveshare ESP32-S3 Touch LCD 4B
+            profile: waveshare_s3_touch_lcd_4b
+            key: waveshare_s3_touch_lcd_4b
+            define: DEVICE_WAVESHARE_S3_TOUCH_LCD_4B
             rx_variant: native-s3
             publish: true
 
@@ -166,6 +184,21 @@ jobs:
 
       - name: Verify Guition JC1060 SD power contract
         run: node tools/test-jc1060-sd-power.mjs
+
+      - name: Verify Waveshare 7B profile contract
+        run: node tools/test-waveshare-7b-profile.mjs
+
+      - name: Verify Guition JC1060 V2 profile contract
+        run: node tools/test-guition-jc1060-v2-profile.mjs
+
+      - name: Verify Waveshare ESP32-S3 4B profile contract
+        run: node tools/test-waveshare-s3-4b-profile.mjs
+
+      - name: Verify Waveshare 10.1 brightness floor
+        run: node tools/test-waveshare-10-brightness-floor.mjs
+
+      - name: Verify new device profile integration
+        run: node tools/test-new-device-profile-integration.mjs
 
       - name: Verify ESP32-P4 folder-cache scope
         run: node tools/test-p4-folder-cache-scope.mjs
@@ -288,7 +321,7 @@ jobs:
           # in P4 images. Native-WiFi S3 targets do not link ESP-Hosted.
           firmware_bin="build/ci/${{ matrix.key }}/HomeTiles.ino.bin"
           test -f "${firmware_bin}"
-          if [ "${{ matrix.profile }}" != "guition_esp32_4848s040" ]; then
+          if [ "${{ matrix.rx_variant }}" != "native-s3" ]; then
             for fatal_assert in copy_buff pkt_rxbuff; do
               if grep -a -q "${fatal_assert}" "${firmware_bin}"; then
                 echo "Stock ESP-Hosted assert '${fatal_assert}' found in ${firmware_bin}" >&2
@@ -400,7 +433,7 @@ jobs:
         shell: bash
         run: |
           ls -la build/release-assets
-          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 18
+          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 24
 
       - name: Upload assets to GitHub release
         env:

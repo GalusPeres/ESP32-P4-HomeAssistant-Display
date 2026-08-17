@@ -153,7 +153,7 @@ for (const marker of [
   'parser_total_bytes != g_ota_upload_state.upload_total_bytes',
   'while (offset < g_ota_upload_state.staged_bytes)',
   'Update.end(true)',
-  '#if defined(DEVICE_GUITION_ESP32_4848S040)',
+  '#if defined(DEVICE_ESP32_S3_RGB_480)',
   'Update.end(false)',
   'endOtaStorageGuard();',
 ]) {
@@ -190,7 +190,7 @@ for (const marker of [
   'copyToOtaStagingBuffer(',
   'beginDirectOtaInstall()',
   'Update.end(true)',
-  '#if defined(DEVICE_GUITION_ESP32_4848S040)',
+  '#if defined(DEVICE_ESP32_S3_RGB_480)',
   'Update.end(false)',
 ]) {
   requireMarker(legacyHandler, marker, 'Legacy multipart OTA contract');

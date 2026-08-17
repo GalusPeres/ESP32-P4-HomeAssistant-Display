@@ -19,20 +19,20 @@ git push --atomic origin master refs/tags/v0.6.5
 
 That's it. The action then:
 
-1. Builds all nine release targets with the pinned toolchain (ESP32 core +
+1. Builds all twelve release targets with the pinned toolchain (ESP32 core +
    libraries, see workflow `env`). Device names in CI identify the exact
    hardware profile; concrete validation notes belong in the release notes.
 2. Verifies that the tag matches `FW_VERSION` in `version.txt` — a mismatch
    fails the build on purpose.
 3. Verifies the device descriptor embedded in each binary.
 4. Creates the GitHub release with auto-generated notes and uploads all
-   18 binaries (`<device>.bin` for OTA + `<device>_factory.bin` for first flash).
+   24 binaries (`<device>.bin` for OTA + `<device>_factory.bin` for first flash).
 
-After all 18 assets were uploaded successfully, the release job explicitly
+After all 24 assets were uploaded successfully, the release job explicitly
 dispatches the documentation workflow for the release tag. This explicit
 `workflow_dispatch` is required because GitHub suppresses ordinary follow-up
 workflow events created with `GITHUB_TOKEN`. The documentation workflow
-validates the installer device/asset contract, downloads the same 18 published
+validates the installer device/asset contract, downloads the same 24 published
 release assets, verifies their GitHub SHA-256 digests, and places them in the
 generated documentation site under `firmware/latest/`. Normal documentation
 changes pushed to `master` still deploy through the workflow's filtered `push`
@@ -86,7 +86,7 @@ release is published (GitHub CDN propagation can add a few minutes).
   edit them *after* the workflow finishes (web UI or `gh release edit`).
 - **Keep target-specific networking paths separated.** All published P4
   release targets use the checked-in a8204 ESP-Hosted baseline; the ESP32-S3
-  target uses native WiFi. CI verifies the expected markers before packaging.
+  targets use native WiFi. CI verifies the expected markers before packaging.
 
 ## Preparing a candidate without releasing
 
