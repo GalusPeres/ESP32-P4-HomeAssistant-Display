@@ -7,6 +7,10 @@ Note:
 - This repo now contains a shared sketch-root `partitions.csv`.
 - Arduino ESP32 uses that file automatically for both boards during build.
 - The shared layout keeps both OTA app slots below `16MB`.
+- The normal ESP32-P4 profiles use the vendors' P4NRW32/pre-v3 modules and
+  HomeTiles explicitly guards them to chip revisions 1–199. They are not
+  generic all-revision P4 builds. The only separate post-v3 profile is the
+  experimental, exact-v3.1 Waveshare 7B entry documented below.
 
 ## M5Stacks Tab5
 
@@ -110,7 +114,8 @@ Arduino IDE:
 
 Used for:
 - `src/devices/waveshare_touch_lcd_7b`
-- build profile `waveshare_7b`
+- build profile `waveshare_7b` for P4NRW32/pre-v3 revisions 1–199
+- build profile `waveshare_7b_rev3_1` for exact ESP32-P4 revision v3.1 (301)
 
 Important:
 - This is the `1024x600` EK79007 7B/7B-C profile. It is not interchangeable
@@ -120,14 +125,30 @@ Important:
 - ESP32-P4 with `32MB` flash and `32MB` PSRAM.
 - Touch uses SDA 7 and SCL 8. The panel reset is GPIO 33.
 - The microSD interface uses SDMMC slot 0 on GPIO39-44 and P4 LDO channel 4.
-- Complete validation on both exact variants is still pending in
-  [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7).
+- The browser installer shows two explicit device entries: **ESP32-P4 before
+  v3.0 (revisions 1–199)** and **exact ESP32-P4 v3.1**. The selected entry
+  determines the release asset. Revision detection rejects a mismatch before
+  flashing; it does not change the selection automatically.
+- The exact-v3.1 entry is experimental and has not been validated on that
+  hardware. ESP32-P4 v3.2 or newer is unsupported with Arduino-ESP32 3.3.7 /
+  ESP-IDF 5.5.2 and must not be flashed.
+- HomeTiles browser, Web Admin, and OTA paths enforce exact revision metadata.
+  A direct Arduino IDE or `esptool` write bypasses that HomeTiles check. The
+  underlying ESP header from the Arduino `v3.00 or newer` choice can cover
+  revisions 301–399, so directly writing the v3.1 image to v3.2 or newer is
+  unsafe.
+- For an Arduino IDE build, use `esptool chip-id` first. Continue only for
+  revisions 1–199 or exact v3.1; stop for v3.2 or newer and do not guess.
+- Complete validation on both paths, especially exact v3.1 hardware, is still
+  pending in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7).
 - Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.
 
 Arduino IDE:
 - Board: `ESP32P4 Dev Module`
 - USB CDC On Boot: `Disabled`
-- Chip Variant: `Before v3.00`
+- Chip Variant: `Before v3.00` for `waveshare_7b`, or `v3.00 or newer` for
+  `waveshare_7b_rev3_1`. HomeTiles v0.6.8 narrows the latter firmware contract
+  to exact v3.1 even though the Arduino/ESP image header remains 301–399.
 - Core Debug Level: `None`
 - USB DFU On Boot: `Disabled`
 - Erase All Flash Before Sketch Upload: `Disabled`

@@ -30,7 +30,7 @@ constexpr int kVideoTop = popup_layout::scale480(104);
 constexpr int kStatusTop =
     kVideoTop + kVideoHeight + popup_layout::scale480(22);
 constexpr uint8_t kRequiredBridgeCameraProtocol = 1;
-constexpr uint32_t kBridgeResponseTimeoutMs = 8000;
+constexpr uint32_t kBridgeResponseTimeoutMs = 30000;
 
 struct CameraPopupContext {
   String entity_id;
@@ -393,10 +393,8 @@ void process_camera_popup() {
     g_camera_popup->waiting_for_bridge = false;
     g_camera_popup->bridge_response_deadline_ms = 0;
     Serial.println(
-        "[Camera] Keine kompatible Bridge-Antwort; "
-        "HomeTiles Bridge v0.6.28+ erforderlich");
-    camera_popup_set_status(
-        camera_text().camera_bridge_update_required, true);
+        "[Camera] No camera response before the bridge deadline");
+    camera_popup_set_status(camera_text().camera_bridge_no_response, true);
   }
   if (powerManager.isInSleep()) {
     close_camera_popup();
@@ -423,9 +421,15 @@ void camera_popup_handle_mqtt_status(const char* payload) {
       !g_camera_popup->entity_id.equalsIgnoreCase(String(entity))) {
     return;
   }
-  const uint8_t protocol_version = doc["protocol_version"] | 0;
   g_camera_popup->waiting_for_bridge = false;
   g_camera_popup->bridge_response_deadline_ms = 0;
+  const JsonVariantConst protocol_field = doc["protocol_version"];
+  if (protocol_field.isNull() || !protocol_field.is<uint8_t>()) {
+    Serial.println("[Camera] Camera response has no valid protocol version");
+    camera_popup_set_status(camera_text().camera_invalid_response, true);
+    return;
+  }
+  const uint8_t protocol_version = protocol_field.as<uint8_t>();
   if (protocol_version != kRequiredBridgeCameraProtocol) {
     Serial.printf(
         "[Camera] Bridge-Kameraprotokoll %u ist inkompatibel "
@@ -506,6 +510,10 @@ void camera_popup_handle_mqtt_status(const char* payload) {
 }
 
 void camera_popup_set_status(const char* text, bool error) {
+  if (error && g_camera_popup) {
+    g_camera_popup->waiting_for_bridge = false;
+    g_camera_popup->bridge_response_deadline_ms = 0;
+  }
   set_status_label(text, error);
   camera_stream_set_external_status(text, error);
 }

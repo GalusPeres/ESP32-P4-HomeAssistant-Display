@@ -6,7 +6,7 @@ happens [over the air](updating.md). Flashing takes about five minutes.
 !!! tip "Recommended: flash directly from the documentation"
     Open the [Browser Firmware Installer](installer.md), select the exact device,
     choose **Factory reset**, confirm the data wipe, and connect the USB
-    serial port. It automatically uses the latest matching release image. A
+    serial port. It uses the latest release image for the selected entry. A
     current desktop Chrome or Edge browser and an HTTPS connection are required.
 
 The steps below are the manual alternative for users who prefer Espressif's
@@ -33,7 +33,8 @@ Grab the file matching your device from the
 | Guition JC8012P4A1C_I_W_Y V1 (no V2 sticker) | Supported | `hometiles_<version>_guition_jc8012p4a1_factory.bin` |
 | Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Hardware validation pending | `hometiles_<version>_guition_jc8012p4a1_v2_factory.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Hardware validation pending | `hometiles_<version>_waveshare_touch_lcd_7_factory.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C | Hardware validation pending; not the older 7-inch profile | `hometiles_<version>_waveshare_touch_lcd_7b_factory.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C, ESP32-P4 before v3.0 (revisions 1–199) | Hardware validation pending; not the older 7-inch profile | `hometiles_<version>_waveshare_touch_lcd_7b_factory.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C, exact ESP32-P4 v3.1 | Experimental; exact hardware unverified | `hometiles_<version>_waveshare_touch_lcd_7b_rev3_1_factory.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Hardware validation pending | `hometiles_<version>_waveshare_touch_lcd_10_1_factory.bin` |
 | Guition JC1060P470C_I_W_Y V1 | SD-card validation pending; exact suffix required | `hometiles_<version>_guition_jc1060p470c_factory.bin` |
 | Guition JC1060P470C V2 / New Panel | Hardware validation pending; use only for the marked V2 revision | `hometiles_<version>_guition_jc1060p470c_v2_factory.bin` |
@@ -45,6 +46,9 @@ Grab the file matching your device from the
     Use only the image matching the exact model and report results in
     [open hardware issues](https://github.com/GalusPeres/HomeTiles/issues),
     including [JC8012 V2 issue #18](https://github.com/GalusPeres/HomeTiles/issues/18).
+    The normal ESP32-P4 profiles use vendor-listed P4NRW32/pre-v3 modules and
+    are explicitly guarded to revisions 1–199; they are not all-revision P4
+    images.
 
 !!! danger "JC8012 V1 and V2 images are not interchangeable"
     Check the rear material-number sticker before flashing. A unit marked `V2`
@@ -55,8 +59,23 @@ Grab the file matching your device from the
 !!! danger "Other similarly named panels also use separate images"
     `guition_jc1060p470c_v2` is only for the marked JC1060 V2 / New Panel;
     the original `_I_W_Y` panel uses `guition_jc1060p470c`. Likewise, the
-    1024×600 Waveshare 7B/7B-C uses `waveshare_touch_lcd_7b`, while the older
-    1280×720 Waveshare 7-inch panel uses `waveshare_touch_lcd_7`.
+    1024×600 Waveshare 7B/7B-C uses a silicon-specific 7B image, while the
+    older 1280×720 Waveshare 7-inch panel uses `waveshare_touch_lcd_7`.
+
+!!! danger "Waveshare 7B silicon revision"
+    HomeTiles provides one 7B image for pre-v3 revisions 1–199 and a separate,
+    experimental image for exact revision v3.1 (301). In the
+    [browser installer](installer.md), explicitly select the matching entry;
+    that selection determines the image. Browser installation, Web Admin
+    upload, and on-device OTA enforce the revision and reject a mismatch.
+
+    ESP32-P4 v3.2 or newer is unsupported with Arduino-ESP32 3.3.7 / ESP-IDF
+    5.5.2 and must not be flashed. Run `esptool --chip esp32p4 chip-id` before a
+    manual download: use the base filename only for revisions 1–199 and
+    `_rev3_1` only when it reports exact v3.1. Direct `esptool` flashing to v3.2+
+    is unsafe because the Arduino `v3.00 or newer` build's underlying ESP image
+    header can still allow revisions 301–399, bypassing HomeTiles' exact-v3.1
+    guard.
 
 !!! note "`factory.bin` vs. plain `.bin`"
     The **factory** image is a complete flash image — bootloader, firmware, and empty

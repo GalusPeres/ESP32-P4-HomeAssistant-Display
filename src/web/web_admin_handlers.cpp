@@ -863,6 +863,61 @@ bool validateRawOtaImageMetadata(const uint8_t* image, size_t image_len) {
         ", expected " + firmware_meta::currentProjectKey();
     return false;
   }
+  const auto& current_silicon =
+      firmware_meta::currentSiliconRevisionDescriptor();
+  const uint16_t chip_revision = ESP.getChipRevision();
+  if (chip_revision < current_silicon.minimum_revision ||
+      chip_revision > current_silicon.maximum_revision) {
+    g_ota_upload_state.error =
+        String("Current firmware silicon range ") +
+        current_silicon.minimum_revision + "-" +
+        current_silicon.maximum_revision +
+        " does not support chip revision " + chip_revision;
+    return false;
+  }
+  bool accepted_legacy_silicon = false;
+  if (!firmware_meta::imageMatchesCurrentSiliconVariant(
+          image, image_len, &accepted_legacy_silicon)) {
+    firmware_meta::SiliconRevisionDescriptor incoming_silicon{};
+    if (firmware_meta::parseSiliconRevisionDescriptorFromImage(
+            image, image_len, incoming_silicon)) {
+      if (firmware_meta::matchesCurrentSiliconVariant(
+              incoming_silicon.variant)) {
+        if (!firmware_meta::matchesCurrentSiliconRevisionRange(
+                incoming_silicon.minimum_revision,
+                incoming_silicon.maximum_revision)) {
+          g_ota_upload_state.error =
+              String("Firmware silicon range ") +
+              incoming_silicon.minimum_revision + "-" +
+              incoming_silicon.maximum_revision +
+              " exceeds supported range " +
+              current_silicon.minimum_revision + "-" +
+              current_silicon.maximum_revision;
+        } else {
+          g_ota_upload_state.error =
+              String("Firmware silicon range ") +
+              incoming_silicon.minimum_revision + "-" +
+              incoming_silicon.maximum_revision +
+              " does not support chip revision " + ESP.getChipRevision();
+        }
+      } else {
+        g_ota_upload_state.error =
+            String("Firmware silicon mismatch: got ") +
+            incoming_silicon.variant + ", expected " +
+            firmware_meta::currentSiliconVariant();
+      }
+    } else {
+      g_ota_upload_state.error =
+          String("Legacy firmware is not safe for silicon variant ") +
+          firmware_meta::currentSiliconVariant();
+    }
+    return false;
+  }
+  if (accepted_legacy_silicon) {
+    Serial.printf(
+        "[OTA] Accepted legacy firmware metadata for silicon variant %s\n",
+        firmware_meta::currentSiliconVariant());
+  }
   g_ota_upload_state.image_validated = true;
   return true;
 }
@@ -4075,33 +4130,12 @@ void WebAdminServer::handleOtaUpdate() {
       if (!g_ota_upload_state.image_validated &&
           g_ota_upload_state.staged_bytes >=
               firmware_meta::kDeviceDescriptorImageBytes) {
-        firmware_meta::DeviceDescriptor incoming_desc{};
-        if (!firmware_meta::parseDeviceDescriptorFromImage(
+        if (!validateRawOtaImageMetadata(
                 g_ota_upload_state.staging_blocks[0],
                 std::min(g_ota_upload_state.staged_bytes,
-                         kOtaStagingBlockBytes),
-                incoming_desc)) {
-          g_ota_upload_state.error =
-              "Firmware metadata missing or invalid";
+                         kOtaStagingBlockBytes))) {
           return;
         }
-        if (!firmware_meta::matchesCurrentDeviceKey(
-                incoming_desc.device_key)) {
-          g_ota_upload_state.error =
-              String("Firmware device mismatch: got ") +
-              incoming_desc.display_name + ", expected " +
-              firmware_meta::expectedDeviceDisplayName();
-          return;
-        }
-        if (strcmp(incoming_desc.project_key,
-                   firmware_meta::currentProjectKey()) != 0) {
-          g_ota_upload_state.error =
-              String("Firmware project mismatch: got ") +
-              incoming_desc.project_key + ", expected " +
-              firmware_meta::currentProjectKey();
-          return;
-        }
-        g_ota_upload_state.image_validated = true;
       }
 
       if (g_ota_upload_state.staged_bytes >=
@@ -4128,42 +4162,33 @@ void WebAdminServer::handleOtaUpdate() {
       buffered_copy_len = copy_len;
     }
 
+    if (!g_ota_upload_state.image_validated &&
+        g_ota_upload_state.buffered_len <
+            firmware_meta::kDeviceDescriptorImageBytes) {
+      return;
+    }
+
     if (!g_ota_upload_state.image_validated) {
-      firmware_meta::DeviceDescriptor incoming_desc{};
-      if (firmware_meta::parseDeviceDescriptorFromImage(
+      if (!validateRawOtaImageMetadata(
               g_ota_upload_state.buffered_bytes,
-              g_ota_upload_state.buffered_len,
-              incoming_desc)) {
-        if (!firmware_meta::matchesCurrentDeviceKey(incoming_desc.device_key)) {
-          g_ota_upload_state.error =
-              String("Firmware device mismatch: got ") + incoming_desc.display_name +
-              ", expected " + firmware_meta::expectedDeviceDisplayName();
-          return;
-        }
-        if (strcmp(incoming_desc.project_key, firmware_meta::currentProjectKey()) != 0) {
-          g_ota_upload_state.error =
-              String("Firmware project mismatch: got ") + incoming_desc.project_key +
-              ", expected " + firmware_meta::currentProjectKey();
-          return;
-        }
-        g_ota_upload_state.image_validated = true;
-        if (!beginDirectOtaInstall()) {
-          return;
-        }
-        if (!writeDirectOtaChunk(g_ota_upload_state.buffered_bytes, g_ota_upload_state.buffered_len)) {
-          return;
-        }
-        g_ota_upload_state.buffered_len = 0;
-        if (static_cast<size_t>(upload.currentSize) > buffered_copy_len) {
-          const size_t remaining_in_chunk = static_cast<size_t>(upload.currentSize) - buffered_copy_len;
-          if (!writeDirectOtaChunk(upload.buf + buffered_copy_len, remaining_in_chunk)) {
-            return;
-          }
-        }
+              g_ota_upload_state.buffered_len)) {
         return;
-      } else if (g_ota_upload_state.buffered_len >= firmware_meta::kDeviceDescriptorImageBytes) {
-        g_ota_upload_state.error = "Firmware metadata missing or invalid";
+      }
+      if (!beginDirectOtaInstall()) {
         return;
+      }
+      if (!writeDirectOtaChunk(g_ota_upload_state.buffered_bytes,
+                               g_ota_upload_state.buffered_len)) {
+        return;
+      }
+      g_ota_upload_state.buffered_len = 0;
+      if (static_cast<size_t>(upload.currentSize) > buffered_copy_len) {
+        const size_t remaining_in_chunk =
+            static_cast<size_t>(upload.currentSize) - buffered_copy_len;
+        if (!writeDirectOtaChunk(upload.buf + buffered_copy_len,
+                                 remaining_in_chunk)) {
+          return;
+        }
       }
       return;
     }

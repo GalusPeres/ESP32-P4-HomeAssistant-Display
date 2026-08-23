@@ -35,6 +35,45 @@ function functionBody(source, startMarker, endMarker) {
 const server = read('src/web/web_admin.cpp');
 const handlers = read('src/web/web_admin_handlers.cpp');
 const admin = read('src/web/assets/admin.js');
+const firmwareMetadata = read('src/core/firmware_metadata.cpp');
+
+for (const marker of [
+  '#if defined(CONFIG_IDF_TARGET_ESP32P4)',
+  '#define FW_META_SILICON_MIN_REV CONFIG_ESP_REV_MIN_FULL',
+  '#define FW_META_SILICON_MAX_REV CONFIG_ESP_REV_MAX_FULL',
+  '#define FW_META_SILICON_VARIANT "rev3_1"',
+  '#define FW_META_SILICON_MIN_REV 301',
+  '#define FW_META_SILICON_MAX_REV 301',
+  '#error "Every ESP32-P4 build must target one unambiguous silicon generation"',
+  'chip_revision < kCurrentFirmwareDescriptor.silicon.minimum_revision',
+  'chip_revision > kCurrentFirmwareDescriptor.silicon.maximum_revision',
+  'incoming_minimum_revision >=',
+  'incoming_maximum_revision <=',
+  'matchesCurrentSiliconRevisionRange(incoming.minimum_revision,',
+]) {
+  requireMarker(firmwareMetadata, marker, 'All-P4 silicon metadata contract');
+}
+const siliconRangeGuard = functionBody(
+  firmwareMetadata,
+  'bool matchesCurrentSiliconRevisionRange(',
+  'const char* expectedDeviceDisplayName()');
+requireOrder(siliconRangeGuard, [
+  'incoming_minimum_revision <= incoming_maximum_revision',
+  'incoming_minimum_revision >=',
+  'kCurrentFirmwareDescriptor.silicon.minimum_revision',
+  'incoming_maximum_revision <=',
+  'kCurrentFirmwareDescriptor.silicon.maximum_revision',
+], 'Incoming silicon range containment guard');
+const imageSiliconGuard = functionBody(
+  firmwareMetadata,
+  'bool imageMatchesCurrentSiliconVariant(',
+  '}  // namespace firmware_meta');
+requireOrder(imageSiliconGuard, [
+  'matchesCurrentSiliconVariant(incoming.variant)',
+  'matchesCurrentSiliconRevisionRange(incoming.minimum_revision,',
+  'chip_revision >= incoming.minimum_revision',
+  'chip_revision <= incoming.maximum_revision',
+], 'OTA image silicon range guard');
 
 const stagingPolicy = functionBody(
   handlers,
@@ -114,6 +153,13 @@ for (const marker of [
   'firmware_meta::parseDeviceDescriptorFromImage(',
   'firmware_meta::matchesCurrentDeviceKey(incoming_desc.device_key)',
   'firmware_meta::currentProjectKey()',
+  'firmware_meta::currentSiliconRevisionDescriptor()',
+  'Current firmware silicon range ',
+  'firmware_meta::imageMatchesCurrentSiliconVariant(',
+  'firmware_meta::matchesCurrentSiliconRevisionRange(',
+  'exceeds supported range ',
+  'Firmware silicon range ',
+  'ESP.getChipRevision()',
 ]) {
   requireMarker(rawMetadata, marker, 'Raw OTA firmware metadata guard');
 }
@@ -184,9 +230,7 @@ for (const marker of [
   'UPLOAD_FILE_WRITE',
   'UPLOAD_FILE_ABORTED',
   'UPLOAD_FILE_END',
-  'firmware_meta::parseDeviceDescriptorFromImage(',
-  'firmware_meta::matchesCurrentDeviceKey(',
-  'firmware_meta::currentProjectKey()',
+  'validateRawOtaImageMetadata(',
   'copyToOtaStagingBuffer(',
   'beginDirectOtaInstall()',
   'Update.end(true)',
@@ -194,6 +238,14 @@ for (const marker of [
   'Update.end(false)',
 ]) {
   requireMarker(legacyHandler, marker, 'Legacy multipart OTA contract');
+}
+for (const marker of [
+  'firmware_meta::parseDeviceDescriptorFromImage(',
+  'firmware_meta::matchesCurrentDeviceKey(',
+  'firmware_meta::currentProjectKey()',
+  'firmware_meta::imageMatchesCurrentSiliconVariant(',
+]) {
+  requireMarker(handlers, marker, 'Shared OTA firmware metadata validation');
 }
 
 const legacyFinish = functionBody(

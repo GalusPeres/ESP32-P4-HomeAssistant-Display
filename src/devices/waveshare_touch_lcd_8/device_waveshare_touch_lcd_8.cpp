@@ -23,6 +23,7 @@
 #include <hal/lcd_types.h>
 
 #include "src/core/dma2d_arbiter.h"
+#include "src/devices/common/p4_dsi_camera_presenter.h"
 #include "src/devices/waveshare_touch_lcd_8/waveshare_sdmmc.h"
 #include "src/devices/waveshare_touch_lcd_8/vendor/displays_config.h"
 #include "src/devices/waveshare_touch_lcd_8/vendor/gt911.h"
@@ -57,6 +58,7 @@ constexpr uint8_t kInvalidTouchTrackId = 0xFF;
 // few ms (full screen); if it ever blocks longer than this the engine is stuck,
 // so we bail out and rotate that band on the CPU instead of freezing forever.
 constexpr uint32_t kPpaRotateTimeoutMs = 200;
+constexpr uint32_t kPpaPreviewGraceMs = 800;
 constexpr uint32_t kPpaFaultCooldownMs = 1200;
 // A single stray fault just cools the engine down; this many consecutive faults
 // proves the pending slot is wedged and triggers a full client reset (self-heal).
@@ -102,13 +104,7 @@ uint16_t* g_rotate_buf = nullptr;
 size_t g_rotate_buf_pixels = 0;
 uint16_t* g_panel_fbs[kPanelFrameBufferCount] = {nullptr};
 bool g_panel_fb_ready = false;
-uint8_t g_panel_active_fb_index = 0;
-bool g_camera_double_buffer_active = false;
-bool g_camera_mirror_dirty = false;
-int32_t g_camera_dirty_x1 = 0;
-int32_t g_camera_dirty_y1 = 0;
-int32_t g_camera_dirty_x2 = 0;
-int32_t g_camera_dirty_y2 = 0;
+p4_dsi_camera_presenter::Presenter g_camera_presenter;
 bool g_frame_dirty = false;
 int32_t g_dirty_x1 = 0;
 int32_t g_dirty_y1 = 0;
@@ -278,24 +274,6 @@ void wait_transfer_done(size_t pixels) {
   }
 }
 
-void drain_refresh_signal() {
-  if (!g_refresh_done) {
-    return;
-  }
-  while (xSemaphoreTake(g_refresh_done, 0) == pdTRUE) {
-  }
-}
-
-void wait_refresh_done() {
-  if (!g_refresh_done) {
-    return;
-  }
-
-  if (xSemaphoreTake(g_refresh_done, pdMS_TO_TICKS(50)) != pdTRUE) {
-    Serial.println("[Device/WaveshareTouchLCD8] refresh timeout");
-  }
-}
-
 void flush_cache_for_dma(const void* ptr, size_t size) {
   if (!ptr || size == 0) {
     return;
@@ -377,14 +355,7 @@ size_t panel_frame_bytes() {
 }
 
 uint16_t* panel_fb() {
-  return g_panel_fb_ready ? g_panel_fbs[g_panel_active_fb_index] : nullptr;
-}
-
-uint16_t* inactive_panel_fb() {
-  if (!g_panel_fb_ready || kPanelFrameBufferCount < 2) {
-    return nullptr;
-  }
-  return g_panel_fbs[g_panel_active_fb_index ^ 1U];
+  return g_panel_fb_ready ? g_camera_presenter.activeFramebuffer() : nullptr;
 }
 
 void clear_panel_framebuffer(uint16_t color) {
@@ -472,56 +443,6 @@ void invalidate_framebuffer_rect(uint16_t* fb, int32_t x, int32_t y, int32_t w, 
   }
 }
 
-void reset_camera_mirror_dirty() {
-  g_camera_mirror_dirty = false;
-  g_camera_dirty_x1 = 0;
-  g_camera_dirty_y1 = 0;
-  g_camera_dirty_x2 = 0;
-  g_camera_dirty_y2 = 0;
-}
-
-void mark_camera_mirror_dirty(int32_t x, int32_t y, int32_t w, int32_t h) {
-  if (!g_camera_double_buffer_active || w <= 0 || h <= 0) {
-    return;
-  }
-  if (!g_camera_mirror_dirty) {
-    g_camera_dirty_x1 = x;
-    g_camera_dirty_y1 = y;
-    g_camera_dirty_x2 = x + w - 1;
-    g_camera_dirty_y2 = y + h - 1;
-    g_camera_mirror_dirty = true;
-    return;
-  }
-
-  if (x < g_camera_dirty_x1) g_camera_dirty_x1 = x;
-  if (y < g_camera_dirty_y1) g_camera_dirty_y1 = y;
-  const int32_t x2 = x + w - 1;
-  const int32_t y2 = y + h - 1;
-  if (x2 > g_camera_dirty_x2) g_camera_dirty_x2 = x2;
-  if (y2 > g_camera_dirty_y2) g_camera_dirty_y2 = y2;
-}
-
-bool invalidate_framebuffer_span(uint16_t* fb, int32_t x, int32_t y,
-                                 int32_t w, int32_t h) {
-  if (!fb || w <= 0 || h <= 0) return false;
-  const size_t stride = display_cfg.width;
-  uint16_t* first =
-      fb + (static_cast<size_t>(y) * stride) + static_cast<size_t>(x);
-  const size_t span_pixels =
-      (static_cast<size_t>(h - 1) * stride) + static_cast<size_t>(w);
-  const uintptr_t start = reinterpret_cast<uintptr_t>(first);
-  const uintptr_t aligned_start = start & ~(kCacheLineSize - 1);
-  const uintptr_t end = start + span_pixels * sizeof(uint16_t);
-  const uintptr_t aligned_end =
-      (end + kCacheLineSize - 1) & ~(kCacheLineSize - 1);
-  return esp_cache_msync(
-             reinterpret_cast<void*>(aligned_start),
-             aligned_end - aligned_start,
-             ESP_CACHE_MSYNC_FLAG_DIR_M2C |
-                 ESP_CACHE_MSYNC_FLAG_INVALIDATE |
-                 ESP_CACHE_MSYNC_FLAG_TYPE_DATA) == ESP_OK;
-}
-
 void copy_rect_to_fb(uint16_t* dst, int32_t x, int32_t y, int32_t w, int32_t h,
                      const uint16_t* src) {
   if (!dst || !src || w <= 0 || h <= 0) {
@@ -536,65 +457,6 @@ void copy_rect_to_fb(uint16_t* dst, int32_t x, int32_t y, int32_t w, int32_t h,
                 row_bytes);
   }
   flush_framebuffer_rect(dst, x, y, w, h);
-}
-
-bool begin_camera_double_buffer() {
-  if (g_camera_double_buffer_active) {
-    return true;
-  }
-
-  uint16_t* active = panel_fb();
-  uint16_t* inactive = inactive_panel_fb();
-  if (!active || !inactive) {
-    return false;
-  }
-
-  // Normal LVGL PPA flushes can have changed the active framebuffer behind the
-  // CPU cache. Read the physical memory, then clone the complete, already
-  // rendered popup once so both swap buffers have an identical UI base.
-  if (!invalidate_framebuffer_span(
-          active, 0, 0, display_cfg.width, display_cfg.height)) {
-    Serial.println("[CameraStream/Display] Start-Synchronisierung fehlgeschlagen");
-    return false;
-  }
-  std::memcpy(inactive, active, panel_frame_bytes());
-  flush_cache_for_dma(inactive, panel_frame_bytes());
-
-  reset_camera_mirror_dirty();
-  g_camera_double_buffer_active = true;
-  Serial.printf(
-      "[CameraStream/Display] DSI-Doppelpuffer aktiv: fb%u -> fb%u (%u KB PSRAM)\n",
-      static_cast<unsigned>(g_panel_active_fb_index),
-      static_cast<unsigned>(g_panel_active_fb_index ^ 1U),
-      static_cast<unsigned>(panel_frame_bytes() / 1024U));
-  return true;
-}
-
-bool sync_camera_ui_to_inactive() {
-  if (!g_camera_double_buffer_active || !g_camera_mirror_dirty) {
-    return true;
-  }
-
-  uint16_t* active = panel_fb();
-  uint16_t* inactive = inactive_panel_fb();
-  if (!active || !inactive) {
-    return false;
-  }
-
-  const int32_t x = g_camera_dirty_x1;
-  const int32_t y = g_camera_dirty_y1;
-  const int32_t w = g_camera_dirty_x2 - g_camera_dirty_x1 + 1;
-  const int32_t h = g_camera_dirty_y2 - g_camera_dirty_y1 + 1;
-  const size_t stride = display_cfg.width;
-  const size_t row_bytes = static_cast<size_t>(w) * sizeof(uint16_t);
-  for (int32_t row = 0; row < h; ++row) {
-    const size_t offset =
-        (static_cast<size_t>(y + row) * stride) + static_cast<size_t>(x);
-    std::memcpy(inactive + offset, active + offset, row_bytes);
-  }
-  flush_framebuffer_rect(inactive, x, y, w, h);
-  reset_camera_mirror_dirty();
-  return true;
 }
 
 bool init_panel_framebuffer() {
@@ -616,10 +478,23 @@ bool init_panel_framebuffer() {
 
   g_panel_fbs[0] = static_cast<uint16_t*>(fb0);
   g_panel_fbs[1] = static_cast<uint16_t*>(fb1);
-  g_panel_active_fb_index = 0;
-  g_panel_fb_ready = true;
+  const p4_dsi_camera_presenter::Config presenter_config{
+      display_cfg.width,
+      display_cfg.height,
+      p4_dsi_camera_presenter::Transform::Portrait90Or270,
+      kPpaRotateTimeoutMs,
+      kPpaPreviewGraceMs,
+      "WaveshareTouchLCD8",
+  };
+  g_panel_fb_ready = g_camera_presenter.init(
+      presenter_config, g_panel, g_refresh_done, g_panel_fbs[0],
+      g_panel_fbs[1]);
+  if (!g_panel_fb_ready) {
+    Serial.println(
+        "[Device/WaveshareTouchLCD8] Shared camera presenter init failed");
+    return false;
+  }
   reset_dirty_rect();
-  reset_camera_mirror_dirty();
   Serial.printf("[Device/WaveshareTouchLCD8] Panel framebuffers OK fb0=%p fb1=%p\n",
                 fb0, fb1);
   return true;
@@ -646,7 +521,7 @@ bool write_physical_to_panel(int32_t x, int32_t y, int32_t w, int32_t h, const u
 
   copy_rect_to_fb(fb, x, y, w, h, data);
   mark_dirty_rect(x, y, w, h);
-  mark_camera_mirror_dirty(x, y, w, h);
+  g_camera_presenter.noteUiWrite(x, y, w, h, false);
   return true;
 }
 
@@ -713,27 +588,28 @@ bool draw_landscape_area(int32_t x, int32_t y, int32_t w, int32_t h, const uint1
       oper.rgb_swap = false;
       oper.byte_swap = false;
 
-      // Default is PPA_TRANS_MODE_BLOCKING, but that waits portMAX_DELAY with no
-      // timeout: if the PPA ever stalls rotating a band out of the fast internal
-      // SRAM draw buffer (seen when a new media cover is flushed) the whole UI
-      // freezes forever. To stay fast *and* unfreezable we submit NON_BLOCKING
-      // and wait on our own done-semaphore with a bounded timeout; on timeout we
-      // drop through to the CPU rotate below. The happy path is unchanged.
+      // A busy arbiter falls back to CPU rotation before submission. Once IDF
+      // accepts a non-blocking transaction, its buffers remain owned until the
+      // callback; a missing callback therefore uses the shared fail-closed path.
       bool ppa_ok = false;
-      if (g_ppa_async_ready && g_ppa_done) {
+      Dma2dArbiterGuard dma2d_guard(25);
+      if (g_ppa_async_ready && g_ppa_done && dma2d_guard.locked()) {
         oper.mode = PPA_TRANS_MODE_NON_BLOCKING;
         oper.user_data = g_ppa_done;
         xSemaphoreTake(g_ppa_done, 0);  // drop any late give from a previous timeout
         const esp_err_t err = ppa_do_scale_rotate_mirror(g_ppa_handle, &oper);
         if (err == ESP_OK) {
-          if (xSemaphoreTake(g_ppa_done, pdMS_TO_TICKS(kPpaRotateTimeoutMs)) == pdTRUE) {
+          if (xSemaphoreTake(g_ppa_done,
+                             pdMS_TO_TICKS(kPpaRotateTimeoutMs)) == pdTRUE ||
+              xSemaphoreTake(g_ppa_done,
+                             pdMS_TO_TICKS(kPpaPreviewGraceMs)) == pdTRUE) {
             ppa_ok = true;
             g_ppa_consecutive_faults = 0;
           } else {
-            Serial.printf("[Device/WaveshareTouchLCD8] PPA rotate timeout x=%ld y=%ld w=%ld h=%ld -> CPU cooldown\n",
-                          static_cast<long>(x), static_cast<long>(y),
-                          static_cast<long>(w), static_cast<long>(h));
-            note_ppa_fault();
+            dma2d_guard.detach();
+            p4_dsi_camera_presenter::restartAfterPpaTimeout(
+                "WaveshareTouchLCD8", "LVGL PPA rotation", x, y, w, h, w,
+                g_rotation, kPpaRotateTimeoutMs + kPpaPreviewGraceMs);
           }
         } else {
           Serial.printf("[Device/WaveshareTouchLCD8] PPA rotate submit failed err=%d -> CPU cooldown\n",
@@ -743,15 +619,13 @@ bool draw_landscape_area(int32_t x, int32_t y, int32_t w, int32_t h, const uint1
       }
 
       if (ppa_ok) {
-        // While camera buffers alternate, a later CPU mirror copy must see
-        // this PPA result instead of an older cached version of the same rows.
-        if (g_camera_double_buffer_active &&
-            !invalidate_framebuffer_span(fb, dst_x, dst_y, dst_w, dst_h)) {
-          Serial.println("[Device/WaveshareTouchLCD8] UI-Cache-Sync fehlgeschlagen");
+        if (!g_camera_presenter.noteUiWrite(
+                dst_x, dst_y, dst_w, dst_h, true)) {
+          Serial.println(
+              "[Device/WaveshareTouchLCD8] UI framebuffer cache sync failed");
           return false;
         }
         mark_dirty_rect(dst_x, dst_y, dst_w, dst_h);
-        mark_camera_mirror_dirty(dst_x, dst_y, dst_w, dst_h);
         return true;
       }
     }
@@ -1174,128 +1048,20 @@ bool DeviceWaveshareTouchLCD8::displayTryFullFramePreview(
     int32_t x, int32_t y, int32_t w, int32_t h,
     int32_t source_stride, const uint16_t* data, size_t data_size,
     bool byte_swap) {
-  // Dieser Pfad ist absichtlich komplett getrennt vom normalen Flush: Bei
-  // jedem Problem zeichnet LVGL wie bisher weiter. Insbesondere gibt es hier
-  // KEINEN CPU-Fallback fuer das rund 2 MB grosse Vollbild.
-  if (!data || source_stride < w ||
-      (reinterpret_cast<uintptr_t>(data) & (kCacheLineSize - 1)) != 0 ||
-      w < kPpaMinRotateWidth || h <= 0 || !g_panel_fb_ready ||
-      !g_ppa_handle || !g_ppa_async_ready || !g_ppa_done ||
-      g_ppa_reset_pending || ppa_cooldown_active()) {
-    return false;
-  }
-
-  const size_t required_bytes =
-      ((static_cast<size_t>(h - 1) * static_cast<size_t>(source_stride)) +
-       static_cast<size_t>(w)) * sizeof(uint16_t);
-  if (data_size < required_bytes) return false;
-
-  const int32_t logical_w = display_cfg.height;
-  const int32_t logical_h = display_cfg.width;
-  if (x < 0 || y < 0 || (x + w) > logical_w || (y + h) > logical_h) {
-    return false;
-  }
-
-  // Nicht auf einen parallel laufenden JPEG-Decode warten: Nach kurzer Frist
-  // ist der bewaehrte LVGL-Pfad schneller und vor allem risikolos.
-  Dma2dArbiterGuard dma2d_guard(25);
-  if (!dma2d_guard.locked()) return false;
-
-  if (!begin_camera_double_buffer() || !sync_camera_ui_to_inactive()) {
-    return false;
-  }
-  const uint8_t next_fb_index = g_panel_active_fb_index ^ 1U;
-  uint16_t* fb = g_panel_fbs[next_fb_index];
-  if (!fb) return false;
-
-  int32_t dst_x = 0;
-  int32_t dst_y = 0;
-  const int32_t dst_w = h;
-  const int32_t dst_h = w;
-  ppa_srm_rotation_angle_t rotation_angle;
-  if (g_rotation & 0x02) {
-    dst_x = y;
-    dst_y = logical_w - x - w;
-    rotation_angle = PPA_SRM_ROTATION_ANGLE_90;
-  } else {
-    dst_x = logical_h - y - h;
-    dst_y = x;
-    rotation_angle = PPA_SRM_ROTATION_ANGLE_270;
-  }
-  if (dst_x < 0 || dst_y < 0 || (dst_x + dst_w) > display_cfg.width ||
-      (dst_y + dst_h) > display_cfg.height) {
-    return false;
-  }
-
-  flush_cache_for_dma(data, required_bytes);
-
-  ppa_srm_oper_config_t oper = {};
-  oper.in.buffer = data;
-  oper.in.pic_w = source_stride;
-  oper.in.pic_h = h;
-  oper.in.block_w = w;
-  oper.in.block_h = h;
-  oper.in.block_offset_x = 0;
-  oper.in.block_offset_y = 0;
-  oper.in.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
-
-  oper.out.buffer = fb;
-  oper.out.buffer_size = panel_frame_bytes();
-  oper.out.pic_w = display_cfg.width;
-  oper.out.pic_h = display_cfg.height;
-  oper.out.block_offset_x = dst_x;
-  oper.out.block_offset_y = dst_y;
-  oper.out.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
-
-  oper.rotation_angle = rotation_angle;
-  oper.scale_x = 1.0f;
-  oper.scale_y = 1.0f;
-  oper.rgb_swap = false;
-  oper.byte_swap = byte_swap;
-  oper.mode = PPA_TRANS_MODE_NON_BLOCKING;
-  oper.user_data = g_ppa_done;
-
-  xSemaphoreTake(g_ppa_done, 0);
-  const esp_err_t err = ppa_do_scale_rotate_mirror(g_ppa_handle, &oper);
-  if (err != ESP_OK) {
-    Serial.printf("[Screensaver/PPA] Preview submit fehlgeschlagen: %d\n",
-                  static_cast<int>(err));
-    note_ppa_fault();
-    return false;
-  }
-  if (xSemaphoreTake(g_ppa_done, pdMS_TO_TICKS(kPpaRotateTimeoutMs)) != pdTRUE) {
-    Serial.println("[Screensaver/PPA] Preview timeout, normaler LVGL-Pfad");
-    note_ppa_fault();
-    return false;
-  }
-
-  // PPA wrote the panel framebuffer behind the CPU cache. Discard cached
-  // lines for exactly this destination before a later LVGL/CPU partial update
-  // can write stale pixels back and create persistent rectangular artifacts.
-  // All CPU framebuffer writers flush their touched rows immediately, so one
-  // contiguous invalidate is safe here and avoids hundreds of cache API calls.
-  if (!invalidate_framebuffer_span(fb, dst_x, dst_y, dst_w, dst_h)) {
-    Serial.println("[Screensaver/PPA] Framebuffer-Cache-Sync fehlgeschlagen");
-    return false;
-  }
-
-  // Passing the driver-owned inactive framebuffer selects it for the next
-  // complete DSI DMA frame. The IDF driver changes the GDMA link only after
-  // the current full-frame transfer has completed, so the panel never scans a
-  // framebuffer while PPA is still changing its camera region.
-  drain_refresh_signal();
-  const esp_err_t swap_err = esp_lcd_panel_draw_bitmap(
-      g_panel, dst_x, dst_y, dst_x + dst_w, dst_y + dst_h, fb);
-  if (swap_err != ESP_OK) {
-    Serial.printf("[CameraStream/Display] Framebuffer-Wechsel fehlgeschlagen: %d\n",
-                  static_cast<int>(swap_err));
-    return false;
-  }
-  wait_refresh_done();
-  g_panel_active_fb_index = next_fb_index;
-
-  g_ppa_consecutive_faults = 0;
-  return true;
+  const p4_dsi_camera_presenter::PpaRuntime runtime{
+      g_ppa_handle,
+      g_ppa_done,
+      g_ppa_async_ready,
+      g_ppa_reset_pending,
+      ppa_cooldown_active(),
+      note_ppa_fault,
+      nullptr,
+  };
+  const bool presented = g_camera_presenter.present(
+      x, y, w, h, source_stride, data, data_size, byte_swap, g_rotation,
+      runtime);
+  if (presented) g_ppa_consecutive_faults = 0;
+  return presented;
 }
 
 void DeviceWaveshareTouchLCD8::displayWaitDMA() {
@@ -1308,13 +1074,7 @@ void DeviceWaveshareTouchLCD8::displayWaitFrameStart() {
 }
 
 void DeviceWaveshareTouchLCD8::displayEndFullFramePreview() {
-  if (!g_camera_double_buffer_active) {
-    return;
-  }
-  g_camera_double_buffer_active = false;
-  reset_camera_mirror_dirty();
-  Serial.printf("[CameraStream/Display] DSI-Doppelpuffer beendet, fb%u bleibt aktiv\n",
-                static_cast<unsigned>(g_panel_active_fb_index));
+  g_camera_presenter.end();
 }
 
 void DeviceWaveshareTouchLCD8::displayCommit() {
@@ -1339,6 +1099,8 @@ void DeviceWaveshareTouchLCD8::displayFillScreen(uint16_t color) {
         buf[i] = color;
       }
       flush_cache_for_dma(buf, panel_frame_bytes());
+      g_camera_presenter.noteUiWrite(
+          0, 0, display_cfg.width, display_cfg.height, false);
     }
 
     reset_dirty_rect();

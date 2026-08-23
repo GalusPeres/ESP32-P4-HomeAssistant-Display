@@ -50,7 +50,7 @@ static constexpr DisplayConfig SCREEN_DEFAULT = {
     7,
     8,
     400000,
-    5,
+    0,
 };
 
 inline constexpr const DisplayConfig& display_cfg = SCREEN_DEFAULT;

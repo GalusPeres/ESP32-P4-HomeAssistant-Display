@@ -43,7 +43,7 @@ bool displayTryFullFramePreview(int32_t x, int32_t y, int32_t w, int32_t h,
 }
 
 void displayEndFullFramePreview() {
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_8)
+#if defined(DEVICE_P4_IDF_DSI)
   DeviceImpl::displayEndFullFramePreview();
 #endif
 }

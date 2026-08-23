@@ -9,6 +9,7 @@ import {
   INSTALLER_SCHEMA_VERSION,
   OTA_DATA_LAYOUT,
   PARTITION_TABLE,
+  assertFirmwareRevisionCompatible,
   assertHomeTilesPartitionLayout,
   assertOtaBootSelectionApplied,
   buildFlashPlan,
@@ -18,7 +19,7 @@ import {
   releaseAssetNames,
   resolveSameOriginAsset,
   validateFirmwareDescriptor,
-} from "./installer-contract.mjs?v=installer-ui-10";
+} from "./installer-contract.mjs?v=installer-ui-11";
 
 const root = document.querySelector("[data-hometiles-installer]");
 const LAST_RUN_STORAGE_KEY = "hometiles.webInstaller.lastRun.v1";
@@ -450,7 +451,12 @@ if (root) {
         published.chipFamily !== profile.chipFamily ||
         published.flashSize !== profile.flashSize ||
         published.status !== profile.status ||
-        published.hardwareCheck !== profile.hardwareCheck
+        published.hardwareCheck !== profile.hardwareCheck ||
+        published.metadataDeviceKey !== profile.metadataDeviceKey ||
+        published.siliconVariant !== profile.siliconVariant ||
+        published.minimumRevision !== profile.minimumRevision ||
+        published.maximumRevision !== profile.maximumRevision ||
+        published.acceptsLegacyDescriptor !== profile.acceptsLegacyDescriptor
       ) {
         throw new Error(`The published installer profile for ${published?.key || "(missing)"} is inconsistent.`);
       }
@@ -497,7 +503,7 @@ if (root) {
     return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
   }
 
-  async function downloadFirmware(device, mode) {
+  async function downloadFirmware(device, mode, chipRevision = null) {
     if (selectedFirmwareSource() === "local") {
       const file = elements.firmwareFile.files[0];
       if (!file) throw new Error("Choose a local HomeTiles .bin file first.");
@@ -519,7 +525,16 @@ if (root) {
         "Checking the local firmware size and embedded device IDâ€¦",
         { progress: 0 },
       );
-      validateFirmwareDescriptor(bytes, device.key, mode === "factory" ? 0x10000 : 0);
+      validateFirmwareDescriptor(
+        bytes,
+        device.metadataDeviceKey || device.key,
+        mode === "factory" ? 0x10000 : 0,
+        {
+          siliconVariant: device.siliconVariant || "",
+          allowLegacySilicon: device.acceptsLegacyDescriptor === true,
+          chipRevision,
+        },
+      );
       appendLogLine("FIRMWARE", `${file.name} SHA-256 ${(await sha256Hex(bytes)).toLowerCase()}`);
       return bytes;
     }
@@ -543,7 +558,16 @@ if (root) {
     if ((await sha256Hex(bytes)) !== asset.sha256) {
       throw new Error("Firmware SHA-256 verification failed. Nothing was flashed.");
     }
-    validateFirmwareDescriptor(bytes, device.key, mode === "factory" ? 0x10000 : 0);
+    validateFirmwareDescriptor(
+      bytes,
+      device.metadataDeviceKey || device.key,
+      mode === "factory" ? 0x10000 : 0,
+      {
+        siliconVariant: device.siliconVariant || "",
+        allowLegacySilicon: device.acceptsLegacyDescriptor === true,
+        chipRevision,
+      },
+    );
     return bytes;
   }
 
@@ -613,7 +637,7 @@ if (root) {
     state.busy = true;
     state.flashMutationStarted = false;
     state.lastPersistedProgress = -5;
-    showActivity("Preparing firmware", "Loading and verifying the selected firmware first.", {
+    showActivity("Waiting for USB port", "Choose the USB serial port for the selected display.", {
       progress: 0,
       persist: true,
     });
@@ -625,10 +649,6 @@ if (root) {
     let flashMutationStarted = false;
     let outcome = null;
     try {
-      const firmware = await downloadFirmware(device, mode);
-      showActivity("Waiting for USB port", "Choose the USB serial port for the selected display.", {
-        progress: 0,
-      });
       const port = await navigator.serial.requestPort();
       transport = new Transport(port);
       esploader = new HomeTilesESPLoader({
@@ -647,6 +667,18 @@ if (root) {
         );
       }
 
+      const chipRevision =
+        device.siliconVariant && detectedFamily === "ESP32-P4"
+          ? await esploader.chip.getChipRevision(esploader)
+          : null;
+      assertFirmwareRevisionCompatible(device, chipRevision);
+      if (device.siliconVariant) {
+        appendLogLine(
+          "DEVICE",
+          `Detected ESP32-P4 revision ${chipRevision}; it matches the selected ${device.label} profile.`,
+        );
+      }
+
       const detectedFlashSize = await esploader.detectFlashSize();
       const expectedFlashSize = `${device.flashSize / (1024 * 1024)}MB`;
       if (detectedFlashSize !== expectedFlashSize) {
@@ -654,6 +686,15 @@ if (root) {
           `Flash-size mismatch: connected device reports ${detectedFlashSize}; ${device.label} requires ${expectedFlashSize}.`,
         );
       }
+
+      showActivity(
+        "Preparing firmware",
+        device.siliconVariant
+          ? `Loading and verifying the explicitly selected ${device.label} firmware.`
+          : "Loading and verifying the selected firmware.",
+        { progress: 0 },
+      );
+      const firmware = await downloadFirmware(device, mode, chipRevision);
 
       let otaData = null;
       if (mode === "update") {

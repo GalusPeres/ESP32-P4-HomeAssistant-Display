@@ -10,6 +10,7 @@
 #include <soc/ppa_reg.h>
 
 #include "src/core/dma2d_arbiter.h"
+#include "src/devices/common/p4_dsi_camera_presenter.h"
 #include <LittleFS.h>
 #include <M5Unified.h>
 #include <SD.h>
@@ -164,10 +165,24 @@ bool reset_ppa_client() {
     return false;
   }
 
+  if (!g_ppa_done) g_ppa_done = xSemaphoreCreateBinary();
+  esp_err_t callback_err = ESP_ERR_NO_MEM;
   if (g_ppa_done) {
     ppa_event_callbacks_t ppa_cbs = {};
     ppa_cbs.on_trans_done = on_ppa_trans_done;
-    g_ppa_async_ready = (ppa_client_register_event_callbacks(fresh, &ppa_cbs) == ESP_OK);
+    callback_err = ppa_client_register_event_callbacks(fresh, &ppa_cbs);
+    g_ppa_async_ready = callback_err == ESP_OK;
+  }
+  if (!g_ppa_async_ready) {
+    const esp_err_t unreg_err = ppa_unregister_client(fresh);
+    if (unreg_err != ESP_OK) g_ppa_handle = fresh;
+    g_ppa_reinit_at_ms = millis() + kPpaReinitRetryMs;
+    if (!g_ppa_reinit_at_ms) g_ppa_reinit_at_ms = 1;
+    Serial.printf(
+        "[Device/M5StacksTab5] PPA async setup failed err=%d; using "
+        "M5GFX fallback\n",
+        static_cast<int>(callback_err));
+    return false;
   }
 
   g_ppa_handle = fresh;
@@ -242,15 +257,24 @@ bool init_tab5_ppa() {
     return false;
   }
 
-  g_ppa_done = xSemaphoreCreateBinary();
+  if (!g_ppa_done) g_ppa_done = xSemaphoreCreateBinary();
   if (g_ppa_done) {
     ppa_event_callbacks_t ppa_cbs = {};
     ppa_cbs.on_trans_done = on_ppa_trans_done;
     if (ppa_client_register_event_callbacks(g_ppa_handle, &ppa_cbs) == ESP_OK) {
       g_ppa_async_ready = true;
-    } else {
-      Serial.println("[Device/M5StacksTab5] PPA event cb register failed, using blocking PPA");
     }
+  }
+
+  if (!g_ppa_async_ready) {
+    const esp_err_t unreg_err = ppa_unregister_client(g_ppa_handle);
+    if (unreg_err == ESP_OK) g_ppa_handle = nullptr;
+    g_ppa_reinit_at_ms = millis() + kPpaReinitRetryMs;
+    if (!g_ppa_reinit_at_ms) g_ppa_reinit_at_ms = 1;
+    Serial.println(
+        "[Device/M5StacksTab5] PPA async callback unavailable; using "
+        "M5GFX fallback");
+    return false;
   }
 
   g_ppa_ready = true;
@@ -420,65 +444,37 @@ bool ppa_rotate_to_panel(int32_t x, int32_t y, int32_t w, int32_t h,
   oper.rgb_swap = false;
   oper.byte_swap = byte_swap;
 
-  if (g_ppa_async_ready && g_ppa_done) {
-    oper.mode = PPA_TRANS_MODE_NON_BLOCKING;
-    oper.user_data = g_ppa_done;
-    xSemaphoreTake(g_ppa_done, 0);
-    const esp_err_t err = ppa_do_scale_rotate_mirror(g_ppa_handle, &oper);
-    if (err != ESP_OK) {
-      log_ppa_fallback("submit failed", static_cast<int>(err));
-      Serial.printf("[Device/M5StacksTab5] PPA submit-geo: %ldx%ld src=(%ld,%ld) dst=(%ld,%ld)\n",
-                    static_cast<long>(w), static_cast<long>(h),
-                    static_cast<long>(x), static_cast<long>(y),
-                    static_cast<long>(dst_x), static_cast<long>(dst_y));
-      note_ppa_fault();
-      return false;
-    }
-    if (xSemaphoreTake(g_ppa_done, pdMS_TO_TICKS(kPpaRotateTimeoutMs)) != pdTRUE) {
-      // Nachfrist: unter Bus-Last (PSRAM/DSI/WLAN) darf eine Transaktion auch
-      // mal laenger brauchen — das ist dann kein Grund, PPA abzuschreiben.
-      if (xSemaphoreTake(g_ppa_done, pdMS_TO_TICKS(kPpaWedgeGraceMs)) == pdTRUE) {
-        Serial.printf("[Device/M5StacksTab5] PPA langsam (>%lu ms): %ldx%ld dst=(%ld,%ld)\n",
-                      static_cast<unsigned long>(kPpaRotateTimeoutMs),
-                      static_cast<long>(w), static_cast<long>(h),
-                      static_cast<long>(dst_x), static_cast<long>(dst_y));
-        g_ppa_consecutive_faults = 0;
-        return true;
-      }
-      // Verklemmt (IDF-TODO: "SRM parameter error blocks at 2D-DMA"): auf
-      // M5GFX zurueckfallen, aber NICHT bis zum Reboot aufgeben — der
-      // Wedge-Block oben lauscht auf die spaete Fertigmeldung und setzt den
-      // Client dann sauber neu auf.
-      g_ppa_wedged = true;
-      g_ppa_wedged_since_ms = millis();
-      g_ppa_wedge_retry_delay_ms = kPpaWedgeResetRetryMs;
-      g_ppa_wedge_retry_at_ms = millis() + kPpaWedgeResetRetryMs;
-      g_ppa_wedge_reset_attempts = 0;
-      g_ppa_ready = false;
-      // Forensik: SR_EOF (Bit0) gesetzt => Hardware wurde fertig, aber der
-      // Done-Interrupt ging verloren. Bit2 => Parameterfehler (Detail in
-      // err_st). Beides 0 => Transaktion wurde nie gestartet (Pool-Race).
-      Serial.printf("[Device/M5StacksTab5] PPA VERKLEMMT: rotate %ldx%ld src=(%ld,%ld) dst=(%ld,%ld) rot=%d int_raw=0x%08lx err_st=0x%08lx (int frei=%u KB, largest=%u KB) — CPU-Fallback, Recovery aktiv\n",
-                    static_cast<long>(w), static_cast<long>(h),
-                    static_cast<long>(x), static_cast<long>(y),
-                    static_cast<long>(dst_x), static_cast<long>(dst_y),
-                    (g_rotation & 0x02) ? 90 : 270,
-                    static_cast<unsigned long>(REG_READ(PPA_INT_RAW_REG)),
-                    static_cast<unsigned long>(REG_READ(PPA_SR_PARAM_ERR_ST_REG)),
-                    static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
-                    static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024));
-      return false;
-    }
-    g_ppa_consecutive_faults = 0;
-    return true;
-  }
-
-  oper.mode = PPA_TRANS_MODE_BLOCKING;
+  if (!g_ppa_async_ready || !g_ppa_done) return false;
+  oper.mode = PPA_TRANS_MODE_NON_BLOCKING;
+  oper.user_data = g_ppa_done;
+  xSemaphoreTake(g_ppa_done, 0);
   const esp_err_t err = ppa_do_scale_rotate_mirror(g_ppa_handle, &oper);
   if (err != ESP_OK) {
-    log_ppa_fallback("blocking rotate failed", static_cast<int>(err));
+    log_ppa_fallback("submit failed", static_cast<int>(err));
+    Serial.printf("[Device/M5StacksTab5] PPA submit-geo: %ldx%ld src=(%ld,%ld) dst=(%ld,%ld)\n",
+                  static_cast<long>(w), static_cast<long>(h),
+                  static_cast<long>(x), static_cast<long>(y),
+                  static_cast<long>(dst_x), static_cast<long>(dst_y));
     note_ppa_fault();
     return false;
+  }
+  if (xSemaphoreTake(g_ppa_done, pdMS_TO_TICKS(kPpaRotateTimeoutMs)) != pdTRUE) {
+    // Allow a bounded grace period under heavy PSRAM, DSI and Wi-Fi load.
+    if (xSemaphoreTake(g_ppa_done, pdMS_TO_TICKS(kPpaWedgeGraceMs)) == pdTRUE) {
+      Serial.printf("[Device/M5StacksTab5] PPA slow (>%lu ms): %ldx%ld dst=(%ld,%ld)\n",
+                    static_cast<unsigned long>(kPpaRotateTimeoutMs),
+                    static_cast<long>(w), static_cast<long>(h),
+                    static_cast<long>(dst_x), static_cast<long>(dst_y));
+      g_ppa_consecutive_faults = 0;
+      return true;
+    }
+    // IDF 5.5 cannot cancel a submitted SRM transaction. Returning here
+    // would let M5GFX and JPEG reuse buffers while PPA may still own them.
+    dma2d_guard.detach();
+    p4_dsi_camera_presenter::restartAfterPpaTimeout(
+        "M5StacksTab5", "M5GFX/LVGL PPA rotation", x, y, w, h,
+        source_stride, g_rotation,
+        kPpaRotateTimeoutMs + kPpaWedgeGraceMs);
   }
   g_ppa_consecutive_faults = 0;
   return true;

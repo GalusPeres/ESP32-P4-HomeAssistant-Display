@@ -19,8 +19,8 @@ inline constexpr Device::Profile kProfile{
     5,
     121,
     Device::RotationStepMode::FlipOnly,
-    0,
     2,
+    0,
     Device::Capabilities{false, false, false, false, true, false},
     kHardwareIoProfile,
 };

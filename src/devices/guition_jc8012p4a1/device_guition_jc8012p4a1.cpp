@@ -23,6 +23,7 @@
 #include <hal/lcd_types.h>
 
 #include "src/core/dma2d_arbiter.h"
+#include "src/devices/common/p4_dsi_camera_presenter.h"
 #include "src/devices/guition_jc8012p4a1/vendor/displays_config.h"
 #include "src/devices/guition_jc8012p4a1/vendor/gsl3680_touch.h"
 #include "src/devices/guition_jc8012p4a1/vendor/guition_sdmmc.h"
@@ -42,10 +43,11 @@ constexpr uint8_t kBacklightInputMax = 255;
 constexpr uint32_t kBootBlackWarmupMs = 90;
 constexpr uint32_t kBootBlackGapMs = 60;
 constexpr uint32_t kPanelLaneCount = 2;
-constexpr uint32_t kPanelFrameBufferCount = 1;
+constexpr uint32_t kPanelFrameBufferCount = 2;
 constexpr size_t kFillChunkRows = 40;
 constexpr uintptr_t kCacheLineSize = 64;
 constexpr uint32_t kPpaPreviewTimeoutMs = 200;
+constexpr uint32_t kPpaPreviewGraceMs = 800;
 constexpr uint8_t kTouchReleaseDebounceReads = 0;
 constexpr int32_t kTouchJitterThresholdPx = 2;
 constexpr uint8_t kTouchSamplePointCount = 2;
@@ -67,6 +69,7 @@ uint16_t* g_rotate_buf = nullptr;
 size_t g_rotate_buf_pixels = 0;
 uint16_t* g_panel_fbs[kPanelFrameBufferCount] = {nullptr};
 bool g_panel_fb_ready = false;
+p4_dsi_camera_presenter::Presenter g_camera_presenter;
 bool g_frame_dirty = false;
 int32_t g_dirty_x1 = 0;
 int32_t g_dirty_y1 = 0;
@@ -245,7 +248,7 @@ size_t panel_frame_bytes() {
 }
 
 uint16_t* panel_fb() {
-  return g_panel_fb_ready ? g_panel_fbs[0] : nullptr;
+  return g_panel_fb_ready ? g_camera_presenter.activeFramebuffer() : nullptr;
 }
 
 void clear_panel_framebuffer(uint16_t color) {
@@ -355,20 +358,38 @@ bool init_panel_framebuffer() {
   }
 
   void* fb0 = nullptr;
+  void* fb1 = nullptr;
   const esp_err_t err = esp_lcd_dpi_panel_get_frame_buffer(g_panel,
                                                            kPanelFrameBufferCount,
-                                                           &fb0);
-  if (err != ESP_OK || !fb0) {
-    Serial.printf("[Device/Guition JC8012P4A1] Panel framebuffer unavailable err=%d fb=%p\n",
-                  static_cast<int>(err), fb0);
+                                                           &fb0, &fb1);
+  if (err != ESP_OK || !fb0 || !fb1) {
+    Serial.printf("[Device/Guition JC8012P4A1] Panel framebuffers unavailable err=%d fb0=%p fb1=%p\n",
+                  static_cast<int>(err), fb0, fb1);
     g_panel_fb_ready = false;
     return false;
   }
 
   g_panel_fbs[0] = static_cast<uint16_t*>(fb0);
-  g_panel_fb_ready = true;
+  g_panel_fbs[1] = static_cast<uint16_t*>(fb1);
+  const p4_dsi_camera_presenter::Config presenter_config{
+      display_cfg.width,
+      display_cfg.height,
+      p4_dsi_camera_presenter::Transform::Portrait90Or270,
+      kPpaPreviewTimeoutMs,
+      kPpaPreviewGraceMs,
+      "GuitionJC8012P4A1",
+  };
+  g_panel_fb_ready = g_camera_presenter.init(
+      presenter_config, g_panel, g_refresh_done, g_panel_fbs[0],
+      g_panel_fbs[1]);
+  if (!g_panel_fb_ready) {
+    Serial.println(
+        "[Device/Guition JC8012P4A1] Shared camera presenter init failed");
+    return false;
+  }
   reset_dirty_rect();
-  Serial.printf("[Device/Guition JC8012P4A1] Panel framebuffer OK fb=%p\n", fb0);
+  Serial.printf("[Device/Guition JC8012P4A1] Panel framebuffers OK fb0=%p fb1=%p\n",
+                fb0, fb1);
   return true;
 }
 
@@ -393,6 +414,7 @@ bool write_physical_to_panel(int32_t x, int32_t y, int32_t w, int32_t h, const u
 
   copy_rect_to_fb(fb, x, y, w, h, data);
   mark_dirty_rect(x, y, w, h);
+  g_camera_presenter.noteUiWrite(x, y, w, h, false);
   return true;
 }
 
@@ -786,103 +808,22 @@ bool DeviceGuitionJC8012P4A1::displayTryFullFramePreview(
     int32_t x, int32_t y, int32_t w, int32_t h,
     int32_t source_stride, const uint16_t* data, size_t data_size,
     bool byte_swap) {
-  static bool preview_disabled_after_fault = false;
-  if (preview_disabled_after_fault || !data || source_stride < w || h <= 0 ||
-      (reinterpret_cast<uintptr_t>(data) & (kCacheLineSize - 1)) != 0 ||
-      !g_panel_fb_ready || !g_ppa_handle || !g_ppa_async_ready ||
-      !g_ppa_done) {
-    return false;
-  }
+  const p4_dsi_camera_presenter::PpaRuntime runtime{
+      g_ppa_handle,
+      g_ppa_done,
+      g_ppa_async_ready,
+      false,
+      false,
+      nullptr,
+      nullptr,
+  };
+  return g_camera_presenter.present(
+      x, y, w, h, source_stride, data, data_size, byte_swap, g_rotation,
+      runtime);
+}
 
-  const size_t required_bytes =
-      ((static_cast<size_t>(h - 1) * static_cast<size_t>(source_stride)) +
-       static_cast<size_t>(w)) * sizeof(uint16_t);
-  if (data_size < required_bytes) {
-    return false;
-  }
-
-  const int32_t logical_w = display_cfg.height;
-  const int32_t logical_h = display_cfg.width;
-  if (x < 0 || y < 0 || (x + w) > logical_w || (y + h) > logical_h) {
-    return false;
-  }
-
-  uint16_t* fb = panel_fb();
-  if (!fb) {
-    return false;
-  }
-
-  Dma2dArbiterGuard dma2d_guard(25);
-  if (!dma2d_guard.locked()) {
-    return false;
-  }
-
-  int32_t dst_x = 0;
-  int32_t dst_y = 0;
-  const int32_t dst_w = h;
-  const int32_t dst_h = w;
-  ppa_srm_rotation_angle_t rotation_angle;
-  if (g_rotation & 0x02) {
-    dst_x = y;
-    dst_y = logical_w - x - w;
-    rotation_angle = PPA_SRM_ROTATION_ANGLE_90;
-  } else {
-    dst_x = logical_h - y - h;
-    dst_y = x;
-    rotation_angle = PPA_SRM_ROTATION_ANGLE_270;
-  }
-  if (dst_x < 0 || dst_y < 0 ||
-      (dst_x + dst_w) > display_cfg.width ||
-      (dst_y + dst_h) > display_cfg.height) {
-    return false;
-  }
-
-  flush_cache_for_dma(data, required_bytes);
-
-  ppa_srm_oper_config_t oper = {};
-  oper.in.buffer = data;
-  oper.in.pic_w = source_stride;
-  oper.in.pic_h = h;
-  oper.in.block_w = w;
-  oper.in.block_h = h;
-  oper.in.block_offset_x = 0;
-  oper.in.block_offset_y = 0;
-  oper.in.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
-
-  oper.out.buffer = fb;
-  oper.out.buffer_size = panel_frame_bytes();
-  oper.out.pic_w = display_cfg.width;
-  oper.out.pic_h = display_cfg.height;
-  oper.out.block_offset_x = dst_x;
-  oper.out.block_offset_y = dst_y;
-  oper.out.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
-
-  oper.rotation_angle = rotation_angle;
-  oper.scale_x = 1.0f;
-  oper.scale_y = 1.0f;
-  oper.rgb_swap = false;
-  oper.byte_swap = byte_swap;
-  oper.mode = PPA_TRANS_MODE_NON_BLOCKING;
-  oper.user_data = g_ppa_done;
-
-  xSemaphoreTake(g_ppa_done, 0);
-  const esp_err_t err =
-      ppa_do_scale_rotate_mirror(g_ppa_handle, &oper);
-  if (err != ESP_OK) {
-    preview_disabled_after_fault = true;
-    Serial.printf("[CameraStream/PPA] JC8012 preview submit failed: %d\n",
-                  static_cast<int>(err));
-    return false;
-  }
-  if (xSemaphoreTake(g_ppa_done,
-                     pdMS_TO_TICKS(kPpaPreviewTimeoutMs)) != pdTRUE) {
-    preview_disabled_after_fault = true;
-    Serial.println("[CameraStream/PPA] JC8012 preview timeout; direct preview disabled");
-    return false;
-  }
-
-  mark_dirty_rect(dst_x, dst_y, dst_w, dst_h);
-  return true;
+void DeviceGuitionJC8012P4A1::displayEndFullFramePreview() {
+  g_camera_presenter.end();
 }
 
 void DeviceGuitionJC8012P4A1::displayWaitDMA() {
@@ -901,6 +842,8 @@ void DeviceGuitionJC8012P4A1::displayFillScreen(uint16_t color) {
         buf[i] = color;
       }
       flush_cache_for_dma(buf, panel_frame_bytes());
+      g_camera_presenter.noteUiWrite(
+          0, 0, display_cfg.width, display_cfg.height, false);
     }
 
     reset_dirty_rect();

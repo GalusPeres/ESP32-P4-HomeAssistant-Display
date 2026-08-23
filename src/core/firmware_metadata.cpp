@@ -1,6 +1,7 @@
 #include "src/core/firmware_metadata.h"
 #include "src/devices/device_select.h"
 
+#include <sdkconfig.h>
 #include <string.h>
 
 #if defined(DEVICE_M5STACKS_TAB5)
@@ -63,6 +64,27 @@
 
 #define FW_META_PROJECT_KEY "esp32_p4_homeassistant_display"
 
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#if CONFIG_ESP_REV_MAX_FULL < 300
+#define FW_META_SILICON_VARIANT "pre_v3"
+#define FW_META_SILICON_MIN_REV CONFIG_ESP_REV_MIN_FULL
+#define FW_META_SILICON_MAX_REV CONFIG_ESP_REV_MAX_FULL
+#elif CONFIG_ESP_REV_MIN_FULL >= 300 && defined(DEVICE_WAVESHARE_TOUCH_LCD_7B)
+#if CONFIG_ESP_REV_MIN_FULL > 301 || CONFIG_ESP_REV_MAX_FULL < 301
+#error "The experimental Waveshare 7B build must include ESP32-P4 revision 3.1"
+#endif
+#define FW_META_SILICON_VARIANT "rev3_1"
+#define FW_META_SILICON_MIN_REV 301
+#define FW_META_SILICON_MAX_REV 301
+#else
+#error "Every ESP32-P4 build must target one unambiguous silicon generation"
+#endif
+#else
+#define FW_META_SILICON_VARIANT "default"
+#define FW_META_SILICON_MIN_REV 0
+#define FW_META_SILICON_MAX_REV UINT16_MAX
+#endif
+
 namespace firmware_meta {
 namespace {
 
@@ -73,13 +95,30 @@ constexpr size_t kEspImageSegmentHeaderSize = 8;
 constexpr size_t kEspAppDescOffset = kEspImageHeaderSize + kEspImageSegmentHeaderSize;
 constexpr size_t kEspAppDescSize = 256;
 
-inline const DeviceDescriptor kCurrentDeviceDescriptor
+struct EmbeddedFirmwareDescriptor {
+  DeviceDescriptor device;
+  SiliconRevisionDescriptor silicon;
+} __attribute__((packed));
+
+inline const EmbeddedFirmwareDescriptor kCurrentFirmwareDescriptor
     __attribute__((used, section(".rodata_custom_desc"))) = {
-        kDeviceDescriptorMagic,
-        FW_META_PROJECT_KEY,
-        FW_META_DEVICE_KEY,
-        FW_META_DISPLAY_NAME,
+        {
+            kDeviceDescriptorMagic,
+            FW_META_PROJECT_KEY,
+            FW_META_DEVICE_KEY,
+            FW_META_DISPLAY_NAME,
+        },
+        {
+            kSiliconRevisionDescriptorMagic,
+            FW_META_SILICON_MIN_REV,
+            FW_META_SILICON_MAX_REV,
+            FW_META_SILICON_VARIANT,
+        },
 };
+
+static_assert(sizeof(EmbeddedFirmwareDescriptor) ==
+                  sizeof(DeviceDescriptor) + sizeof(SiliconRevisionDescriptor),
+              "Firmware descriptors must stay tightly packed");
 
 uint32_t readU32LE(const uint8_t* data) {
   return static_cast<uint32_t>(data[0]) |
@@ -91,39 +130,67 @@ uint32_t readU32LE(const uint8_t* data) {
 }  // namespace
 
 const DeviceDescriptor& currentDeviceDescriptor() {
-  return kCurrentDeviceDescriptor;
+  return kCurrentFirmwareDescriptor.device;
+}
+
+const SiliconRevisionDescriptor& currentSiliconRevisionDescriptor() {
+  return kCurrentFirmwareDescriptor.silicon;
 }
 
 const char* currentProjectKey() {
-  return kCurrentDeviceDescriptor.project_key;
+  return kCurrentFirmwareDescriptor.device.project_key;
 }
 
 const char* currentDeviceKey() {
-  return kCurrentDeviceDescriptor.device_key;
+  return kCurrentFirmwareDescriptor.device.device_key;
 }
 
 const char* currentDisplayName() {
-  return kCurrentDeviceDescriptor.display_name;
+  return kCurrentFirmwareDescriptor.device.display_name;
+}
+
+const char* currentSiliconVariant() {
+  return kCurrentFirmwareDescriptor.silicon.variant;
 }
 
 bool matchesCurrentDeviceKey(const char* incoming_device_key) {
   if (!incoming_device_key || !*incoming_device_key) return false;
 
-  if (strcmp(kCurrentDeviceDescriptor.device_key, "unknown") == 0) {
+  if (strcmp(kCurrentFirmwareDescriptor.device.device_key, "unknown") == 0) {
     // A bootstrap image accepts its own legacy descriptor and the exact target
     // selected at build time. It never accepts another device's image.
     return strcmp(incoming_device_key, "unknown") == 0 ||
            strcmp(incoming_device_key, FW_META_TARGET_DEVICE_KEY) == 0;
   }
 
-  return strcmp(incoming_device_key, kCurrentDeviceDescriptor.device_key) == 0;
+  return strcmp(incoming_device_key,
+                kCurrentFirmwareDescriptor.device.device_key) == 0;
+}
+
+bool matchesCurrentSiliconVariant(const char* incoming_variant) {
+  if (strcmp(kCurrentFirmwareDescriptor.silicon.variant, "default") == 0) {
+    return true;
+  }
+  return incoming_variant &&
+         strcmp(incoming_variant,
+                kCurrentFirmwareDescriptor.silicon.variant) == 0;
+}
+
+bool matchesCurrentSiliconRevisionRange(
+    uint16_t incoming_minimum_revision,
+    uint16_t incoming_maximum_revision) {
+  return incoming_minimum_revision <= incoming_maximum_revision &&
+         incoming_minimum_revision >=
+             kCurrentFirmwareDescriptor.silicon.minimum_revision &&
+         incoming_maximum_revision <=
+             kCurrentFirmwareDescriptor.silicon.maximum_revision;
 }
 
 const char* expectedDeviceDisplayName() {
-  if (strcmp(kCurrentDeviceDescriptor.device_key, "unknown") == 0) {
+  if (strcmp(kCurrentFirmwareDescriptor.device.device_key, "unknown") == 0) {
     return FW_META_TARGET_DISPLAY_NAME;
   }
-  return kCurrentDeviceDescriptor.display_name;
+  return kCurrentFirmwareDescriptor.device.display_name;
 }
 
 bool parseDeviceDescriptorFromImage(const uint8_t* image_data, size_t image_len, DeviceDescriptor& out) {
@@ -147,6 +214,55 @@ bool parseDeviceDescriptorFromImage(const uint8_t* image_data, size_t image_len,
   out.device_key[kDeviceKeyMaxLen - 1] = '\0';
   out.display_name[kDisplayNameMaxLen - 1] = '\0';
   return true;
+}
+
+bool parseSiliconRevisionDescriptorFromImage(
+    const uint8_t* image_data,
+    size_t image_len,
+    SiliconRevisionDescriptor& out) {
+  if (!image_data || image_len < kDeviceDescriptorImageBytes) {
+    return false;
+  }
+  memcpy(&out,
+         image_data + kSiliconRevisionDescriptorImageOffset,
+         sizeof(SiliconRevisionDescriptor));
+  if (out.magic_word != kSiliconRevisionDescriptorMagic) {
+    return false;
+  }
+  out.variant[kSiliconVariantMaxLen - 1] = '\0';
+  return out.minimum_revision <= out.maximum_revision;
+}
+
+bool imageMatchesCurrentSiliconVariant(
+    const uint8_t* image_data,
+    size_t image_len,
+    bool* accepted_legacy_descriptor) {
+  if (accepted_legacy_descriptor) {
+    *accepted_legacy_descriptor = false;
+  }
+
+  const uint16_t chip_revision = ESP.getChipRevision();
+  if (chip_revision < kCurrentFirmwareDescriptor.silicon.minimum_revision ||
+      chip_revision > kCurrentFirmwareDescriptor.silicon.maximum_revision) {
+    return false;
+  }
+
+  SiliconRevisionDescriptor incoming{};
+  if (parseSiliconRevisionDescriptorFromImage(image_data, image_len, incoming)) {
+    return matchesCurrentSiliconVariant(incoming.variant) &&
+           matchesCurrentSiliconRevisionRange(incoming.minimum_revision,
+                                              incoming.maximum_revision) &&
+           chip_revision >= incoming.minimum_revision &&
+           chip_revision <= incoming.maximum_revision;
+  }
+
+  const char* current_variant = currentSiliconVariant();
+  const bool legacy_is_safe = strcmp(current_variant, "default") == 0 ||
+                              strcmp(current_variant, "pre_v3") == 0;
+  if (legacy_is_safe && accepted_legacy_descriptor) {
+    *accepted_legacy_descriptor = true;
+  }
+  return legacy_is_safe;
 }
 
 }  // namespace firmware_meta

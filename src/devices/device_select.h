@@ -112,6 +112,20 @@
 #define DEVICE_GUITION_JC1060P470C_FAMILY
 #endif
 
+// Native ESP-IDF MIPI-DSI profiles share the same two-framebuffer camera
+// presenter. M5GFX Tab5 and Arduino_GFX B4 intentionally keep their library
+// owned display backends.
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_7) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) || \
+    defined(DEVICE_GUITION_JC8012P4A1) || \
+    defined(DEVICE_GUITION_JC8012P4A1_V2) || \
+    defined(DEVICE_GUITION_JC1060P470C) || \
+    defined(DEVICE_GUITION_JC1060P470C_V2)
+#define DEVICE_P4_IDF_DSI
+#endif
+
 // The two 480x480 ESP32-S3 RGB boards share only proven S3 framebuffer,
 // storage and OTA lifecycle handling. Panel wiring and init remain separate.
 #if defined(DEVICE_GUITION_ESP32_4848S040) || \

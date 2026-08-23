@@ -1382,10 +1382,20 @@ static void camera_task(void*) {
 
   bool release_buffers = false;
   portENTER_CRITICAL(&g_state_mux);
-  g_task = nullptr;
   release_buffers = g_release_buffers;
+  // Keep the task visible as active until requested buffer cleanup finishes.
+  // Otherwise a reopen can allocate/reuse the globals while this old task is
+  // still about to free them. If no cleanup was requested, clearing the task
+  // under this lock lets a concurrent stop observe the inactive state and do
+  // the release itself.
+  if (!release_buffers) g_task = nullptr;
   portEXIT_CRITICAL(&g_state_mux);
-  if (release_buffers) release_frame_buffers();
+  if (release_buffers) {
+    release_frame_buffers();
+    portENTER_CRITICAL(&g_state_mux);
+    g_task = nullptr;
+    portEXIT_CRITICAL(&g_state_mux);
+  }
   vTaskDelete(nullptr);
 }
 

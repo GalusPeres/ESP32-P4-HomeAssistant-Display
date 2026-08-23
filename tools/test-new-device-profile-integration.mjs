@@ -70,7 +70,9 @@ for (const expected of profiles) {
   requireMarker(sources.workflow, `rx_variant: ${expected.rxVariant}`, `${expected.key} CI transport`);
   requireMarker(
     sources.packager,
-    `['${expected.key}', { key: '${expected.key}' }]`,
+    `['${expected.key}', { key: '${expected.key}', siliconVariant: '${
+      expected.chipFamily === 'ESP32-P4' ? 'pre_v3' : 'default'
+    }' }]`,
     `${expected.key} release package mapping`,
   );
 
@@ -92,6 +94,6 @@ requireMarker(
   "if: matrix.rx_variant != 'native-s3'",
   'native-S3 CI marker scope',
 );
-requireMarker(sources.workflow, '-eq 24', '12-profile release asset count');
+requireMarker(sources.workflow, '-eq 26', '13-build release asset count');
 
 console.log('New device profile integration contract: PASS');

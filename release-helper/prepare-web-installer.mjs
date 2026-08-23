@@ -164,12 +164,17 @@ export async function prepareWebInstaller(outputDirectory, release, deviceKey = 
     }
   }
 
+  const publicAsset = (asset) => ({
+    file: asset.file,
+    size: asset.size,
+    sha256: asset.sha256,
+  });
   const publicIndex = {
     ...index,
     devices: index.devices.map((device) => ({
       ...device,
-      update: { file: device.update.file, size: device.update.size, sha256: device.update.sha256 },
-      factory: { file: device.factory.file, size: device.factory.size, sha256: device.factory.sha256 },
+      update: publicAsset(device.update),
+      factory: publicAsset(device.factory),
     })),
   };
   await writeFile(

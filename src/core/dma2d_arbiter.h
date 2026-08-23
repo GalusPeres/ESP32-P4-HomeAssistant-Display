@@ -34,6 +34,14 @@ class Dma2dArbiterGuard {
   Dma2dArbiterGuard(const Dma2dArbiterGuard&) = delete;
   Dma2dArbiterGuard& operator=(const Dma2dArbiterGuard&) = delete;
   bool locked() const { return locked_; }
+  // Transfers submitted in non-blocking mode still own their buffers after a
+  // caller-side timeout. Detaching deliberately keeps the shared DMA2D lease
+  // held so no JPEG/PPA client can reuse those resources before a safe reset.
+  bool detach() {
+    const bool was_locked = locked_;
+    locked_ = false;
+    return was_locked;
+  }
 
  private:
   bool locked_;

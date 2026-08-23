@@ -53,6 +53,14 @@ const panelHeader = read(`${base}/vendor/ek79007/esp_lcd_ek79007.h`);
 const panelDriver = read(`${base}/vendor/ek79007/esp_lcd_ek79007.c`);
 const vendorLicense = read(`${base}/vendor/LICENSE-APACHE-2.0.txt`);
 const profileReadme = read(`${base}/README.md`);
+const sketchProfiles = read('sketch.yaml');
+const firmwareWorkflow = read('.github/workflows/firmware.yml');
+const firmwareMetadataHeader = read('src/core/firmware_metadata.h');
+const firmwareMetadataSource = read('src/core/firmware_metadata.cpp');
+const githubUpdate = read('src/core/github_update.cpp');
+const webOta = read('src/web/web_admin_handlers.cpp');
+const releasePackager = read('release-helper/package-ci-build.js');
+const localBuildHelper = read('tools/build-firmware-local.ps1');
 
 for (const marker of [
   '"waveshare_touch_lcd_7b"',
@@ -95,14 +103,31 @@ for (const marker of [
   'constexpr uint32_t kPanelLaneCount = 2;',
   'constexpr int kMipiPhyLdoChannel = 3;',
   'constexpr int kMipiPhyLdoVoltageMv = 2500;',
+  'esp_lcd_dsi_bus_config_t bus_cfg = {};',
   'dpi_cfg.pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565;',
   'dpi_cfg.in_color_format = LCD_COLOR_FMT_RGB565;',
   'dpi_cfg.out_color_format = LCD_COLOR_FMT_RGB565;',
   'panel_cfg.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;',
   'vendor_cfg.mipi_config.lane_num = kPanelLaneCount;',
   'esp_lcd_new_panel_ek79007(g_panel_io, &panel_cfg, &g_panel)',
+  'esp_lcd_panel_reset(g_panel)',
+  'esp_lcd_panel_init(g_panel)',
 ]) {
   requireMarker(driver, marker, 'Waveshare 7B device source');
+}
+if (/bus_cfg\.phy_clk_src\s*=/.test(driver)) {
+  throw new Error('Waveshare 7B must use the revision-aware ESP-IDF default DSI PHY clock source');
+}
+if (driver.includes('esp_lcd_panel_disp_on_off')) {
+  throw new Error('Waveshare 7B must not call the unsupported EK79007 display-on/off operation');
+}
+for (const marker of [
+  'void DeviceWaveshareTouchLCD7B::displaySleep() {\n  // The EK79007 panel driver has no display-on/off operation.',
+  'void DeviceWaveshareTouchLCD7B::displayWake() {\n  apply_backlight(g_brightness);',
+  'void DeviceWaveshareTouchLCD7B::displayWakeDark() {\n  apply_backlight(0);',
+  'hold_panel_reset_low();\n  apply_backlight(0);',
+]) {
+  requireMarker(driver, marker, 'Waveshare 7B backlight lifecycle');
 }
 if (/jd9165/i.test(driver)) {
   throw new Error('Waveshare 7B must not use the unrelated JD9165 driver');
@@ -190,5 +215,73 @@ if (oldProfile.includes('waveshare_touch_lcd_7b') ||
     oldProfile.includes('Waveshare Touch LCD 7B')) {
   throw new Error('The existing 1280x720 Waveshare 7 profile must stay distinct');
 }
+
+for (const marker of [
+  'waveshare_7b:',
+  'ChipVariant=prev3',
+  'waveshare_7b_rev3_1:',
+  'ChipVariant=postv3',
+]) {
+  requireMarker(sketchProfiles, marker, 'Waveshare 7B silicon build profiles');
+}
+for (const marker of [
+  'profile: waveshare_7b\n            key: waveshare_touch_lcd_7b',
+  'silicon_variant: pre_v3',
+  'profile: waveshare_7b_rev3_1\n            key: waveshare_touch_lcd_7b_rev3_1',
+  'metadata_key: waveshare_touch_lcd_7b',
+  'silicon_variant: rev3_1',
+  '--silicon-variant "${{ matrix.silicon_variant || \'default\' }}"',
+]) {
+  requireMarker(firmwareWorkflow, marker, 'Waveshare 7B release matrix');
+}
+for (const marker of [
+  'kSiliconRevisionDescriptorMagic',
+  'kSiliconRevisionDescriptorImageOffset',
+  'imageMatchesCurrentSiliconVariant',
+]) {
+  requireMarker(firmwareMetadataHeader, marker, 'Firmware silicon metadata contract');
+}
+for (const marker of [
+  '#if defined(CONFIG_IDF_TARGET_ESP32P4)',
+  '#if CONFIG_ESP_REV_MAX_FULL < 300',
+  '#elif CONFIG_ESP_REV_MIN_FULL >= 300',
+  '#define FW_META_SILICON_VARIANT "pre_v3"',
+  '#define FW_META_SILICON_VARIANT "rev3_1"',
+  '#define FW_META_SILICON_MIN_REV 301',
+  '#define FW_META_SILICON_MAX_REV 301',
+  '#error "Every ESP32-P4 build must target one unambiguous silicon generation"',
+  'strcmp(current_variant, "pre_v3") == 0',
+  'const uint16_t chip_revision = ESP.getChipRevision();',
+  'chip_revision >= incoming.minimum_revision',
+  'chip_revision <= incoming.maximum_revision',
+]) {
+  requireMarker(firmwareMetadataSource, marker, 'Waveshare 7B silicon metadata');
+}
+for (const marker of [
+  '#if defined(CONFIG_IDF_TARGET_ESP32P4)',
+  'const uint16_t chip_revision = ESP.getChipRevision();',
+  'key_out = "waveshare_touch_lcd_7b_rev3_1";',
+  '[Update] ESP32-P4 silicon revision=%u variant=%s asset=%s',
+  'asset_device_key == Device::profile().key',
+  'imageMatchesCurrentSiliconVariant(',
+  'matchesCurrentSiliconRevisionRange(',
+  'exceeds supported range ',
+]) {
+  requireMarker(githubUpdate, marker, 'Waveshare 7B on-device OTA selection');
+}
+requireMarker(webOta, 'imageMatchesCurrentSiliconVariant(',
+              'Waveshare 7B manual Web OTA validation');
+for (const marker of [
+  "['waveshare_touch_lcd_7b', { key: 'waveshare_touch_lcd_7b', siliconVariant: 'pre_v3' }]",
+  "['waveshare_touch_lcd_7b_rev3_1', {",
+  "metadataDeviceKey: 'waveshare_touch_lcd_7b'",
+  "siliconVariant: 'rev3_1'",
+  "expectedVariant === 'rev3_1' && (minimumRevision !== 301 || maximumRevision !== 301)",
+  'verifySiliconVariant(updatePath, siliconVariant);',
+]) {
+  requireMarker(releasePackager, marker, 'Waveshare 7B release packaging');
+}
+requireMarker(localBuildHelper, "waveshare_7b_rev3_1 = 'DEVICE_WAVESHARE_TOUCH_LCD_7B'",
+              'Waveshare 7B rev3.1 local build profile');
 
 console.log('Waveshare Touch LCD 7B / 7B-C profile contract: PASS');

@@ -8,31 +8,39 @@ You never upload binaries by hand — you only bump the version and push a tag.
 
 ```bash
 # 1. Bump the version (only when the current state is actually ready to ship!)
-#    Edit version.txt:  #define FW_VERSION "v0.6.5"
+#    Edit version.txt:  #define FW_VERSION "vX.Y.Z"
 
 # 2. Commit, tag, push (the tag must match FW_VERSION exactly)
 git add version.txt
-git commit -m "Release v0.6.5"
-git tag v0.6.5
-git push --atomic origin master refs/tags/v0.6.5
+git commit -m "Release vX.Y.Z"
+git tag vX.Y.Z
+git push --atomic origin master refs/tags/vX.Y.Z
 ```
 
 That's it. The action then:
 
-1. Builds all twelve release targets with the pinned toolchain (ESP32 core +
-   libraries, see workflow `env`). Device names in CI identify the exact
-   hardware profile; concrete validation notes belong in the release notes.
+1. Builds 13 explicit installer/release profiles for twelve physical device
+   profiles with the pinned toolchain (ESP32 core + libraries, see workflow
+   `env`). Waveshare 7B/7B-C has a build for pre-v3 revisions 1–199 and a
+   separate, experimental exact-v3.1 build. The latter uses profile
+   `waveshare_7b_rev3_1` and assets containing
+   `waveshare_touch_lcd_7b_rev3_1`. Exact-v3.1 hardware remains unverified.
+   Every other current P4 profile is a vendor P4NRW32/pre-v3 target explicitly
+   guarded to revisions 1–199. ESP32-P4 v3.2 or newer is unsupported with the
+   pinned Arduino-ESP32 3.3.7 / ESP-IDF 5.5.2 toolchain.
 2. Verifies that the tag matches `FW_VERSION` in `version.txt` — a mismatch
    fails the build on purpose.
-3. Verifies the device descriptor embedded in each binary.
+3. Verifies the device descriptor and exact silicon-revision contract embedded
+   in each binary. The v3.1 HomeTiles contract must be 301–301 even though the
+   Arduino `v3.00 or newer` ESP image header can remain 301–399.
 4. Creates the GitHub release with auto-generated notes and uploads all
-   24 binaries (`<device>.bin` for OTA + `<device>_factory.bin` for first flash).
+   26 binaries (`<device>.bin` for OTA + `<device>_factory.bin` for first flash).
 
-After all 24 assets were uploaded successfully, the release job explicitly
+After all 26 assets were uploaded successfully, the release job explicitly
 dispatches the documentation workflow for the release tag. This explicit
 `workflow_dispatch` is required because GitHub suppresses ordinary follow-up
 workflow events created with `GITHUB_TOKEN`. The documentation workflow
-validates the installer device/asset contract, downloads the same 24 published
+validates the installer device/asset contract, downloads the same 26 published
 release assets, verifies their GitHub SHA-256 digests, and places them in the
 generated documentation site under `firmware/latest/`. Normal documentation
 changes pushed to `master` still deploy through the workflow's filtered `push`

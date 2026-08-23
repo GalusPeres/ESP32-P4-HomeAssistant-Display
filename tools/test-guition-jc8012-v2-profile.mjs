@@ -113,19 +113,19 @@ for (const marker of [
   'key: guition_jc8012p4a1_v2',
   'define: DEVICE_GUITION_JC8012P4A1_V2',
   'test-guition-jc8012-v2-profile.mjs',
-  `-eq 24`,
+  `-eq 26`,
 ]) {
   requireMarker(workflow, marker, 'Firmware workflow');
 }
 requireMarker(packager,
-  "['guition_jc8012p4a1_v2', { key: 'guition_jc8012p4a1_v2' }]",
+  "['guition_jc8012p4a1_v2', { key: 'guition_jc8012p4a1_v2', siliconVariant: 'pre_v3' }]",
   'Release packager');
 
 for (const [file, marker] of [
   ['README.md', '..._guition_jc8012p4a1_v2_factory.bin'],
   ['docs/flashing.md', 'guition_jc8012p4a1_v2_factory.bin'],
   ['docs/updating.md', 'guition_jc8012p4a1_v2.bin'],
-  ['RELEASING.md', '24 binaries'],
+  ['RELEASING.md', '26 binaries'],
 ]) {
   requireMarker(read(file), marker, `${file} release documentation`);
 }

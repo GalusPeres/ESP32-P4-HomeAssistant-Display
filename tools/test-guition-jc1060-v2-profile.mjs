@@ -59,7 +59,7 @@ for (const marker of [
   'namespace DeviceGuitionJC1060P470CV2',
   '"guition_jc1060p470c_v2"',
   '"Guition JC1060P470C V2"',
-  'Device::RotationStepMode::FlipOnly,\n    2,\n    0,',
+  'Device::RotationStepMode::FlipOnly,\n    0,\n    0,',
 ]) {
   requireMarker(v2Header, marker, 'JC1060 V2 device header');
 }
@@ -85,7 +85,7 @@ const expectedV2Display = [
   '2', '21', '12',
   '52000000', '750',
   '1024', '600',
-  '7', '8', '400000', '5',
+  '7', '8', '400000', '0',
 ];
 if (JSON.stringify(v2Display) !== JSON.stringify(expectedV2Display)) {
   throw new Error(`JC1060 V2 display contract mismatch: ${v2Display}`);
@@ -138,9 +138,11 @@ for (const marker of [
 ]) {
   requireMarker(v2TouchHeader, marker, 'JC1060 V2 GT911 wiring');
 }
-if (/\{\s*5\s*,/.test(v2HardwareIo)) {
-  throw new Error('GPIO5 must stay reserved for the JC1060 V2 LCD reset');
+if (/\{\s*0\s*,/.test(v2HardwareIo)) {
+  throw new Error('GPIO0 must stay reserved for the JC1060 V2 LCD reset');
 }
+requireMarker(v2HardwareIo, '{5, Device::kHardwareIoPinSwitch',
+              'JC1060 V2 expansion GPIO5');
 
 const v1DisplaySource = read(
   'src/devices/guition_jc1060p470c/vendor/displays_config.h');

@@ -1,4 +1,4 @@
-export const INSTALLER_SCHEMA_VERSION = 1;
+export const INSTALLER_SCHEMA_VERSION = 2;
 export const INSTALLER_BAUD_RATE = 460800;
 
 export const ESP_ROM_CHIP_FAMILIES = Object.freeze({
@@ -63,6 +63,12 @@ export const OTA_DATA_LAYOUT = Object.freeze({
 
 const MIB_16 = 16 * 1024 * 1024;
 const MIB_32 = 32 * 1024 * 1024;
+const ESP32_P4_PRE_V3 = Object.freeze({
+  siliconVariant: "pre_v3",
+  minimumRevision: 1,
+  maximumRevision: 199,
+  acceptsLegacyDescriptor: true,
+});
 
 export const DEVICE_PROFILES = Object.freeze([
   Object.freeze({
@@ -70,6 +76,7 @@ export const DEVICE_PROFILES = Object.freeze([
     buildProfile: "tab5",
     label: "M5Stack Tab5",
     chipFamily: "ESP32-P4",
+    ...ESP32_P4_PRE_V3,
     flashSize: MIB_16,
     status: "supported",
     hardwareCheck: "The device is an M5Stack Tab5.",
@@ -79,6 +86,7 @@ export const DEVICE_PROFILES = Object.freeze([
     buildProfile: "waveshare_b4",
     label: "Waveshare 4B / 86 Panel",
     chipFamily: "ESP32-P4",
+    ...ESP32_P4_PRE_V3,
     flashSize: MIB_32,
     status: "supported",
     hardwareCheck:
@@ -89,6 +97,7 @@ export const DEVICE_PROFILES = Object.freeze([
     buildProfile: "waveshare_8",
     label: "Waveshare Touch LCD 8 inch",
     chipFamily: "ESP32-P4",
+    ...ESP32_P4_PRE_V3,
     flashSize: MIB_32,
     status: "supported",
     hardwareCheck: "The device is the 8-inch ESP32-P4-WIFI6-Touch-LCD model.",
@@ -98,6 +107,7 @@ export const DEVICE_PROFILES = Object.freeze([
     buildProfile: "guition_jc8012p4a1",
     label: "Guition JC8012P4A1 V1",
     chipFamily: "ESP32-P4",
+    ...ESP32_P4_PRE_V3,
     flashSize: MIB_16,
     status: "supported",
     hardwareCheck:
@@ -117,6 +127,7 @@ export const DEVICE_PROFILES = Object.freeze([
     buildProfile: "waveshare_7",
     label: "Waveshare Touch LCD 7 inch",
     chipFamily: "ESP32-P4",
+    ...ESP32_P4_PRE_V3,
     flashSize: MIB_32,
     status: "validation-pending",
     hardwareCheck: "The device is the 7-inch ESP32-P4-WIFI6-Touch-LCD model.",
@@ -126,6 +137,7 @@ export const DEVICE_PROFILES = Object.freeze([
     buildProfile: "waveshare_10_1",
     label: "Waveshare Touch LCD 10.1 inch",
     chipFamily: "ESP32-P4",
+    ...ESP32_P4_PRE_V3,
     flashSize: MIB_32,
     status: "validation-pending",
     hardwareCheck: "The device is the 10.1-inch ESP32-P4-WIFI6-Touch-LCD model.",
@@ -135,6 +147,7 @@ export const DEVICE_PROFILES = Object.freeze([
     buildProfile: "guition_jc8012p4a1_v2",
     label: "Guition JC8012P4A1 V2",
     chipFamily: "ESP32-P4",
+    ...ESP32_P4_PRE_V3,
     flashSize: MIB_16,
     status: "validation-pending",
     hardwareCheck: "The rear label explicitly shows SKU:10153002-V2.",
@@ -144,6 +157,7 @@ export const DEVICE_PROFILES = Object.freeze([
     buildProfile: "guition_jc1060p470c",
     label: "Guition JC1060P470C_I_W_Y",
     chipFamily: "ESP32-P4",
+    ...ESP32_P4_PRE_V3,
     flashSize: MIB_16,
     status: "validation-pending",
     hardwareCheck: "The full model suffix is JC1060P470C_I_W_Y.",
@@ -151,18 +165,39 @@ export const DEVICE_PROFILES = Object.freeze([
   Object.freeze({
     key: "waveshare_touch_lcd_7b",
     buildProfile: "waveshare_7b",
-    label: "Waveshare Touch LCD 7B / 7B-C",
+    label: "Waveshare Touch LCD 7B / 7B-C (ESP32-P4 before v3.0)",
     chipFamily: "ESP32-P4",
     flashSize: MIB_32,
     status: "validation-pending",
+    metadataDeviceKey: "waveshare_touch_lcd_7b",
+    siliconVariant: "pre_v3",
+    minimumRevision: 1,
+    maximumRevision: 199,
+    acceptsLegacyDescriptor: true,
     hardwareCheck:
-      "The rear label says ESP32-P4-WIFI6-Touch-LCD-7B or 7B-C, not Touch-LCD-7.",
+      "The rear label says ESP32-P4-WIFI6-Touch-LCD-7B or 7B-C and the ESP32-P4 revision is before v3.0.",
+  }),
+  Object.freeze({
+    key: "waveshare_touch_lcd_7b_rev3_1",
+    buildProfile: "waveshare_7b_rev3_1",
+    label: "Waveshare Touch LCD 7B / 7B-C (ESP32-P4 v3.1 only, experimental)",
+    chipFamily: "ESP32-P4",
+    flashSize: MIB_32,
+    status: "validation-pending",
+    metadataDeviceKey: "waveshare_touch_lcd_7b",
+    siliconVariant: "rev3_1",
+    minimumRevision: 301,
+    maximumRevision: 301,
+    acceptsLegacyDescriptor: false,
+    hardwareCheck:
+      "Experimental and not yet verified on exact 7B rev3.1 hardware: the rear label says ESP32-P4-WIFI6-Touch-LCD-7B or 7B-C and the ESP32-P4 chip revision is exactly v3.1. Revision v3.2 or newer is unsupported.",
   }),
   Object.freeze({
     key: "guition_jc1060p470c_v2",
     buildProfile: "guition_jc1060p470c_v2",
     label: "Guition JC1060P470C V2 (New Panel)",
     chipFamily: "ESP32-P4",
+    ...ESP32_P4_PRE_V3,
     flashSize: MIB_16,
     status: "validation-pending",
     hardwareCheck: "The device is the JC1060P470C V2 / New Panel variant.",
@@ -184,9 +219,14 @@ const SHA256_PATTERN = /^sha256:([0-9a-f]{64})$/i;
 const ESP_IMAGE_HEADER_MAGIC = 0xe9;
 const ESP_APP_DESCRIPTOR_MAGIC = 0xabcd5432;
 const DEVICE_DESCRIPTOR_MAGIC = 0x44565034;
+const SILICON_REVISION_DESCRIPTOR_MAGIC = 0x53525634;
 const DEVICE_DESCRIPTOR_IMAGE_OFFSET = 24 + 8 + 256;
 const DEVICE_KEY_OFFSET = DEVICE_DESCRIPTOR_IMAGE_OFFSET + 4 + 32;
 const DEVICE_KEY_MAX_LENGTH = 32;
+const DEVICE_DESCRIPTOR_LENGTH = 4 + 32 + 32 + 32;
+const SILICON_REVISION_DESCRIPTOR_IMAGE_OFFSET =
+  DEVICE_DESCRIPTOR_IMAGE_OFFSET + DEVICE_DESCRIPTOR_LENGTH;
+const SILICON_VARIANT_MAX_LENGTH = 16;
 const UINT32_MAX = 0xffffffff;
 
 function assert(condition, message) {
@@ -396,9 +436,28 @@ export function assertOtaBootSelectionApplied(input, expectedUpdate) {
   return true;
 }
 
+export function assertFirmwareRevisionCompatible(device, chipRevision) {
+  if (device?.chipFamily !== "ESP32-P4") return true;
+  assert(
+    device.siliconVariant &&
+      Number.isInteger(device.minimumRevision) &&
+      Number.isInteger(device.maximumRevision),
+    `The ${device.label || "selected ESP32-P4"} profile has no safe silicon revision contract.`,
+  );
+  assert(
+    Number.isInteger(chipRevision) && chipRevision >= 0 && chipRevision <= 0xffff,
+    "The ESP32-P4 silicon revision could not be detected safely.",
+  );
+  assert(
+    chipRevision >= device.minimumRevision && chipRevision <= device.maximumRevision,
+    `ESP32-P4 revision ${chipRevision} does not match the selected ${device.label} image.`,
+  );
+  return true;
+}
+
 export function releaseAssetNames(tag, deviceKey) {
   assert(RELEASE_TAG_PATTERN.test(tag), `Invalid release tag: ${tag}`);
-  assert(DEVICE_KEYS.has(deviceKey), `Unknown installer device key: ${deviceKey}`);
+  assert(DEVICE_KEYS.has(deviceKey), `Unknown release device key: ${deviceKey}`);
   const stem = `hometiles_${tag}_${deviceKey}`;
   return Object.freeze({
     update: `${stem}.bin`,
@@ -513,7 +572,12 @@ export function assertHomeTilesPartitionLayout(entries) {
   return true;
 }
 
-export function validateFirmwareDescriptor(input, deviceKey, appOffset = 0) {
+export function validateFirmwareDescriptor(
+  input,
+  deviceKey,
+  appOffset = 0,
+  { siliconVariant = "", allowLegacySilicon = false, chipRevision = null } = {},
+) {
   assert(DEVICE_KEYS.has(deviceKey), `Unknown installer device key: ${deviceKey}`);
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
   const descriptorBase = appOffset + DEVICE_DESCRIPTOR_IMAGE_OFFSET;
@@ -539,6 +603,69 @@ export function validateFirmwareDescriptor(input, deviceKey, appOffset = 0) {
     embeddedDeviceKey === deviceKey,
     `Firmware is for ${embeddedDeviceKey || "an unknown device"}, not ${deviceKey}.`,
   );
+
+  if (siliconVariant) {
+    const expectedVariant = DEVICE_PROFILES.find(
+      (device) =>
+        (device.metadataDeviceKey || device.key) === deviceKey &&
+        device.siliconVariant === siliconVariant,
+    );
+    assert(expectedVariant, `Unknown silicon variant ${siliconVariant} for ${deviceKey}.`);
+    const siliconBase = appOffset + SILICON_REVISION_DESCRIPTOR_IMAGE_OFFSET;
+    const siliconBytes = 4 + 2 + 2 + SILICON_VARIANT_MAX_LENGTH;
+    const hasSiliconDescriptor =
+      siliconBase + siliconBytes <= bytes.length &&
+      readU32LE(bytes, siliconBase) === SILICON_REVISION_DESCRIPTOR_MAGIC;
+    if (!hasSiliconDescriptor) {
+      assert(
+        allowLegacySilicon && expectedVariant.acceptsLegacyDescriptor,
+        `Firmware has no silicon metadata for ${expectedVariant.label}.`,
+      );
+      if (chipRevision !== null) {
+        assert(
+          Number.isInteger(chipRevision) &&
+            chipRevision >= expectedVariant.minimumRevision &&
+            chipRevision <= expectedVariant.maximumRevision,
+          `Legacy firmware is unsafe for connected ESP32-P4 revision ${chipRevision}.`,
+        );
+      }
+      return embeddedDeviceKey;
+    }
+
+    const minimumRevision = new DataView(
+      bytes.buffer,
+      bytes.byteOffset + siliconBase + 4,
+      4,
+    ).getUint16(0, true);
+    const maximumRevision = new DataView(
+      bytes.buffer,
+      bytes.byteOffset + siliconBase + 6,
+      2,
+    ).getUint16(0, true);
+    const embeddedVariant = readNullTerminatedAscii(
+      bytes,
+      siliconBase + 8,
+      SILICON_VARIANT_MAX_LENGTH,
+    );
+    assert(
+      embeddedVariant === expectedVariant.siliconVariant,
+      `Firmware silicon variant is ${embeddedVariant || "unknown"}, not ${expectedVariant.siliconVariant}.`,
+    );
+    assert(
+      minimumRevision >= expectedVariant.minimumRevision &&
+        maximumRevision <= expectedVariant.maximumRevision &&
+        minimumRevision <= maximumRevision,
+      `Firmware silicon range ${minimumRevision}-${maximumRevision} is unsafe for ${expectedVariant.label}.`,
+    );
+    if (chipRevision !== null) {
+      assert(
+        Number.isInteger(chipRevision) &&
+          chipRevision >= minimumRevision &&
+          chipRevision <= maximumRevision,
+        `Firmware silicon range ${minimumRevision}-${maximumRevision} does not support connected ESP32-P4 revision ${chipRevision}.`,
+      );
+    }
+  }
   return embeddedDeviceKey;
 }
 

@@ -270,4 +270,26 @@ void appendNetworkWedgeReport(const String& detail) {
   Serial.printf("[CrashLog] WLAN-Wedge protokolliert -> %s\n", kLogPath);
 }
 
+void appendDisplayPipelineTimeoutReport(const String& detail) {
+#if defined(DEVICE_ESP32_S3_RGB_480)
+  Device::ScopedStorageWrite storage_write;
+#endif
+  rotateLogIfNeeded();
+  File f = LittleFS.open(kLogPath, FILE_APPEND);
+  if (!f) {
+    Serial.println("[CrashLog] Unable to write display pipeline timeout report");
+    return;
+  }
+  f.printf("=== P4 display pipeline timeout | firmware %s ===\n", FW_VERSION);
+  if (detail.length()) {
+    f.print(detail);
+    if (!detail.endsWith("\n")) f.print("\n");
+  }
+  f.print("Device performed a fail-closed software restart; no core dump is "
+          "expected.\n\n");
+  f.close();
+  Serial.printf("[CrashLog] Display pipeline timeout report written -> %s\n",
+                kLogPath);
+}
+
 }  // namespace CrashLog

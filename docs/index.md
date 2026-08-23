@@ -67,20 +67,22 @@ Looking for something specific? [Tile Types](tiles.md) ·
 [FAQ & Troubleshooting](faq.md) ·
 [GitHub](https://github.com/GalusPeres/HomeTiles)
 
-## New In v0.6.5
+## New In v0.6.8
 
-HomeTiles v0.6.5 adds feature-aware Home Assistant Cover tiles and controls,
-improves ESP32-S3 display, touch, storage and OTA stability, and makes
-brightness percentages consistent between the device, MQTT and screensaver.
-It also expands the folder cache to six grids across all ESP32-P4 profiles and
-adds on-demand SD-card diagnostics across all supported device profiles, plus a
-corrected JC1060 SD power sequence.
+HomeTiles v0.6.8 stabilizes Camera presentation on native ESP32-P4 DSI
+displays, records a persistent diagnostic before a controlled display-pipeline
+restart, and distinguishes a missing Camera response from an outdated Bridge.
+It also fixes Waveshare 7B/7B-C startup and publishes two explicit installer
+entries for ESP32-P4 before v3.0 (revisions 1–199) and exact ESP32-P4 v3.1.
+The exact-v3.1 entry is experimental and has not been hardware-verified; v3.2
+or newer is unsupported and must not be flashed.
 
-Update to **HomeTiles Bridge v0.6.35** before using Cover tiles. Existing tile
-types remain compatible. The JC8012 V2, JC1060 and Waveshare 7/10.1-inch
-device notes identify the remaining physical-hardware checks.
+The Waveshare 10.1-inch and Guition JC1060 V2 now start in their reported
+working orientation, and the 10.1-inch brightness controls keep a readable 2%
+minimum. **HomeTiles Bridge v0.6.37** remains recommended; no new Bridge
+protocol is required.
 
-[Read the v0.6.5 release notes :octicons-arrow-right-24:](releases/v0.6.5.md)
+[Read the v0.6.8 release notes :octicons-arrow-right-24:](releases/v0.6.8.md)
 
 ## Device Support
 
@@ -102,16 +104,21 @@ device notes identify the remaining physical-hardware checks.
 | Exact device | Display | Test status |
 | --- | --- | --- |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 7" 1280×720 | [Testing requested in #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7B.htm) | 7" 1024×600 | Separate EK79007 profile; [testing requested in #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 10.1" 1280×800 | [Testing requested in #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7B.htm) | 7" 1024×600 | Explicit pre-v3 revisions 1–199 and experimental exact-v3.1 EK79007 images; exact-v3.1 hardware is unverified and testing is requested in [#7](https://github.com/GalusPeres/HomeTiles/issues/7) |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 10.1" 1280×800 | Core display/touch/network/OTA reported working; corrected defaults, SD and Camera checks remain in [#7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | 10.1" 1280×800 | Separate V2 image; [release/OTA testing tracked in #18](https://github.com/GalusPeres/HomeTiles/issues/18) |
 | [Guition JC1060P470C_I_W_Y V1](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | 7" 1024×600 | `_I_W_Y` only; [testing requested in #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
-| Guition JC1060P470C V2 / New Panel | 7" 1024×600 | Separate V2 image; exact-device validation tracked in [issue #27](https://github.com/GalusPeres/HomeTiles/issues/27) |
+| Guition JC1060P470C V2 / New Panel | 7" 1024×600 | Basic operation reported working; corrected orientation and full release/OTA validation tracked in [issue #27](https://github.com/GalusPeres/HomeTiles/issues/27) |
 | [Waveshare ESP32-S3-Touch-LCD-4B](https://www.waveshare.com/esp32-s3-touch-lcd-4b.htm) | 4" 480×480 | Separate ESP32-S3 profile without microSD; validation tracked in [issue #26](https://github.com/GalusPeres/HomeTiles/issues/26) |
 
-Every release provides factory and OTA images for all twelve build targets.
-The notes above identify profiles whose complete display, touch, storage,
-networking, or OTA checklist still needs confirmation on the exact hardware.
+Every release provides factory and OTA images for 13 explicit installer/release
+profiles covering twelve physical device profiles. The Waveshare 7B/7B-C has
+separate pre-v3 revisions 1–199 and exact-v3.1 entries, so the release contains
+13 builds and 26 firmware files. Other current P4 profiles use vendor-listed
+P4NRW32/pre-v3 modules and are also guarded to revisions 1–199. HomeTiles'
+browser, Web Admin, and OTA paths enforce these ranges; v3.2 or newer is not
+supported. The notes above identify profiles whose complete hardware checklist
+still needs confirmation.
 
 ## How It Works
 

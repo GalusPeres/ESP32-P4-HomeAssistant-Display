@@ -69,7 +69,8 @@ Use the asset matching your device from the release page:
 | Guition JC8012P4A1C_I_W_Y V1 (no V2 sticker) | Supported | `hometiles_<version>_guition_jc8012p4a1.bin` |
 | Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Hardware validation pending | `hometiles_<version>_guition_jc8012p4a1_v2.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Hardware validation pending | `hometiles_<version>_waveshare_touch_lcd_7.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C | Hardware validation pending; not the older 7-inch profile | `hometiles_<version>_waveshare_touch_lcd_7b.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C, ESP32-P4 before v3.0 (revisions 1–199) | Hardware validation pending; not the older 7-inch profile | `hometiles_<version>_waveshare_touch_lcd_7b.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C, exact ESP32-P4 v3.1 | Experimental; exact hardware unverified | `hometiles_<version>_waveshare_touch_lcd_7b_rev3_1.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Hardware validation pending | `hometiles_<version>_waveshare_touch_lcd_10_1.bin` |
 | Guition JC1060P470C_I_W_Y V1 | SD-card validation pending; exact suffix required | `hometiles_<version>_guition_jc1060p470c.bin` |
 | Guition JC1060P470C V2 / New Panel | Hardware validation pending; use only for the marked V2 revision | `hometiles_<version>_guition_jc1060p470c_v2.bin` |
@@ -79,6 +80,20 @@ Use the asset matching your device from the release page:
 Older devices still running v0.2.9 or earlier look for the previous
 `esp32-p4-homeassistant-display-<version>-<device>-update.bin` naming; the on-device
 updater falls back to it automatically if a release doesn't have the current-named asset.
+
+The Waveshare 7B/7B-C on-device updater enforces the running chip revision and
+requests either the pre-v3 asset for revisions 1–199 or the experimental asset
+for exact v3.1 (301). In the browser installer, the user selects one of those
+two explicit entries, and that selection determines the asset. Browser updates
+and manual Web Admin uploads also reject a mismatched revision contract before
+writing. The other current P4 profiles use vendor-listed P4NRW32/pre-v3 modules
+and are likewise guarded to revisions 1–199.
+
+ESP32-P4 v3.2 or newer is unsupported with Arduino-ESP32 3.3.7 / ESP-IDF 5.5.2
+and must not be flashed. The HomeTiles browser, Web Admin, and on-device OTA
+paths enforce that restriction. Direct `esptool` flashing can bypass it because
+the underlying ESP image header for the Arduino `v3.00 or newer` choice can span
+revisions 301–399; see the [manual flashing warning](flashing.md).
 
 ## 3. Browser Installer over USB
 

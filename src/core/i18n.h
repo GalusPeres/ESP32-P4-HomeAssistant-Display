@@ -366,6 +366,7 @@ struct Strings {
   const char* camera_preparing;
   const char* camera_bridge_requesting;
   const char* camera_bridge_update_required;
+  const char* camera_bridge_no_response;
   const char* camera_invalid_response;
   const char* camera_no_stream_url;
   const char* camera_connecting;

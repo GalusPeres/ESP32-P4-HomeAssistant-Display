@@ -93,7 +93,7 @@
   </div>
 </div>
 
-<script type="module" src="../assets/javascripts/installer.mjs?v=installer-ui-10"></script>
+<script type="module" src="../assets/javascripts/installer.mjs?v=installer-ui-11"></script>
 
 ## Update HomeTiles
 
@@ -116,8 +116,23 @@ alternative; the browser Update is useful for a local file or USB recovery.
 Before writing, the installer checks:
 
 - ESP32-P4 or ESP32-S3 and the flash size,
+- the embedded revision contract for every ESP32-P4 image,
 - the current HomeTiles partition layout and OTA selection,
 - the firmware's device ID and SHA-256 digest.
+
+For Waveshare 7B/7B-C, choose one of the two explicit device entries before
+connecting: **ESP32-P4 before v3.0 (revisions 1–199)** or **exact ESP32-P4 v3.1
+(experimental)**. The selected entry determines which firmware asset is used.
+After the serial connection opens, the installer reads the silicon revision as
+a safety check. It does not change the selected entry or asset, and stops before
+erase or write if they do not match. The v3.1 path has not been validated on
+exact hardware.
+
+The other current ESP32-P4 profiles use vendor-listed P4NRW32/pre-v3 modules and
+are restricted to revisions 1–199. ESP32-P4 v3.2 or newer is unsupported with
+Arduino-ESP32 3.3.7 / ESP-IDF 5.5.2 and is rejected. These images are not generic
+all-revision P4 firmware. The same exact ranges are enforced by Web Admin upload
+and the on-device OTA updater.
 
 The installer writes and verifies only the inactive application slot:
 
@@ -160,6 +175,12 @@ Manual flashing is the fallback for a first installation or complete reset.
 For a normal update, use **Update HomeTiles** above or the on-device updater;
 do not guess an OTA-slot address in a desktop tool.
 
+For the experimental 7B v3.1 image, direct desktop-tool or `esptool` flashing
+must only be used when `esptool chip-id` reports exact v3.1. The Arduino
+`v3.00 or newer` option can leave the underlying ESP image header at revisions
+301–399, so a direct write can bypass HomeTiles' exact-v3.1 guard. Never write
+that image to v3.2 or newer hardware.
+
 1. Download the exact `_factory.bin` for the device from the
    [latest HomeTiles release](https://github.com/GalusPeres/HomeTiles/releases/latest).
 2. Open Espressif's [Flash Download Tool](https://www.espressif.com/en/support/download/other-tools),
@@ -181,16 +202,19 @@ instructions.
 3. Select the port that appears when the display is connected.
 4. If automatic reset fails, hold the device's **BOOT** button while clicking
    **Connect and flash**, then release it once the connection starts.
-5. Do not choose a "similar" P4 panel. The browser can reject P4/S3 and flash-size
-   mismatches, but it cannot electrically distinguish every P4 display model.
+5. Do not choose a "similar" P4 panel. The browser can reject P4/S3, flash-size,
+   and Waveshare 7B silicon-revision mismatches, but it cannot electrically
+   distinguish every P4 display model.
 
 <details class="ht-installer-log ht-installer-doc-details" markdown="1">
 <summary>Local test before publication</summary>
 
 The local test continues to use the unchanged, SHA-256-verified assets from the
-currently published GitHub release. With `--device`, only the two files for the
-selected device are downloaded. Without that option, the published site always
-contains all twelve device profiles.
+currently published GitHub release. With `--device`, the selected explicit
+profile's factory and OTA files are downloaded. Each Waveshare 7B profile also
+downloads only its own pair. Without that option, the published site contains
+26 files for 13 explicit installer/release profiles covering twelve physical
+device profiles.
 
 1. Build the documentation:
    `python -m mkdocs build --strict`
@@ -207,7 +231,8 @@ contains all twelve device profiles.
 
 The other valid `--device` values match the release file names:
 `m5stacks_tab5`, `waveshare_4b`, `waveshare_touch_lcd_7`,
-`waveshare_touch_lcd_7b`, `waveshare_touch_lcd_8`,
+`waveshare_touch_lcd_7b`, `waveshare_touch_lcd_7b_rev3_1`,
+`waveshare_touch_lcd_8`,
 `waveshare_touch_lcd_10_1`, `waveshare_s3_touch_lcd_4b`,
 `guition_jc8012p4a1`, `guition_jc8012p4a1_v2`,
 `guition_jc1060p470c`, `guition_jc1060p470c_v2`, and

@@ -60,22 +60,26 @@ the whole chain: MQTT broker, bridge integration, and connecting the display.
 - [FAQ & Troubleshooting](docs/faq.md) — common questions and known quirks
 - [BOARD_SETTINGS.md](BOARD_SETTINGS.md) — Arduino IDE build settings per device
 
-## Highlights Of v0.6.5
+## Highlights Of v0.6.8
 
-- Added localized Home Assistant Cover tiles and feature-aware Cover controls.
-- Improved Guition ESP32-S3 display, touch, storage, OTA, screenshots and
-  slideshow handling.
-- Unified device, MQTT and screensaver brightness percentages while preserving
-  safe device-specific PWM ranges.
-- Expanded the folder cache to six grids across all ESP32-P4 profiles.
-- Added on-demand SD diagnostics across all supported device profiles.
-- Added a separate Guition JC8012 V2 image and corrected JC1060 SD power startup.
+- Stabilized Camera presentation across the native ESP32-P4 DSI profiles with
+  protected double buffering and persistent diagnostics before a safe restart.
+- Corrected the misleading Bridge-version warning when a Camera request receives
+  no response.
+- Fixed Waveshare 7B/7B-C startup and added two explicit browser-installer and
+  release entries: ESP32-P4 before v3.0 (revisions 1–199), and exact ESP32-P4
+  v3.1 only. The v3.1 entry is experimental and has not been hardware-verified.
+- Corrected the default orientation on the Waveshare 10.1-inch and Guition
+  JC1060 V2 and added a readable 2% brightness floor on the 10.1-inch panel.
+- Added the new device profiles introduced after v0.6.7 to the release and
+  browser-installer pipeline.
 
-Cover entities in Home Assistant require
-[HomeTiles Bridge v0.6.35 or newer](https://github.com/GalusPeres/HomeTiles-Bridge/releases/tag/v0.6.35).
-Camera support remains experimental and is available only on ESP32-P4 targets.
+[HomeTiles Bridge v0.6.37](https://github.com/GalusPeres/HomeTiles-Bridge/releases/tag/v0.6.37)
+remains the recommended companion release; v0.6.8 does not require a new Bridge
+protocol. Camera support remains experimental and is available only on
+ESP32-P4 targets.
 
-See the [v0.6.5 release notes](docs/releases/v0.6.5.md) for details.
+See the [v0.6.8 release notes](docs/releases/v0.6.8.md) for details.
 
 <details>
 <summary>Highlights of v0.6.4</summary>
@@ -277,11 +281,11 @@ networking and OTA have been confirmed on the physical device.
 | Exact device | Test status |
 | --- | --- |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Physical display, touch, storage, networking and OTA confirmation requested in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7B.htm) | Separate 1024×600 EK79007 profile; physical validation requested in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Physical display, touch, storage, networking and OTA confirmation requested in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7B.htm) | Separate 1024×600 EK79007 images for pre-v3 revisions 1–199 and exact v3.1; both still need physical confirmation after the startup fix, and the experimental v3.1 path has no exact-hardware validation, in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Display, touch, Wi-Fi, MQTT and OTA were reported working; corrected default orientation, brightness floor, SD and Camera behavior still need release confirmation in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Separate V2 panel image with hardware-tested JD9365 table/timing; full release/OTA validation pending in [issue #18](https://github.com/GalusPeres/HomeTiles/issues/18) |
 | [Guition JC1060P470C_I_W_Y V1](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | Only the `_I_W_Y` variant; SD-card behavior still requires physical confirmation in [issue #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
-| Guition JC1060P470C V2 / New Panel | Separate V2 image; physical display, touch, brightness, storage, networking and OTA validation requested in [issue #27](https://github.com/GalusPeres/HomeTiles/issues/27) |
+| Guition JC1060P470C V2 / New Panel | Basic operation was reported working; v0.6.8 corrects the reported default orientation and exact LCD-reset/GPIO mapping, with full release/OTA confirmation tracked in [issue #27](https://github.com/GalusPeres/HomeTiles/issues/27) |
 | [Waveshare ESP32-S3-Touch-LCD-4B](https://www.waveshare.com/esp32-s3-touch-lcd-4b.htm) | ESP32-S3 profile without microSD or Camera tiles; physical validation requested in [issue #26](https://github.com/GalusPeres/HomeTiles/issues/26) |
 
 Device-specific Arduino IDE settings are documented in [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
@@ -385,7 +389,8 @@ Download the files matching your device from the [latest release](https://github
 | Guition JC8012P4A1C_I_W_Y V1 (no V2 sticker) | Supported | `..._guition_jc8012p4a1_factory.bin` | `..._guition_jc8012p4a1.bin` |
 | Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Hardware validation pending | `..._guition_jc8012p4a1_v2_factory.bin` | `..._guition_jc8012p4a1_v2.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-7 | Hardware validation pending | `..._waveshare_touch_lcd_7_factory.bin` | `..._waveshare_touch_lcd_7.bin` |
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C | Hardware validation pending | `..._waveshare_touch_lcd_7b_factory.bin` | `..._waveshare_touch_lcd_7b.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C, ESP32-P4 before v3.0 (revisions 1–199) | Hardware validation pending | `..._waveshare_touch_lcd_7b_factory.bin` | `..._waveshare_touch_lcd_7b.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C, exact ESP32-P4 v3.1 | Experimental; exact hardware unverified | `..._waveshare_touch_lcd_7b_rev3_1_factory.bin` | `..._waveshare_touch_lcd_7b_rev3_1.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1 | Hardware validation pending | `..._waveshare_touch_lcd_10_1_factory.bin` | `..._waveshare_touch_lcd_10_1.bin` |
 | Guition JC1060P470C_I_W_Y V1 | SD-card validation pending | `..._guition_jc1060p470c_factory.bin` | `..._guition_jc1060p470c.bin` |
 | Guition JC1060P470C V2 / New Panel | Hardware validation pending | `..._guition_jc1060p470c_v2_factory.bin` | `..._guition_jc1060p470c_v2.bin` |
@@ -395,6 +400,20 @@ Download the files matching your device from the [latest release](https://github
 Use:
 - `factory.bin` for a clean first flash (ESP Flash Download Tool at address `0x00000`)
 - the plain `.bin` for OTA updates of an existing device (web admin upload)
+
+For Waveshare 7B/7B-C, select either **ESP32-P4 before v3.0 (revisions 1–199)**
+or **exact ESP32-P4 v3.1 (experimental)** in the
+[browser installer](docs/installer.md). That selection determines the firmware
+file. The browser installer, Web Admin upload, and on-device updater enforce the
+exact revision contract; they never turn the v3.1 image into an all-revision
+image. ESP32-P4 v3.2 or newer is unsupported with Arduino-ESP32 3.3.7 / ESP-IDF
+5.5.2 and must not be flashed. Direct `esptool` flashing is unsafe for that case:
+the Arduino `v3.00 or newer` build can carry a broader ESP image-header range of
+301–399, bypassing the narrower HomeTiles v3.1-only check.
+
+The other current ESP32-P4 profiles use vendor-listed P4NRW32/pre-v3 modules.
+Their HomeTiles release images are explicitly guarded to revisions 1–199 and
+are not generic all-revision P4 firmware.
 
 A manual reset after flashing may be required.
 

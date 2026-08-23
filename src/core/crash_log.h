@@ -47,6 +47,11 @@ void appendOtaFailureReport(const char* target_tag, const String& error,
 // einzige Diagnosespur.
 void appendNetworkWedgeReport(const String& detail);
 
+// Records a fail-closed restart after an accepted PPA operation or DSI
+// framebuffer switch did not confirm completion. The normal software reset
+// has no core dump, so this report is the persistent diagnostic evidence.
+void appendDisplayPipelineTimeoutReport(const String& detail);
+
 }  // namespace CrashLog
 
 #endif  // CRASH_LOG_H

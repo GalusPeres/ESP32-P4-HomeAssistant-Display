@@ -35,8 +35,17 @@ const deviceHeader = read('src/devices/device.h');
 const configManager = read('src/core/config_manager.cpp');
 const settingsUi = read('src/ui/tab_settings.cpp');
 const mqttHandlers = read('src/network/mqtt_handlers.cpp');
+const waveshareProfile = read(
+  'src/devices/waveshare_touch_lcd_10_1/profile.h',
+);
 const waveshareDriver = read(
   'src/devices/waveshare_touch_lcd_10_1/device_waveshare_touch_lcd_10_1.cpp',
+);
+
+assert.match(
+  waveshareProfile,
+  /Device::RotationStepMode::FlipOnly,\s*2,\s*0,/,
+  'Waveshare 10.1 must boot in the hardware-confirmed 180-degree orientation',
 );
 
 assert.match(

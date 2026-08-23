@@ -18,7 +18,7 @@ Hardware configuration:
 - ESP32-P4 with 16 MB flash and 32 MB PSRAM
 - 1024x600 JD9165 MIPI-DSI display
 - GT911 touch on I2C0, SDA GPIO7, SCL GPIO8
-- LCD reset GPIO5, touch reset GPIO22, touch interrupt GPIO21
+- LCD reset GPIO0, touch reset GPIO22, touch interrupt GPIO21
 - Backlight PWM on GPIO23, active high, 20 kHz/10-bit
 - JD9165 MIPI-DSI: 2 lanes at 750 Mbps, 52 MHz pixel clock
 - Horizontal timing 24/136/160 and vertical timing 2/21/12
@@ -28,8 +28,9 @@ Hardware configuration:
   200 ms power reset before each mount attempt
 
 The HomeTiles UI uses the independently retained `DEVICE_LAYOUT_1024X600`
-layout profile. The panel starts in the tested 180-degree orientation and the
-opposite orientation uses the existing flip-only transform.
+layout profile. The hardware-tested orientation is now the default; its
+flip-only setting rotates the display and touch mapping together and persists
+the selected orientation.
 
 The JD9165 driver and SDMMC power setup are derived from Espressif files under
 Apache-2.0. See `vendor/README.md` and `vendor/LICENSE-APACHE-2.0.txt`.

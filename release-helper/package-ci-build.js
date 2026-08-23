@@ -7,18 +7,23 @@ const versionFilePath = path.join(repoRoot, 'version.txt');
 const otaSlotSize = 0x680000;
 
 const devices = new Map([
-  ['m5stacks_tab5', { key: 'm5stacks_tab5' }],
-  ['waveshare_4b', { key: 'waveshare_4b' }],
-  ['waveshare_touch_lcd_7', { key: 'waveshare_touch_lcd_7' }],
-  ['waveshare_touch_lcd_7b', { key: 'waveshare_touch_lcd_7b' }],
-  ['waveshare_touch_lcd_8', { key: 'waveshare_touch_lcd_8' }],
-  ['waveshare_touch_lcd_10_1', { key: 'waveshare_touch_lcd_10_1' }],
-  ['guition_jc8012p4a1', { key: 'guition_jc8012p4a1' }],
-  ['guition_jc8012p4a1_v2', { key: 'guition_jc8012p4a1_v2' }],
-  ['guition_jc1060p470c', { key: 'guition_jc1060p470c' }],
-  ['guition_jc1060p470c_v2', { key: 'guition_jc1060p470c_v2' }],
-  ['guition_esp32_4848s040', { key: 'guition_esp32_4848s040' }],
-  ['waveshare_s3_touch_lcd_4b', { key: 'waveshare_s3_touch_lcd_4b' }],
+  ['m5stacks_tab5', { key: 'm5stacks_tab5', siliconVariant: 'pre_v3' }],
+  ['waveshare_4b', { key: 'waveshare_4b', siliconVariant: 'pre_v3' }],
+  ['waveshare_touch_lcd_7', { key: 'waveshare_touch_lcd_7', siliconVariant: 'pre_v3' }],
+  ['waveshare_touch_lcd_7b', { key: 'waveshare_touch_lcd_7b', siliconVariant: 'pre_v3' }],
+  ['waveshare_touch_lcd_7b_rev3_1', {
+    key: 'waveshare_touch_lcd_7b_rev3_1',
+    metadataDeviceKey: 'waveshare_touch_lcd_7b',
+    siliconVariant: 'rev3_1',
+  }],
+  ['waveshare_touch_lcd_8', { key: 'waveshare_touch_lcd_8', siliconVariant: 'pre_v3' }],
+  ['waveshare_touch_lcd_10_1', { key: 'waveshare_touch_lcd_10_1', siliconVariant: 'pre_v3' }],
+  ['guition_jc8012p4a1', { key: 'guition_jc8012p4a1', siliconVariant: 'pre_v3' }],
+  ['guition_jc8012p4a1_v2', { key: 'guition_jc8012p4a1_v2', siliconVariant: 'pre_v3' }],
+  ['guition_jc1060p470c', { key: 'guition_jc1060p470c', siliconVariant: 'pre_v3' }],
+  ['guition_jc1060p470c_v2', { key: 'guition_jc1060p470c_v2', siliconVariant: 'pre_v3' }],
+  ['guition_esp32_4848s040', { key: 'guition_esp32_4848s040', siliconVariant: 'default' }],
+  ['waveshare_s3_touch_lcd_4b', { key: 'waveshare_s3_touch_lcd_4b', siliconVariant: 'default' }],
 ]);
 
 function readVersion() {
@@ -121,18 +126,67 @@ function verifyDeviceDescriptor(imagePath, expectedDeviceKey) {
   }
 }
 
+function verifySiliconVariant(imagePath, expectedVariant) {
+  const image = fs.readFileSync(imagePath);
+  const descriptorOffset = 24 + 8 + 256;
+  const deviceDescriptorLength = 4 + 32 + 32 + 32;
+  const siliconOffset = descriptorOffset + deviceDescriptorLength;
+  const siliconMagic = 0x53525634;
+  const siliconVariantMaxLength = 16;
+
+  if (image.length < siliconOffset + 4 + 2 + 2 + siliconVariantMaxLength) {
+    throw new Error(`Firmware image is too small for silicon metadata: ${imagePath}`);
+  }
+  if (image.readUInt32LE(siliconOffset) !== siliconMagic) {
+    throw new Error(`Firmware silicon metadata magic is missing: ${imagePath}`);
+  }
+
+  const actualVariant = readNullTerminatedString(
+    image,
+    siliconOffset + 8,
+    siliconVariantMaxLength
+  );
+  if (actualVariant !== expectedVariant) {
+    throw new Error(
+      `Firmware silicon variant mismatch: expected ${expectedVariant}, got ${actualVariant || '(empty)'}.`
+    );
+  }
+
+  const minimumRevision = image.readUInt16LE(siliconOffset + 4);
+  const maximumRevision = image.readUInt16LE(siliconOffset + 6);
+  if (expectedVariant === 'pre_v3' && (minimumRevision !== 1 || maximumRevision !== 199)) {
+    throw new Error(`Pre-v3 firmware must use the exact revision range 1-199, got ${minimumRevision}-${maximumRevision}.`);
+  }
+  if (expectedVariant === 'rev3_1' && (minimumRevision !== 301 || maximumRevision !== 301)) {
+    throw new Error(`Rev3.1 firmware must use the exact revision range 301-301, got ${minimumRevision}-${maximumRevision}.`);
+  }
+}
+
 function main() {
   const args = readArgs(process.argv);
   const buildDirArg = args['build-dir'] || process.env.BUILD_DIR;
   const outDir = path.resolve(repoRoot, args['out-dir'] || process.env.OUT_DIR || 'build/releases');
   const deviceKey = args['device-key'] || process.env.DEVICE_KEY;
   const metadataDeviceKey = args['metadata-device-key'] || deviceKey;
+  const siliconVariant = args['silicon-variant'] || process.env.SILICON_VARIANT || 'default';
 
   if (!buildDirArg) {
     throw new Error('Missing --build-dir');
   }
   if (!deviceKey || !devices.has(deviceKey)) {
     throw new Error(`Unknown or missing device key: ${deviceKey || '(none)'}`);
+  }
+  const device = devices.get(deviceKey);
+  const expectedMetadataDeviceKey = device.metadataDeviceKey || device.key;
+  if (metadataDeviceKey !== expectedMetadataDeviceKey) {
+    throw new Error(
+      `Release metadata device mismatch for ${deviceKey}: expected ${expectedMetadataDeviceKey}, got ${metadataDeviceKey}.`
+    );
+  }
+  if (siliconVariant !== device.siliconVariant) {
+    throw new Error(
+      `Release silicon variant mismatch for ${deviceKey}: expected ${device.siliconVariant}, got ${siliconVariant}.`
+    );
   }
 
   const buildDir = path.resolve(repoRoot, buildDirArg);
@@ -155,6 +209,7 @@ function main() {
   );
 
   verifyDeviceDescriptor(updatePath, metadataDeviceKey);
+  verifySiliconVariant(updatePath, siliconVariant);
   const updateSize = fs.statSync(updatePath).size;
   if (updateSize > otaSlotSize) {
     throw new Error(
