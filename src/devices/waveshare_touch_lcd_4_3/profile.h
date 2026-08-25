@@ -1,0 +1,27 @@
+#pragma once
+
+#include "src/devices/device_types.h"
+
+namespace DeviceWaveshareTouchLCD4_3Profile {
+
+inline constexpr Device::Profile kProfile{
+    "waveshare_touch_lcd_4_3",
+    "Waveshare Touch LCD 4.3",
+    800,
+    480,
+    5,
+    4,
+    10,
+    4,
+    150,
+    111,
+    4,
+    1,
+    Device::RotationStepMode::FlipOnly,
+    0,
+    2,
+    Device::Capabilities{false, false, false, false, true, false},
+    Device::kNoHardwareIoProfile,
+};
+
+}  // namespace DeviceWaveshareTouchLCD4_3Profile

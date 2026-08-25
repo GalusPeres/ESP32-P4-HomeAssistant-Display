@@ -105,6 +105,13 @@ jobs:
             silicon_variant: pre_v3
             rx_variant: repo-a8204
             publish: true
+          - label: Waveshare Touch LCD 4.3
+            profile: waveshare_4_3
+            key: waveshare_touch_lcd_4_3
+            define: DEVICE_WAVESHARE_TOUCH_LCD_4_3
+            silicon_variant: pre_v3
+            rx_variant: repo-a8204
+            publish: true
           - label: Waveshare 7 inch
             profile: waveshare_7
             key: waveshare_touch_lcd_7
@@ -211,6 +218,9 @@ jobs:
 
       - name: Verify Waveshare ESP32-S3 4B profile contract
         run: node tools/test-waveshare-s3-4b-profile.mjs
+
+      - name: Verify Waveshare 4.3 profile contract
+        run: node tools/test-waveshare-4-3-profile.mjs
 
       - name: Verify Waveshare 10.1 brightness floor
         run: node tools/test-waveshare-10-brightness-floor.mjs
@@ -461,7 +471,7 @@ jobs:
         shell: bash
         run: |
           ls -la build/release-assets
-          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 26
+          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 28
 
       - name: Upload assets to GitHub release
         env:

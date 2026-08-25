@@ -280,6 +280,7 @@ networking and OTA have been confirmed on the physical device.
 
 | Exact device | Test status |
 | --- | --- |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-4.3](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4.3.htm) | ESP32-P4 v1.3 hardware confirms display, touch, Wi-Fi, Web Admin, tile persistence, MQTT, Home Assistant discovery and Weather; microSD and OTA validation remain pending |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Physical display, touch, storage, networking and OTA confirmation requested in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7B.htm) | Separate 1024×600 EK79007 images for pre-v3 revisions 1–199 and exact v3.1; both still need physical confirmation after the startup fix, and the experimental v3.1 path has no exact-hardware validation, in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Display, touch, Wi-Fi, MQTT and OTA were reported working; corrected default orientation, brightness floor, SD and Camera behavior still need release confirmation in [issue #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
@@ -385,6 +386,7 @@ Download the files matching your device from the [latest release](https://github
 | --- | --- | --- | --- |
 | M5Stack Tab5 | Supported | `..._m5stacks_tab5_factory.bin` | `..._m5stacks_tab5.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B / 86 Panel | Supported | `..._waveshare_4b_factory.bin` | `..._waveshare_4b.bin` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-4.3 | Core hardware validated; microSD/OTA pending | `..._waveshare_touch_lcd_4_3_factory.bin` | `..._waveshare_touch_lcd_4_3.bin` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-8 | Supported | `..._waveshare_touch_lcd_8_factory.bin` | `..._waveshare_touch_lcd_8.bin` |
 | Guition JC8012P4A1C_I_W_Y V1 (no V2 sticker) | Supported | `..._guition_jc8012p4a1_factory.bin` | `..._guition_jc8012p4a1.bin` |
 | Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | Hardware validation pending | `..._guition_jc8012p4a1_v2_factory.bin` | `..._guition_jc8012p4a1_v2.bin` |

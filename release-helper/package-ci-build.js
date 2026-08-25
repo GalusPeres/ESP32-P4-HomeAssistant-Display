@@ -9,6 +9,7 @@ const otaSlotSize = 0x680000;
 const devices = new Map([
   ['m5stacks_tab5', { key: 'm5stacks_tab5', siliconVariant: 'pre_v3' }],
   ['waveshare_4b', { key: 'waveshare_4b', siliconVariant: 'pre_v3' }],
+  ['waveshare_touch_lcd_4_3', { key: 'waveshare_touch_lcd_4_3', siliconVariant: 'pre_v3' }],
   ['waveshare_touch_lcd_7', { key: 'waveshare_touch_lcd_7', siliconVariant: 'pre_v3' }],
   ['waveshare_touch_lcd_7b', { key: 'waveshare_touch_lcd_7b', siliconVariant: 'pre_v3' }],
   ['waveshare_touch_lcd_7b_rev3_1', {

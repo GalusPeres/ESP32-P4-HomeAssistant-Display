@@ -70,6 +70,44 @@ Arduino IDE:
 - Upload Speed: `921600`
 - USB Mode: `USB-OTG (TinyUSB)`
 
+## Waveshare Touch LCD 4.3
+
+Used for:
+- `src/devices/waveshare_touch_lcd_4_3`
+- build profile `waveshare_4_3`
+
+Important:
+- This profile is only for the exact `ESP32-P4-WIFI6-Touch-LCD-4.3` product.
+- The native panel is a `480x800` ST7701 MIPI-DSI display. HomeTiles renders
+  it as an `800x480` landscape dashboard.
+- The tested board reports ESP32-P4 revision v1.3 and uses the pre-v3
+  revisions 1–199 firmware contract.
+- Touch uses GT911 on SDA GPIO7 and SCL GPIO8 without interrupt or reset pins.
+- The active-low backlight is GPIO26 and the active-low panel reset is GPIO27.
+- The microSD interface uses SDMMC slot 0 on GPIO39-44 and P4 LDO channel 4.
+- Display, touch, Wi-Fi, Web Admin, tile persistence, MQTT, Home Assistant
+  discovery and a live Weather tile have been confirmed on physical hardware.
+  Complete microSD and OTA validation remains pending.
+- Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.
+
+Arduino IDE:
+- Board: `ESP32P4 Dev Module`
+- USB CDC On Boot: `Disabled`
+- Chip Variant: `Before v3.00`
+- Core Debug Level: `None`
+- USB DFU On Boot: `Disabled`
+- Erase All Flash Before Sketch Upload: `Disabled`
+- Flash Frequency: `80MHz`
+- Flash Mode: `QIO`
+- Flash Size: `32MB (256Mb)`
+- JTAG Adapter: `Disabled`
+- USB Firmware MSC On Boot: `Disabled`
+- Partition Scheme: `32M Flash (13MB APP/6.75MB SPIFFS)`
+- PSRAM: `Enabled`
+- Upload Mode: `UART0 / Hardware CDC`
+- Upload Speed: `921600`
+- USB Mode: `USB-OTG (TinyUSB)`
+
 ## Waveshare Touch LCD 7 / 8 / 10.1
 
 Used for:

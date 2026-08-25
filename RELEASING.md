@@ -19,7 +19,7 @@ git push --atomic origin master refs/tags/vX.Y.Z
 
 That's it. The action then:
 
-1. Builds 13 explicit installer/release profiles for twelve physical device
+1. Builds 14 explicit installer/release profiles for thirteen physical device
    profiles with the pinned toolchain (ESP32 core + libraries, see workflow
    `env`). Waveshare 7B/7B-C has a build for pre-v3 revisions 1–199 and a
    separate, experimental exact-v3.1 build. The latter uses profile
@@ -34,13 +34,13 @@ That's it. The action then:
    in each binary. The v3.1 HomeTiles contract must be 301–301 even though the
    Arduino `v3.00 or newer` ESP image header can remain 301–399.
 4. Creates the GitHub release with auto-generated notes and uploads all
-   26 binaries (`<device>.bin` for OTA + `<device>_factory.bin` for first flash).
+   28 binaries (`<device>.bin` for OTA + `<device>_factory.bin` for first flash).
 
-After all 26 assets were uploaded successfully, the release job explicitly
+After all 28 assets were uploaded successfully, the release job explicitly
 dispatches the documentation workflow for the release tag. This explicit
 `workflow_dispatch` is required because GitHub suppresses ordinary follow-up
 workflow events created with `GITHUB_TOKEN`. The documentation workflow
-validates the installer device/asset contract, downloads the same 26 published
+validates the installer device/asset contract, downloads the same 28 published
 release assets, verifies their GitHub SHA-256 digests, and places them in the
 generated documentation site under `firmware/latest/`. Normal documentation
 changes pushed to `master` still deploy through the workflow's filtered `push`

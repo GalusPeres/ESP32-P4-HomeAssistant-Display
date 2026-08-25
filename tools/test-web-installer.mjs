@@ -81,10 +81,10 @@ function firmwareFixture(deviceKey, appOffset = 0, silicon = null) {
   return bytes;
 }
 
-assert.equal(DEVICE_PROFILES.length, 13, "Every explicit firmware choice needs an installer profile.");
-assert.equal(new Set(DEVICE_PROFILES.map((device) => device.key)).size, 13);
+assert.equal(DEVICE_PROFILES.length, 14, "Every explicit firmware choice needs an installer profile.");
+assert.equal(new Set(DEVICE_PROFILES.map((device) => device.key)).size, 14);
 assert.equal(DEVICE_PROFILES.filter((device) => device.chipFamily === "ESP32-S3").length, 2);
-assert.equal(DEVICE_PROFILES.filter((device) => device.chipFamily === "ESP32-P4").length, 11);
+assert.equal(DEVICE_PROFILES.filter((device) => device.chipFamily === "ESP32-P4").length, 12);
 for (const device of DEVICE_PROFILES.filter((candidate) => candidate.chipFamily === "ESP32-P4")) {
   const isRev3 = device.key === "waveshare_touch_lcd_7b_rev3_1";
   assert.equal(device.siliconVariant, isRev3 ? "rev3_1" : "pre_v3");
@@ -100,6 +100,7 @@ assert.equal(
   "ESP32-S3",
 );
 for (const [key, chipFamily, flashSize, labelPattern] of [
+  ["waveshare_touch_lcd_4_3", "ESP32-P4", 32 * 1024 * 1024, /4\.3 inch/],
   ["waveshare_touch_lcd_7b", "ESP32-P4", 32 * 1024 * 1024, /before v3\.0/],
   ["waveshare_touch_lcd_7b_rev3_1", "ESP32-P4", 32 * 1024 * 1024, /v3\.1 only, experimental/],
   ["guition_jc1060p470c_v2", "ESP32-P4", 16 * 1024 * 1024, /V2 \(New Panel\)/],
@@ -131,7 +132,7 @@ assert.throws(() => parseEspRomChipIdentity(securityInfoFixture(0x46b6b8de)), /U
 
 const sketchProfiles = read("sketch.yaml");
 const releaseTargets = DEVICE_PROFILES;
-assert.equal(releaseTargets.length, 13, "The two explicit 7B choices need separate release builds.");
+assert.equal(releaseTargets.length, 14, "The two explicit 7B choices need separate release builds.");
 for (const target of releaseTargets) {
   const escapedProfile = target.buildProfile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = sketchProfiles.match(new RegExp(`^  ${escapedProfile}:\\r?\\n    fqbn: ([^\\r\\n]+)$`, "m"));
@@ -175,7 +176,7 @@ assert.match(packageSource, /const otaSlotSize = 0x680000;/);
 
 const releaseIndex = buildReleaseIndex(fixtureRelease());
 assert.equal(releaseIndex.tag, "v0.6.5");
-assert.equal(releaseIndex.devices.length, 13);
+assert.equal(releaseIndex.devices.length, 14);
 for (const device of releaseIndex.devices) {
   const names = releaseAssetNames("v0.6.5", device.key);
   assert.equal(device.update.file, names.update);
@@ -221,7 +222,7 @@ for (const unsupportedRevision of [0, 200, 300, 302, 399, 400]) {
 
 const fullPublication = selectDevicesForPublication(releaseIndex);
 assert.equal(fullPublication.partial, false);
-assert.equal(fullPublication.devices.length, 13);
+assert.equal(fullPublication.devices.length, 14);
 const localPublication = selectDevicesForPublication(releaseIndex, "guition_esp32_4848s040");
 assert.equal(localPublication.partial, true);
 assert.deepEqual(localPublication.devices.map((device) => device.key), ["guition_esp32_4848s040"]);
@@ -244,7 +245,7 @@ legacy7bRelease.assets = legacy7bRelease.assets.filter(
 );
 assert.throws(() => buildReleaseIndex(legacy7bRelease), /rev3_1/);
 const legacy7bIndex = buildReleaseIndex(legacy7bRelease, { allowMissingProfiles: true });
-assert.equal(legacy7bIndex.devices.length, 12);
+assert.equal(legacy7bIndex.devices.length, 13);
 assert.equal(
   legacy7bIndex.devices.some((device) => device.key === "waveshare_touch_lcd_7b"),
   true,
@@ -257,6 +258,7 @@ assert.equal(
 );
 const previousRelease = fixtureRelease("v0.6.7");
 const pendingDeviceKeys = new Set([
+  "waveshare_touch_lcd_4_3",
   "waveshare_touch_lcd_7b",
   "waveshare_touch_lcd_7b_rev3_1",
   "guition_jc1060p470c_v2",
@@ -671,6 +673,7 @@ assert.match(screensaverDocs, /longest edge at \*\*1920 pixels/);
 for (const [target, resolution] of [
   ["M5Stack Tab5", "1280×720"],
   ["Waveshare 4B / 86 Panel", "720×720"],
+  ["Waveshare Touch LCD 4.3 inch", "800×480"],
   ["Waveshare Touch LCD 7 inch", "1280×720"],
   ["Waveshare Touch LCD 7B / 7B-C", "1024×600"],
   ["Waveshare Touch LCD 8 inch", "1280×800"],

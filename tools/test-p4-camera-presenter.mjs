@@ -93,6 +93,14 @@ assert.match(
 
 const profiles = [
   {
+    file: 'src/devices/waveshare_touch_lcd_4_3/device_waveshare_touch_lcd_4_3.cpp',
+    header: 'src/devices/waveshare_touch_lcd_4_3/device_waveshare_touch_lcd_4_3.h',
+    qualified: 'DeviceWaveshareTouchLCD4_3::displayTryFullFramePreview',
+    transform: 'Transform::Portrait90Or270',
+    panel: [480, 800],
+    logical: [800, 480],
+  },
+  {
     file: 'src/devices/waveshare_touch_lcd_7/device_waveshare_touch_lcd_7.cpp',
     header: 'src/devices/waveshare_touch_lcd_7/device_waveshare_touch_lcd_7.h',
     qualified: 'DeviceWaveshareTouchLCD7::displayTryFullFramePreview',

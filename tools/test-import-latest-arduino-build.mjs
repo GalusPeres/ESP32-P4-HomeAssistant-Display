@@ -11,6 +11,10 @@ const {
 const releaseTargets = new Map([
   ['DEVICE_M5STACKS_TAB5', { key: 'm5stacks_tab5', siliconVariant: 'pre_v3' }],
   ['DEVICE_WAVESHARE_4B', { key: 'waveshare_4b', siliconVariant: 'pre_v3' }],
+  ['DEVICE_WAVESHARE_TOUCH_LCD_4_3', {
+    key: 'waveshare_touch_lcd_4_3',
+    siliconVariant: 'pre_v3',
+  }],
   ['DEVICE_WAVESHARE_TOUCH_LCD_7', {
     key: 'waveshare_touch_lcd_7',
     siliconVariant: 'pre_v3',

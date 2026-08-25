@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('tab5', 'waveshare_b4', 'waveshare_7', 'waveshare_7b', 'waveshare_7b_rev3_1', 'waveshare_8', 'waveshare_10_1', 'waveshare_s3_touch_lcd_4b', 'layout_test_1024x600', 'layout_test_480x480', 'guition_jc8012p4a1', 'guition_jc8012p4a1_v2', 'guition_jc1060p470c', 'guition_jc1060p470c_v2', 'guition_esp32_4848s040')]
+    [ValidateSet('tab5', 'waveshare_b4', 'waveshare_4_3', 'waveshare_7', 'waveshare_7b', 'waveshare_7b_rev3_1', 'waveshare_8', 'waveshare_10_1', 'waveshare_s3_touch_lcd_4b', 'layout_test_1024x600', 'layout_test_480x480', 'guition_jc8012p4a1', 'guition_jc8012p4a1_v2', 'guition_jc1060p470c', 'guition_jc1060p470c_v2', 'guition_esp32_4848s040')]
     [string]$Profile,
 
     [string]$OutputDirectory,
@@ -61,6 +61,10 @@ if ($LASTEXITCODE -ne 0) {
 if ($LASTEXITCODE -ne 0) {
     throw 'Waveshare ESP32-S3 Touch LCD 4B profile contract test failed.'
 }
+& $node.Source (Join-Path $PSScriptRoot 'test-waveshare-4-3-profile.mjs')
+if ($LASTEXITCODE -ne 0) {
+    throw 'Waveshare Touch LCD 4.3 profile contract test failed.'
+}
 & $node.Source (Join-Path $PSScriptRoot 'test-waveshare-10-brightness-floor.mjs')
 if ($LASTEXITCODE -ne 0) {
     throw 'Waveshare Touch LCD 10.1 brightness floor contract test failed.'
@@ -85,6 +89,7 @@ if ($LASTEXITCODE -ne 0) {
 $defines = @{
     tab5 = 'DEVICE_M5STACKS_TAB5'
     waveshare_b4 = 'DEVICE_WAVESHARE_4B'
+    waveshare_4_3 = 'DEVICE_WAVESHARE_TOUCH_LCD_4_3'
     waveshare_7 = 'DEVICE_WAVESHARE_TOUCH_LCD_7'
     waveshare_7b = 'DEVICE_WAVESHARE_TOUCH_LCD_7B'
     waveshare_7b_rev3_1 = 'DEVICE_WAVESHARE_TOUCH_LCD_7B'
