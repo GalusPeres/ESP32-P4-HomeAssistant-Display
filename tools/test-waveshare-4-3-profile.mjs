@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { DEVICE_PROFILES } from '../docs/assets/javascripts/installer-contract.mjs';
 
 function read(path) {
-  return fs.readFileSync(path, 'utf8');
+  return fs.readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
 }
 
 function requireMarker(source, marker, label) {
@@ -31,6 +31,7 @@ requireMarker(metadata, '"waveshare_touch_lcd_4_3"', 'firmware metadata');
 requireMarker(profile, '"waveshare_touch_lcd_4_3"', 'profile key');
 requireMarker(profile, '    800,\n    480,', 'landscape resolution');
 requireMarker(profile, '    5,\n    4,', 'compact grid');
+requireMarker(profile, '    10,\n    3,\n    150,\n    111,', 'compact grid geometry');
 requireMarker(profile, '    1,\n    Device::RotationStepMode::FlipOnly', 'brightness mapping');
 requireMarker(config, '    30000000,\n    500,\n    480,\n    800,', 'panel timing');
 requireMarker(config, '    7,\n    8,\n    400000,\n    27,', 'touch and reset pins');

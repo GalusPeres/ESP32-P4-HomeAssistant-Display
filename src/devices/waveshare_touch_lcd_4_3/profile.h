@@ -12,7 +12,7 @@ inline constexpr Device::Profile kProfile{
     5,
     4,
     10,
-    4,
+    3,
     150,
     111,
     4,
