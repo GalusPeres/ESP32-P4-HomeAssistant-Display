@@ -29,6 +29,7 @@ the **Screensaver** tab of the web admin and runs on every supported display.
 | --- | ---: |
 | M5Stack Tab5 | 1280×720 |
 | Waveshare 4B / 86 Panel | 720×720 |
+| Waveshare Touch LCD 4.3 inch | 800×480 |
 | Waveshare Touch LCD 7 inch | 1280×720 |
 | Waveshare Touch LCD 7B / 7B-C | 1024×600 |
 | Waveshare Touch LCD 8 inch | 1280×800 |

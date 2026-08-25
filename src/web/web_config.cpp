@@ -31,6 +31,8 @@ const char* apSsidForDevice() {
   return "Guition_4848S040_Config";
 #elif defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)
   return "Waveshare_S3_4B_Config";
+#elif defined(DEVICE_WAVESHARE_TOUCH_LCD_4_3)
+  return "Waveshare_LCD4_3_Config";
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_7)
   return "Waveshare_LCD7_Config";
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_7B)

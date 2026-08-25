@@ -23,6 +23,9 @@ namespace DeviceImpl = DeviceGuitionESP324848S040;
 #elif defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)
 #include "src/devices/waveshare_s3_touch_lcd_4b/device_waveshare_s3_touch_lcd_4b.h"
 namespace DeviceImpl = DeviceWaveshareS3TouchLCD4B;
+#elif defined(DEVICE_WAVESHARE_TOUCH_LCD_4_3)
+#include "src/devices/waveshare_touch_lcd_4_3/device_waveshare_touch_lcd_4_3.h"
+namespace DeviceImpl = DeviceWaveshareTouchLCD4_3;
 #elif defined(DEVICE_WAVESHARE_TOUCH_LCD_7)
 #include "src/devices/waveshare_touch_lcd_7/device_waveshare_touch_lcd_7.h"
 namespace DeviceImpl = DeviceWaveshareTouchLCD7;

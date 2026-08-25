@@ -103,6 +103,7 @@ protocol is required.
 
 | Exact device | Display | Test status |
 | --- | --- | --- |
+| [Waveshare ESP32-P4-WIFI6-Touch-LCD-4.3](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4.3.htm) | 4.3" 800×480 landscape | ESP32-P4 v1.3 hardware confirms display, touch, Wi-Fi, Web Admin, tile persistence, MQTT, Home Assistant discovery and Weather; microSD and OTA remain pending |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 7" 1280×720 | [Testing requested in #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7B.htm) | 7" 1024×600 | Explicit pre-v3 revisions 1–199 and experimental exact-v3.1 EK79007 images; exact-v3.1 hardware is unverified and testing is requested in [#7](https://github.com/GalusPeres/HomeTiles/issues/7) |
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 10.1" 1280×800 | Core display/touch/network/OTA reported working; corrected defaults, SD and Camera checks remain in [#7](https://github.com/GalusPeres/HomeTiles/issues/7) |
@@ -111,10 +112,10 @@ protocol is required.
 | Guition JC1060P470C V2 / New Panel | 7" 1024×600 | Basic operation reported working; corrected orientation and full release/OTA validation tracked in [issue #27](https://github.com/GalusPeres/HomeTiles/issues/27) |
 | [Waveshare ESP32-S3-Touch-LCD-4B](https://www.waveshare.com/esp32-s3-touch-lcd-4b.htm) | 4" 480×480 | Separate ESP32-S3 profile without microSD; validation tracked in [issue #26](https://github.com/GalusPeres/HomeTiles/issues/26) |
 
-Every release provides factory and OTA images for 13 explicit installer/release
-profiles covering twelve physical device profiles. The Waveshare 7B/7B-C has
+Every release provides factory and OTA images for 14 explicit installer/release
+profiles covering thirteen physical device profiles. The Waveshare 7B/7B-C has
 separate pre-v3 revisions 1–199 and exact-v3.1 entries, so the release contains
-13 builds and 26 firmware files. Other current P4 profiles use vendor-listed
+14 builds and 28 firmware files. Other current P4 profiles use vendor-listed
 P4NRW32/pre-v3 modules and are also guarded to revisions 1–199. HomeTiles'
 browser, Web Admin, and OTA paths enforce these ranges; v3.2 or newer is not
 supported. The notes above identify profiles whose complete hardware checklist

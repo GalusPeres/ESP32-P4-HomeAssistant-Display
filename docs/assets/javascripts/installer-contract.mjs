@@ -93,6 +93,17 @@ export const DEVICE_PROFILES = Object.freeze([
       "The label identifies an ESP32-P4-WIFI6-Touch-LCD-4B or ESP32-P4-86-Panel-ETH-2RO.",
   }),
   Object.freeze({
+    key: "waveshare_touch_lcd_4_3",
+    buildProfile: "waveshare_4_3",
+    label: "Waveshare Touch LCD 4.3 inch",
+    chipFamily: "ESP32-P4",
+    ...ESP32_P4_PRE_V3,
+    flashSize: MIB_32,
+    status: "validation-pending",
+    hardwareCheck:
+      "The exact product is ESP32-P4-WIFI6-Touch-LCD-4.3 with a 480x800 ST7701 panel and an ESP32-P4 revision before v3.0.",
+  }),
+  Object.freeze({
     key: "waveshare_touch_lcd_8",
     buildProfile: "waveshare_8",
     label: "Waveshare Touch LCD 8 inch",

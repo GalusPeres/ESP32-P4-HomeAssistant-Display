@@ -77,6 +77,7 @@ electrical suitability.
 | --- | --- | --- |
 | M5Stack Tab5 | GPIO EXT 0, 1, 49, 50; Port A 53, 54; M5-Bus 2, 3, 4, 16, 17, 45, 47, 48, 51, 52 | Profile-whitelisted; attached Units and M5-Bus modules can still create conflicts |
 | Waveshare 4B | P3 GPIO 2, 3, 4, 5, 21; 86 Panel relays GPIO 32 and 46 | P3 schematic-derived; onboard relays only for the exact 86-Panel-ETH-2RO |
+| Waveshare Touch LCD 4.3 inch | None | The exact board profile reserves its documented display, touch, microSD, USB and ESP-Hosted connections |
 | Waveshare 7 inch | GPIO 2, 3, 4, 5, 21, 22, 28, 29, 30, 31, 32, 34, 46, 47, 48, 49, 50, 51, 52 | Physical hardware validation needed |
 | Waveshare 8 inch | GPIO 2, 3, 4, 5, 21, 22, 28, 29, 30, 31, 32, 34, 46, 47, 48, 49, 50, 51, 52 | Profile-whitelisted; verify attached hardware |
 | Waveshare 10.1 inch | GPIO 2, 3, 4, 5, 21, 22, 28, 29, 30, 31, 32, 34, 46, 47, 48, 49, 50, 51, 52 | Physical hardware validation needed |

@@ -213,7 +213,7 @@ The local test continues to use the unchanged, SHA-256-verified assets from the
 currently published GitHub release. With `--device`, the selected explicit
 profile's factory and OTA files are downloaded. Each Waveshare 7B profile also
 downloads only its own pair. Without that option, the published site contains
-26 files for 13 explicit installer/release profiles covering twelve physical
+28 files for 14 explicit installer/release profiles covering thirteen physical
 device profiles.
 
 1. Build the documentation:
@@ -231,6 +231,7 @@ device profiles.
 
 The other valid `--device` values match the release file names:
 `m5stacks_tab5`, `waveshare_4b`, `waveshare_touch_lcd_7`,
+`waveshare_touch_lcd_4_3`,
 `waveshare_touch_lcd_7b`, `waveshare_touch_lcd_7b_rev3_1`,
 `waveshare_touch_lcd_8`,
 `waveshare_touch_lcd_10_1`, `waveshare_s3_touch_lcd_4b`,

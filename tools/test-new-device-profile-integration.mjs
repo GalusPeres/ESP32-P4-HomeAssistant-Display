@@ -26,6 +26,16 @@ const sources = {
 
 const profiles = [
   {
+    key: 'waveshare_touch_lcd_4_3',
+    profile: 'waveshare_4_3',
+    define: 'DEVICE_WAVESHARE_TOUCH_LCD_4_3',
+    chipFamily: 'ESP32-P4',
+    flashSize: 32 * 1024 * 1024,
+    activeMarker: 'waveshare_touch_lcd_4_3/device_waveshare_touch_lcd_4_3.h',
+    rxVariant: 'repo-a8204',
+    status: 'validation-pending',
+  },
+  {
     key: 'waveshare_touch_lcd_7b',
     profile: 'waveshare_7b',
     define: 'DEVICE_WAVESHARE_TOUCH_LCD_7B',
@@ -33,6 +43,7 @@ const profiles = [
     flashSize: 32 * 1024 * 1024,
     activeMarker: 'waveshare_touch_lcd_7b/device_waveshare_touch_lcd_7b.h',
     rxVariant: 'repo-a8204',
+    status: 'validation-pending',
   },
   {
     key: 'guition_jc1060p470c_v2',
@@ -42,6 +53,7 @@ const profiles = [
     flashSize: 16 * 1024 * 1024,
     activeMarker: 'guition_jc1060p470c_v2/device_guition_jc1060p470c_v2.h',
     rxVariant: 'repo-a8204',
+    status: 'validation-pending',
   },
   {
     key: 'waveshare_s3_touch_lcd_4b',
@@ -51,6 +63,7 @@ const profiles = [
     flashSize: 16 * 1024 * 1024,
     activeMarker: 'waveshare_s3_touch_lcd_4b/device_waveshare_s3_touch_lcd_4b.h',
     rxVariant: 'native-s3',
+    status: 'validation-pending',
   },
 ];
 
@@ -81,7 +94,7 @@ for (const expected of profiles) {
   assert.equal(installer.buildProfile, expected.profile);
   assert.equal(installer.chipFamily, expected.chipFamily);
   assert.equal(installer.flashSize, expected.flashSize);
-  assert.equal(installer.status, 'validation-pending');
+  assert.equal(installer.status, expected.status);
 }
 
 assert.match(
@@ -94,6 +107,6 @@ requireMarker(
   "if: matrix.rx_variant != 'native-s3'",
   'native-S3 CI marker scope',
 );
-requireMarker(sources.workflow, '-eq 26', '13-build release asset count');
+requireMarker(sources.workflow, '-eq 28', '14-build release asset count');
 
 console.log('New device profile integration contract: PASS');
