@@ -10,6 +10,8 @@ param(
     [ValidateSet('auto', 'repo-short-tail', 'repo-a8204')]
     [string]$EspHostedRxVariant = 'auto',
 
+    [string]$GuitionS3SdkPath,
+
     [switch]$Clean
 )
 
@@ -56,6 +58,10 @@ if ($LASTEXITCODE -ne 0) {
 & $node.Source (Join-Path $PSScriptRoot 'test-guition-s3-update-check-resync.mjs')
 if ($LASTEXITCODE -ne 0) {
     throw 'Guition S3 update-check display guard test failed.'
+}
+& $node.Source (Join-Path $PSScriptRoot 'test-guition-s3-performance-sdk.mjs')
+if ($LASTEXITCODE -ne 0) {
+    throw 'Guition S3 performance SDK contract test failed.'
 }
 & $node.Source (Join-Path $PSScriptRoot 'test-admin-cover-editor.mjs')
 if ($LASTEXITCODE -ne 0) {
@@ -131,6 +137,38 @@ $nativeS3Profiles = @(
 )
 $isNativeS3 = $Profile -in $nativeS3Profiles
 
+$guitionSdkBuildArgs = @()
+if ($GuitionS3SdkPath) {
+    if ($Profile -ne 'guition_esp32_4848s040') {
+        throw 'The custom Guition S3 SDK may only be used with the guition_esp32_4848s040 profile.'
+    }
+
+    $resolvedGuitionS3SdkPath = (Resolve-Path -LiteralPath $GuitionS3SdkPath).Path
+    foreach ($requiredPath in @('sdkconfig', 'flags', 'include', 'lib', 'ld', 'bin', 'qio_opi')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $resolvedGuitionS3SdkPath $requiredPath))) {
+            throw "The custom Guition S3 SDK is incomplete: missing $requiredPath"
+        }
+    }
+
+    $performanceSdkConfig = Get-Content -LiteralPath (Join-Path $resolvedGuitionS3SdkPath 'sdkconfig')
+    foreach ($requiredConfig in @(
+        'CONFIG_COMPILER_OPTIMIZATION_PERF=y',
+        'CONFIG_SPIRAM_XIP_FROM_PSRAM=y',
+        'CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y'
+    )) {
+        if ($performanceSdkConfig -notcontains $requiredConfig) {
+            throw "The custom Guition S3 SDK is missing: $requiredConfig"
+        }
+    }
+
+    $guitionSdkBuildArgs += '--build-property'
+    $guitionSdkBuildArgs += "compiler.sdk.path=$resolvedGuitionS3SdkPath"
+    $guitionSdkBuildArgs += '--build-property'
+    $guitionSdkBuildArgs += 'compiler.optimization_flags=-O2'
+    $guitionSdkBuildArgs += '--build-property'
+    $guitionSdkBuildArgs += 'compiler.optimization_flags.release=-O2'
+}
+
 $profileLines = Get-Content -LiteralPath $sketchProfiles
 $insideProfile = $false
 $fqbn = $null
@@ -186,7 +224,7 @@ try {
     if ($Clean) {
         $cleanArgs += '--clean'
     }
-    & $arduinoCli compile @cleanArgs `
+    & $arduinoCli compile @cleanArgs @guitionSdkBuildArgs `
         --fqbn $fqbn `
         --export-binaries `
         --output-dir $OutputDirectory `
@@ -231,8 +269,16 @@ if (-not $stringsTool) {
     throw "$stringsToolName was not found."
 }
 
+$firmwareStrings = & $stringsTool $firmwareBin
+if ($GuitionS3SdkPath) {
+    $performanceDisplayMarker = $firmwareStrings |
+        Select-String -SimpleMatch 'release-xip-bounce10'
+    if (-not $performanceDisplayMarker) {
+        throw "Guition S3 performance display marker missing from $firmwareBin"
+    }
+}
+
 if (-not $isNativeS3) {
-    $firmwareStrings = & $stringsTool $firmwareBin
     $fatalAssertions = $firmwareStrings |
         Select-String -Pattern 'pkt_rxbuff|copy_buff'
     if ($fatalAssertions) {

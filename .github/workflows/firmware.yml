@@ -216,6 +216,9 @@ jobs:
       - name: Verify Guition S3 update-check display guard
         run: node tools/test-guition-s3-update-check-resync.mjs
 
+      - name: Verify Guition S3 performance SDK contract
+        run: node tools/test-guition-s3-performance-sdk.mjs
+
       - name: Verify Guition JC8012 V2 profile contract
         run: node tools/test-guition-jc8012-v2-profile.mjs
 
