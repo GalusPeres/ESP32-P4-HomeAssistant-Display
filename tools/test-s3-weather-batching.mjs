@@ -6,7 +6,7 @@ const weather = fs.readFileSync(
 
 assert.match(
   weather,
-  /#if defined\(DEVICE_ESP32_S3_RGB_480\)\s+constexpr int kHourlyParseBatchSize = 12;\s+#else\s+constexpr int kHourlyParseBatchSize = kHourlyForecastMax;/,
+  /#if defined\(DEVICE_ESP32_S3_RGB_480\)\s+constexpr int kHourlyParseBatchSize = 12;\s+constexpr int kHourlyInputObjectLimit = kHourlyForecastMax;\s+#else\s+constexpr int kHourlyParseBatchSize = 0;\s+constexpr int kHourlyInputObjectLimit = 0;/,
   'Only the S3 RGB family should split hourly weather parsing');
 
 const batchStart = weather.indexOf('static bool parse_weather_hourly_batch(');
@@ -19,7 +19,7 @@ assert.match(batch, /objects_processed < kHourlyParseBatchSize/,
 assert.match(batch, /g_pending_weather\.hourly_count < kHourlyForecastMax/,
              'Hourly parsing must enforce the model size limit');
 assert.match(batch,
-             /g_pending_weather\.hourly_objects_seen < kHourlyForecastMax/,
+             /g_pending_weather\.hourly_objects_seen < kHourlyInputObjectLimit/,
              'Malformed objects must not extend work beyond the input limit');
 assert.match(batch,
              /next_json_object_in_array\(g_pending_weather\.payload,/,
@@ -76,6 +76,15 @@ assert.match(
   process,
   /has_rendered_data &&[\s\S]*!g_weather_popup_ctx->rendered_entity_id\.equalsIgnoreCase\([\s\S]*g_weather_popup_ctx->has_rendered_data = false;[\s\S]*rendered_entity_id\.remove\(0\);/,
   'Parsing entity B must invalidate entity A model metadata before replacement');
+const finalBuild = process.slice(buildPhase, navPhase);
+const finalHeader = finalBuild.indexOf(
+  'apply_weather_header(g_weather_popup_ctx, g_pending_weather.payload);');
+const finalGraph = finalBuild.indexOf('build_weather_ui(');
+const commitLanguage = finalBuild.indexOf('rendered_language =');
+const releasePayload = finalBuild.indexOf('g_pending_weather.payload.remove(0);');
+assert.ok(finalHeader >= 0 && finalGraph > finalHeader &&
+          commitLanguage > finalGraph && releasePayload > commitLanguage,
+          'Final build must translate the header before committing language and releasing payload');
 
 const showStart = weather.indexOf('void show_weather_popup(');
 const preloadStart = weather.indexOf('void preload_weather_popup(', showStart);
@@ -100,9 +109,10 @@ assert.ok((weather.match(/weather_refresh_in_progress\(ctx\)/g) ?? []).length >=
           'Callbacks must not consume a partially replaced weather model');
 
 class WeatherWorkModel {
-  constructor(batchSize = 12, maxHours = 168) {
+  constructor(batchSize = 12, maxHours = 168, inputLimit = 168) {
     this.batchSize = batchSize;
     this.maxHours = maxHours;
+    this.inputLimit = inputLimit;
     this.queued = null;
     this.active = null;
     this.rendered = 'old';
@@ -126,9 +136,9 @@ class WeatherWorkModel {
     if (!this.active) return false;
 
     let processed = 0;
-    while (processed < this.batchSize &&
+    while ((!this.batchSize || processed < this.batchSize) &&
            this.active.cursor < this.active.objects.length &&
-           this.active.cursor < this.maxHours &&
+           (!this.inputLimit || this.active.cursor < this.inputLimit) &&
            this.active.accepted < this.maxHours) {
       if (this.active.objects[this.active.cursor]) this.active.accepted++;
       this.active.cursor++;
@@ -137,7 +147,7 @@ class WeatherWorkModel {
     this.maxObjectsInCall = Math.max(this.maxObjectsInCall, processed);
 
     if (this.active.cursor >= this.active.objects.length ||
-        this.active.cursor >= this.maxHours ||
+        (this.inputLimit && this.active.cursor >= this.inputLimit) ||
         this.active.accepted >= this.maxHours) {
       this.rendered = `${this.active.entity}:${this.active.revision}`;
       this.active = null;
@@ -189,11 +199,19 @@ assert.equal(malformedCalls, 14,
              'Malformed input must stop after 168 inspected objects');
 assert.equal(malformedLarge.maxObjectsInCall, 12);
 
-const p4 = new WeatherWorkModel(168);
+const p4 = new WeatherWorkModel(0, 168, 0);
 p4.queue('weather.home', 'P4', Array(168).fill(true));
 assert.equal(p4.process(), true,
              'P4 must retain one-pass parsing for a normal 168-hour payload');
 assert.equal(p4.maxObjectsInCall, 168);
+
+const p4Partial = new WeatherWorkModel(0, 168, 0);
+const partialP4Hours = Array(180).fill(true);
+partialP4Hours.splice(0, 12, ...Array(12).fill(false));
+p4Partial.queue('weather.home', 'P4-partial', partialP4Hours);
+assert.equal(p4Partial.process(), true,
+             'P4 must retain one-pass parsing when invalid objects precede 168 valid hours');
+assert.equal(p4Partial.maxObjectsInCall, 180);
 
 // The popup owns one shared parsed model. Starting B after rendering A must
 // invalidate A's model identity before B writes its first partial batch. If B

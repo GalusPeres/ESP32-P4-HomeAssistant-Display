@@ -37,8 +37,10 @@ constexpr int kForecastTempPointCount = (kCols * kForecastHoursPerDay) + 1;
 constexpr int kHourlyForecastMax = 168;
 #if defined(DEVICE_ESP32_S3_RGB_480)
 constexpr int kHourlyParseBatchSize = 12;
+constexpr int kHourlyInputObjectLimit = kHourlyForecastMax;
 #else
-constexpr int kHourlyParseBatchSize = kHourlyForecastMax;
+constexpr int kHourlyParseBatchSize = 0;
+constexpr int kHourlyInputObjectLimit = 0;
 #endif
 constexpr int kDetailMarkerCount = 5;
 constexpr int kDetailChartPointCount = 25;
@@ -2854,8 +2856,10 @@ static bool parse_weather_hourly_batch(WeatherPopupContext* ctx) {
 
   int objects_processed = 0;
   String obj;
-  while (objects_processed < kHourlyParseBatchSize &&
-         g_pending_weather.hourly_objects_seen < kHourlyForecastMax &&
+  while ((kHourlyParseBatchSize == 0 ||
+          objects_processed < kHourlyParseBatchSize) &&
+         (kHourlyInputObjectLimit == 0 ||
+          g_pending_weather.hourly_objects_seen < kHourlyInputObjectLimit) &&
          g_pending_weather.hourly_count < kHourlyForecastMax) {
     if (!next_json_object_in_array(g_pending_weather.payload,
                                    g_pending_weather.hourly_cursor, obj)) {
@@ -2866,7 +2870,9 @@ static bool parse_weather_hourly_batch(WeatherPopupContext* ctx) {
     parse_hourly_weather_object(ctx, obj, g_pending_weather.hourly_count);
   }
 
-  return g_pending_weather.hourly_objects_seen >= kHourlyForecastMax ||
+  return (kHourlyInputObjectLimit != 0 &&
+          g_pending_weather.hourly_objects_seen >=
+              kHourlyInputObjectLimit) ||
          g_pending_weather.hourly_count >= kHourlyForecastMax;
 }
 
@@ -4323,7 +4329,6 @@ void process_weather_popup_queue() {
       if (!g_pending_weather.parse_hourly_pending ||
           parse_weather_hourly_batch(g_weather_popup_ctx)) {
         g_pending_weather.parse_hourly_pending = false;
-        g_pending_weather.payload.remove(0);
         g_pending_weather.build_ui_pending = true;
         Serial.printf(
             "[WeatherPopup] Data parsed in %u ms, %u bytes (%s)\n",
@@ -4343,12 +4348,11 @@ void process_weather_popup_queue() {
   }
 
   // Phase 1b: S3 parses only a small number of hourly objects per UI cycle.
-  // Other profiles use a full-size batch and therefore retain their previous
-  // one-pass parse behavior.
+  // Other profiles have no per-cycle input limit and therefore retain their
+  // previous one-pass parse behavior.
   if (g_pending_weather.parse_hourly_pending) {
     if (parse_weather_hourly_batch(g_weather_popup_ctx)) {
       g_pending_weather.parse_hourly_pending = false;
-      g_pending_weather.payload.remove(0);
       g_pending_weather.build_ui_pending = true;
       Serial.printf(
           "[WeatherPopup] Data parsed in %u ms, %u bytes (%s)\n",
@@ -4366,6 +4370,10 @@ void process_weather_popup_queue() {
     if (g_weather_popup_ctx->entity_id.equalsIgnoreCase(
             g_pending_weather.build_entity_id)) {
       const uint32_t started_ms = millis();
+      // Parsing can span several S3 frames. Reapply the lightweight header at
+      // completion so a language change during that interval is reflected in
+      // the header and the graph before rendered_language is committed.
+      apply_weather_header(g_weather_popup_ctx, g_pending_weather.payload);
       const WeatherPopupViewMode build_mode =
           g_pending_weather.pending_day_nav >= 0
               ? WeatherPopupViewMode::Week
@@ -4389,6 +4397,7 @@ void process_weather_popup_queue() {
     g_pending_weather.build_entity_id.remove(0);
     g_pending_weather.build_payload_hash = 0;
     g_pending_weather.build_payload_length = 0;
+    g_pending_weather.payload.remove(0);
     g_pending_weather.parse_started_ms = 0;
     g_pending_weather.previous_selected_date.remove(0);
     g_pending_weather.previous_mode = WeatherPopupViewMode::Week;
