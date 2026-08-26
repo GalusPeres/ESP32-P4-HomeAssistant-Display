@@ -124,6 +124,18 @@ void prepareForRestart() {
   DeviceImpl::prepareForRestart();
 }
 
+void displayUpdateCheckGuardBegin() {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  DeviceImpl::displayUpdateCheckGuardBegin();
+#endif
+}
+
+void displayUpdateCheckGuardEnd() {
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  DeviceImpl::displayUpdateCheckGuardEnd();
+#endif
+}
+
 bool initSDCard() {
   g_sd_ready_cached = DeviceImpl::initSDCard();
   return g_sd_ready_cached;

@@ -149,6 +149,10 @@ constexpr uint32_t kSdRetryMs = 1500;
 // large SD/JPEG/PSRAM operations. Ten MHz retains smooth UI updates while
 // restoring the margin used by the previously stable Guition build.
 constexpr uint32_t kRgbPclkHz = 10000000;
+// Espressif explicitly recommends reducing PCLK while RGB scanout competes
+// with network/OTA traffic. Six MHz leaves substantial PSRAM/GDMA headroom
+// while the synchronous version check is active.
+constexpr uint32_t kUpdateCheckRgbPclkHz = 6000000;
 constexpr size_t kRgbBounceBufferPixels =
     480 * HOMETILES_GUITION_S3_RGB_BOUNCE_ROWS;
 constexpr uint32_t kRgbHorizontalTotal = 480 + 10 + 8 + 50;
@@ -172,6 +176,7 @@ const uint8_t kPanelCd08OverrideOperations[] = {
     WRITE_BYTES, 5, 0x77, 0x01, 0x00, 0x00, 0x00,
     END_WRITE};
 #endif
+
 #if defined(CONFIG_COMPILER_OPTIMIZATION_PERF) && \
     CONFIG_COMPILER_OPTIMIZATION_PERF
 constexpr const char* kCompilerOptimization = "O2";
@@ -464,6 +469,27 @@ class GuitionAtomicRgbDisplay final : public Arduino_RGB_Display {
     return err;
   }
 
+  esp_err_t setPixelClockAndResynchronize(uint32_t pclk_hz,
+                                          uint32_t& wait_ms) {
+    wait_ms = 0;
+    if (!canonicalizeForStorage()) {
+      storage_transition_ = false;
+      return ESP_ERR_INVALID_STATE;
+    }
+
+    const esp_err_t pclk_result =
+        esp_lcd_rgb_panel_set_pclk(panel_handle_, pclk_hz);
+    if (pclk_result != ESP_OK) {
+      storage_transition_ = false;
+      return pclk_result;
+    }
+
+    // VSYNC is normally masked because Arduino-ESP32 restarts S3 RGB DMA on
+    // every VSYNC. The existing one-shot path lets IDF apply the pending PCLK
+    // at a real frame boundary and restarts through the canonical FB0 once.
+    return restartAfterStorage(wait_ms);
+  }
+
   uint16_t* framebuffer(uint8_t index) const {
     return index < 2 ? framebuffers_[index] : nullptr;
   }
@@ -559,6 +585,7 @@ uint8_t g_touch_address = 0;
 uint16_t g_storage_write_depth = 0;
 bool g_storage_blackout_active = false;
 bool g_storage_restart_required = false;
+bool g_update_check_display_guard_active = false;
 uint8_t g_storage_restore_brightness = 0;
 uint32_t g_storage_guard_started_ms = 0;
 bool g_touch_active = false;
@@ -912,6 +939,47 @@ bool DeviceGuitionESP324848S040::displayTryFullFramePreview(
 bool DeviceGuitionESP324848S040::displayBeginAtomicFrame(
     const char* reason) {
   return g_display_ready && g_gfx && g_gfx->beginAtomicFrame(reason);
+}
+
+void DeviceGuitionESP324848S040::displayUpdateCheckGuardBegin() {
+  if (g_update_check_display_guard_active || !g_display_ready || !g_gfx) {
+    return;
+  }
+  g_update_check_display_guard_active = true;
+
+  uint32_t wait_ms = 0;
+  const esp_err_t result =
+      g_gfx->setPixelClockAndResynchronize(kUpdateCheckRgbPclkHz, wait_ms);
+  if (result == ESP_OK) {
+    Serial.printf(
+        "[Display/S3] Update-check PCLK reduced to %u MHz in %lu ms\n",
+        static_cast<unsigned>(kUpdateCheckRgbPclkHz / 1000000U),
+        static_cast<unsigned long>(wait_ms));
+  } else {
+    Serial.printf(
+        "[Display/S3] Update-check PCLK reduction failed: %s (0x%X)\n",
+        esp_err_to_name(result), static_cast<unsigned>(result));
+  }
+}
+
+void DeviceGuitionESP324848S040::displayUpdateCheckGuardEnd() {
+  if (!g_update_check_display_guard_active) return;
+  g_update_check_display_guard_active = false;
+  if (!g_display_ready || !g_gfx) return;
+
+  uint32_t wait_ms = 0;
+  const esp_err_t result =
+      g_gfx->setPixelClockAndResynchronize(kRgbPclkHz, wait_ms);
+  if (result == ESP_OK) {
+    Serial.printf(
+        "[Display/S3] Update-check PCLK restored to %u MHz in %lu ms\n",
+        static_cast<unsigned>(kRgbPclkHz / 1000000U),
+        static_cast<unsigned long>(wait_ms));
+  } else {
+    Serial.printf(
+        "[Display/S3] Update-check PCLK restore failed: %s (0x%X)\n",
+        esp_err_to_name(result), static_cast<unsigned>(result));
+  }
 }
 
 void DeviceGuitionESP324848S040::displayWaitDMA() {}

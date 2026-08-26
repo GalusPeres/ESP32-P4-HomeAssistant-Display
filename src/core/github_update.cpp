@@ -127,36 +127,38 @@ class PsramStageBuffer {
   size_t capacity_ = 0;
 };
 
-// Der vorgebaute ESP32-P4-Arduino-Core ist mit
-// CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC gebaut. Dadurch landen selbst die grossen,
-// nur fuer einen HTTPS-Handshake benoetigten mbedTLS-Bloecke im knappen
-// internen RAM, obwohl reichlich PSRAM frei ist. Fuer den kurzen
-// Versions-Check darf mbedTLS deshalb PSRAM bevorzugen. Der Fallback auf den
-// normalen ESP-Allocator bleibt erhalten, falls eine Allokation aus PSRAM
-// wider Erwarten nicht moeglich ist.
+// P4 needs its scarce internal RAM kept free during HTTPS, so it retains the
+// established PSRAM-first policy. On S3 RGB boards, TLS and the continuously
+// scanned framebuffers would otherwise compete on the same PSRAM bus; prefer
+// internal RAM there and retain PSRAM only as an allocation fallback.
 void* checkTlsInternalCalloc(size_t count, size_t size) {
   return heap_caps_calloc(count, size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 }
 
-void* checkTlsPsramCalloc(size_t count, size_t size) {
+void* checkTlsPreferredCalloc(size_t count, size_t size) {
+#if defined(DEVICE_ESP32_S3_RGB_480)
+  void* ptr = checkTlsInternalCalloc(count, size);
+  return ptr ? ptr : heap_caps_calloc(
+                         count, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+#else
   void* ptr = heap_caps_calloc(count, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   return ptr ? ptr : checkTlsInternalCalloc(count, size);
+#endif
 }
 
 void checkTlsHeapFree(void* ptr) {
   heap_caps_free(ptr);
 }
 
-class ScopedCheckTlsPsramAllocator {
+class ScopedCheckTlsAllocator {
  public:
-  ScopedCheckTlsPsramAllocator()
-      : active_(mbedtls_platform_set_calloc_free(checkTlsPsramCalloc,
+  ScopedCheckTlsAllocator()
+      : active_(mbedtls_platform_set_calloc_free(checkTlsPreferredCalloc,
                                                  checkTlsHeapFree) == 0) {}
 
-  ~ScopedCheckTlsPsramAllocator() {
+  ~ScopedCheckTlsAllocator() {
     if (active_) {
-      // Entspricht CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC des verwendeten
-      // Arduino-Cores.
+      // This matches CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC in the selected cores.
       mbedtls_platform_set_calloc_free(checkTlsInternalCalloc,
                                        checkTlsHeapFree);
     }
@@ -683,14 +685,18 @@ CheckResult checkLatest() {
     return result;
   }
 
-  // Der Guard lebt laenger als NetworkClientSecure und HTTPClient. Deren
-  // Destruktoren geben daher alle PSRAM-basierten TLS-Bloecke frei, bevor der
-  // globale mbedTLS-Allocator wieder auf den Core-Standard zurueckgestellt
-  // wird. Beide Free-Funktionen verwenden den ESP-Heap und koennen sowohl
-  // interne als auch externe Bloecke freigeben.
-  ScopedCheckTlsPsramAllocator tls_allocator;
-  Serial.printf("[Update] Check: TLS-Allokationen %s\n",
-                tls_allocator.active() ? "PSRAM bevorzugt" : "Core-Standard");
+  // The guard outlives NetworkClientSecure and HTTPClient, so every temporary
+  // TLS block is released before the global allocator is restored.
+  ScopedCheckTlsAllocator tls_allocator;
+#if defined(DEVICE_ESP32_S3_RGB_480)
+  constexpr const char* kTlsPreference =
+      "internal RAM first, PSRAM fallback";
+#else
+  constexpr const char* kTlsPreference =
+      "PSRAM first, internal RAM fallback";
+#endif
+  Serial.printf("[Update] Check: TLS allocator %s\n",
+                tls_allocator.active() ? kTlsPreference : "core default");
 
   // GitHub- und CDN-Zertifikate rotieren regelmaessig; eine eingebrannte
   // CA-Liste waere beim ersten Wechsel tot. Fuer Firmware von der eigenen

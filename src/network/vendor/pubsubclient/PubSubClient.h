@@ -48,6 +48,7 @@
 
 // Possible values for client.state()
 #define MQTT_CONNECTION_TIMEOUT     -4
+#define MQTT_MALFORMED_PACKET       -5
 #define MQTT_CONNECTION_LOST        -3
 #define MQTT_CONNECT_FAILED         -2
 #define MQTT_DISCONNECTED           -1

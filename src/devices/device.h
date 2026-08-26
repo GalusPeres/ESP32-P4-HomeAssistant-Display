@@ -98,6 +98,11 @@ void displayPowerSaveOff();
 void displayWaitDisplay();
 void prepareForRestart();
 
+// Exact-device guard for network work that can contend with RGB scanout.
+// It is a no-op on profiles without a proven hardware requirement.
+void displayUpdateCheckGuardBegin();
+void displayUpdateCheckGuardEnd();
+
 bool initSDCard();
 bool storageReady();
 fs::FS& storageFS();

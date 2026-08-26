@@ -3047,9 +3047,11 @@ static void open_settings_popup(SettingsPopupKind kind) {
   lv_obj_move_foreground(settings_popup_overlay);
   lv_obj_invalidate(settings_popup_overlay);
 
+#if !defined(DEVICE_ESP32_S3_RGB_480)
   if (lv_display_t* disp = lv_display_get_default()) {
     lv_refr_now(disp);
   }
+#endif
 }
 
 static void on_settings_tile_clicked(lv_event_t* e) {

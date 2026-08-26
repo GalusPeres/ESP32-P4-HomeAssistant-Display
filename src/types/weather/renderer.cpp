@@ -435,11 +435,18 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
       init.entity_id = data->entity_id;
       init.title = title;
       init.bg_color = data->bg_color;
+#if defined(DEVICE_ESP32_S3_RGB_480)
+      // The S3 RGB path must not spend a separate full refresh on the released
+      // tile. Show the prepared card/header now; cached forecast parsing and
+      // the heavier child rebuild remain in the existing two-phase queue.
+      open_current_weather_popup(e, init);
+#else
       if (weather_popup_has_current_cached_payload(init.entity_id.c_str())) {
         open_current_weather_popup(e, init);
       } else {
         defer_popup_until_source_refreshed(e, init, show_weather_popup);
       }
+#endif
     };
 
     lv_obj_add_event_cb(card, show_popup, LV_EVENT_ALL, data);

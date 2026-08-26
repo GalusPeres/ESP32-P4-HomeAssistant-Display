@@ -7,6 +7,7 @@
 
 #include "PubSubClient.h"
 #include "Arduino.h"
+#include "src/network/mqtt_packet_safety.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #if defined(ARDUINO_ARCH_ESP32)
@@ -345,36 +346,51 @@ boolean PubSubClient::readByte(uint8_t * result, uint16_t * index){
 }
 
 uint32_t PubSubClient::readPacket(uint8_t* lengthLength) {
+    const auto abortPacket = [this](int state) -> uint32_t {
+        this->_state = state;
+        this->_client->stop();
+        return 0;
+    };
+
     uint16_t len = 0;
-    if(!readByte(this->buffer, &len)) return 0;
+    if(!readByte(this->buffer, &len)) return abortPacket(MQTT_CONNECTION_TIMEOUT);
     bool isPublish = (this->buffer[0]&0xF0) == MQTTPUBLISH;
     uint32_t multiplier = 1;
     uint32_t length = 0;
     uint8_t digit = 0;
-    uint16_t skip = 0;
+    uint32_t skip = 0;
     uint32_t start = 0;
 
     do {
         if (len == 5) {
             // Invalid remaining length encoding - kill the connection
-            _state = MQTT_DISCONNECTED;
-            _client->stop();
-            return 0;
+            return abortPacket(MQTT_MALFORMED_PACKET);
         }
-        if(!readByte(&digit)) return 0;
+        if(!readByte(&digit)) return abortPacket(MQTT_CONNECTION_TIMEOUT);
         this->buffer[len++] = digit;
         length += (digit & 127) * multiplier;
         multiplier <<=7; //multiplier *= 128
     } while ((digit & 128) != 0);
     *lengthLength = len-1;
 
+    if (!this->stream && !hometiles_mqtt::packetFitsBuffer(
+            len, length, this->bufferSize)) {
+        return abortPacket(MQTT_MALFORMED_PACKET);
+    }
+
     if (isPublish) {
         // Read in topic length to calculate bytes to skip over for Stream writing
-        if(!readByte(this->buffer, &len)) return 0;
-        if(!readByte(this->buffer, &len)) return 0;
+        if (length < 2U) return abortPacket(MQTT_MALFORMED_PACKET);
+        if(!readByte(this->buffer, &len)) return abortPacket(MQTT_CONNECTION_TIMEOUT);
+        if(!readByte(this->buffer, &len)) return abortPacket(MQTT_CONNECTION_TIMEOUT);
         skip = (this->buffer[*lengthLength+1]<<8)+this->buffer[*lengthLength+2];
+        const uint8_t qos_bits = this->buffer[0] & hometiles_mqtt::kQosMask;
+        if (!hometiles_mqtt::publishRemainingLengthIsValid(
+                length, skip, qos_bits)) {
+            return abortPacket(MQTT_MALFORMED_PACKET);
+        }
         start = 2;
-        if (this->buffer[0]&MQTTQOS1) {
+        if (qos_bits == MQTTQOS1) {
             // skip message id
             skip += 2;
         }
@@ -382,7 +398,7 @@ uint32_t PubSubClient::readPacket(uint8_t* lengthLength) {
     uint32_t idx = len;
 
     for (uint32_t i = start;i<length;i++) {
-        if(!readByte(&digit)) return 0;
+        if(!readByte(&digit)) return abortPacket(MQTT_CONNECTION_TIMEOUT);
         if (this->stream) {
             if (isPublish && idx-*lengthLength-2>skip) {
                 this->stream->write(digit);
@@ -442,15 +458,28 @@ boolean PubSubClient::loop() {
                 uint8_t type = this->buffer[0]&0xF0;
                 if (type == MQTTPUBLISH) {
                     if (callback) {
-                        uint16_t tl = (this->buffer[llen+1]<<8)+this->buffer[llen+2]; /* topic length in bytes */
-                        memmove(this->buffer+llen+2,this->buffer+llen+3,tl); /* move topic inside buffer 1 byte to front */
-                        this->buffer[llen+2+tl] = 0; /* end the topic as a 'C' string with \x00 */
-                        char *topic = (char*) this->buffer+llen+2;
-                        // msgId only present for QOS>0
-                        if ((this->buffer[0]&0x06) == MQTTQOS1) {
-                            msgId = (this->buffer[llen+3+tl]<<8)+this->buffer[llen+3+tl+1];
-                            payload = this->buffer+llen+3+tl+2;
-                            callback(topic,payload,len-llen-3-tl-2);
+                        hometiles_mqtt::PublishPacketLayout layout;
+                        if (!hometiles_mqtt::computePublishPacketLayout(
+                                this->buffer, len, this->bufferSize, llen,
+                                &layout)) {
+                            this->_state = MQTT_MALFORMED_PACKET;
+                            _client->stop();
+                            return false;
+                        }
+
+                        memmove(this->buffer + layout.topic_callback_offset,
+                                this->buffer + layout.topic_source_offset,
+                                layout.topic_length);
+                        this->buffer[layout.topic_callback_offset +
+                                     layout.topic_length] = 0;
+                        char *topic = reinterpret_cast<char*>(
+                            this->buffer + layout.topic_callback_offset);
+                        payload = this->buffer + layout.payload_offset;
+
+                        if (layout.qos_bits == MQTTQOS1) {
+                            msgId = (this->buffer[layout.packet_id_offset]<<8)+
+                                    this->buffer[layout.packet_id_offset+1];
+                            callback(topic, payload, layout.payload_length);
 
                             this->buffer[0] = MQTTPUBACK;
                             this->buffer[1] = 2;
@@ -460,8 +489,7 @@ boolean PubSubClient::loop() {
                             lastOutActivity = t;
 
                         } else {
-                            payload = this->buffer+llen+3+tl;
-                            callback(topic,payload,len-llen-3-tl);
+                            callback(topic, payload, layout.payload_length);
                         }
                     }
                 } else if (type == MQTTPINGREQ) {

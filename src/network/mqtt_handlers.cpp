@@ -1,4 +1,5 @@
 #include "src/network/mqtt_handlers.h"
+#include "src/network/mqtt_packet_safety.h"
 #include "src/network/mqtt_topics.h"
 #include "src/network/network_manager.h"
 #include "src/network/ha_bridge_config.h"
@@ -1451,9 +1452,37 @@ static QueueHandle_t mqttInboundQueue() {
 
 // One allocation per message, laid out as [MqttInboundMsg][topic\0][payload].
 // PSRAM preferred (freed by the drainer after processMqttMessage()).
-static MqttInboundMsg* mqttAllocInbound(const char* topic, const uint8_t* payload, unsigned int length) {
-  const size_t topic_len = topic ? strlen(topic) : 0;
-  const size_t total = sizeof(MqttInboundMsg) + topic_len + 1 + length;
+static MqttInboundMsg* mqttAllocInbound(const char* topic,
+                                        const uint8_t* payload,
+                                        unsigned int length,
+                                        size_t packet_capacity,
+                                        bool* invalid_out) {
+  if (invalid_out) *invalid_out = false;
+
+  // The callback topic starts at most MQTT_MAX_HEADER_SIZE + 1 bytes into the
+  // PubSubClient buffer. Keep the bounded scan inside that buffer even if a
+  // future parser regression forgets the terminator.
+  const size_t topic_prefix_reserve = MQTT_MAX_HEADER_SIZE + 1U;
+  if (!topic || (!payload && length != 0) ||
+      packet_capacity <= topic_prefix_reserve) {
+    if (invalid_out) *invalid_out = true;
+    return nullptr;
+  }
+  const size_t topic_scan_limit = packet_capacity - topic_prefix_reserve;
+  const size_t topic_len = strnlen(topic, topic_scan_limit);
+  if (topic_len == 0 || topic_len == topic_scan_limit) {
+    if (invalid_out) *invalid_out = true;
+    return nullptr;
+  }
+
+  size_t total = 0;
+  if (!hometiles_mqtt::checkedInboundAllocationSize(
+          sizeof(MqttInboundMsg), topic_len, length, packet_capacity,
+          &total)) {
+    if (invalid_out) *invalid_out = true;
+    return nullptr;
+  }
+
   uint8_t* block = static_cast<uint8_t*>(heap_caps_malloc(total, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   if (!block) block = static_cast<uint8_t*>(heap_caps_malloc(total, MALLOC_CAP_8BIT));
   if (!block) return nullptr;
@@ -1527,9 +1556,27 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
   }
 
   QueueHandle_t q = mqttInboundQueue();
-  MqttInboundMsg* msg = q ? mqttAllocInbound(topic, payload, length) : nullptr;
+  bool invalid = false;
+  const size_t packet_capacity = networkManager.getMqttBufferSize();
+  MqttInboundMsg* msg =
+      q ? mqttAllocInbound(topic, payload, length, packet_capacity, &invalid)
+        : nullptr;
+  if (invalid) {
+    static uint32_t invalid_drop_count = 0;
+    const uint32_t count = ++invalid_drop_count;
+    if (count == 1 || (count % 10U) == 0U) {
+      Serial.printf(
+          "[MQTT] Dropped invalid inbound packet: payload=%u, capacity=%u "
+          "(count=%u)\n",
+          static_cast<unsigned>(length),
+          static_cast<unsigned>(packet_capacity),
+          static_cast<unsigned>(count));
+    }
+    return;
+  }
   if (!msg) {
-    Serial.printf("[MQTT] Inbound-Alloc/Queue fehlt -> '%s' verworfen\n", topic ? topic : "?");
+    Serial.printf("[MQTT] Inbound allocation/queue unavailable; dropped '%s'\n",
+                  topic ? topic : "?");
     return;
   }
   // mqttCallback laeuft jetzt auf dem MQTT-Worker (Single-Owner) -- der alte

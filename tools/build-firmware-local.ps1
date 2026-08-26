@@ -37,6 +37,22 @@ $node = Get-Command node -ErrorAction Stop
 if ($LASTEXITCODE -ne 0) {
     throw 'Generated WebUI assets are stale. Run tools/generate-web-assets.mjs.'
 }
+& $node.Source (Join-Path $PSScriptRoot 'test-mqtt-packet-safety.mjs')
+if ($LASTEXITCODE -ne 0) {
+    throw 'MQTT packet safety regression test failed.'
+}
+& $node.Source (Join-Path $PSScriptRoot 'test-weather-popup-release.mjs')
+if ($LASTEXITCODE -ne 0) {
+    throw 'Weather popup release interaction test failed.'
+}
+& $node.Source (Join-Path $PSScriptRoot 'test-s3-popup-refresh.mjs')
+if ($LASTEXITCODE -ne 0) {
+    throw 'ESP32-S3 popup refresh contract test failed.'
+}
+& $node.Source (Join-Path $PSScriptRoot 'test-guition-s3-update-check-resync.mjs')
+if ($LASTEXITCODE -ne 0) {
+    throw 'Guition S3 update-check display guard test failed.'
+}
 & $node.Source (Join-Path $PSScriptRoot 'test-admin-cover-editor.mjs')
 if ($LASTEXITCODE -ne 0) {
     throw 'Admin Cover editor contract test failed.'

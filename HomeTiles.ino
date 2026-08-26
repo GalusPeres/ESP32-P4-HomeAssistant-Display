@@ -406,31 +406,37 @@ static GithubUpdate::CheckResult perform_fw_check() {
   }
   fw_check_running = true;
 
-  // Der reine Versions-Check trennt MQTT NICHT mehr. Seine TLS-Allokationen
-  // landen bevorzugt im PSRAM; ein MQTT-Disconnect hat daher kein schnelles
-  // SRAM freigegeben, aber jedes Mal einen retained Subscribe-/State-Sturm
-  // ausgeloest und den SDIO-DMA-Heap weiter fragmentiert.
-  Serial.println("[Update] Check: MQTT bleibt verbunden (TLS in PSRAM)");
+  // Keep MQTT connected. Disconnecting it does not help the synchronous HTTPS
+  // handshake and creates a retained subscribe/state burst afterwards.
+  Serial.println("[Update] Check: MQTT stays connected");
 #if defined(DEVICE_ESP32_S3_RGB_480)
-  const bool s3_rgb_resync_required = networkTransport.isConnected();
+  const bool s3_rgb_network_active = networkTransport.isConnected();
+#endif
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (s3_rgb_network_active) {
+    // Reduce continuous RGB scanout bandwidth before TLS/WiFi starts using
+    // memory bandwidth. The device guard applies the PCLK change at VSYNC.
+    Device::displayUpdateCheckGuardBegin();
+  }
 #endif
   GithubUpdate::CheckResult res = GithubUpdate::checkLatest();
-#if defined(DEVICE_ESP32_S3_RGB_480)
-  if (s3_rgb_resync_required) {
-    // Espressif documents a permanent horizontal shift when the S3 RGB DMA
-    // loses PSRAM bandwidth. The HTTPS check does not write flash, but its TLS
-    // traffic is the only high-bandwidth work in this path and previously ran
-    // without the board's guarded canonical-fb0/one-shot-VSYNC recovery.
-    Serial.println(
-        "[Display/S3] Resynchronizing RGB scanout after update check");
+#if defined(DEVICE_GUITION_ESP32_4848S040)
+  if (s3_rgb_network_active) {
+    // Restore normal scanout speed and finish with one canonical FB0 restart.
+    Device::displayUpdateCheckGuardEnd();
+  }
+#elif defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)
+  if (s3_rgb_network_active) {
+    // This profile retains its established post-check recovery until an
+    // equivalent exact-board PCLK guard has hardware validation.
+    Serial.println("[Display/S3] Resynchronizing RGB scanout after update check");
     Device::storageWriteBegin();
     Device::storageWriteEnd();
   }
 #endif
   if (!res.ok && res.tls_alloc_failed) {
     Serial.println(
-        "[Update] Check: TLS-Speicher trotz PSRAM-Fallback fehlgeschlagen; "
-        "schneller SRAM-Draw-Puffer bleibt aktiv");
+        "[Update] Check: TLS allocation failed after allocator fallback");
   }
   fw_last_check_result = res;
   fw_last_check_at = millis();

@@ -97,8 +97,14 @@ static inline void finish_press_before_popup(lv_event_t* event) {
     lv_obj_clear_state(source, LV_STATE_PRESSED);
     lv_obj_invalidate(source);
   }
+#if defined(DEVICE_ESP32_S3_RGB_480)
+  // Avoid a nested refresh in the input callback. The preloaded popup shown
+  // immediately afterwards invalidates its card, so the normal refresh can
+  // present both the released tile state and popup in one pass.
+#else
   lv_display_t* display = lv_display_get_default();
   if (display) lv_refr_now(display);
+#endif
 }
 
 // Weather and other large preloaded popups should not force a nested display
