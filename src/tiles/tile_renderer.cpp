@@ -1650,6 +1650,23 @@ static SwitchState parse_switch_payload(const char* payload) {
   return out;
 }
 
+static bool switch_tile_visual_state_equal(const SwitchState& left,
+                                           const SwitchState& right) {
+  return left.available == right.available &&
+         left.has_state == right.has_state &&
+         left.is_on == right.is_on &&
+         left.has_color == right.has_color &&
+         (!left.has_color || left.color == right.color) &&
+         left.has_color_temp == right.has_color_temp &&
+         (!left.has_color_temp ||
+          left.color_temp_kelvin == right.color_temp_kelvin) &&
+         left.supports_color == right.supports_color &&
+         left.supports_brightness == right.supports_brightness &&
+         left.supports_temperature == right.supports_temperature &&
+         left.supported_modes_known == right.supported_modes_known &&
+         left.supported_onoff_only == right.supported_onoff_only;
+}
+
 void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char* payload) {
   if (grid_index >= TILES_PER_GRID || !payload) return;
   SwitchTileWidgets* target = g_tab0_switches;
@@ -1719,12 +1736,18 @@ void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char
     }
   }
 
+  // Brightness-only state echoes do not alter the visible tile. This matters
+  // when the same entity is present several times: keep every state cache and
+  // the bound popup current, but do not invalidate every duplicate tile.
+  const bool tile_visual_unchanged =
+      switch_tile_visual_state_equal(prev, state);
   state_target[grid_index] = state;
 
   if (tile.sensor_entity.length()) {
     LightPopupInit init = build_popup_init_from_state(grid_type, grid_index, tile, state);
     update_light_popup(init);
   }
+  if (tile_visual_unchanged) return;
 
   SwitchTileWidgets& widgets = target[grid_index];
   if (!widgets.icon_label && !widgets.title_label && !widgets.switch_obj) return;

@@ -211,6 +211,7 @@ jobs:
         run: |
           node tools/test-weather-popup-release.mjs
           node tools/test-s3-popup-refresh.mjs
+          node tools/test-duplicate-light-entity-updates.mjs
 
       - name: Verify Guition S3 update-check display guard
         run: node tools/test-guition-s3-update-check-resync.mjs

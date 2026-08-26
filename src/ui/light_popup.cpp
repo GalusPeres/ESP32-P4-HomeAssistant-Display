@@ -2222,6 +2222,14 @@ void update_light_popup(const LightPopupInit& init) {
   if (!g_light_popup_ctx->entity_id.length()) return;
   if (!g_light_popup_ctx->entity_id.equalsIgnoreCase(init.entity_id)) return;
   if (lv_obj_has_flag(g_light_popup_ctx->card, LV_OBJ_FLAG_HIDDEN)) return;
+  // Several tiles may intentionally reference the same entity. Only the tile
+  // that opened the popup may refresh its context; otherwise every duplicate
+  // repeats the same work and the last one silently replaces the binding.
+  if (g_light_popup_ctx->has_tile_ref && init.has_tile_ref &&
+      (g_light_popup_ctx->tile_grid != init.tile_grid ||
+       g_light_popup_ctx->tile_index != init.tile_index)) {
+    return;
+  }
   const bool next_available = !init.is_light || init.available;
   if (next_available != g_light_popup_ctx->available) {
     apply_init_to_context(g_light_popup_ctx, init);
