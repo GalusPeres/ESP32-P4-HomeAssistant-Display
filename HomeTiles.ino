@@ -1405,10 +1405,15 @@ void loop() {
     // anfassen: das Post-Connect-Hochfahren (Subscribes/Discovery) und das
     // Verarbeiten eingegangener Nachrichten.
     mqttServicePostConnect();
-    // Kamera: kleine MQTT-Bursts gleichmaessig ueber die Frames verteilen.
-    // Vier Nachrichten pro Loop reichen bei 24 FPS fuer bis zu 96/s; der
-    // Empfangs-Worker und die 64er PSRAM-Queue laufen dabei unveraendert weiter.
+    // Keep S3 input service bounded when Home Assistant echoes a live slider
+    // command or sends a retained-state burst. Eight messages per UI cycle
+    // still drains far more than normal traffic without starving the next
+    // touch/read/render pass. P4 keeps its established unlimited drain path.
+#if defined(DEVICE_ESP32_S3_RGB_480)
+    mqtt_process_inbound_queue(camera_popup_is_busy() ? 4 : 8);
+#else
     mqtt_process_inbound_queue(camera_popup_is_busy() ? 4 : 0);
+#endif
     if (!camera_popup_is_busy()) {
       mqttServiceDynamicSlotsReload();
     }

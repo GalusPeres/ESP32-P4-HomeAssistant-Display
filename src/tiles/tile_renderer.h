@@ -382,9 +382,15 @@ void process_sensor_update_queue(uint8_t max_updates = 0);  // 0 = Queue komplet
 void reset_switch_widget(GridType grid_type, uint8_t grid_index);
 void reset_switch_widgets(GridType grid_type);
 
-// THREAD-SAFE: Queue fuer Switch-Updates (MQTT Callback -> Main Loop)
+// Thread-safe switch update queue (MQTT callback -> main loop).
+// A batched mask must contain slots for one entity. max_updates limits applied
+// slots, not payload batches; a partly applied payload resumes without reparse.
+// Single-slot cache updates are layout-generation-bound so hidden folder
+// preloading keeps working without delivering stale state after a rebuild.
 void queue_switch_tile_update(GridType grid_type, uint8_t grid_index, const char* payload);
-void process_switch_update_queue(uint8_t max_updates = 0);  // 0 = Queue komplett leeren
+void queue_switch_tile_updates(GridType grid_type, uint64_t grid_indices,
+                               const char* payload);
+void process_switch_update_queue(uint8_t max_updates = 0);  // 0 drains the queue
 
 void reset_climate_widget(GridType grid_type, uint8_t grid_index);
 void reset_climate_widgets(GridType grid_type);

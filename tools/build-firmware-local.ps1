@@ -53,6 +53,14 @@ if ($LASTEXITCODE -ne 0) {
 if ($LASTEXITCODE -ne 0) {
     throw 'Duplicate light entity update test failed.'
 }
+& $node.Source (Join-Path $PSScriptRoot 'test-s3-render-backpressure.mjs')
+if ($LASTEXITCODE -ne 0) {
+    throw 'ESP32-S3 render backpressure test failed.'
+}
+& $node.Source (Join-Path $PSScriptRoot 'test-s3-weather-batching.mjs')
+if ($LASTEXITCODE -ne 0) {
+    throw 'ESP32-S3 weather work budget test failed.'
+}
 & $node.Source (Join-Path $PSScriptRoot 'test-guition-s3-update-check-resync.mjs')
 if ($LASTEXITCODE -ne 0) {
     throw 'Guition S3 update-check display guard test failed.'

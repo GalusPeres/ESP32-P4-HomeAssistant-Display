@@ -60,6 +60,25 @@ SwitchTileWidgets g_tab1_switches[TILES_PER_GRID];
 SwitchTileWidgets g_tab2_switches[TILES_PER_GRID];
 SwitchTileWidgets g_screensaver_switches[TILES_PER_GRID];
 
+static constexpr uint8_t SWITCH_GRID_COUNT = 4;
+static uint32_t g_switch_layout_generation[SWITCH_GRID_COUNT] = {1, 1, 1, 1};
+
+static uint32_t switch_layout_generation(GridType grid_type) {
+  const uint8_t index = static_cast<uint8_t>(grid_type);
+  return index < SWITCH_GRID_COUNT ? g_switch_layout_generation[index] : 0;
+}
+
+static void advance_switch_layout_generation(GridType grid_type) {
+  const uint8_t index = static_cast<uint8_t>(grid_type);
+  if (index >= SWITCH_GRID_COUNT) return;
+  if (++g_switch_layout_generation[index] == 0) {
+    g_switch_layout_generation[index] = 1;
+  }
+}
+
+static void invalidate_queued_switch_slot(GridType grid_type,
+                                          uint8_t grid_index);
+
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
 WeatherTileWidgets* g_tab0_weather = nullptr;
 WeatherTileWidgets* g_tab1_weather = nullptr;
@@ -315,6 +334,7 @@ void reset_sensor_widgets(GridType grid_type) {
 }
 
 static void clear_switch_widgets(GridType grid_type) {
+  advance_switch_layout_generation(grid_type);
   SwitchTileWidgets* target = g_tab0_switches;
   SwitchState* state_target = g_tab0_switch_states;
   if (grid_type == GridType::SCREENSAVER) {
@@ -337,6 +357,7 @@ static void clear_switch_widgets(GridType grid_type) {
 
 void reset_switch_widget(GridType grid_type, uint8_t grid_index) {
   if (grid_index >= TILES_PER_GRID) return;
+  invalidate_queued_switch_slot(grid_type, grid_index);
   SwitchTileWidgets* target = g_tab0_switches;
   SwitchState* state_target = g_tab0_switch_states;
   if (grid_type == GridType::SCREENSAVER) {
@@ -459,6 +480,7 @@ void tile_renderer_snapshot_tab0(TileWidgetCache* out) {
 
 void tile_renderer_restore_tab0(const TileWidgetCache* in) {
   if (!in) return;
+  advance_switch_layout_generation(GridType::TAB0);
   ClimateState* climate_states =
       tile_renderer_get_climate_states(GridType::TAB0);
   memcpy(g_tab0_sensors, in->sensors, sizeof(in->sensors));
@@ -620,19 +642,41 @@ void process_sensor_update_queue(uint8_t max_updates) {
   }
 }
 
-/* === Thread-Safe Update Queue (MQTT -> Main Loop) fuer Switches === */
+/* === Thread-safe switch update queue (MQTT -> main loop) === */
 struct SwitchUpdate {
   GridType grid_type;
-  uint8_t grid_index;
+  uint64_t grid_indices;
+  String entity_id;
   String payload;
-  bool valid;
+  SwitchState parsed_state;
+  uint32_t layout_generation = 0;
+  bool require_entity_match = false;
+  bool parsed = false;
+  bool valid = false;
 };
+
+static_assert(TILES_PER_GRID <= 64,
+              "Switch update masks require at most 64 tile slots");
 
 static const uint8_t SWITCH_QUEUE_SIZE = 32;
 static SwitchUpdate g_switch_queue[SWITCH_QUEUE_SIZE];
 static volatile uint8_t g_switch_head = 0;
 static volatile uint8_t g_switch_tail = 0;
 static uint32_t g_switch_overflow_count = 0;
+
+static void invalidate_queued_switch_slot(GridType grid_type,
+                                          uint8_t grid_index) {
+  if (grid_index >= TILES_PER_GRID) return;
+  const uint64_t bit = uint64_t{1} << grid_index;
+  uint8_t index = g_switch_tail;
+  while (index != g_switch_head) {
+    SwitchUpdate& pending = g_switch_queue[index];
+    if (pending.valid && pending.grid_type == grid_type) {
+      pending.grid_indices &= ~bit;
+    }
+    index = (index + 1) % SWITCH_QUEUE_SIZE;
+  }
+}
 
 static uint32_t clamp_rgb(int r, int g, int b) {
   auto clamp = [](int v) { return v < 0 ? 0 : (v > 255 ? 255 : v); };
@@ -1667,8 +1711,15 @@ static bool switch_tile_visual_state_equal(const SwitchState& left,
          left.supported_onoff_only == right.supported_onoff_only;
 }
 
-void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char* payload) {
-  if (grid_index >= TILES_PER_GRID || !payload) return;
+static bool switch_state_has_update(const SwitchState& state) {
+  return !state.available || state.has_state || state.has_color ||
+         state.has_brightness || state.has_color_temp || state.supports_color ||
+         state.supports_brightness || state.supports_temperature;
+}
+
+static void apply_switch_tile_state(GridType grid_type, uint8_t grid_index,
+                                    SwitchState state) {
+  if (grid_index >= TILES_PER_GRID) return;
   SwitchTileWidgets* target = g_tab0_switches;
   SwitchState* state_target = g_tab0_switch_states;
   if (grid_type == GridType::SCREENSAVER) {
@@ -1680,18 +1731,6 @@ void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char
   } else if (grid_type == GridType::TAB2) {
     target = g_tab2_switches;
     state_target = g_tab2_switch_states;
-  }
-
-  SwitchState state = parse_switch_payload(payload);
-  if (state.available &&
-      !state.has_state &&
-      !state.has_color &&
-      !state.has_brightness &&
-      !state.has_color_temp &&
-      !state.supports_color &&
-      !state.supports_brightness &&
-      !state.supports_temperature) {
-    return;
   }
 
   SwitchState prev = state_target[grid_index];
@@ -1809,18 +1848,63 @@ void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char
   }
 }
 
-void queue_switch_tile_update(GridType grid_type, uint8_t grid_index, const char* payload) {
-  if (grid_index >= TILES_PER_GRID || !payload) {
-    return;
+void update_switch_tile_state(GridType grid_type, uint8_t grid_index,
+                              const char* payload) {
+  if (grid_index >= TILES_PER_GRID || !payload) return;
+  SwitchState state = parse_switch_payload(payload);
+  if (!switch_state_has_update(state)) return;
+  apply_switch_tile_state(grid_type, grid_index, state);
+}
+
+static uint64_t capture_switch_update_targets(GridType grid_type,
+                                              uint64_t grid_indices,
+                                              String& entity_id) {
+  entity_id.remove(0);
+  uint64_t verified_indices = 0;
+  for (uint8_t grid_index = 0; grid_index < TILES_PER_GRID; ++grid_index) {
+    const uint64_t bit = uint64_t{1} << grid_index;
+    if ((grid_indices & bit) == 0) continue;
+
+    const Tile* tile = tile_renderer_get_tile_config(grid_type, grid_index);
+    if (!tile || tile->type != TILE_SWITCH || !tile->sensor_entity.length()) {
+      continue;
+    }
+    if (!entity_id.length()) {
+      entity_id = tile->sensor_entity;
+    }
+    if (!tile->sensor_entity.equalsIgnoreCase(entity_id)) {
+      continue;
+    }
+    verified_indices |= bit;
   }
+  return verified_indices;
+}
+
+static void enqueue_switch_update(GridType grid_type, uint64_t grid_indices,
+                                  const String& entity_id,
+                                  bool require_entity_match,
+                                  const char* payload) {
+  if (grid_indices == 0 || !payload) return;
+  const uint32_t layout_generation = switch_layout_generation(grid_type);
+  if (layout_generation == 0) return;
 
   uint8_t idx = g_switch_tail;
   while (idx != g_switch_head) {
     SwitchUpdate& pending = g_switch_queue[idx];
-    if (pending.valid &&
-        pending.grid_type == grid_type &&
-        pending.grid_index == grid_index) {
+    const bool same_target =
+        pending.require_entity_match == require_entity_match &&
+        (require_entity_match
+             ? pending.entity_id.equalsIgnoreCase(entity_id)
+             : pending.grid_indices == grid_indices);
+    if (pending.valid && pending.grid_type == grid_type && same_target) {
+      // Replacing the complete target set also handles a partly applied
+      // batch. Every currently bound duplicate receives only the newest
+      // payload, parsed once when processing resumes.
+      pending.grid_indices = grid_indices;
+      pending.entity_id = entity_id;
       pending.payload = String(payload);
+      pending.layout_generation = layout_generation;
+      pending.parsed = false;
       return;
     }
     idx = (idx + 1) % SWITCH_QUEUE_SIZE;
@@ -1829,27 +1913,106 @@ void queue_switch_tile_update(GridType grid_type, uint8_t grid_index, const char
   uint8_t next_head = (g_switch_head + 1) % SWITCH_QUEUE_SIZE;
   if (next_head == g_switch_tail) {
     if ((g_switch_overflow_count++ % 10) == 0) {
-      Serial.println("[Queue] VOLL! Aeltestes Switch-Update wird ueberschrieben");
+      Serial.println("[Queue] Full; replacing the oldest switch update");
     }
     g_switch_tail = (g_switch_tail + 1) % SWITCH_QUEUE_SIZE;
   }
 
-  g_switch_queue[g_switch_head].grid_type = grid_type;
-  g_switch_queue[g_switch_head].grid_index = grid_index;
-  g_switch_queue[g_switch_head].payload = String(payload);
-  g_switch_queue[g_switch_head].valid = true;
+  SwitchUpdate& update = g_switch_queue[g_switch_head];
+  update.grid_type = grid_type;
+  update.grid_indices = grid_indices;
+  update.entity_id = entity_id;
+  update.payload = String(payload);
+  update.layout_generation = layout_generation;
+  update.require_entity_match = require_entity_match;
+  update.parsed = false;
+  update.valid = true;
   g_switch_head = next_head;
+}
+
+void queue_switch_tile_updates(GridType grid_type, uint64_t grid_indices,
+                               const char* payload) {
+  if (grid_indices == 0 || !payload) return;
+
+  String entity_id;
+  grid_indices =
+      capture_switch_update_targets(grid_type, grid_indices, entity_id);
+  if (grid_indices == 0 || !entity_id.length()) return;
+  enqueue_switch_update(grid_type, grid_indices, entity_id, true, payload);
+}
+
+void queue_switch_tile_update(GridType grid_type, uint8_t grid_index,
+                              const char* payload) {
+  if (grid_index >= TILES_PER_GRID || !payload) return;
+  // Cache preloading can render a hidden folder while another folder remains
+  // the active TileConfig. Preserve that established single-slot path instead
+  // of resolving the entity through the active config. The captured layout
+  // generation still prevents delivery after the widget array is replaced.
+  enqueue_switch_update(grid_type, uint64_t{1} << grid_index, String(), false,
+                        payload);
 }
 
 void process_switch_update_queue(uint8_t max_updates) {
   uint8_t processed = 0;
-  while (g_switch_tail != g_switch_head && (max_updates == 0 || processed < max_updates)) {
+  while (g_switch_tail != g_switch_head) {
+    if (max_updates != 0 && processed >= max_updates) return;
+
     SwitchUpdate& upd = g_switch_queue[g_switch_tail];
-    if (upd.valid) {
-      update_switch_tile_state(upd.grid_type, upd.grid_index, upd.payload.c_str());
-      upd.valid = false;
-      ++processed;
+    if (!upd.valid) {
+      g_switch_tail = (g_switch_tail + 1) % SWITCH_QUEUE_SIZE;
+      continue;
     }
+
+    if (upd.layout_generation != switch_layout_generation(upd.grid_type)) {
+      // A full rebuild or cached-grid restore replaced the widget bindings
+      // while this entry waited. Drop it before parsing or applying.
+      upd.grid_indices = 0;
+    }
+
+    if (upd.grid_indices != 0 && !upd.parsed) {
+      upd.parsed_state = parse_switch_payload(upd.payload.c_str());
+      upd.parsed = true;
+      if (!switch_state_has_update(upd.parsed_state)) {
+        upd.grid_indices = 0;
+      }
+    }
+
+    for (uint8_t grid_index = 0;
+         grid_index < TILES_PER_GRID && upd.grid_indices != 0;
+         ++grid_index) {
+      const uint64_t bit = uint64_t{1} << grid_index;
+      if ((upd.grid_indices & bit) == 0) continue;
+
+      // Consume the bit even if it became stale. Layout/folder replacement
+      // can happen while an entry is waiting; never apply the old entity's
+      // state to the tile that now occupies the same slot.
+      upd.grid_indices &= ~bit;
+      if (upd.require_entity_match) {
+        const Tile* tile =
+            tile_renderer_get_tile_config(upd.grid_type, grid_index);
+        if (!tile || tile->type != TILE_SWITCH ||
+            !tile->sensor_entity.equalsIgnoreCase(upd.entity_id)) {
+          continue;
+        }
+      }
+
+      apply_switch_tile_state(upd.grid_type, grid_index, upd.parsed_state);
+      ++processed;
+      if (max_updates != 0 && processed >= max_updates &&
+          upd.grid_indices != 0) {
+        // Keep this parsed entry at the queue tail. The next call resumes its
+        // remaining slots without parsing or allocating the payload again.
+        return;
+      }
+    }
+
+    if (upd.grid_indices != 0) continue;
+    upd.valid = false;
+    upd.parsed = false;
+    upd.require_entity_match = false;
+    upd.layout_generation = 0;
+    upd.entity_id.remove(0);
+    upd.payload.remove(0);
     g_switch_tail = (g_switch_tail + 1) % SWITCH_QUEUE_SIZE;
   }
 }

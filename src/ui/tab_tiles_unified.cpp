@@ -5,6 +5,7 @@
 #include "src/tiles/tile_config.h"
 #include "src/tiles/tile_renderer.h"
 #include "src/tiles/tile_renderer_shared.h"
+#include "src/ui/light_popup.h"
 #include "src/ui/sensor_popup.h"
 #include "src/ui/weather_popup.h"
 #include "src/ui/image_screensaver.h"
@@ -1042,6 +1043,10 @@ static void build_folder_cache_entry(FolderCacheEntry& entry, GridType grid_type
   if (!g_tiles_roots[idx]) return;
   if (!ensure_cache_build_snapshot()) return;
 
+  // Apply pending live light states to the active widget set before the TAB0
+  // pointers are swapped to a hidden folder. Otherwise the full-grid layout
+  // generation change below would discard those active updates.
+  process_switch_update_queue();
   clear_cache_entry(entry);
 
   if (!entry.grid_loaded || entry.dirty) {
@@ -1568,6 +1573,9 @@ void build_tiles_tab(lv_obj_t *parent, GridType grid_type, scene_publish_cb_t sc
 
 /* === Reload layout (unified) === */
 void tiles_reload_layout(GridType grid_type) {
+  // A light popup is bound to a concrete grid slot. Close it before replacing
+  // that slot so later entity updates cannot target a stale widget binding.
+  hide_light_popup();
   uint8_t idx = (uint8_t)grid_type;
   if (grid_type == GridType::TAB0 && g_active_cache) {
     g_tiles_grids[idx] = g_active_cache->grid;
@@ -1774,6 +1782,7 @@ void tiles_request_release_all() {
 }
 
 void tiles_switch_to_folder(uint16_t folder_id) {
+  hide_light_popup();
   const uint8_t idx = static_cast<uint8_t>(GridType::TAB0);
   if (!g_tiles_roots[idx] || !tileConfig.folderExists(folder_id)) {
     uiManager.finishFolderSwitch(folder_id, false);
@@ -2270,6 +2279,7 @@ void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, co
 
   const TileGridConfig& config = getGridConfig(grid_type);
   bool popup_queued = false;
+  uint64_t switch_indices = 0;
 
   // Find tile with matching sensor_entity
   for (uint8_t i = 0; i < TILES_PER_GRID; i++) {
@@ -2292,8 +2302,7 @@ void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, co
       }
     }
     if (tile.type == TILE_SWITCH && tile.sensor_entity.equalsIgnoreCase(entity_id)) {
-      queue_switch_tile_update(grid_type, i, value);
-      Serial.printf("[%s] Switch %s@%u queued: %s\n", getGridName(grid_type), entity_id, i, value);
+      switch_indices |= uint64_t{1} << i;
     }
     if (tile.type == TILE_MEDIA && tile.sensor_entity.equalsIgnoreCase(entity_id)) {
       queue_media_tile_update(grid_type, i, value);
@@ -2309,6 +2318,12 @@ void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, co
       Serial.printf("[%s] Cover %s@%u queued\n",
                     getGridName(grid_type), entity_id, i);
     }
+  }
+
+  // One entity state can feed several tiles. Keep one queue payload and parse
+  // it once in the render loop, then fan the parsed state out to every slot.
+  if (switch_indices != 0) {
+    queue_switch_tile_updates(grid_type, switch_indices, value);
   }
 }
 

@@ -35,6 +35,11 @@ constexpr int kCols = 7;
 constexpr int kForecastHoursPerDay = 24;
 constexpr int kForecastTempPointCount = (kCols * kForecastHoursPerDay) + 1;
 constexpr int kHourlyForecastMax = 168;
+#if defined(DEVICE_ESP32_S3_RGB_480)
+constexpr int kHourlyParseBatchSize = 12;
+#else
+constexpr int kHourlyParseBatchSize = kHourlyForecastMax;
+#endif
 constexpr int kDetailMarkerCount = 5;
 constexpr int kDetailChartPointCount = 25;
 constexpr int kModeButtonWidth = popup_layout::scale(96);
@@ -347,8 +352,14 @@ struct PendingWeatherUpdate {
   String build_entity_id;
   uint32_t build_payload_hash = 0;
   size_t build_payload_length = 0;
+  int hourly_cursor = 0;
+  int hourly_objects_seen = 0;
+  int hourly_count = 0;
+  bool parse_hourly_pending = false;
+  uint32_t parse_started_ms = 0;
   String previous_selected_date;
   WeatherPopupViewMode previous_mode = WeatherPopupViewMode::Week;
+  bool previous_view_captured = false;
   int pending_day_nav = -1;
 };
 
@@ -364,6 +375,45 @@ static bool get_local_now_parts(String& date_out, int& hour_out, int* minute_out
 static String iso_date_add_days(const String& iso, int day_offset);
 static int iso_date_day_offset(const String& base_iso, const String& target_iso);
 static String weekday_from_iso(const String& iso);
+
+static void cancel_weather_refresh_work() {
+  g_pending_weather.parse_hourly_pending = false;
+  g_pending_weather.hourly_cursor = 0;
+  g_pending_weather.hourly_objects_seen = 0;
+  g_pending_weather.hourly_count = 0;
+  g_pending_weather.parse_started_ms = 0;
+  g_pending_weather.build_ui_pending = false;
+  g_pending_weather.build_entity_id.remove(0);
+  g_pending_weather.build_payload_hash = 0;
+  g_pending_weather.build_payload_length = 0;
+}
+
+static void reset_pending_weather_update() {
+  cancel_weather_refresh_work();
+  g_pending_weather.valid = false;
+  g_pending_weather.entity_id.remove(0);
+  g_pending_weather.payload.remove(0);
+  g_pending_weather.payload_hash = 0;
+  g_pending_weather.payload_length = 0;
+  g_pending_weather.previous_selected_date.remove(0);
+  g_pending_weather.previous_mode = WeatherPopupViewMode::Week;
+  g_pending_weather.previous_view_captured = false;
+  g_pending_weather.pending_day_nav = -1;
+}
+
+static bool weather_refresh_in_progress(const WeatherPopupContext* ctx) {
+  if (!ctx) return false;
+  const bool queued_for_entity =
+      g_pending_weather.valid &&
+      g_pending_weather.entity_id.equalsIgnoreCase(ctx->entity_id);
+  const bool parsing_for_entity =
+      g_pending_weather.parse_hourly_pending &&
+      g_pending_weather.build_entity_id.equalsIgnoreCase(ctx->entity_id);
+  const bool building_for_entity =
+      g_pending_weather.build_ui_pending &&
+      g_pending_weather.build_entity_id.equalsIgnoreCase(ctx->entity_id);
+  return queued_for_entity || parsing_for_entity || building_for_entity;
+}
 
 static bool is_popup_visible(WeatherPopupContext* ctx) {
   if (!ctx || !ctx->card) return false;
@@ -427,39 +477,20 @@ static bool extract_json_string_field(const String& src, const char* key, String
   return false;
 }
 
-static bool extract_json_array_field(const String& src, const char* key, String& out) {
-  if (!key || !*key) return false;
+static int find_json_array_start(const String& src, const char* key) {
+  if (!key || !*key) return -1;
   String pattern = "\"";
   pattern += key;
   pattern += "\"";
   int idx = src.indexOf(pattern);
-  if (idx < 0) return false;
+  if (idx < 0) return -1;
   int colon = src.indexOf(':', idx);
-  if (colon < 0) return false;
+  if (colon < 0) return -1;
   int pos = colon + 1;
   while (pos < src.length() && (src.charAt(pos) == ' ' || src.charAt(pos) == '\t')) {
     ++pos;
   }
-  if (pos >= src.length() || src.charAt(pos) != '[') return false;
-  int depth = 0;
-  bool in_string = false;
-  for (int i = pos; i < src.length(); ++i) {
-    char c = src.charAt(i);
-    if (c == '"' && (i == 0 || src.charAt(i - 1) != '\\')) {
-      in_string = !in_string;
-    }
-    if (in_string) continue;
-    if (c == '[') {
-      ++depth;
-    } else if (c == ']') {
-      --depth;
-      if (depth == 0) {
-        out = src.substring(pos, i + 1);
-        return true;
-      }
-    }
-  }
-  return false;
+  return pos < src.length() && src.charAt(pos) == '[' ? pos : -1;
 }
 
 static bool extract_json_object_field(const String& src, const char* key, String& out) {
@@ -1309,6 +1340,10 @@ static bool next_json_object_in_array(const String& array, int& cursor, String& 
       in_string = !in_string;
     }
     if (in_string) continue;
+    if (c == ']' && depth == 0) {
+      cursor = i + 1;
+      return false;
+    }
     if (c == '{') {
       if (depth == 0) start = i;
       ++depth;
@@ -2514,6 +2549,32 @@ static void reset_weather_popup_content(WeatherPopupContext* ctx) {
   align_header_row(ctx->card, ctx->location_label, ctx->icon_label);
 }
 
+static void hide_weather_model_widgets(WeatherPopupContext* ctx) {
+  if (!ctx) return;
+  // Keep an in-flight parsed model intact, but never expose the previous
+  // entity's graph while the replacement is being completed.
+  if (ctx->forecast_row) lv_obj_add_flag(ctx->forecast_row, LV_OBJ_FLAG_HIDDEN);
+  if (ctx->detail_wrap) lv_obj_add_flag(ctx->detail_wrap, LV_OBJ_FLAG_HIDDEN);
+  if (ctx->week_range_pill) {
+    lv_obj_add_flag(ctx->week_range_pill, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (ctx->detail_title_pill) {
+    lv_obj_add_flag(ctx->detail_title_pill, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (ctx->header_week_btn) {
+    lv_obj_add_flag(ctx->header_week_btn, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (ctx->header_today_btn) {
+    lv_obj_add_flag(ctx->header_today_btn, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (ctx->detail_prev_btn) {
+    lv_obj_add_flag(ctx->detail_prev_btn, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (ctx->detail_next_btn) {
+    lv_obj_add_flag(ctx->detail_next_btn, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
 static void request_weather_for_context(WeatherPopupContext* ctx) {
   if (!ctx || !ctx->entity_id.length()) return;
   if (ctx->entity_id.startsWith("__")) return;
@@ -2615,12 +2676,12 @@ static void apply_weather_header(WeatherPopupContext* ctx, const String& json) {
   align_header_row(ctx->card, ctx->location_label, ctx->icon_label);
 }
 
-// Phase 1: Parse JSON and populate data arrays (no heavy UI work)
-static void parse_weather_data(WeatherPopupContext* ctx, const char* payload) {
-  if (!ctx || !payload || !*payload) return;
-  String json = payload;
-  json.trim();
-  if (!json.length()) return;
+// Phase 1a: Parse the small current/daily section and retain the hourly JSON
+// for bounded processing. No LVGL graph work happens in this phase.
+static void parse_weather_base_data(WeatherPopupContext* ctx,
+                                    const String& json,
+                                    int& hourly_cursor) {
+  if (!ctx || !json.length()) return;
 
   apply_weather_header(ctx, json);
 
@@ -2629,9 +2690,9 @@ static void parse_weather_data(WeatherPopupContext* ctx, const char* payload) {
   clear_forecast_data(ctx);
   clear_hourly(ctx);
 
-  String forecast_raw;
-  if (extract_json_array_field(json, "forecast", forecast_raw) && forecast_raw.indexOf('{') >= 0) {
-    int cursor = 0;
+  const int forecast_array_start = find_json_array_start(json, "forecast");
+  if (forecast_array_start >= 0) {
+    int cursor = forecast_array_start + 1;
     String base_forecast_date;
     String today_date;
     int today_hour = 0;
@@ -2639,8 +2700,11 @@ static void parse_weather_data(WeatherPopupContext* ctx, const char* payload) {
       base_forecast_date = today_date;
     }
     int fallback_slot = 0;
+    int daily_objects_processed = 0;
     String obj;
-    while (next_json_object_in_array(forecast_raw, cursor, obj)) {
+    while (daily_objects_processed < kCols &&
+           next_json_object_in_array(json, cursor, obj)) {
+      ++daily_objects_processed;
       String f_condition;
       String f_icon;
       String f_day;
@@ -2723,57 +2787,87 @@ static void parse_weather_data(WeatherPopupContext* ctx, const char* payload) {
     }
   }
 
-  String hourly_raw;
-  if (extract_json_array_field(json, "forecast_hourly", hourly_raw) && hourly_raw.indexOf('{') >= 0) {
-    int cursor = 0;
-    int hourly_count = 0;
-    String obj;
-    while (hourly_count < kHourlyForecastMax && next_json_object_in_array(hourly_raw, cursor, obj)) {
-      String h_condition;
-      String h_icon;
-      String h_datetime;
-      String h_date_local;
-      float h_hour_local = -1.0f;
-      float h_temp = 0.0f;
-      float h_precipitation = 0.0f;
-      float h_probability = 0.0f;
+  const int hourly_array_start =
+      find_json_array_start(json, "forecast_hourly");
+  hourly_cursor = hourly_array_start >= 0 ? hourly_array_start + 1 : -1;
+}
 
-      resolve_weather_visual_fields(obj, h_condition, h_icon);
-      extract_json_string_field(obj, "datetime", h_datetime);
-      extract_json_string_field(obj, "date_local", h_date_local);
-      if (!h_date_local.length()) {
-        extract_json_string_field(obj, "d", h_date_local);
-      }
-      if (!extract_json_number_or_string_field(obj, "hour_local", h_hour_local)) {
-        extract_json_number_or_string_field(obj, "h", h_hour_local);
-      }
-
-      if (!h_date_local.length() && h_datetime.length()) {
-        h_date_local = iso_date_part(h_datetime);
-      }
-      if (h_hour_local < 0.0f && h_datetime.length()) {
-        h_hour_local = static_cast<float>(iso_hour_part(h_datetime));
-      }
-      if (!h_date_local.length() || h_hour_local < 0.0f) continue;
-
-      HourlyForecastData& hour = ctx->hourly[hourly_count];
-      hour.active = true;
-      hour.date_local = h_date_local;
-      hour.hour_local = static_cast<int>(lroundf(h_hour_local));
-      hour.icon = h_icon;
-      hour.has_temp = extract_json_number_or_string_field(obj, "temperature", h_temp) ||
-                      extract_json_number_or_string_field(obj, "t", h_temp);
-      hour.temp = h_temp;
-      hour.has_precipitation = extract_json_number_or_string_field(obj, "precipitation", h_precipitation) ||
-                               extract_json_number_or_string_field(obj, "p", h_precipitation);
-      hour.precipitation = h_precipitation;
-      hour.has_precipitation_probability =
-          extract_json_number_or_string_field(obj, "precipitation_probability", h_probability) ||
-          extract_json_number_or_string_field(obj, "pp", h_probability);
-      hour.precipitation_probability = h_probability;
-      ++hourly_count;
-    }
+static bool parse_hourly_weather_object(WeatherPopupContext* ctx,
+                                        const String& obj,
+                                        int& hourly_count) {
+  if (!ctx || hourly_count < 0 || hourly_count >= kHourlyForecastMax) {
+    return false;
   }
+
+  String h_condition;
+  String h_icon;
+  String h_datetime;
+  String h_date_local;
+  float h_hour_local = -1.0f;
+  float h_temp = 0.0f;
+  float h_precipitation = 0.0f;
+  float h_probability = 0.0f;
+
+  resolve_weather_visual_fields(obj, h_condition, h_icon);
+  extract_json_string_field(obj, "datetime", h_datetime);
+  extract_json_string_field(obj, "date_local", h_date_local);
+  if (!h_date_local.length()) {
+    extract_json_string_field(obj, "d", h_date_local);
+  }
+  if (!extract_json_number_or_string_field(obj, "hour_local", h_hour_local)) {
+    extract_json_number_or_string_field(obj, "h", h_hour_local);
+  }
+
+  if (!h_date_local.length() && h_datetime.length()) {
+    h_date_local = iso_date_part(h_datetime);
+  }
+  if (h_hour_local < 0.0f && h_datetime.length()) {
+    h_hour_local = static_cast<float>(iso_hour_part(h_datetime));
+  }
+  if (!h_date_local.length() || h_hour_local < 0.0f) return false;
+
+  HourlyForecastData& hour = ctx->hourly[hourly_count];
+  hour.active = true;
+  hour.date_local = h_date_local;
+  hour.hour_local = static_cast<int>(lroundf(h_hour_local));
+  hour.icon = h_icon;
+  hour.has_temp =
+      extract_json_number_or_string_field(obj, "temperature", h_temp) ||
+      extract_json_number_or_string_field(obj, "t", h_temp);
+  hour.temp = h_temp;
+  hour.has_precipitation =
+      extract_json_number_or_string_field(obj, "precipitation", h_precipitation) ||
+      extract_json_number_or_string_field(obj, "p", h_precipitation);
+  hour.precipitation = h_precipitation;
+  hour.has_precipitation_probability =
+      extract_json_number_or_string_field(
+          obj, "precipitation_probability", h_probability) ||
+      extract_json_number_or_string_field(obj, "pp", h_probability);
+  hour.precipitation_probability = h_probability;
+  ++hourly_count;
+  return true;
+}
+
+// Returns true when the array is exhausted or the bounded model is full.
+static bool parse_weather_hourly_batch(WeatherPopupContext* ctx) {
+  if (!ctx || !g_pending_weather.parse_hourly_pending) return true;
+
+  int objects_processed = 0;
+  String obj;
+  while (objects_processed < kHourlyParseBatchSize &&
+         g_pending_weather.hourly_objects_seen < kHourlyForecastMax &&
+         g_pending_weather.hourly_count < kHourlyForecastMax) {
+    if (!next_json_object_in_array(g_pending_weather.payload,
+                                   g_pending_weather.hourly_cursor, obj)) {
+      return true;
+    }
+    ++objects_processed;
+    ++g_pending_weather.hourly_objects_seen;
+    parse_hourly_weather_object(ctx, obj, g_pending_weather.hourly_count);
+  }
+
+  return g_pending_weather.hourly_objects_seen >= kHourlyForecastMax ||
+         g_pending_weather.hourly_count >= kHourlyForecastMax;
 }
 
 // Phase 2: Build UI from parsed data (heavy LVGL work)
@@ -2881,6 +2975,7 @@ static void on_overlay_delete(lv_event_t* e) {
   }
   if (g_weather_popup_ctx == ctx) {
     g_weather_popup_ctx = nullptr;
+    reset_pending_weather_update();
   }
   delete ctx;
 }
@@ -2888,6 +2983,7 @@ static void on_overlay_delete(lv_event_t* e) {
 static void detail_title_tick_cb(lv_timer_t* timer) {
   WeatherPopupContext* ctx = static_cast<WeatherPopupContext*>(lv_timer_get_user_data(timer));
   if (!ctx || !ctx->detail_title_label) return;
+  if (weather_refresh_in_progress(ctx)) return;
   if (ctx->view_mode != WeatherPopupViewMode::Day) return;
   if (ctx->selected_day_index < 0 || ctx->selected_day_index >= kCols) return;
   const ForecastData& day = ctx->forecast_data[ctx->selected_day_index];
@@ -2911,6 +3007,10 @@ static void on_mode_click(lv_event_t* e) {
   if (!ctx || !target) return;
 
   if (target == ctx->mode_week_btn) {
+    if (weather_refresh_in_progress(ctx)) {
+      g_pending_weather.previous_mode = WeatherPopupViewMode::Week;
+      g_pending_weather.pending_day_nav = -1;
+    }
     show_week_view(ctx);
   }
 }
@@ -2923,10 +3023,24 @@ static void on_detail_nav_click(lv_event_t* e) {
 
   if (target == ctx->detail_prev_btn) {
     int prev_day = find_prev_active_day_index(ctx, ctx->selected_day_index);
-    if (prev_day >= 0) show_day_view(ctx, prev_day);
+    if (prev_day >= 0) {
+      if (weather_refresh_in_progress(ctx)) {
+        g_pending_weather.pending_day_nav = prev_day;
+        g_pending_weather.previous_mode = WeatherPopupViewMode::Day;
+      } else {
+        show_day_view(ctx, prev_day);
+      }
+    }
   } else if (target == ctx->detail_next_btn) {
     int next_day = find_next_active_day_index(ctx, ctx->selected_day_index);
-    if (next_day >= 0) show_day_view(ctx, next_day);
+    if (next_day >= 0) {
+      if (weather_refresh_in_progress(ctx)) {
+        g_pending_weather.pending_day_nav = next_day;
+        g_pending_weather.previous_mode = WeatherPopupViewMode::Day;
+      } else {
+        show_day_view(ctx, next_day);
+      }
+    }
   }
 }
 
@@ -2937,6 +3051,10 @@ static void on_header_action_click(lv_event_t* e) {
   if (!ctx || !target) return;
 
   if (target == ctx->header_week_btn) {
+    if (weather_refresh_in_progress(ctx)) {
+      g_pending_weather.previous_mode = WeatherPopupViewMode::Week;
+      g_pending_weather.pending_day_nav = -1;
+    }
     show_week_view(ctx);
     return;
   }
@@ -2947,12 +3065,24 @@ static void on_header_action_click(lv_event_t* e) {
     if (get_local_now_parts(today_date, today_hour)) {
       const int today_day = find_active_day_index(ctx, today_date);
       if (today_day >= 0) {
-        show_day_view(ctx, today_day);
+        if (weather_refresh_in_progress(ctx)) {
+          g_pending_weather.pending_day_nav = today_day;
+          g_pending_weather.previous_mode = WeatherPopupViewMode::Day;
+        } else {
+          show_day_view(ctx, today_day);
+        }
         return;
       }
     }
     const int default_day = get_default_day_index(ctx);
-    if (default_day >= 0) show_day_view(ctx, default_day);
+    if (default_day >= 0) {
+      if (weather_refresh_in_progress(ctx)) {
+        g_pending_weather.pending_day_nav = default_day;
+        g_pending_weather.previous_mode = WeatherPopupViewMode::Day;
+      } else {
+        show_day_view(ctx, default_day);
+      }
+    }
   }
 }
 
@@ -2965,7 +3095,12 @@ static void on_day_column_click(lv_event_t* e) {
   for (int i = 0; i < kCols; ++i) {
     if (ctx->forecast[i].column == target) {
       if (!ctx->forecast_data[i].date_local.length()) return;
-      show_day_view(ctx, i);
+      if (weather_refresh_in_progress(ctx)) {
+        g_pending_weather.pending_day_nav = i;
+        g_pending_weather.previous_mode = WeatherPopupViewMode::Day;
+      } else {
+        show_day_view(ctx, i);
+      }
       return;
     }
   }
@@ -3947,8 +4082,10 @@ void show_weather_popup(const WeatherPopupInit& init) {
   hide_media_popup();
 
   const bool keep_pending_parse =
-      g_pending_weather.valid &&
-      g_pending_weather.entity_id.equalsIgnoreCase(init.entity_id);
+      (g_pending_weather.valid &&
+       g_pending_weather.entity_id.equalsIgnoreCase(init.entity_id)) ||
+      (g_pending_weather.parse_hourly_pending &&
+       g_pending_weather.build_entity_id.equalsIgnoreCase(init.entity_id));
   const bool keep_pending_build =
       g_pending_weather.build_ui_pending &&
       g_pending_weather.build_entity_id.equalsIgnoreCase(init.entity_id);
@@ -3963,7 +4100,7 @@ void show_weather_popup(const WeatherPopupInit& init) {
       // Clear the many child widgets while their parent is hidden. This avoids
       // exposing stale data from another entity and suppresses invalidation.
       lv_obj_add_flag(g_weather_popup_ctx->card, LV_OBJ_FLAG_HIDDEN);
-      if (!keep_pending_build) {
+      if (!matching_refresh_pending) {
         reset_weather_popup_content(g_weather_popup_ctx);
         g_weather_popup_ctx->has_rendered_data = false;
         g_weather_popup_ctx->rendered_entity_id.remove(0);
@@ -3973,6 +4110,9 @@ void show_weather_popup(const WeatherPopupInit& init) {
       }
     }
     apply_init_to_context(g_weather_popup_ctx, init);
+    if (!same_rendered_entity && matching_refresh_pending) {
+      hide_weather_model_widgets(g_weather_popup_ctx);
+    }
     lv_obj_clear_flag(g_weather_popup_ctx->card, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_weather_popup_ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
   } else {
@@ -3981,13 +4121,8 @@ void show_weather_popup(const WeatherPopupInit& init) {
     build_popup_ui(ctx, init);
   }
 
-  if (!keep_pending_parse) {
-    g_pending_weather.valid = false;
-    g_pending_weather.payload.remove(0);
-  }
-  if (!keep_pending_build) {
-    g_pending_weather.build_ui_pending = false;
-    g_pending_weather.build_entity_id.remove(0);
+  if (!matching_refresh_pending) {
+    reset_pending_weather_update();
   }
   g_pending_weather.pending_day_nav = -1;
 
@@ -4001,7 +4136,7 @@ void show_weather_popup(const WeatherPopupInit& init) {
         weather_popup_rendered_payload_matches(
             init.entity_id.c_str(), cached_hash, cached_length);
     if (rendered_payload_is_current) {
-      Serial.printf("[WeatherPopup] Sofort aus Cache: %s (%u Bytes)\n",
+      Serial.printf("[WeatherPopup] Using cached payload: %s (%u bytes)\n",
                     init.entity_id.c_str(),
                     static_cast<unsigned>(cached_length));
     } else {
@@ -4015,7 +4150,7 @@ void show_weather_popup(const WeatherPopupInit& init) {
         // Keep that work instead of discarding it and parsing the same payload
         // again after an early user tap.
         apply_weather_header(g_weather_popup_ctx, cached);
-        Serial.printf("[WeatherPopup] Laufende Vorbereitung uebernommen: %s\n",
+        Serial.printf("[WeatherPopup] Continuing in-flight preparation: %s\n",
                       init.entity_id.c_str());
       } else {
         apply_weather_header(g_weather_popup_ctx, cached);
@@ -4050,6 +4185,14 @@ void hide_weather_popup() {
 
 void queue_weather_popup_payload(const char* entity_id, const char* payload) {
   if (!entity_id || !*entity_id || !payload) return;
+
+  // A visible popup only consumes updates for its own entity. Other weather
+  // tiles keep their normal tile cache without replacing in-flight popup work.
+  if (g_weather_popup_ctx && is_popup_visible(g_weather_popup_ctx) &&
+      !g_weather_popup_ctx->entity_id.equalsIgnoreCase(entity_id)) {
+    return;
+  }
+
   size_t payload_length = 0;
   const uint32_t payload_hash = hash_weather_payload(payload, &payload_length);
   if (g_weather_popup_ctx &&
@@ -4067,6 +4210,34 @@ void queue_weather_popup_payload(const char* entity_id, const char* payload) {
       g_pending_weather.payload_length == payload_length) {
     return;
   }
+  if ((g_pending_weather.parse_hourly_pending ||
+       g_pending_weather.build_ui_pending) &&
+      g_pending_weather.build_entity_id.equalsIgnoreCase(entity_id) &&
+      g_pending_weather.build_payload_hash == payload_hash &&
+      g_pending_weather.build_payload_length == payload_length) {
+    return;
+  }
+
+  String active_work_entity;
+  if (g_pending_weather.valid) {
+    active_work_entity = g_pending_weather.entity_id;
+  } else if (g_pending_weather.parse_hourly_pending ||
+             g_pending_weather.build_ui_pending) {
+    active_work_entity = g_pending_weather.build_entity_id;
+  }
+  if (active_work_entity.length() &&
+      !active_work_entity.equalsIgnoreCase(entity_id)) {
+    // View state belongs to one entity. Never carry a selected day or deferred
+    // navigation from cancelled entity A into replacement entity B.
+    g_pending_weather.previous_selected_date.remove(0);
+    g_pending_weather.previous_mode = WeatherPopupViewMode::Week;
+    g_pending_weather.previous_view_captured = false;
+    g_pending_weather.pending_day_nav = -1;
+  }
+
+  // Only one popup model exists. A newer state for that entity supersedes any
+  // unfinished parse/build and starts from a clean bounded work state.
+  cancel_weather_refresh_work();
   g_pending_weather.entity_id = entity_id;
   g_pending_weather.payload = payload;
   g_pending_weather.payload_hash = payload_hash;
@@ -4076,21 +4247,7 @@ void queue_weather_popup_payload(const char* entity_id, const char* payload) {
 
 void process_weather_popup_queue() {
   if (!g_weather_popup_ctx || !g_weather_popup_ctx->card) {
-    g_pending_weather.valid = false;
-    g_pending_weather.build_ui_pending = false;
-    g_pending_weather.pending_day_nav = -1;
-    g_pending_weather.payload.remove(0);
-    g_pending_weather.build_entity_id.remove(0);
-    return;
-  }
-
-  // Day navigation (deferred from arrow click)
-  if (g_pending_weather.pending_day_nav >= 0) {
-    int target_day = g_pending_weather.pending_day_nav;
-    g_pending_weather.pending_day_nav = -1;
-    if (is_popup_visible(g_weather_popup_ctx)) {
-      show_day_view(g_weather_popup_ctx, target_day);
-    }
+    reset_pending_weather_update();
     return;
   }
 
@@ -4104,71 +4261,148 @@ void process_weather_popup_queue() {
     return;
   }
 
-  // Phase 2: Build UI from previously parsed data
-  if (g_pending_weather.build_ui_pending) {
-    g_pending_weather.build_ui_pending = false;
-    if (g_weather_popup_ctx->entity_id.equalsIgnoreCase(g_pending_weather.build_entity_id)) {
-      const uint32_t started_ms = millis();
-      build_weather_ui(g_weather_popup_ctx,
-                       g_pending_weather.previous_selected_date,
-                       g_pending_weather.previous_mode);
-      g_weather_popup_ctx->rendered_entity_id = g_pending_weather.build_entity_id;
-      g_weather_popup_ctx->rendered_payload_hash = g_pending_weather.build_payload_hash;
-      g_weather_popup_ctx->rendered_payload_length = g_pending_weather.build_payload_length;
-      g_weather_popup_ctx->has_rendered_data = true;
-      g_weather_popup_ctx->rendered_language =
-          i18n::normalize_language_code(configManager.getConfig().language);
-      Serial.printf("[WeatherPopup] UI aufgebaut: %u ms (%s)\n",
-                    static_cast<unsigned>(millis() - started_ms),
-                    is_popup_visible(g_weather_popup_ctx) ? "sichtbar" : "versteckt");
-    }
-    g_pending_weather.build_entity_id.remove(0);
-    return;
-  }
-
-  // Phase 1: Parse JSON data (no heavy UI work)
+  // A newer state always supersedes unfinished work for this popup entity.
   if (g_pending_weather.valid) {
     g_pending_weather.valid = false;
     const bool visible = is_popup_visible(g_weather_popup_ctx);
     const bool entity_matches =
         g_weather_popup_ctx->entity_id.equalsIgnoreCase(g_pending_weather.entity_id);
     if (entity_matches || !visible) {
+      if (g_weather_popup_ctx->has_rendered_data &&
+          !g_weather_popup_ctx->rendered_entity_id.equalsIgnoreCase(
+              g_pending_weather.entity_id)) {
+        // Parsing another entity replaces the shared data model before its
+        // widgets are rebuilt. Invalidate the old model identity immediately,
+        // so reopening the old entity cannot reuse partially replaced data.
+        g_weather_popup_ctx->has_rendered_data = false;
+        g_weather_popup_ctx->rendered_entity_id.remove(0);
+        g_weather_popup_ctx->rendered_payload_hash = 0;
+        g_weather_popup_ctx->rendered_payload_length = 0;
+        g_weather_popup_ctx->rendered_language.remove(0);
+      }
       if (!entity_matches) {
         // The preloaded popup has no entity yet. While hidden it can adopt the
         // latest weather entity and be ready before the first tap.
         g_weather_popup_ctx->entity_id = g_pending_weather.entity_id;
         g_weather_popup_ctx->title.remove(0);
       }
-      // Save state before parsing
-      g_pending_weather.previous_selected_date = "";
-      if (g_weather_popup_ctx->has_rendered_data &&
-          g_weather_popup_ctx->rendered_entity_id.equalsIgnoreCase(g_pending_weather.entity_id) &&
-          g_weather_popup_ctx->selected_day_index >= 0 &&
-          g_weather_popup_ctx->selected_day_index < kCols) {
-        g_pending_weather.previous_selected_date =
-            g_weather_popup_ctx->forecast_data[g_weather_popup_ctx->selected_day_index].date_local;
-      }
-      g_pending_weather.previous_mode =
-          (g_weather_popup_ctx->has_rendered_data &&
-           g_weather_popup_ctx->rendered_entity_id.equalsIgnoreCase(g_pending_weather.entity_id))
-              ? g_weather_popup_ctx->view_mode
-              : WeatherPopupViewMode::Week;
 
-      const uint32_t started_ms = millis();
-      parse_weather_data(g_weather_popup_ctx, g_pending_weather.payload.c_str());
-      Serial.printf("[WeatherPopup] Daten verarbeitet: %u ms, %u Bytes (%s)\n",
-                    static_cast<unsigned>(millis() - started_ms),
-                    static_cast<unsigned>(g_pending_weather.payload_length),
-                    visible ? "sichtbar" : "versteckt");
+      if (!g_pending_weather.previous_view_captured) {
+        g_pending_weather.previous_selected_date.remove(0);
+        if (g_weather_popup_ctx->has_rendered_data &&
+            g_weather_popup_ctx->rendered_entity_id.equalsIgnoreCase(
+                g_pending_weather.entity_id) &&
+            g_weather_popup_ctx->selected_day_index >= 0 &&
+            g_weather_popup_ctx->selected_day_index < kCols) {
+          g_pending_weather.previous_selected_date =
+              g_weather_popup_ctx
+                  ->forecast_data[g_weather_popup_ctx->selected_day_index]
+                  .date_local;
+        }
+        g_pending_weather.previous_mode =
+            (g_weather_popup_ctx->has_rendered_data &&
+             g_weather_popup_ctx->rendered_entity_id.equalsIgnoreCase(
+                 g_pending_weather.entity_id))
+                ? g_weather_popup_ctx->view_mode
+                : WeatherPopupViewMode::Week;
+        g_pending_weather.previous_view_captured = true;
+      }
+
       g_pending_weather.build_entity_id = g_pending_weather.entity_id;
       g_pending_weather.build_payload_hash = g_pending_weather.payload_hash;
       g_pending_weather.build_payload_length = g_pending_weather.payload_length;
-      g_pending_weather.payload.remove(0);
-      g_pending_weather.build_ui_pending = true;
+      g_pending_weather.parse_started_ms = millis();
+      g_pending_weather.hourly_cursor = 0;
+      g_pending_weather.hourly_objects_seen = 0;
+      g_pending_weather.hourly_count = 0;
+      parse_weather_base_data(g_weather_popup_ctx, g_pending_weather.payload,
+                              g_pending_weather.hourly_cursor);
+
+      g_pending_weather.parse_hourly_pending =
+          g_pending_weather.hourly_cursor >= 0;
+      if (!g_pending_weather.parse_hourly_pending ||
+          parse_weather_hourly_batch(g_weather_popup_ctx)) {
+        g_pending_weather.parse_hourly_pending = false;
+        g_pending_weather.payload.remove(0);
+        g_pending_weather.build_ui_pending = true;
+        Serial.printf(
+            "[WeatherPopup] Data parsed in %u ms, %u bytes (%s)\n",
+            static_cast<unsigned>(millis() -
+                                  g_pending_weather.parse_started_ms),
+            static_cast<unsigned>(g_pending_weather.build_payload_length),
+            visible ? "visible" : "hidden");
+      }
     } else {
       // An update for another weather tile must not replace the popup the user
       // currently has open.
       g_pending_weather.payload.remove(0);
+      cancel_weather_refresh_work();
+      g_pending_weather.previous_view_captured = false;
+    }
+    return;
+  }
+
+  // Phase 1b: S3 parses only a small number of hourly objects per UI cycle.
+  // Other profiles use a full-size batch and therefore retain their previous
+  // one-pass parse behavior.
+  if (g_pending_weather.parse_hourly_pending) {
+    if (parse_weather_hourly_batch(g_weather_popup_ctx)) {
+      g_pending_weather.parse_hourly_pending = false;
+      g_pending_weather.payload.remove(0);
+      g_pending_weather.build_ui_pending = true;
+      Serial.printf(
+          "[WeatherPopup] Data parsed in %u ms, %u bytes (%s)\n",
+          static_cast<unsigned>(millis() -
+                                g_pending_weather.parse_started_ms),
+          static_cast<unsigned>(g_pending_weather.build_payload_length),
+          is_popup_visible(g_weather_popup_ctx) ? "visible" : "hidden");
+    }
+    return;
+  }
+
+  // Phase 2: Build LVGL objects only after the complete model is available.
+  if (g_pending_weather.build_ui_pending) {
+    g_pending_weather.build_ui_pending = false;
+    if (g_weather_popup_ctx->entity_id.equalsIgnoreCase(
+            g_pending_weather.build_entity_id)) {
+      const uint32_t started_ms = millis();
+      const WeatherPopupViewMode build_mode =
+          g_pending_weather.pending_day_nav >= 0
+              ? WeatherPopupViewMode::Week
+              : g_pending_weather.previous_mode;
+      build_weather_ui(g_weather_popup_ctx,
+                       g_pending_weather.previous_selected_date, build_mode);
+      g_weather_popup_ctx->rendered_entity_id =
+          g_pending_weather.build_entity_id;
+      g_weather_popup_ctx->rendered_payload_hash =
+          g_pending_weather.build_payload_hash;
+      g_weather_popup_ctx->rendered_payload_length =
+          g_pending_weather.build_payload_length;
+      g_weather_popup_ctx->has_rendered_data = true;
+      g_weather_popup_ctx->rendered_language =
+          i18n::normalize_language_code(configManager.getConfig().language);
+      Serial.printf("[WeatherPopup] UI built in %u ms (%s)\n",
+                    static_cast<unsigned>(millis() - started_ms),
+                    is_popup_visible(g_weather_popup_ctx) ? "visible"
+                                                          : "hidden");
+    }
+    g_pending_weather.build_entity_id.remove(0);
+    g_pending_weather.build_payload_hash = 0;
+    g_pending_weather.build_payload_length = 0;
+    g_pending_weather.parse_started_ms = 0;
+    g_pending_weather.previous_selected_date.remove(0);
+    g_pending_weather.previous_mode = WeatherPopupViewMode::Week;
+    g_pending_weather.previous_view_captured = false;
+    return;
+  }
+
+  // Day navigation is deferred until parse and graph construction are done,
+  // so callbacks never read a partially replaced hourly model.
+  if (g_pending_weather.pending_day_nav >= 0) {
+    const int target_day = g_pending_weather.pending_day_nav;
+    g_pending_weather.pending_day_nav = -1;
+    if (is_popup_visible(g_weather_popup_ctx)) {
+      show_day_view(g_weather_popup_ctx, target_day);
     }
   }
 }
@@ -4178,6 +4412,7 @@ void weather_popup_refresh_language() {
       !g_weather_popup_ctx->has_rendered_data) {
     return;
   }
+  if (weather_refresh_in_progress(g_weather_popup_ctx)) return;
 
   const char* language =
       i18n::normalize_language_code(configManager.getConfig().language);
