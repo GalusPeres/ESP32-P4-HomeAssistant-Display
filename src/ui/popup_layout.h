@@ -2,6 +2,7 @@
 
 #include "src/core/display_manager.h"
 #include "src/fonts/ui_fonts.h"
+#include "src/tiles/mdi_icons.h"
 
 namespace popup_layout {
 
@@ -271,5 +272,39 @@ constexpr int kNavBottomInset = 6;
 constexpr int kValueY = kValueBaseY + extra_gap_before_value();
 constexpr int kBodyY = kBodyBaseY + extra_gap_before_body();
 constexpr int kNavY = kCardHeight - kNavBottomInset - kNavHeight;
+
+// Standard popup close button. Every popup shares the same geometry, pressed
+// feedback, touch area and icon, so the header stays consistent and a change to
+// the close control does not have to be repeated per popup. `handler` is
+// registered for CLICKED and RELEASED, which is the established press-on-release
+// behavior; `user_data` reaches it unchanged.
+inline lv_obj_t* createCloseButton(lv_obj_t* card, lv_event_cb_t handler,
+                                   void* user_data) {
+  lv_obj_t* close_btn = lv_button_create(card);
+  lv_obj_set_size(close_btn, kCloseButtonSize, kCloseButtonSize);
+  lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_bg_color(close_btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(close_btn, LV_OPA_20, LV_STATE_PRESSED);
+  lv_obj_set_style_border_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_outline_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_radius(close_btn, kCloseButtonRadius, 0);
+  lv_obj_set_style_pad_all(close_btn, 0, 0);
+  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, kCloseButtonOffsetX,
+               kCloseButtonOffsetY);
+  lv_obj_set_ext_click_area(close_btn, kCloseButtonClickArea);
+  lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
+  lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(close_btn, handler, LV_EVENT_CLICKED, user_data);
+  lv_obj_add_event_cb(close_btn, handler, LV_EVENT_RELEASED, user_data);
+
+  lv_obj_t* close_label = lv_label_create(close_btn);
+  lv_obj_set_style_text_font(close_label, FONT_MDI_ICONS, 0);
+  applyIconScale(close_label);
+  lv_obj_set_style_text_color(close_label, lv_color_white(), 0);
+  lv_label_set_text(close_label, getMdiChar("window-close").c_str());
+  lv_obj_center(close_label);
+  return close_btn;
+}
 
 }  // namespace popup_layout

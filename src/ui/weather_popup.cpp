@@ -3188,30 +3188,8 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     return btn;
   };
 
-  lv_obj_t* close_btn = lv_button_create(card);
-  lv_obj_set_size(close_btn, popup_layout::kCloseButtonSize,
-                  popup_layout::kCloseButtonSize);
-  lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_bg_color(close_btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
-  lv_obj_set_style_bg_opa(close_btn, LV_OPA_20, LV_STATE_PRESSED);
-  lv_obj_set_style_border_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_outline_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_radius(close_btn, popup_layout::kCloseButtonRadius, 0);
-  lv_obj_set_style_pad_all(close_btn, 0, 0);
-  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT,
-               popup_layout::kCloseButtonOffsetX,
-               popup_layout::kCloseButtonOffsetY);
-  lv_obj_set_ext_click_area(close_btn, popup_layout::kCloseButtonClickArea);
-  lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
-  lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_CLICKED, ctx);
-  lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_RELEASED, ctx);
-  lv_obj_t* close_label = lv_label_create(close_btn);
-  set_label_style(close_label, lv_color_white(), FONT_MDI_ICONS);
-  popup_layout::applyIconScale(close_label);
-  lv_label_set_text(close_label, getMdiChar("window-close").c_str());
-  lv_obj_center(close_label);
+  lv_obj_t* close_btn =
+      popup_layout::createCloseButton(card, on_close_click, ctx);
 
   ctx->header_week_btn = make_header_action_button("7D", kFooterWeekButtonX, FONT_UNIT);
   ctx->header_today_btn =
