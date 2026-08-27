@@ -229,7 +229,10 @@ mandatory.
 
 ## 9. Tests and verification before handoff
 
-- Add a focused regression test for every reproduced bug.
+- Add a focused regression test for every reproduced bug. Name it
+  `tools/test-<topic>.mjs`; the CI suite discovers those files automatically.
+- Run the whole suite with `node tools/run-tests.mjs` (add name fragments to
+  run a subset). A harness whose optional tooling is missing reports `SKIP:`.
 - For a tile type, the browser contract test must cover type selection, entity
   selection, title editing, popup mode, preview, draft snapshot, autosave,
   form payload, and all localized runtime states.
@@ -244,7 +247,7 @@ mandatory.
 
 ## 10. Build workflow
 
-- Run fast source and browser tests before firmware compilation.
+- Run `node tools/run-tests.mjs` before firmware compilation.
 - Use the normal incremental local build for iteration.
 - Use `-Clean` only when explicitly requested or when a verified cache or
   toolchain problem requires it.

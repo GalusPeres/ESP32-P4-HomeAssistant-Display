@@ -470,8 +470,7 @@ assert.match(docsWorkflow, /ghp-import .*--no-history.* site/);
 assert.doesNotMatch(docsWorkflow, /mkdocs gh-deploy/);
 
 const firmwareWorkflow = read(".github/workflows/firmware.yml");
-assert.match(firmwareWorkflow, /Verify browser installer contract/);
-assert.match(firmwareWorkflow, /node tools\/test-web-installer\.mjs/);
+assert.match(firmwareWorkflow, /node tools\/run-tests\.mjs/);
 assert.match(
   firmwareWorkflow,
   /release:[\s\S]*?permissions:\s*\n\s+actions:\s*write\s*\n\s+contents:\s*write/,

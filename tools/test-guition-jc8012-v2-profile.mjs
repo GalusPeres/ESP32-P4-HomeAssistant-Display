@@ -112,7 +112,7 @@ for (const marker of [
   'profile: guition_jc8012p4a1_v2',
   'key: guition_jc8012p4a1_v2',
   'define: DEVICE_GUITION_JC8012P4A1_V2',
-  'test-guition-jc8012-v2-profile.mjs',
+  'node tools/run-tests.mjs',
   `-eq 28`,
 ]) {
   requireMarker(workflow, marker, 'Firmware workflow');
