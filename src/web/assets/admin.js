@@ -151,8 +151,8 @@ function t(key) {
     }
   }
 
-  // Deckelt das Tile-Settings-Panel exakt auf den Platz unterhalb von
-  // Header/Tabs, damit es intern scrollt statt die Seite zu strecken.
+  // Caps the tile settings panel at exactly the space below header and tabs so
+  // that it scrolls internally instead of stretching the page.
   function updateTileSettingsMaxHeight() {
     document.querySelectorAll('.tile-settings').forEach(panel => {
       panel.style.maxHeight = '';
@@ -160,10 +160,10 @@ function t(key) {
       const tab = panel.closest('.tab-content');
       if (!tab || !tab.classList.contains('active')) return;
       const top = panel.getBoundingClientRect().top + window.scrollY;
-      // Unterhalb des Panels liegen nur noch Card-Padding und Wrapper-Abstaende.
-      // Aus den Styles lesen (nicht ueber scrollHeight messen - der ist bei
-      // grossen Fenstern mindestens Viewport-Hoehe und wuerde das Panel
-      // faelschlich klein deckeln).
+      // Only card padding and wrapper spacing sit below the panel. Read those
+      // from the styles instead of measuring scrollHeight: on large windows
+      // scrollHeight is at least the viewport height and would cap the panel
+      // far too small.
       let below = 24;
       const card = panel.closest('.card');
       if (card) {
@@ -181,9 +181,9 @@ function t(key) {
   }
   window.addEventListener('resize', updateTileSettingsMaxHeight);
 
-  // Fuellt die statisch gerenderten Uhr-Kacheln (--:-- Platzhalter) mit der
-  // aktuellen Zeit und haelt sie aktuell. Vom JS neu gerenderte Uhr-Kacheln
-  // bekommen ihre Zeit (inkl. Format) direkt beim Rendern.
+  // Fills the server-rendered clock tiles (--:-- placeholders) with the current
+  // time and keeps them up to date. Clock tiles re-rendered by this script get
+  // their time, including the format, while rendering.
   function fillStaticClockPreviews() {
     if (typeof getClockPreviewTime !== 'function') return;
     document.querySelectorAll('.tile-clock-time').forEach(el => {
@@ -1156,17 +1156,15 @@ function t(key) {
     }
   }
 
-  // Waehrend eines laufenden Uploads keine parallelen Requests starten
-  // (Sensor-Polling): der Server arbeitet eine Verbindung nach der anderen
-  // ab, zusaetzliche Verbindungen stauen sich nur auf und belasten den
-  // knappen internen Puffer-Pool des Geraets.
+  // Do not start parallel requests such as sensor polling while an upload is
+  // running: the server handles one connection at a time, so extra connections
+  // only queue up and strain the small internal buffer pool of the device.
   let fileManagerUploadBusy = false;
 
-  // Sequenzielle kleine Teile statt eines grossen POST: das Geraet hat nur
-  // wenig internen RAM fuer WLAN-Empfangspuffer. Ein grosser Upload laesst
-  // den Browser bis zu 64KB unbestaetigt vorausschicken und hat den
-  // SDIO-Empfangspfad reproduzierbar zum Absturz gebracht -- mit 16KB pro
-  // Request ist die maximale Menge "in der Luft" hart begrenzt.
+  // Sequential small chunks instead of one large POST: the device has little
+  // internal RAM for WLAN receive buffers. A large upload lets the browser send
+  // up to 64KB ahead unacknowledged, which reproducibly crashed the SDIO
+  // receive path. With 16KB per request the amount in flight stays bounded.
   const FILE_MANAGER_UPLOAD_PART_SIZE = 16 * 1024;
 
   async function uploadFileManagerFile() {
@@ -1714,8 +1712,9 @@ function t(key) {
     }
     el.value = keep;
     if (keep && el.value !== keep) {
-      // Gespeicherte Entity fehlt in der aktuellen Bridge-Liste (z.B. Bridge
-      // offline): Auswahl behalten statt sie beim naechsten Autosave zu leeren.
+      // The stored entity is missing from the current bridge list, for example
+      // while the bridge is offline. Keep the selection instead of clearing it
+      // on the next autosave.
       const opt = document.createElement('option');
       opt.value = keep;
       opt.textContent = keep;
@@ -1725,8 +1724,8 @@ function t(key) {
     if (keep) el.dataset.configuredValue = keep;
   }
 
-  // Eine Firmware-Abfrage reicht fuer alle Editoren. Der kurze Cache verhindert
-  // beim schnellen Wechseln zwischen Kacheln wiederholte grosse JSON-Antworten.
+  // One firmware request serves every editor. The short cache avoids repeated
+  // large JSON responses while switching quickly between tiles.
   function refreshEntityOptionLists(tab) {
     return fetchEntityOptions()
       .then(data => {
@@ -2358,7 +2357,7 @@ function t(key) {
       const raw = localStorage.getItem(SELECTED_TILE_STORAGE_KEY);
       if (!raw) return;
       const saved = JSON.parse(raw);
-      // Migration vom bisherigen Format { tab, index } auf die Auswahl pro Tab.
+      // Migration from the previous { tab, index } format to a per-tab selection.
       if (saved && typeof saved.tab === 'string') {
         const index = Number(saved.index);
         if (Number.isInteger(index) && index >= 0 && index < TILES_PER_GRID) {
@@ -2640,7 +2639,7 @@ function t(key) {
       const raw = localStorage.getItem('tileDrafts');
       if (raw) {
         drafts = JSON.parse(raw);
-        // Drafts sollen nach Page-Refresh nicht gespeicherte Werte ueberschreiben.
+        // Drafts must not overwrite saved values after a page refresh.
         for (const tab in drafts) {
           const tabDrafts = drafts[tab];
           if (!tabDrafts) continue;
@@ -2841,9 +2840,9 @@ function t(key) {
         tileSpecific.classList.remove('hidden');
       }
     }
-    // Die Live-Handler sofort anbinden. Bisher geschah das erst nach dem
-    // asynchronen GET der Kacheldaten; bis dahin reagierten Groesse, Position
-    // und Stil in der Screensaver-Vorschau sichtbar nicht.
+    // Bind the live handlers right away. This used to happen only after the
+    // asynchronous GET of the tile data, and until then size, position and style
+    // visibly did not react in the screensaver preview.
     setupLivePreview(tab);
     loadTileData(index, tab);
   }
@@ -3214,8 +3213,8 @@ function t(key) {
       return;
     }
     if (typeof parkClimateMiniEditor === 'function') {
-      // Eine Live-Aenderung baut den Preview-Inhalt neu auf. Die Auswahl
-      // des bearbeiteten Mini-Tiles muss diesen Render-Zyklus ueberleben.
+      // A live change rebuilds the preview content. The selection of the mini
+      // tile being edited has to survive that render cycle.
       parkClimateMiniEditor(tab, true);
     }
     const prefix = tab;
@@ -3600,8 +3599,8 @@ function t(key) {
     const sel = document.getElementById(tab + '_tile_type');
     if (sel) {
       for (const opt of sel.options) {
-        // Ordner behalten und Leeren/Loeschen bleiben erlaubt; alle anderen
-        // Typen sind gesperrt, solange der Ordner noch Kacheln enthaelt.
+        // Keeping the folder and emptying or deleting it stay allowed; every
+        // other type is locked while the folder still contains tiles.
         opt.disabled = locked && opt.value !== '4' && opt.value !== '0';
       }
     }
@@ -4052,8 +4051,8 @@ function t(key) {
       }));
     }
 
-    // Bei einem Import zwischen 7xN und 4xN wird die relative Anordnung in
-    // den beiden unteren Reihen beibehalten und auf das Zielraster gepackt.
+    // An import between 7xN and 4xN keeps the relative arrangement of the two
+    // bottom rows and packs it into the target grid.
     const firstTargetRow = Math.max(0, GRID_ROWS - 2);
     const firstSourceRow = sourceRows > 1 ? sourceRows - 2 : 0;
     const occupied = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(false));
@@ -4119,8 +4118,8 @@ function t(key) {
       }
     }
 
-    // Erst vorhandene Kacheln entfernen, damit die importierten Positionen
-    // nicht an temporaeren Ueberlappungen mit dem alten Grid scheitern.
+    // Remove the existing tiles first so the imported positions do not fail on
+    // temporary overlaps with the old grid.
     for (let i = 0; i < tileCount; i++) {
       if (Number(currentTiles[i]?.type || 0) !== 0) {
         await postTile(folderId, i, buildEmptyImportTile(i));
@@ -4200,9 +4199,9 @@ function t(key) {
         throw new Error('Folder mapping failed');
       }
 
-      // Version 1/2 hatten keinen Screensaver-Block und bleiben unveraendert
-      // importierbar. Auch alternative flache Feldnamen werden akzeptiert,
-      // falls ein Zwischenstand dieser Exportfunktion verwendet wurde.
+      // Versions 1 and 2 had no screensaver block and stay importable
+      // unchanged. Alternative flat field names are accepted as well, in case an
+      // intermediate state of this export function was used.
       const screensaverBlock = payload.screensaver && typeof payload.screensaver === 'object'
         ? payload.screensaver
         : null;
@@ -4220,7 +4219,7 @@ function t(key) {
       showNotification(t('importComplete'));
       setTimeout(() => location.reload(), 600);
     } catch (e) {
-      console.error('Import fehlgeschlagen:', e);
+      console.error('Tile import failed:', e);
       showNotification(t('importFailed'), false);
     }
   }
@@ -4657,9 +4656,9 @@ function t(key) {
 
     return Promise.all([fetchSensorMetaCache(forceMetaFetch), ...tileRequests])
     .then(results => {
-      // Eine Aktualisierung kann kurz vor dem Drag gestartet worden sein und
-      // erst waehrenddessen eintreffen. In diesem Fall darf sie die lokale
-      // Vorschau nicht mit dem alten Geraetezustand ueberschreiben.
+      // A refresh may have started shortly before the drag and only arrive
+      // during it. In that case it must not overwrite the local preview with the
+      // old device state.
       if (dragSource || resizeState) {
         queueDeferredSensorRefresh(refreshTiles);
         return;
@@ -4684,7 +4683,7 @@ function t(key) {
       return true;
     })
     .catch(err => {
-      console.error('Fehler beim Laden der Sensorwerte:', err);
+      console.error('Sensor values load failed:', err);
       return false;
     });
   }
@@ -4765,9 +4764,9 @@ function t(key) {
       ? gridRows[0]
       : ((rect.height - padTop - padBottom -
           (gapY * (rowCount - 1))) / rowCount);
-    // Bei align-content:space-between (Klima-Slots) liegt der wirksame
-    // Reihenabstand ueber dem nominalen gap; aus der Restflaeche ableiten,
-    // damit Pointer->Zelle auch dort stimmt. Fuer 1fr-Grids identisch.
+    // With align-content:space-between (Climate slots) the effective row
+    // spacing exceeds the nominal gap. Derive it from the leftover area so the
+    // pointer-to-cell mapping is correct there too; identical for 1fr grids.
     let effGapX = gapX;
     let effGapY = gapY;
     if (columnCount > 1 && isFinite(cellW)) {
@@ -5345,10 +5344,9 @@ function t(key) {
       applyLayoutInputsFromLayout(state.tab, finalLayout, false);
       if (commit && state.climateState &&
           typeof previewClimateOuterResize === 'function') {
-        // Die neue Parent- und Mini-Geometrie wird erst beim Loslassen im
-        // selben JavaScript-Schritt angewendet. Dadurch gibt es keinen Frame,
-        // in dem das alte Mini-Raster in die neue Parent-Groesse gequetscht
-        // oder gestreckt wird.
+        // The new parent and mini geometry is applied on release, within the
+        // same JavaScript step. That leaves no frame in which the old mini grid
+        // is squeezed into or stretched over the new parent size.
         previewClimateOuterResize(
           state.tab, state.climateState);
       }
@@ -5381,10 +5379,9 @@ function t(key) {
     updateResizePlaceholder(resizeState.tab, candidate, valid);
     if (!valid) return;
 
-    // Beim Ziehen bleibt die echte Kachel unveraendert. Nur der gestrichelte
-    // Resize-Platzhalter zeigt das Ziel. Das verhindert fuer alle Richtungen
-    // und Groessen, dass Mini-Tiles zwischen Pointer-Frames gestreckt oder
-    // zusammengestaucht werden.
+    // While dragging, the real tile stays unchanged and only the dashed resize
+    // placeholder shows the target. That keeps mini tiles from being stretched
+    // or squeezed between pointer frames, in every direction and size.
     resizeState.lastValidLayout = cloneLayout(candidate);
   }
 
@@ -5877,9 +5874,9 @@ function t(key) {
       if (data.success) {
         showNotification(t('tilesMovedSaved'));
         clearDeferredSensorRefresh();
-        // applyLocalTileReorder hat den bestaetigten Stand bereits gesetzt.
-        // Kein komplettes Grid-Reload: das wuerde sichtbar zum alten Stand
-        // und wieder zur neuen Position springen koennen.
+        // applyLocalTileReorder already stored the confirmed state. No full grid
+        // reload: that could visibly jump back to the old state and then forward
+        // to the new position again.
       } else {
         if (dragSource && dragSource.tab === tab) dragSource.dropCommitted = false;
         clearDeferredSensorRefresh();
@@ -6115,7 +6112,7 @@ function t(key) {
         screensaverWallpaperIndex = index;
         renderScreensaverEditor();
       });
-      // Gleiche Chevron-Grafik wie der Pfeil der Select-Felder.
+      // Same chevron graphic as the arrow of the select fields.
       const chevronSvg = dir =>
         '<svg width="12" height="8" viewBox="0 0 12 8" aria-hidden="true"><path d="' +
         (dir < 0 ? 'M1 6.5l5-5 5 5' : 'M1 1.5l5 5 5-5') +
@@ -6208,8 +6205,8 @@ function t(key) {
     date.style.width = 'auto';
     time.style.textAlign = ssClockAlignmentCss(d.time_alignment);
     date.style.textAlign = ssClockAlignmentCss(d.date_alignment);
-    // Beide Zeilen erhalten die Breite der laengeren Zeile. Dadurch ist die
-    // Ausrichtung im Browser dieselbe wie im kompakten LVGL-Uhr-Container.
+    // Both lines take the width of the longer line, so the alignment in the
+    // browser matches the compact LVGL clock container.
     const clockLineWidth = Math.ceil(Math.max(
       time.hidden ? 0 : time.getBoundingClientRect().width,
       date.hidden ? 0 : date.getBoundingClientRect().width));
@@ -6871,8 +6868,8 @@ function t(key) {
     loadSelectedTileStates();
     loadDraftsFromStorage();
     loadTileClipboard();
-    // Nach einem Browser-Neuladen auf dem zuletzt geoeffneten Admin-Tab
-    // bleiben. Nur wenn dieser nicht mehr existiert, auf Home zurueckfallen.
+    // Stay on the admin tab that was open before a browser reload. Fall back to
+    // Home only when that tab no longer exists.
     const homeTab = tabByFolder[0] || tileTabs[0];
     const initialFolderId = folderIdFromAdminTabName(initialTab);
     const initialTabKnown = initialTab && (
@@ -6955,7 +6952,7 @@ function maybeFillTitleFromSensor(tab) {
     const metaPromise = isSensorMetaCacheLoaded() ? Promise.resolve(sensorMetaCache) : fetchSensorMetaCache();
     metaPromise
       .then(meta => applyMeta(meta))
-      .catch(err => console.error('Fehler beim Laden des Sensorwerts:', err));
+      .catch(err => console.error('Sensor value load failed:', err));
   }
 
   function normalizeSensorValueFont(value) {
@@ -7105,7 +7102,7 @@ function maybeFillTitleFromEnergy(tab) {
     const metaPromise = isSensorMetaCacheLoaded() ? Promise.resolve(sensorMetaCache) : fetchSensorMetaCache();
     metaPromise
       .then(meta => applyMeta(meta))
-      .catch(err => console.error('Fehler beim Laden des Energy-Werts:', err));
+      .catch(err => console.error('Energy value load failed:', err));
   }
 
   function loadEnergyFields(tab, data) {
@@ -7630,7 +7627,7 @@ function maybeFillTitleFromSwitch(tab) {
     const metaPromise = isSensorMetaCacheLoaded() ? Promise.resolve(sensorMetaCache) : fetchSensorMetaCache();
     metaPromise
       .then(meta => applyMeta(meta))
-      .catch(err => console.error('Fehler beim Laden des Switch-Status:', err));
+      .catch(err => console.error('Switch state load failed:', err));
   }
 
   function loadSwitchFields(tab, data) {
@@ -8180,9 +8177,9 @@ function maybeFillTitleFromMedia(tab) {
   let climateGridDragPreview = null;
 
   function createClimateMiniDragGhost(item, rect) {
-    // Slot-Styles (Grid-Layout der Regler usw.) sind unter .tile.climate
-    // gescopet; ein nackter Klon in document.body verliert sie und zerfaellt
-    // zu Fliesstext. Der Wrapper stellt den Selektor-Kontext wieder her.
+    // The slot styles (grid layout of the controls and so on) are scoped under
+    // .tile.climate. A bare clone in document.body loses them and collapses into
+    // running text, so the wrapper restores the selector context.
     const ghost = document.createElement('div');
     ghost.className =
       'tile climate climate-content-editing climate-mini-drag-ghost';
@@ -8989,9 +8986,9 @@ function maybeFillTitleFromMedia(tab) {
     const resolved = climateResolvedEditorKinds(tab);
     const active = new Set();
     for (let index = 0; index < capacity; ++index) {
-      // Nur real platzierte Items zaehlen: syncClimateSlotFields blendet
-      // Slots ohne freien Platz aus; deren gespeicherte Geometrie darf
-      // Drag/Resize nicht als Phantom-Belegung blockieren.
+      // Count only items that are actually placed: syncClimateSlotFields hides
+      // slots without free space, and their stored geometry must not block drag
+      // and resize as a phantom occupancy.
       const item = document.getElementById(
         tab + '_climate_slot_row_' + index);
       if (Number(configured[index]) !== CLIMATE_TILE_CONTENT.EMPTY &&
@@ -10539,7 +10536,7 @@ function getClockPreviewLanguage() {
 
   function getClockPreviewCssPx(raw, fallback) {
     const n = normalizeClockPreviewFont(raw, fallback);
-    // Gleiche Skalierung wie die CSS-Variablen (LVGL-Pixel * Vorschau-Faktor)
+    // Same scaling as the CSS variables (LVGL pixels * preview factor).
     const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--fs' + n));
     return (v > 0) ? v : Math.round(n / 2);
   }

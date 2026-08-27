@@ -148,8 +148,8 @@
     .edit-icon:hover { opacity:1; }
     .tab-content { display:none; }
     .tab-content.active { display:block; }
-    /* Settings bleibt unter der Tab-Leiste und scrollt dort intern, statt den
-       Browser-Viewport mit langen Konfigurationsformularen zu vergroessern. */
+    /* Settings stays below the tab bar and scrolls internally there instead
+       of growing the browser viewport with long configuration forms. */
     #tab-network.active,
     #tab-hardware.active {
       flex:1 1 auto;
@@ -515,9 +515,9 @@
       color:var(--text-3);
     }
     .settings-actions { display:flex; gap:10px; flex-wrap:wrap; }
-    /* Alle Buttons in Settings-Aktionszeilen einheitlich kompakt (gleiches
-       Mass wie .file-picker), sonst mischen sich grosse .btn, versetzte
-       .btn-secondary (margin-top) und kleine Datei-Buttons im selben Bereich. */
+    /* Every button in a settings action row is uniformly compact (same
+       measure as .file-picker); otherwise large .btn, offset .btn-secondary
+       (margin-top) and small file buttons mix within one area. */
     .settings-actions .btn {
       width:auto;
       margin-top:0;
@@ -658,8 +658,8 @@
     .btn-danger { background:var(--danger); }
     .btn-danger:hover { background:var(--danger-hover); }
     .btn-danger:active { background:#8f2e2e; }
-    /* Gruen = positive "Los"-Aktion (Speichern/Update) - gleiche Semantik
-       wie im LVGL-Settings-Menue auf dem Geraet. */
+    /* Green marks the positive "go" action (save/update), the same semantics
+       as in the LVGL settings menu on the device. */
     .btn-go { background:var(--go); }
     .btn-go:hover { background:var(--go-hover); }
     .btn-go:active { background:var(--go-active); }
@@ -709,12 +709,12 @@
 
     /* Tile Editor */
     .tile-editor { display:flex; align-items:flex-start; gap:24px; }
-    /* Die Vorschau bleibt immer in ihrer geraetespezifischen Groesse;
-       das Settings-Panel nutzt nur den verbleibenden Desktop-Platz. */
+    /* The preview always keeps its device-specific size; the settings panel
+       only uses the remaining desktop space. */
     .tile-editor-main { flex:0 0 auto; min-width:0; display:flex; flex-direction:column; gap:14px; }
     .tile-grid-scroll { max-width:100%; overflow-x:auto; }
-    /* width:0 + min-width:100% - der Footer richtet sich nach der Grid-Breite,
-       ohne dass sein (langer) Hinweistext die Spalte aufblaeht. */
+    /* width:0 + min-width:100% - the footer follows the grid width without
+       its long hint text inflating the column. */
     .folder-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; width:0; min-width:100%; }
     .folder-footer-options { flex:0 0 100%; display:flex; align-items:center; gap:16px; }
     .folder-footer-options .inline-checkbox { margin:0; }
@@ -807,13 +807,13 @@
       cursor:pointer;
       user-select:none;
     }
-    /* Outline liegt ausserhalb des Bildes und veraendert dessen Layout nicht. */
+    /* The outline sits outside the image and does not change its layout. */
     .screensaver-tile-grid.selected-background .screensaver-grid-image-frame {
       outline:3px solid #26a69a;
       outline-offset:0;
     }
-    /* Hover nur vor der Auswahl. Ein ausgewaehlter Hintergrund behaelt
-       ausschliesslich seinen durchgehenden Auswahlrahmen. */
+    /* Hover applies only before selection. A selected background keeps
+       nothing but its solid selection border. */
     .screensaver-tile-grid:not(.selected-background) .screensaver-grid-image-frame:hover {
       outline:3px dashed rgba(38,166,154,0.6);
       outline-offset:0;
@@ -839,8 +839,8 @@
       touch-action:none;
       white-space:nowrap;
     }
-    /* Grosser, weicher Schatten mit nur kleinem Versatz. Die Display-Version
-       bildet denselben Verlauf mit mehreren sehr schwachen Textkopien nach. */
+    /* Large, soft shadow with only a small offset. The display version
+       imitates the same gradient with several very faint text copies. */
     .screensaver-grid-clock.clock-shadowed {
       text-shadow:
         var(--screensaver-clock-shadow-4, 2.5px) var(--screensaver-clock-shadow-4, 2.5px) 0 rgba(0,0,0,0.133),
@@ -873,8 +873,8 @@
     }
     .screensaver-grid-clock.dragging { cursor:grabbing; }
     #screensaverClockDate { color:#fff; }
-    /* Formsprache der Tile-Resize-Handles, aber kontrastreicher: der Griff
-       liegt auf beliebig hellen Fotos statt auf dunklem Grid-Hintergrund. */
+    /* Same shape language as the tile resize handles but with more contrast:
+       the grip sits on arbitrarily bright photos instead of a dark grid. */
     .screensaver-clock-resize-handle {
       position:absolute;
       right:-12px;
@@ -906,19 +906,19 @@
     .screensaver-tile-grid > .tile-resize-placeholder {
       z-index:2;
     }
-    /* Vorschau des optionalen Kachel-Schattens auf dem Geraet. drop-shadow
-       statt box-shadow, damit Auswahl-/Hover-Shadows unangetastet bleiben. */
+    /* Preview of the optional tile shadow on the device. drop-shadow instead
+       of box-shadow so selection and hover shadows stay untouched. */
     .screensaver-tile-grid.tiles-shadowed > .tile:not(.empty) {
       filter:drop-shadow(0 2px 8px rgba(0,0,0,0.65));
     }
-    /* Die feine Linie sitzt an der aeusseren Kartenkante. Ein Kind-Overlay
-       waere wegen des transparenten 3px-Editorrahmens sichtbar eingerueckt. */
+    /* The hairline sits on the outer card edge. A child overlay would be
+       visibly indented by the transparent 3px editor border. */
     .tile-grid.tiles-bordered > .tile:not(.empty) {
       outline:1px solid rgba(255,255,255,0.20);
       outline-offset:-1px;
     }
 
-    /* Display-aehnliche Kacheln (50% Skalierung) */
+    /* Display-like tiles (50% scaling) */
     /* Display: Title=TOP_LEFT, Value=CENTER(-30,18), Unit=RIGHT_MID */
     .tile {
       background:#2A2A2A;
@@ -939,9 +939,9 @@
       background-clip:padding-box;
       clip-path:inset(0 round var(--tile-radius, 11px));
     }
-    /* Die Auswahl ist pro Ordner in data-selected gespeichert. Die active-
-       Klasse kann bei asynchronen Vorschau-Updates wechseln, die sichtbare
-       Markierung darf davon aber nicht abhaengen. */
+    /* The selection is stored per folder in data-selected. The active class
+       can change during asynchronous preview updates, but the visible
+       marker must not depend on that. */
     .tile.active,
     .tile[data-selected="1"] {
       border:3px solid #26a69a;
@@ -1111,7 +1111,7 @@
       font-size:var(--icon-size, 24px);
       line-height:1;
     }
-    /* Zentrierter Geist-Hinweis fuer Kacheln ohne Live-Vorschau (Wetter/Media) */
+    /* Centered ghost hint for tiles without a live preview (weather/media) */
     .tile-ghost-icon {
       position:absolute;
       inset:0;
@@ -1123,8 +1123,8 @@
     }
     .tile-ghost-icon .mdi { font-size:var(--icon-size, 24px); line-height:1; }
 
-    /* Settings Panel: sticky rechts, scrollt bei langem Inhalt intern
-       (max. Viewport-Hoehe) statt die ganze Seite zu strecken. */
+    /* Settings panel: sticky on the right, scrolls internally on long content
+       (capped at the viewport height) instead of stretching the whole page. */
     .tile-settings {
       flex:0 1 var(--settings-panel-width, 390px);
       width:var(--settings-panel-width, 390px);
@@ -1144,7 +1144,7 @@
       overflow:hidden;
     }
     .tile-settings.hidden { display:none; }
-    /* Kopf (Titel + Typ) bleibt stehen, nur der Body scrollt */
+    /* The head (title + type) stays put, only the body scrolls */
     .tile-specific-settings { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }
     .screensaver-background-settings { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }
     .screensaver-background-settings.hidden { display:none; }
@@ -1162,14 +1162,14 @@
       margin-right:-12px;
       padding-right:12px;
     }
-    /* Die Aktionen bleiben im Desktop-Panel jederzeit erreichbar. */
+    /* The actions stay reachable in the desktop panel at all times. */
     .tile-specific-settings > .tile-actions {
       flex:0 0 auto;
       margin:10px 0 0;
       padding-top:10px;
       border-top:1px solid #232323;
     }
-    /* Kompaktere Controls nur im Panel */
+    /* More compact controls, panel only */
     .tile-settings label { font-size:12px; margin-bottom:4px; }
     .tile-settings input, .tile-settings select, .tile-settings textarea {
       padding:9px 12px;
@@ -1291,7 +1291,7 @@
     .clock-toggle-row { display:grid; grid-template-columns:repeat(2, minmax(120px, max-content)); gap:8px 18px; align-items:center; justify-content:start; margin-bottom:8px; }
     .clock-toggle-row .inline-checkbox { display:inline-flex; width:auto; margin-top:0; white-space:nowrap; }
 
-    /* Screensaverspezifische Felder innerhalb des normalen Tile-Editors. */
+    /* Screensaver-specific fields inside the normal tile editor. */
     .screensaver-fixed-type { display:grid; grid-template-columns:1fr 1.35fr; gap:10px; align-items:center; margin-bottom:10px; }
     .screensaver-fixed-type label { margin:0; }
     .screensaver-fixed-type input { margin:0; }
@@ -1302,8 +1302,8 @@
     .screensaver-wallpaper-row.active { border-color:#26b5aa; }
     .screensaver-wallpaper-row input[type="checkbox"] { width:16px; height:16px; padding:0; margin:0; }
     .screensaver-wallpaper-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; font-size:13px; color:var(--text); }
-    /* Ghost-Button wie .tile-color-reset-btn, damit die Reihenfolge-Buttons
-       nicht als native Browser-Buttons mit fremder Schrift auffallen. */
+    /* Ghost button like .tile-color-reset-btn so the ordering buttons do not
+       stand out as native browser buttons with a foreign font. */
     .screensaver-wallpaper-move {
       width:28px;
       height:28px;
@@ -1329,8 +1329,8 @@
     .screensaver-two-fields input, .screensaver-two-fields select { margin-top:5px; margin-bottom:0; }
     .screensaver-save-state { min-height:20px; margin-top:12px; color:var(--text-2); font-size:12px; }
 
-    /* Schmales Fenster: Settings-Panel rueckt unter die Grid-Vorschau,
-       das Grid selbst scrollt bei Bedarf horizontal (.tile-grid-scroll). */
+    /* Narrow window: the settings panel moves below the grid preview and the
+       grid itself scrolls horizontally when needed (.tile-grid-scroll). */
     @media (max-width: 1180px) {
       .tile-editor { flex-direction:column; align-items:stretch; }
       .tile-editor-main { flex:1 1 auto; }
@@ -1448,8 +1448,9 @@
       text-overflow:ellipsis;
       white-space:nowrap;
     }
-    /* Wie auf dem Display: Wert+Einheit ein Label in derselben Schrift,
-       horizontal zentriert, vertikal Mitte + value-dy (LV_ALIGN_CENTER 0,28) */
+    /* As on the display: value and unit are one label in the same font,
+       horizontally centered, vertically middle + value-dy
+       (LV_ALIGN_CENTER 0,28) */
     .tile-value {
       position:absolute;
       left:0;
@@ -1978,8 +1979,8 @@
       border-color:transparent !important;
       box-shadow:none !important;
     }
-    /* Gestricheltes Drop-Ziel analog .tile-drop-placeholder des grossen
-       Grids, nur in Mini-Masstab. Wird per JS im Grid positioniert. */
+    /* Dashed drop target analogous to .tile-drop-placeholder of the large
+       grid, only at mini scale. Positioned in the grid by script. */
     .climate-drop-placeholder {
       z-index:6;
       position:relative;
@@ -2003,8 +2004,8 @@
       background:rgba(239,68,68,0.16);
       box-shadow:0 0 0 1px rgba(239,68,68,0.18) inset;
     }
-    /* Drag-Geist: Wrapper traegt .tile.climate, damit die darunter
-       gescopten Slot-Styles auch ausserhalb der Kachel greifen. */
+    /* Drag ghost: the wrapper carries .tile.climate so the slot styles scoped
+       under it also apply outside the tile. */
     .climate-mini-drag-ghost {
       border-radius:var(--climate-control-radius, 8px);
       clip-path:inset(
