@@ -67,6 +67,9 @@ const TileTypeDescriptor* get_tile_type_descriptor(TileType type);
 uint32_t get_tile_type_default_bg(TileType type);
 const char* get_tile_type_css_class(TileType type);
 const char* get_tile_type_preview_kind(TileType type);
+// Localized type name in the configured language, shared by the tile type
+// select list, the browser registry and the accessible names of the grid tiles.
+const char* get_tile_type_localized_label(TileType type);
 
 void append_tile_type_fields_html(String& html, const TileTypeWebContext& ctx);
 void append_tile_type_styles(String& html);

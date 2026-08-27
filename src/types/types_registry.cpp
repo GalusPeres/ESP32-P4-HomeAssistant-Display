@@ -741,8 +741,9 @@ void append_tile_type_scripts(String& html) {
   }
 }
 
-// Localized tile type name for the select list and the browser registry. Both
-// must show the same label, so a new tile type is translated in one place.
+// Localized tile type name for the select list, the browser registry and the
+// accessible names of the grid tiles. All of them must show the same label, so a
+// new tile type is translated in one place.
 static const char* localized_tile_type_label(const TileTypeDescriptor& entry) {
   const char* language = configManager.getConfig().language;
   const auto& tr = i18n::strings(language);
@@ -764,6 +765,11 @@ static const char* localized_tile_type_label(const TileTypeDescriptor& entry) {
     case TILE_BACK: return tr.tile_type_back;
     default: return entry.label;
   }
+}
+
+const char* get_tile_type_localized_label(TileType type) {
+  const TileTypeDescriptor* entry = get_tile_type_descriptor(type);
+  return entry ? localized_tile_type_label(*entry) : "";
 }
 
 void append_tile_type_select_options(String& html) {

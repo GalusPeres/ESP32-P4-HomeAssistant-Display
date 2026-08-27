@@ -1669,6 +1669,17 @@ function t(key) {
     return TILE_TYPE_REGISTRY[key] || TILE_TYPE_REGISTRY['0'] || {};
   }
 
+  // Keeps the accessible name of a grid tile in step with its rendered content.
+  // The server emits the same name, so a tile stays announced correctly whether
+  // it came from the page load or from a live preview update.
+  function applyTileAriaLabel(tileElem, title, typeValue) {
+    if (!tileElem) return;
+    const label = String(title ?? '').trim() ||
+      String(getTileTypeMeta(typeValue).label || '').trim();
+    if (label) tileElem.setAttribute('aria-label', label);
+    else tileElem.removeAttribute('aria-label');
+  }
+
   function syncTileTypeSelectValue(selectEl, typeValue) {
     if (!selectEl) return;
     const key = String(typeValue ?? '0');
@@ -2097,6 +2108,7 @@ function t(key) {
     initTileTabs();
     if (bindInteractions) {
       enableTileDrag(String(data.tab_id));
+      enableTileKeys(String(data.tab_id));
       enableTileResize(String(data.tab_id));
     }
     if (name !== null || icon !== null) {
@@ -3341,6 +3353,7 @@ function t(key) {
       html += '<div class="tile-title" id="' + tileId + '-title">' +
         escapeHtml(displayTitle) + '</div>';
     }
+    applyTileAriaLabel(tileElem, displayTitle, type);
 
     if (previewKind === 'weather') {
       html += '<div class="tile-ghost-icon"><i class="mdi mdi-weather-partly-cloudy"></i></div>';
@@ -4549,6 +4562,7 @@ function t(key) {
         html += '<div class="tile-title" id="' + tab + '-tile-' + index + '-title">' +
           escapeHtml(displayTitle) + '</div>';
       }
+      applyTileAriaLabel(el, displayTitle, typeValue);
 
       if (previewKind === 'weather') {
         html += '<div class="tile-ghost-icon"><i class="mdi mdi-weather-partly-cloudy"></i></div>';
@@ -5603,6 +5617,25 @@ function t(key) {
   function restoreDragPreviewFromSnapshot(tab, snapshot) {
     restoreLocalTileReorder(tab, snapshot);
     restoreDragPreview(tab);
+  }
+
+  // The grid tiles are role="button" with tabindex, so they also have to answer
+  // Enter and Space. One delegated listener per grid element survives every tile
+  // re-render, and the flag keeps a rebound folder from stacking duplicates.
+  function enableTileKeys(tab) {
+    const grid = getTileGrid(tab);
+    if (!grid || grid.dataset.keysBound === '1') return;
+    grid.dataset.keysBound = '1';
+    grid.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ' &&
+          event.key !== 'Spacebar') return;
+      const tile = event.target.closest('.tile[data-index]');
+      if (!tile || tile.parentElement !== grid) return;
+      event.preventDefault();
+      const index = parseInt(tile.dataset.index, 10);
+      if (Number.isNaN(index)) return;
+      selectTile(index, tab);
+    });
   }
 
   function enableTileDrag(tab) {
@@ -6891,6 +6924,7 @@ function t(key) {
     }, 15000);
     tileTabs.forEach(tab => {
       enableTileDrag(tab);
+      enableTileKeys(tab);
       enableTileResize(tab);
     });
     enableSettingsHiddenSlot();

@@ -932,6 +932,12 @@
       background-clip:padding-box;
       clip-path:inset(0 round var(--tile-radius, 11px));
     }
+    /* The tile clips itself to its rounded corners, so an outline would be cut
+       off. An inset ring is the visible focus indicator instead. */
+    .tile:focus-visible {
+      outline:none;
+      box-shadow:inset 0 0 0 3px var(--accent);
+    }
     .tile:hover:not(.active) {
       border:3px dashed rgba(38,166,154,0.6);
       box-shadow:0 0 0 2px rgba(38,166,154,0.12) inset;
@@ -2199,4 +2205,13 @@
     .tile.text .tile-icon { position:absolute; top:10px; right:8px; }
     .tile-settings textarea {
       font-size:14px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration:0.01ms !important;
+        animation-iteration-count:1 !important;
+        transition-duration:0.01ms !important;
+        scroll-behavior:auto !important;
+      }
     }

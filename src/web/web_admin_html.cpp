@@ -245,6 +245,13 @@ static void appendTileTabHTML(
     html += String(i);
     html += "\" style=\"";
     html += tileStyle;
+    // The grid is the primary control of the editor, so every tile is a real
+    // button: reachable with Tab, activated by Enter/Space (see enableTileKeys
+    // in admin.js) and announced with its title or its localized type name.
+    html += "\" role=\"button\" tabindex=\"0\" aria-label=\"";
+    appendHtmlEscaped(html, tile.title.length()
+                                ? tile.title
+                                : String(get_tile_type_localized_label(tile.type)));
     html += "\" onclick=\"selectTile(parseInt(this.dataset.index), '";
     html += tab_id;
     html += "')\" ondblclick=\"openPreviewNavigation(this, '";

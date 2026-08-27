@@ -14,12 +14,27 @@ class TestElement {
     this.value = value;
     this.dataset = {};
     this.listeners = {};
+    this.attributes = {};
     this.options = [];
     this.selectedOptions = [];
     this.classList = classList;
     this.style = { removeProperty: noop, setProperty: noop };
     this.className = '';
     this.innerHTML = '';
+  }
+
+  setAttribute(name, value) {
+    this.attributes[name] = String(value);
+  }
+
+  removeAttribute(name) {
+    delete this.attributes[name];
+  }
+
+  getAttribute(name) {
+    return Object.prototype.hasOwnProperty.call(this.attributes, name)
+      ? this.attributes[name]
+      : null;
   }
 
   addEventListener(name, handler) {
