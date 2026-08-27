@@ -1626,6 +1626,19 @@ function t(key) {
     return trimmed === '-' || trimmed === 'none' || trimmed === 'null' || trimmed === 'no' || trimmed === 'off';
   }
 
+  // Mirrors appendHtmlEscaped() in src/web/web_admin_utils.cpp. The tile
+  // previews are assembled as markup strings, so every tile title, unit, value
+  // and icon name coming from a configuration or from Home Assistant has to be
+  // escaped before it is inserted.
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
   function normalizeMdiIconName(raw) {
     let iconName = String(raw || '').trim().toLowerCase();
     if (iconName.startsWith('mdi:')) iconName = iconName.substring(4);
@@ -3317,7 +3330,7 @@ function t(key) {
         : (previewKind === 'cover'
           ? ' style="color:' + coverPreviewColor(coverPreviewState) + '"'
           : '');
-      html += '<i class="mdi mdi-' + iconName + ' tile-icon"' + iconStyle + '></i>';
+      html += '<i class="mdi mdi-' + escapeHtml(iconName) + ' tile-icon"' + iconStyle + '></i>';
     }
 
     let displayTitle = title;
@@ -3326,7 +3339,8 @@ function t(key) {
         titleFromEntity(cameraEntity);
     }
     if (displayTitle) {
-      html += '<div class="tile-title" id="' + tileId + '-title">' + displayTitle + '</div>';
+      html += '<div class="tile-title" id="' + tileId + '-title">' +
+        escapeHtml(displayTitle) + '</div>';
     }
 
     if (previewKind === 'weather') {
@@ -3351,7 +3365,8 @@ function t(key) {
                     coverPreviewState?.position !== undefined
         ? String(coverPreviewState.position) + '%' : '--%';
       html += '<div class="tile-value tile-cover-value">' +
-        coverPreviewStateText(coverPreviewState) + '<br>' + value + '</div>';
+        escapeHtml(coverPreviewStateText(coverPreviewState)) +
+        '<br>' + escapeHtml(value) + '</div>';
     }
 
     if (previewKind === 'sensor') {
@@ -3360,7 +3375,7 @@ function t(key) {
       const entity = entitySelect ? entitySelect.value : '';
       const unit = resolveUnitValue(unitInput ? unitInput.value : '', entity, sensorMetaCache.units);
       html += '<div class="tile-value ' + sensorValueClass + '" id="' + tileId + '-value">--';
-      if (unit) html += '<span class="tile-unit">' + unit + '</span>';
+      if (unit) html += '<span class="tile-unit">' + escapeHtml(unit) + '</span>';
       html += '</div>';
       if (entity) {
         tileElem.innerHTML = html;
@@ -3386,7 +3401,8 @@ function t(key) {
       if (textValue) {
         const textFont = document.getElementById(prefix + '_text_value_font')?.value || '0';
         const textClass = getSensorValueFontClass(textFont);
-        html += '<div class="tile-text ' + textClass + '">' + textValue + '</div>';
+        html += '<div class="tile-text ' + textClass + '">' +
+          escapeHtml(textValue) + '</div>';
       }
     }
 
@@ -4522,7 +4538,7 @@ function t(key) {
           : (previewKind === 'cover'
             ? ' style="color:' + coverPreviewColor(coverPreviewState) + '"'
             : '');
-        html += '<i class="mdi mdi-' + iconName + ' tile-icon"' + iconStyle + '></i>';
+        html += '<i class="mdi mdi-' + escapeHtml(iconName) + ' tile-icon"' + iconStyle + '></i>';
       }
 
       let displayTitle = tile.title || '';
@@ -4531,7 +4547,8 @@ function t(key) {
           titleFromEntity(tile.sensor_entity);
       }
       if (displayTitle.length) {
-        html += '<div class="tile-title" id="' + tab + '-tile-' + index + '-title">' + displayTitle + '</div>';
+        html += '<div class="tile-title" id="' + tab + '-tile-' + index + '-title">' +
+          escapeHtml(displayTitle) + '</div>';
       }
 
       if (previewKind === 'weather') {
@@ -4545,7 +4562,10 @@ function t(key) {
         let value = '--';
         if (tile.sensor_entity) value = formatSensorValue(metaValues[tile.sensor_entity] ?? '--', tile.sensor_decimals);
         const unit = resolveUnitValue(tile.sensor_unit || '', tile.sensor_entity || '', metaUnits);
-        html += '<div class="tile-value ' + sensorValueClass + '" id="' + tab + '-tile-' + index + '-value">' + value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '') + '</div>';
+        html += '<div class="tile-value ' + sensorValueClass + '" id="' + tab + '-tile-' + index + '-value">' +
+          escapeHtml(value) +
+          (unit ? '<span class="tile-unit">' + escapeHtml(unit) + '</span>' : '') +
+          '</div>';
       }
       if (previewKind === 'climate') {
         html += climatePreviewSlots(
@@ -4561,8 +4581,8 @@ function t(key) {
                       coverPreviewState?.position !== undefined
           ? String(coverPreviewState.position) + '%' : '--%';
         html += '<div class="tile-value tile-cover-value">' +
-          coverPreviewStateText(coverPreviewState) +
-          '<br>' + value + '</div>';
+          escapeHtml(coverPreviewStateText(coverPreviewState)) +
+          '<br>' + escapeHtml(value) + '</div>';
       }
       if (previewKind === 'clock') {
         const flags = normalizeClockFlags(tile.sensor_decimals);
@@ -4577,7 +4597,8 @@ function t(key) {
         const textValue = tile.text_value || tile.scene_alias || tile.key_macro || '';
         if (textValue) {
           const textClass = getSensorValueFontClass(tile.sensor_value_font);
-          html += '<div class="tile-text ' + textClass + '">' + textValue + '</div>';
+          html += '<div class="tile-text ' + textClass + '">' +
+            escapeHtml(textValue) + '</div>';
         }
       }
       if (previewKind === 'switch' && tile.switch_style === 1) {
@@ -6913,7 +6934,8 @@ function maybeFillTitleFromSensor(tab) {
       const valueElem = document.getElementById(tab + '-tile-' + currentTileIndex + '-value');
       if (valueElem) {
         const unit = resolveUnitValue(unitInput ? unitInput.value : '', '', sensorMetaCache.units);
-        valueElem.innerHTML = '--' + (unit ? '<span class="tile-unit">' + unit + '</span>' : '');
+        valueElem.innerHTML = '--' +
+          (unit ? '<span class="tile-unit">' + escapeHtml(unit) + '</span>' : '');
         applySensorValueFontClass(valueElem, valueFontSelect ? valueFontSelect.value : '0');
       }
       return;
@@ -6925,7 +6947,8 @@ function maybeFillTitleFromSensor(tab) {
         const decimals = decimalsInput ? decimalsInput.value : '';
         const value = formatSensorValue(values[entity] ?? '--', decimals);
         const unit = resolveUnitValue(unitInput ? unitInput.value : '', entity, (meta && meta.units) || {});
-        valueElem.innerHTML = value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '');
+        valueElem.innerHTML = escapeHtml(value) +
+          (unit ? '<span class="tile-unit">' + escapeHtml(unit) + '</span>' : '');
         applySensorValueFontClass(valueElem, valueFontSelect ? valueFontSelect.value : '0');
       }
     };
@@ -7074,7 +7097,9 @@ function maybeFillTitleFromEnergy(tab) {
       const decimals = decimalsInput ? decimalsInput.value : '1';
       const value = entity ? formatSensorValue(values[entity] ?? '--', decimals) : '--';
       const unit = resolveUnitValue(unitInput ? unitInput.value : '', entity, (meta && meta.units) || {});
-      valueElem.innerHTML = value + (unit && value !== '--' ? '<span class="tile-unit">' + unit + '</span>' : '');
+      valueElem.innerHTML = escapeHtml(value) +
+        (unit && value !== '--'
+          ? '<span class="tile-unit">' + escapeHtml(unit) + '</span>' : '');
       applySensorValueFontClass(valueElem, valueFontSelect ? valueFontSelect.value : '0');
     };
     const metaPromise = isSensorMetaCacheLoaded() ? Promise.resolve(sensorMetaCache) : fetchSensorMetaCache();
@@ -8858,7 +8883,7 @@ function maybeFillTitleFromMedia(tab) {
         '<div class="climate-slot climate-slot-control ' +
         'climate-slot-control-compact">' +
         '<span class="climate-minus" aria-hidden="true">-</span>' +
-        '<strong>' + info.value + '</strong>' +
+        '<strong>' + escapeHtml(info.value) + '</strong>' +
         '<span class="climate-plus" aria-hidden="true">+</span></div>';
       return;
     }
@@ -8872,9 +8897,9 @@ function maybeFillTitleFromMedia(tab) {
       preview.innerHTML =
         '<div class="climate-slot climate-slot-control ' +
         orientation + '">' +
-        '<small>' + info.label + '</small>' +
+        '<small>' + escapeHtml(info.label) + '</small>' +
         '<span class="climate-minus">-</span>' +
-        '<strong>' + info.value + '</strong>' +
+        '<strong>' + escapeHtml(info.value) + '</strong>' +
         '<span class="climate-plus">+</span></div>';
       return;
     }
@@ -8882,7 +8907,7 @@ function maybeFillTitleFromMedia(tab) {
       '<div class="climate-slot climate-slot-value' +
       (resolvedKind === CLIMATE_TILE_CONTENT.HVAC_MODE
         ? ' climate-slot-mode' : '') + '">' +
-      '<strong>' + info.value + '</strong></div>';
+      '<strong>' + escapeHtml(info.value) + '</strong></div>';
   }
 
   function selectClimateEditorItem(
@@ -10264,7 +10289,8 @@ function maybeFillTitleFromMedia(tab) {
               ? ' climate-slot-mode' : '') +
             '" data-climate-preview-item="' +
             slot.itemIndex + '" style="' +
-            gridStyle + '"><strong>' + slot.value + '</strong></div>';
+            gridStyle + '"><strong>' + escapeHtml(slot.value) +
+            '</strong></div>';
         }
         if (compact) {
           return '<div class="climate-slot climate-slot-control ' +
@@ -10272,7 +10298,7 @@ function maybeFillTitleFromMedia(tab) {
             'data-climate-preview-item="' +
             slot.itemIndex + '" style="' + gridStyle + '">' +
             '<span class="climate-minus" aria-hidden="true">-</span>' +
-            '<strong>' + slot.value + '</strong>' +
+            '<strong>' + escapeHtml(slot.value) + '</strong>' +
             '<span class="climate-plus" aria-hidden="true">+</span></div>';
         }
         const controlClass = horizontal
@@ -10289,9 +10315,10 @@ function maybeFillTitleFromMedia(tab) {
           controlClass +
           '" data-climate-preview-item="' +
           slot.itemIndex + '" style="' + gridStyle + '">' +
-          '<small>' + slot.caption + '</small>' +
+          '<small>' + escapeHtml(slot.caption) + '</small>' +
           '<span class="climate-minus">-</span><strong>' +
-          slot.value + '</strong><span class="climate-plus">+</span></div>';
+          escapeHtml(slot.value) +
+          '</strong><span class="climate-plus">+</span></div>';
       }).join('') +
       '</div>';
   }
