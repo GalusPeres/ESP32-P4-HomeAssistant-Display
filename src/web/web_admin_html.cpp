@@ -1148,7 +1148,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.ssid_label;
   html += R"html(:</label>
                 <input type="text" id="wifi_ssid" name="wifi_ssid" value=")html";
-  html += cfg.wifi_ssid;
+  appendHtmlEscaped(html, cfg.wifi_ssid);
   html += R"html(">
                   </div>
                   <div>
@@ -1156,8 +1156,9 @@ String WebAdminServer::getAdminPage() {
   html += tr.wifi_password_label;
   html += R"html(:</label>
                 <div class="password-field">
-                  <input type="password" id="wifi_pass" name="wifi_pass" value=")html";
-  html += cfg.wifi_pass;
+                  <input type="password" id="wifi_pass" name="wifi_pass"
+                         autocomplete="new-password" value=")html";
+  appendHtmlEscaped(html, cfg.wifi_pass);
   html += R"html(">
                   <button type="button" class="password-toggle" data-label-show=")html";
   html += tr.password_show;
@@ -1201,7 +1202,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.wifi_static_ip_label;
   html += R"html(:</label>
                 <input type="text" id="network_static_ip" name="network_static_ip" inputmode="decimal" autocomplete="on" value=")html";
-  html += cfg.wifi_static_ip;
+  appendHtmlEscaped(html, cfg.wifi_static_ip);
   html += R"html(">
                 </div>
                 <div>
@@ -1209,7 +1210,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.wifi_gateway_label;
   html += R"html(:</label>
                 <input type="text" id="network_gateway" name="network_gateway" inputmode="decimal" autocomplete="on" value=")html";
-  html += cfg.wifi_gateway;
+  appendHtmlEscaped(html, cfg.wifi_gateway);
   html += R"html(">
                 </div>
                 <div>
@@ -1217,7 +1218,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.wifi_subnet_label;
   html += R"html(:</label>
                 <input type="text" id="network_subnet" name="network_subnet" inputmode="decimal" autocomplete="on" value=")html";
-  html += cfg.wifi_subnet;
+  appendHtmlEscaped(html, cfg.wifi_subnet);
   html += R"html(">
                 </div>
                 <div>
@@ -1225,7 +1226,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.wifi_dns_label;
   html += R"html(:</label>
                 <input type="text" id="network_dns" name="network_dns" inputmode="decimal" autocomplete="on" value=")html";
-  html += cfg.wifi_dns;
+  appendHtmlEscaped(html, cfg.wifi_dns);
   html += R"html(">
                 </div>
                 </div>
@@ -1244,7 +1245,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.mqtt_host;
   html += R"html(:</label>
                 <input type="text" id="mqtt_host" name="mqtt_host" value=")html";
-  html += cfg.mqtt_host;
+  appendHtmlEscaped(html, cfg.mqtt_host);
   html += R"html(">
               </div>
               <div>
@@ -1260,7 +1261,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.mqtt_username;
   html += R"html(:</label>
                 <input type="text" id="mqtt_user" name="mqtt_user" value=")html";
-  html += cfg.mqtt_user;
+  appendHtmlEscaped(html, cfg.mqtt_user);
   html += R"html(">
               </div>
               <div>
@@ -1268,8 +1269,9 @@ String WebAdminServer::getAdminPage() {
   html += tr.mqtt_password;
   html += R"html(:</label>
                 <div class="password-field">
-                  <input type="password" id="mqtt_pass" name="mqtt_pass" value=")html";
-  html += cfg.mqtt_pass;
+                  <input type="password" id="mqtt_pass" name="mqtt_pass"
+                         autocomplete="new-password" value=")html";
+  appendHtmlEscaped(html, cfg.mqtt_pass);
   html += R"html(">
                   <button type="button" class="password-toggle" data-label-show=")html";
   html += tr.password_show;
@@ -1287,7 +1289,7 @@ String WebAdminServer::getAdminPage() {
                 <input type="text" id="mqtt_client_id" name="mqtt_client_id" placeholder=")html";
   html += tr.mqtt_client_id_placeholder;
   html += R"html(" value=")html";
-  html += cfg.mqtt_client_id;
+  appendHtmlEscaped(html, cfg.mqtt_client_id);
   html += R"html(">
                 <div class="settings-note">)html";
   html += tr.mqtt_client_id_hint;
@@ -1298,7 +1300,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.mqtt_base_topic;
   html += R"html(:</label>
                 <input type="text" id="mqtt_base" name="mqtt_base" value=")html";
-  html += cfg.mqtt_base_topic;
+  appendHtmlEscaped(html, cfg.mqtt_base_topic);
   html += R"html(">
               </div>
               <div>
@@ -1306,7 +1308,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.ha_prefix;
   html += R"html(:</label>
                 <input type="text" id="ha_prefix" name="ha_prefix" value=")html";
-  html += cfg.ha_prefix;
+  appendHtmlEscaped(html, cfg.ha_prefix);
   html += R"html(">
               </div>
             </div>
