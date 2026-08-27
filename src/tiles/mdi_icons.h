@@ -17,8 +17,8 @@ extern const lv_font_t mdi_icons_48;
 #define FONT_MDI_ICONS (&mdi_icons_48)
 #endif
 
-// Icon-Name zu Unicode-Codepoint Mapping
-// Gibt den Codepoint zurück für einen Icon-Namen (z.B. "home" -> 0xF02DC)
+// Maps an icon name to its Unicode codepoint, for example
+// "home" -> 0xF02DC.
 uint32_t getMdiCodepoint(const String& iconName);
 
 // Returns true if icon name explicitly disables icon rendering (e.g. "-", "none").
@@ -27,7 +27,7 @@ bool isMdiIconDisabled(const String& iconName);
 // Normalizes MDI icon names (lowercase, trim, strip mdi: prefix, honor disable token).
 String normalizeMdiIconName(const String& iconName);
 
-// Gibt ein String mit dem Unicode-Zeichen zurück (für lv_label_set_text)
+// Returns the Unicode character as a String, for lv_label_set_text().
 String getMdiChar(const String& iconName);
 
 #endif // MDI_ICONS_H

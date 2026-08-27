@@ -19,7 +19,7 @@
 #define FPS_SLEEP           1     // 1 FPS im Display-Sleep (nur für Touch-Erkennung)
 #define IDLE_TIMEOUT_MS     3000  // 3 Sekunden High-Performance nach letztem Touch
 
-// Power Manager - Verwaltet Energiemodi und Performance
+// Power manager: owns the energy modes and the performance level.
 class PowerManager {
 public:
   // Initialisierung
@@ -34,12 +34,11 @@ public:
   // Update-Schleife (prüft Idle-Timeout)
   void update(uint32_t last_activity_time);
 
-  // Display-Sleep-Modus verwalten (Display aus, CPU minimal, Touch bleibt aktiv)
+  // Display sleep mode: panel off, CPU at minimum, touch stays active.
   void enterDisplaySleep();
   void wakeFromDisplaySleep(const char* reason = "unknown");
-  // Aktualisiert die aktuell gewuenschte Backlight-Stufe. Im Display-Sleep
-  // wird nur der beim Aufwachen wiederherzustellende Wert geaendert; das
-  // Backlight bleibt dabei sicher aus.
+  // Updates the requested backlight level. During display sleep this only
+  // changes the value to restore on wake-up; the backlight stays safely off.
   void setDisplayBrightness(uint8_t brightness);
   bool isInSleep() const { return is_display_sleeping; }
   bool isTouchWakeEnabled() const;
@@ -51,10 +50,10 @@ public:
   void allowSleep();
   bool isSleepBlocked() const;
 
-  // Ermittelt aktuelles Sleep-Timeout basierend auf Batterie/Netzteil
+  // Current sleep timeout, depending on battery or mains power.
   uint32_t getSleepTimeout() const;
 
-  // Prüft ob am Netzteil (true) oder Batterie (false)
+  // True on mains power, false on battery.
   bool isPoweredByMains() const;
 
   // Power Mode Update (WiFi Power Saving, etc.)

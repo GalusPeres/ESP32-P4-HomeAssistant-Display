@@ -349,11 +349,11 @@ struct TileWidgetCache {
 // live in PSRAM; non-P4 profiles keep their established static storage.
 bool tile_renderer_init_cold_storage();
 
-// Rendert ein komplettes Tile-Grid (4x4)
+// Renders a complete tile grid.
 void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType grid_type,
                       scene_publish_cb_t scene_cb = nullptr, lv_obj_t** out_tile_objs = nullptr);
 
-// Rendert eine einzelne Kachel basierend auf Typ und liefert das erzeugte Objekt
+// Renders one tile according to its type and returns the created object.
 lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type, scene_publish_cb_t scene_cb);
 
 // Typ-spezifische Render-Funktionen
@@ -369,12 +369,12 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
 lv_obj_t* render_media_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type);
 lv_obj_t* render_empty_tile(lv_obj_t* parent, int col, int row);
 
-// Update-Funktionen (für Sensoren)
+// Update entry points for sensor values.
 void update_sensor_tile_value(GridType grid_type, uint8_t grid_index, const char* value, const char* unit = nullptr);
 void reset_sensor_widget(GridType grid_type, uint8_t grid_index);
 void reset_sensor_widgets(GridType grid_type);
 
-// THREAD-SAFE: Queue für Sensor-Updates (MQTT Callback → Main Loop)
+// Thread-safe sensor update queue (MQTT callback -> main loop).
 void queue_sensor_tile_update(GridType grid_type, uint8_t grid_index, const char* value, const char* unit = nullptr);
 void process_sensor_update_queue(uint8_t max_updates = 0);  // 0 = Queue komplett leeren
 
