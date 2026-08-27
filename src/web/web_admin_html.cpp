@@ -764,7 +764,9 @@ static String buildFolderTabButtonHtml(const FolderEntry& entry) {
   appendHtmlEscaped(html, icon);
   html += R"html(" data-tab-id=")html";
   html += tab_id;
-  html += R"html(" onclick="switchTab('tab-tiles-)html";
+  html += R"html(" data-tab-target="tab-tiles-)html";
+  html += tab_id;
+  html += R"html(" type="button" onclick="switchTab('tab-tiles-)html";
   html += tab_id;
   html += R"html(')">)html";
   if (icon.length()) {
@@ -1001,17 +1003,20 @@ String WebAdminServer::getAdminPage() {
   }
 
   html += R"html(
-        <button class="tab-btn" onclick="switchTab('tab-tiles-screensaver')">
+        <button class="tab-btn" type="button" data-tab-target="tab-tiles-screensaver"
+                onclick="switchTab('tab-tiles-screensaver')">
           <i class="mdi mdi-monitor" style="font-size:24px;"></i>
           <span style="font-size:14px;font-weight:600;">Screensaver</span>
         </button>
-        <button class="tab-btn" onclick="switchTab('tab-hardware')">
+        <button class="tab-btn" type="button" data-tab-target="tab-hardware"
+                onclick="switchTab('tab-hardware')">
           <i class="mdi mdi-electric-switch" style="font-size:24px;"></i>
           <span style="font-size:14px;font-weight:600;">)html";
   html += tr.admin_io;
   html += R"html(</span>
         </button>
-        <button class="tab-btn" onclick="switchTab('tab-network')">
+        <button class="tab-btn" type="button" data-tab-target="tab-network"
+                onclick="switchTab('tab-network')">
           <i class="mdi mdi-cog" style="font-size:24px;"></i>
           <span style="font-size:14px;font-weight:600;">)html";
   html += tr.tile_type_settings;

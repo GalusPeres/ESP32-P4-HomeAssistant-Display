@@ -63,6 +63,22 @@ function t(key) {
     return match ? Number(match[1]) : null;
   }
 
+  // Each tab button names the panel it opens, so the active one is found by that
+  // attribute instead of by scanning its inline handler for a quoted name.
+  // aria-current tells assistive technology which tab is open; the active class
+  // only paints it.
+  function setActiveTabButton(tabName) {
+    const buttons = Array.from(document.querySelectorAll('.tab-btn'));
+    buttons.forEach(button => {
+      button.classList.remove('active');
+      button.removeAttribute('aria-current');
+    });
+    const active = buttons.find(button => button.dataset.tabTarget === tabName);
+    if (!active) return;
+    active.classList.add('active');
+    active.setAttribute('aria-current', 'page');
+  }
+
   async function switchTab(tabName) {
     const sequence = ++tabSwitchSequence;
     let target = document.getElementById(tabName);
@@ -113,12 +129,8 @@ function t(key) {
 
     const tabs = document.querySelectorAll('.tab-content');
     tabs.forEach(tab => tab.classList.remove('active'));
-    const btns = document.querySelectorAll('.tab-btn');
-    btns.forEach(btn => btn.classList.remove('active'));
     target.classList.add('active');
-    // Find and activate the button that switches to this tab
-    const activeBtn = Array.from(btns).find(btn => btn.getAttribute('onclick')?.includes("'" + tabName + "'"));
-    if (activeBtn) activeBtn.classList.add('active');
+    setActiveTabButton(tabName);
     try { localStorage.setItem('activeAdminTab', tabName); } catch (e) {}
     updateTileSettingsMaxHeight();
     if (isTileTab) {
@@ -2099,10 +2111,10 @@ function t(key) {
       buttonTpl.innerHTML = String(data.button_html || '').trim();
       buttonEl = buttonTpl.content.firstElementChild;
       if (!buttonEl) return false;
-      const fixedBtn = Array.from(nav.querySelectorAll('.tab-btn')).find(btn =>
-        btn.getAttribute('onclick')?.includes("'tab-tiles-screensaver'")) ||
-        Array.from(nav.querySelectorAll('.tab-btn')).find(btn =>
-          btn.getAttribute('onclick')?.includes("'tab-network'"));
+      const navButtons = Array.from(nav.querySelectorAll('.tab-btn'));
+      const fixedBtn = navButtons.find(
+        btn => btn.dataset.tabTarget === 'tab-tiles-screensaver') ||
+        navButtons.find(btn => btn.dataset.tabTarget === 'tab-network');
       if (fixedBtn) nav.insertBefore(buttonEl, fixedBtn);
       else nav.appendChild(buttonEl);
     }
@@ -7324,8 +7336,8 @@ function normalizeIconName(value) {
       }
       const btn = document.querySelector(
         '.folder-tab-btn[data-folder-id="' + folderNum + '"]') ||
-        Array.from(document.querySelectorAll('.tab-btn')).find(b =>
-          b.getAttribute('onclick')?.includes('tab-tiles-' + tabId));
+        Array.from(document.querySelectorAll('.tab-btn')).find(
+          b => b.dataset.tabTarget === 'tab-tiles-' + tabId);
       if (btn) {
         btn.dataset.folderName = label;
         btn.dataset.folderIcon = iconName;
