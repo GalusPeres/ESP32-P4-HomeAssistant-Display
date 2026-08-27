@@ -1,46 +1,5 @@
-import assert from 'node:assert/strict';
-import {spawnSync} from 'node:child_process';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import {fileURLToPath, pathToFileURL} from 'node:url';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const adminSource = fs.readFileSync(
-  path.join(root, 'src', 'web', 'assets', 'admin.js'), 'utf8');
-
-function extractFunction(name) {
-  const marker = `function ${name}(`;
-  const start = adminSource.indexOf(marker);
-  assert.notEqual(start, -1, `${name} must exist in admin.js`);
-  const bodyStart = adminSource.indexOf('{', start + marker.length);
-  assert.notEqual(bodyStart, -1, `${name} must have a body`);
-  let depth = 0;
-  for (let index = bodyStart; index < adminSource.length; index++) {
-    const char = adminSource[index];
-    if (char === '{') depth++;
-    if (char !== '}') continue;
-    depth--;
-    if (depth === 0) return adminSource.slice(start, index + 1);
-  }
-  assert.fail(`${name} body is incomplete`);
-}
-
-function findBrowser() {
-  const candidates = [
-    process.env.CHROME_PATH,
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-  ].filter(Boolean);
-  return candidates.find(candidate => fs.existsSync(candidate));
-}
-
-const browser = findBrowser();
-assert.ok(browser, 'Chrome or Edge is required for the DOM drag regression test');
+import {extractFunction, inlineScriptSafe} from './lib/admin-source.mjs';
+import {runDomHarness} from './lib/headless-dom.mjs';
 
 const productionFunctions = [
   extractFunction('restoreCurrentTileSelectionUi'),
@@ -162,7 +121,7 @@ const harness = `<!doctype html>
       return Promise.resolve(true);
     }
 
-    ${productionFunctions.replaceAll('</script', '<\\/script')}
+    ${inlineScriptSafe(productionFunctions)}
 
     function transfer(source, target) {
       const dataTransfer = new DataTransfer();
@@ -227,26 +186,8 @@ const harness = `<!doctype html>
   </script>
 </body></html>`;
 
-const temporaryDirectory = fs.mkdtempSync(
-  path.join(os.tmpdir(), 'hometiles-settings-drag-'));
-const harnessPath = path.join(temporaryDirectory, 'index.html');
-try {
-  fs.writeFileSync(harnessPath, harness, 'utf8');
-  const run = spawnSync(browser, [
-    '--headless=new',
-    '--disable-gpu',
-    '--disable-extensions',
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--disable-background-networking',
-    '--dump-dom',
-    pathToFileURL(harnessPath).href
-  ], {encoding: 'utf8', timeout: 30000});
-  assert.equal(run.error, undefined, run.error?.message);
-  assert.equal(run.status, 0, run.stderr || run.stdout);
-  assert.match(run.stdout, /data-result="pass"/,
-    `DOM drag regression failed:\n${run.stdout}\n${run.stderr}`);
-  console.log('Settings tile DOM drag roundtrip test passed.');
-} finally {
-  fs.rmSync(temporaryDirectory, {recursive: true, force: true});
-}
+runDomHarness({
+  label: 'Settings tile DOM drag roundtrip test',
+  html: harness,
+  tmpPrefix: 'hometiles-settings-drag-'
+});
