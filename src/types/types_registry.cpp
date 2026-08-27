@@ -741,34 +741,35 @@ void append_tile_type_scripts(String& html) {
   }
 }
 
+// Localized tile type name for the select list and the browser registry. Both
+// must show the same label, so a new tile type is translated in one place.
+static const char* localized_tile_type_label(const TileTypeDescriptor& entry) {
+  const char* language = configManager.getConfig().language;
+  const auto& tr = i18n::strings(language);
+  switch (entry.type) {
+    case TILE_EMPTY: return tr.tile_type_empty;
+    case TILE_SENSOR: return tr.tile_type_sensor;
+    case TILE_ENERGY: return tr.tile_type_energy;
+    case TILE_WEATHER: return tr.tile_type_weather;
+    case TILE_SCENE: return tr.tile_type_scene;
+    case TILE_FOLDER: return tr.tile_type_folder;
+    case TILE_SWITCH: return tr.tile_type_switch;
+    case TILE_MEDIA: return tr.tile_type_media;
+    case TILE_COVER: return i18n::cover_label(language, 0);
+    case TILE_CAMERA: return tr.camera_tile_type;
+    case TILE_CLIMATE: return i18n::climate_tile_type_label(language);
+    case TILE_CLOCK: return tr.tile_type_clock;
+    case TILE_TEXT: return tr.tile_type_text;
+    case TILE_SETTINGS: return tr.tile_type_settings;
+    case TILE_BACK: return tr.tile_type_back;
+    default: return entry.label;
+  }
+}
+
 void append_tile_type_select_options(String& html) {
-  const auto& tr = i18n::strings(configManager.getConfig().language);
   for (const auto& entry : kTileTypes) {
     if (entry.locked) continue;
-    const char* label = entry.label;
-    switch (entry.type) {
-      case TILE_EMPTY: label = tr.tile_type_empty; break;
-      case TILE_SENSOR: label = tr.tile_type_sensor; break;
-      case TILE_ENERGY: label = tr.tile_type_energy; break;
-      case TILE_WEATHER: label = tr.tile_type_weather; break;
-      case TILE_SCENE: label = tr.tile_type_scene; break;
-      case TILE_FOLDER: label = tr.tile_type_folder; break;
-      case TILE_SWITCH: label = tr.tile_type_switch; break;
-      case TILE_MEDIA: label = tr.tile_type_media; break;
-      case TILE_COVER:
-        label = i18n::cover_label(configManager.getConfig().language, 0);
-        break;
-      case TILE_CAMERA: label = tr.camera_tile_type; break;
-      case TILE_CLIMATE:
-        label = i18n::climate_tile_type_label(
-            configManager.getConfig().language);
-        break;
-      case TILE_CLOCK: label = tr.tile_type_clock; break;
-      case TILE_TEXT: label = tr.tile_type_text; break;
-      case TILE_SETTINGS: label = tr.tile_type_settings; break;
-      case TILE_BACK: label = tr.tile_type_back; break;
-      default: break;
-    }
+    const char* label = localized_tile_type_label(entry);
     html += "<option value=\"";
     html += String(static_cast<unsigned>(entry.type));
     html += "\">";
@@ -778,33 +779,9 @@ void append_tile_type_select_options(String& html) {
 }
 
 void append_tile_type_registry_js(String& html) {
-  const auto& tr = i18n::strings(configManager.getConfig().language);
   html += "  const TILE_TYPE_REGISTRY = {";
   for (const auto& entry : kTileTypes) {
-    const char* label = entry.label;
-    switch (entry.type) {
-      case TILE_EMPTY: label = tr.tile_type_empty; break;
-      case TILE_SENSOR: label = tr.tile_type_sensor; break;
-      case TILE_ENERGY: label = tr.tile_type_energy; break;
-      case TILE_WEATHER: label = tr.tile_type_weather; break;
-      case TILE_SCENE: label = tr.tile_type_scene; break;
-      case TILE_FOLDER: label = tr.tile_type_folder; break;
-      case TILE_SWITCH: label = tr.tile_type_switch; break;
-      case TILE_MEDIA: label = tr.tile_type_media; break;
-      case TILE_COVER:
-        label = i18n::cover_label(configManager.getConfig().language, 0);
-        break;
-      case TILE_CAMERA: label = tr.camera_tile_type; break;
-      case TILE_CLIMATE:
-        label = i18n::climate_tile_type_label(
-            configManager.getConfig().language);
-        break;
-      case TILE_CLOCK: label = tr.tile_type_clock; break;
-      case TILE_TEXT: label = tr.tile_type_text; break;
-      case TILE_SETTINGS: label = tr.tile_type_settings; break;
-      case TILE_BACK: label = tr.tile_type_back; break;
-      default: break;
-    }
+    const char* label = localized_tile_type_label(entry);
     html += "\"";
     html += String(static_cast<unsigned>(entry.type));
     html += "\":{";
