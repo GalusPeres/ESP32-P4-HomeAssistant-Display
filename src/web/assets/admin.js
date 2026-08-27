@@ -191,7 +191,22 @@ function t(key) {
       if (h > 240) panel.style.maxHeight = h + 'px';
     });
   }
-  window.addEventListener('resize', updateTileSettingsMaxHeight);
+  // Resize fires many times per second while a window is dragged, and both
+  // handlers below are expensive: one forces a layout and reads computed styles
+  // per panel, the other re-renders the whole screensaver editor. Coalescing to
+  // one call per frame keeps that work off every single event.
+  function perFrame(callback) {
+    let frame = 0;
+    return () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        callback();
+      });
+    };
+  }
+
+  window.addEventListener('resize', perFrame(updateTileSettingsMaxHeight));
 
   // Fills the server-rendered clock tiles (--:-- placeholders) with the current
   // time and keeps them up to date. Clock tiles re-rendered by this script get
@@ -6471,7 +6486,9 @@ function t(key) {
     bind('screensaverFocusY', 'input', el => { const w = ssCurrentWallpaper(); if (w) w.focus_y = Number(el.value); }, false);
     bind('screensaverFocusY', 'change', el => { const w = ssCurrentWallpaper(); if (w) w.focus_y = Number(el.value); });
 
-    window.addEventListener('resize', () => { if (screensaverLoaded) renderScreensaverEditor(); });
+    window.addEventListener('resize', perFrame(() => {
+      if (screensaverLoaded) renderScreensaverEditor();
+    }));
   }
 
   let hardwareIoModel = null;
