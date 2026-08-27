@@ -3611,12 +3611,22 @@ function t(key) {
     syncFolderPinControls(tab);
   }
 
+  let notificationTimer = null;
+
   function showNotification(message, success = true) {
     const notification = document.getElementById('notification');
+    if (!notification) return;
+    // A single shared timer. Every call used to schedule its own, so the timeout
+    // of an earlier message hid the next one long before its three seconds were
+    // up - easy to hit because autosave reports on every field change.
+    if (notificationTimer) clearTimeout(notificationTimer);
     notification.textContent = message;
-    notification.style.background = success ? '#43a047' : '#ef4444';
+    notification.classList.toggle('is-error', !success);
     notification.classList.add('show');
-    setTimeout(() => { notification.classList.remove('show'); }, 3000);
+    notificationTimer = setTimeout(() => {
+      notificationTimer = null;
+      notification.classList.remove('show');
+    }, 3000);
   }
 
   function scheduleAutoSave(tab, tileIndexOverride = null) {
@@ -6179,6 +6189,8 @@ function t(key) {
         '" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       const up = document.createElement('button');
       up.type = 'button'; up.className = 'screensaver-wallpaper-move'; up.innerHTML = chevronSvg(-1);
+      up.setAttribute('aria-label', t('moveUp'));
+      up.title = t('moveUp');
       up.disabled = index === 0;
       up.addEventListener('click', () => {
         if (index === 0) return;
@@ -6188,6 +6200,8 @@ function t(key) {
       });
       const down = document.createElement('button');
       down.type = 'button'; down.className = 'screensaver-wallpaper-move'; down.innerHTML = chevronSvg(1);
+      down.setAttribute('aria-label', t('moveDown'));
+      down.title = t('moveDown');
       down.disabled = index === screensaverDraft.wallpapers.length - 1;
       down.addEventListener('click', () => {
         if (down.disabled) return;

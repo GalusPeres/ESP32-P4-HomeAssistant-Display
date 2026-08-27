@@ -38,13 +38,13 @@ void append_sensor_fields_html(String& html, const String& tab_id, const std::ve
   html += R"html(</label>
               <input type="text" id=")html";
   html += tab_id;
-  html += R"html(_sensor_unit" placeholder="z.B. °C">
+  html += R"html(_sensor_unit" placeholder="°C">
                 <label>)html";
   html += tr.sensor_decimals;
   html += R"html(</label>
                 <input type="number" id=")html";
   html += tab_id;
-  html += R"html(_sensor_decimals" min="0" max="6" step="1" placeholder="z.B. 1">
+  html += R"html(_sensor_decimals" min="0" max="6" step="1" placeholder="1">
                 <label>)html";
   html += tr.sensor_value_size;
   html += R"html(</label>
@@ -86,13 +86,13 @@ void append_sensor_fields_html(String& html, const String& tab_id, const std::ve
   html += R"html(</label>
                   <input type="number" id=")html";
   html += tab_id;
-  html += R"html(_sensor_gauge_min" step="1" placeholder="z.B. 0">
+  html += R"html(_sensor_gauge_min" step="1" placeholder="0">
                   <label>)html";
   html += tr.sensor_gauge_max;
   html += R"html(</label>
                   <input type="number" id=")html";
   html += tab_id;
-  html += R"html(_sensor_gauge_max" step="1" placeholder="z.B. 100">
+  html += R"html(_sensor_gauge_max" step="1" placeholder="100">
                   <label>)html";
   html += tr.sensor_arc_degree;
   html += R"html(</label>

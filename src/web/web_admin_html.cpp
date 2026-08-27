@@ -1564,7 +1564,7 @@ String WebAdminServer::getAdminPage() {
   </div>
 
   <!-- Notification Toast -->
-  <div id="notification" class="notification"></div>
+  <div id="notification" class="notification" role="status" aria-live="polite"></div>
 </body>
 </html>
 )html";

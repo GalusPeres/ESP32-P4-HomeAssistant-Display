@@ -52,6 +52,8 @@
       --go-active:#1b5e20;
       --ok:#66BB6A;
       --err:#FF6B6B;
+      --notify-ok:#43a047;
+      --notify-err:#ef4444;
       accent-color:#26a69a;
       color-scheme:dark;
     }
@@ -1425,7 +1427,7 @@
       position:fixed;
       bottom:24px;
       right:24px;
-      background:#26a69a;
+      background:var(--notify-ok);
       color:#fff;
       padding:16px 24px;
       border-radius:14px;
@@ -1433,9 +1435,10 @@
       font-weight:600;
       opacity:0;
       transform:translateY(20px);
-      transition:all 0.3s;
+      transition:opacity 0.3s, transform 0.3s;
       z-index:1000;
     }
+    .notification.is-error { background:var(--notify-err); }
     .notification.show { opacity:1; transform:translateY(0); }
     body.tile-resize-active { user-select:none; cursor:default; }
   
