@@ -1058,12 +1058,6 @@ function t(key) {
     }
   }
 
-  function changeFileManagerFs() {
-    fileManagerState.fs = 'sd';
-    fileManagerState.path = '/';
-    loadFileManager('/');
-  }
-
   function downloadFileManagerFile(path) {
     window.location.href = fileManagerUrl('/api/files/download', {
       fs: fileManagerState.fs,
@@ -2651,17 +2645,6 @@ function t(key) {
       delete drafts[tab][index];
       persistDrafts();
     }
-  }
-
-  function swapDrafts(tab, fromIdx, toIdx) {
-    if (!drafts[tab]) return;
-    const fromVal = drafts[tab][fromIdx];
-    const toVal = drafts[tab][toIdx];
-    if (fromVal === undefined && toVal === undefined) return;
-    drafts[tab][toIdx] = fromVal;
-    if (toVal === undefined) delete drafts[tab][fromIdx];
-    else drafts[tab][fromIdx] = toVal;
-    persistDrafts();
   }
 
   function updateDraft(tab) {
@@ -5891,8 +5874,6 @@ function t(key) {
     });
   }
 
-  function loadTileDataAndSelect(tab, index) { selectTile(index, tab); }
-
   function getTopLeftConfiguredTileIndex(tab) {
     let selectedIndex = -1;
     let selectedRow = Number.MAX_SAFE_INTEGER;
@@ -7812,31 +7793,6 @@ function maybeFillTitleFromMedia(tab) {
     maybeFillTitleFromEntity(tab, '_media_entity');
   }
 
-  function parseMediaPreviewPayload(value) {
-    const out = { title: '--', subtitle: '--', state: '--' };
-    if (value === undefined || value === null) return out;
-    const text = String(value).trim();
-    if (!text.length) return out;
-    if (text.startsWith('{')) {
-      try {
-        const obj = JSON.parse(text);
-        if (obj && typeof obj === 'object') {
-          out.title = obj.media_title || obj.media_channel || obj.state || '--';
-          out.subtitle = obj.media_artist || obj.media_album_name || obj.app_name || obj.source || '--';
-          out.state = obj.state || '--';
-          if (obj.volume_level !== undefined && obj.volume_level !== null) {
-            const pct = Math.max(0, Math.min(100, Math.round(Number(obj.volume_level) * 100)));
-            out.state = (out.state && out.state !== '--') ? (out.state + '  ' + pct + '%') : (pct + '%');
-          }
-        }
-      } catch (e) {}
-      return out;
-    }
-    out.title = text;
-    out.state = text;
-    return out;
-  }
-
   function updateMediaValuePreview(tab) {
     // Media tiles stay intentionally simple in the WebUI preview:
     // only icon and configured tile title are shown.
@@ -7950,13 +7906,6 @@ function maybeFillTitleFromMedia(tab) {
       spanH: Math.max(
         1, Math.min(maxRows, Number(item?.spanH) || 1))
     };
-  }
-
-  function climateGeometryEquals(a, b) {
-    return a.col === b.col &&
-      a.row === b.row &&
-      a.spanW === b.spanW &&
-      a.spanH === b.spanH;
   }
 
   function defaultClimateGeometry(
@@ -8194,14 +8143,6 @@ function maybeFillTitleFromMedia(tab) {
       }
     }
     return null;
-  }
-
-  function firstFreeClimateCell(
-      items, configured, capacity, columns, rows,
-      ignoreIndex = -1) {
-    return firstFreeClimatePlacement(
-      items, configured, capacity, columns, rows,
-      ignoreIndex, 1, 1);
   }
 
   function notifyClimateGridChanged(tab) {
