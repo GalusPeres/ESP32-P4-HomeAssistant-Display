@@ -36,11 +36,11 @@ bool webAdminRecentlyActive(uint32_t quiet_ms) {
 
 bool WebAdminServer::start() {
   if (running) {
-    Serial.println("[WebAdmin] Server laeuft bereits");
+    Serial.println("[WebAdmin] Server already running");
     return true;
   }
   if (!networkTransport.isConnected()) {
-    Serial.println("[WebAdmin] Start abgebrochen - kein Netzwerk");
+    Serial.println("[WebAdmin] Start aborted - no network connection");
     return false;
   }
 
@@ -157,7 +157,7 @@ bool WebAdminServer::start() {
   server.begin();
   running = true;
   IPAddress ip = networkTransport.localIP();
-  Serial.printf("[WebAdmin] erreichbar unter http://%s\n", ip.toString().c_str());
+  Serial.printf("[WebAdmin] Available at http://%s\n", ip.toString().c_str());
   return true;
 }
 
@@ -165,7 +165,7 @@ void WebAdminServer::stop() {
   if (!running) return;
   server.stop();
   running = false;
-  Serial.println("[WebAdmin] Server gestoppt");
+  Serial.println("[WebAdmin] Server stopped");
 }
 
 void WebAdminServer::handle() {

@@ -24,7 +24,7 @@ const setup = sketch.slice(setupStart, setupEnd);
 
 const networkSetup = setup.indexOf('networkManager.beginMqttWorker();');
 const noConfigBranch = setup.indexOf(
-  'Serial.println("[Setup] Ueberspringe Netzwerk (keine Config)");',
+  'Serial.println("[Setup] Skipping network (no configuration)");',
 );
 const guard = setup.indexOf('#if defined(DEVICE_ESP32_S3_RGB_480)', noConfigBranch);
 const begin = setup.indexOf('Device::storageWriteBegin();', guard);

@@ -363,7 +363,7 @@ size_t g_file_manager_upload_next_heap_log = 0;
 // Empfangsdruck. Diese Logs liefern beim naechsten Fehler/Crash die Zahlen
 // dazu (interner Free-Heap + groesster zusammenhaengender DMA-Block).
 void logFileManagerUploadHeap(const char* phase) {
-  Serial.printf("[FileManager] Upload heap (%s, %u KB geschrieben): int frei=%u KB, DMA largest=%u KB\n",
+  Serial.printf("[FileManager] Upload heap (%s, %u KB written): int free=%u KB, DMA largest=%u KB\n",
                 phase,
                 static_cast<unsigned>(g_file_manager_upload_bytes / 1024),
                 static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
@@ -497,7 +497,7 @@ void prepareDisplayForOtaInstall() {
       g_ota_display_reduced = true;
     } else {
       Serial.println(
-          "[OTA] WARNUNG: Display-Puffer konnte nicht fuer OTA verkleinert werden");
+          "[OTA] WARNING: Display buffer could not be reduced for OTA");
     }
   }
 #endif
@@ -530,7 +530,7 @@ bool tryRestoreFastDisplayAfterOta() {
     g_ota_display_restore_pending = false;
     g_ota_display_restore_retry_at = 0;
     Serial.printf(
-        "[OTA] Schneller Display-Puffer nach %u Versuch(en) wiederhergestellt\n",
+        "[OTA] Fast display buffer restored after %u attempt(s)\n",
         static_cast<unsigned>(g_ota_display_restore_attempts));
     return true;
   }
@@ -543,7 +543,7 @@ bool tryRestoreFastDisplayAfterOta() {
   if (g_ota_display_restore_attempts == 1 ||
       (g_ota_display_restore_attempts % 8) == 0) {
     Serial.printf(
-        "[OTA] Schneller Display-Restore vertagt (Versuch %u)\n",
+        "[OTA] Fast display restore deferred (attempt %u)\n",
         static_cast<unsigned>(g_ota_display_restore_attempts));
   }
   return false;
@@ -2927,7 +2927,7 @@ void WebAdminServer::handleSaveTiles() {
                      ? screensaverConfig.replaceTileGrid(*grid)
                      : tileConfig.saveFolderGrid(folder_id, *grid);
   if (success) {
-    Serial.printf("[WebAdmin] Tile folder %u[%d] gespeichert - Type: %d\n", static_cast<unsigned>(folder_id), index, type);
+    Serial.printf("[WebAdmin] Tile in folder %u[%d] saved - type: %d\n", static_cast<unsigned>(folder_id), index, type);
 
     const bool routes_changed =
         deleting_folder || tileChangeAffectsDynamicMqttRoutes(previous_tile, tile);
@@ -2936,9 +2936,9 @@ void WebAdminServer::handleSaveTiles() {
       // ausloesen. Das gilt auch fuer das getrennte Screensaver-Grid, dessen
       // Media-Entity sonst weder state noch state_fast abonnieren wuerde.
       mqttRequestDynamicSlotsReload(5000);
-      Serial.println("[WebAdmin] MQTT Routes fuer spaeteren Rebuild markiert");
+      Serial.println("[WebAdmin] MQTT routes marked for deferred rebuild");
     } else if (!screensaver_grid) {
-      Serial.println("[WebAdmin] MQTT Routes unveraendert (kein Rebuild fuer Style/Layout)");
+      Serial.println("[WebAdmin] MQTT routes unchanged (no rebuild for style/layout)");
     }
 
     if (!screensaver_grid) {
@@ -2969,7 +2969,7 @@ void WebAdminServer::handleSaveTiles() {
     response += "}";
     sendChunkedResponse(server, 200, "application/json", response);
   } else {
-    Serial.printf("[WebAdmin] Fehler beim Speichern von Tile folder %u[%d]\n", static_cast<unsigned>(folder_id), index);
+    Serial.printf("[WebAdmin] Failed to save tile in folder %u[%d]\n", static_cast<unsigned>(folder_id), index);
     server.send(500, "application/json", "{\"success\":false,\"error\":\"Save failed\"}");
   }
 }
@@ -3900,7 +3900,7 @@ void WebAdminServer::handleFileManagerUpload() {
                                  saved_errno);
       g_file_manager_upload_error =
           fileManagerWriteError("Could not write upload chunk", saved_errno);
-      logFileManagerUploadHeap("write-fehler");
+      logFileManagerUploadHeap("write-error");
       g_file_manager_upload_file.close();
       fs::FS* fs = nullptr;
       String fs_key;
@@ -3920,7 +3920,7 @@ void WebAdminServer::handleFileManagerUpload() {
 
   if (upload.status == UPLOAD_FILE_ABORTED) {
     g_file_manager_upload_error = "Upload aborted";
-    logFileManagerUploadHeap("abbruch");
+    logFileManagerUploadHeap("abort");
     if (g_file_manager_upload_file) {
       g_file_manager_upload_file.close();
     }

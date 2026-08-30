@@ -183,8 +183,8 @@ void logBootDiagnostics() {
   const bool dump_valid =
       summary && hasCoreDump() && esp_core_dump_get_summary(summary) == ESP_OK;
 
-  Serial.printf("[CrashLog] Reset-Grund: %s%s\n", resetReasonName(reason),
-                dump_valid ? " | Core-Dump im Flash vorhanden" : "");
+  Serial.printf("[CrashLog] Reset reason: %s%s\n", resetReasonName(reason),
+                dump_valid ? " | Core dump present in flash" : "");
 
   // Normaler Boot ohne (neuen) Dump: nichts zu protokollieren. Ein bereits
   // bekannter Dump (Fingerprint gespeichert) wird nicht erneut angehaengt.
@@ -205,7 +205,7 @@ void logBootDiagnostics() {
   rotateLogIfNeeded();
   File f = LittleFS.open(kLogPath, FILE_APPEND);
   if (!f) {
-    Serial.println("[CrashLog] crashlog.txt nicht beschreibbar");
+    Serial.println("[CrashLog] Unable to write crashlog.txt");
     free(summary);
     return;
   }
@@ -224,7 +224,7 @@ void logBootDiagnostics() {
   f.print("\n");
   f.close();
   free(summary);
-  Serial.printf("[CrashLog] Absturz protokolliert -> %s\n", kLogPath);
+  Serial.printf("[CrashLog] Crash recorded -> %s\n", kLogPath);
 }
 
 void appendOtaFailureReport(const char* target_tag, const String& error,
@@ -235,7 +235,7 @@ void appendOtaFailureReport(const char* target_tag, const String& error,
   rotateLogIfNeeded();
   File f = LittleFS.open(kLogPath, FILE_APPEND);
   if (!f) {
-    Serial.println("[CrashLog] crashlog.txt nicht beschreibbar");
+    Serial.println("[CrashLog] Unable to write crashlog.txt");
     return;
   }
   f.printf("=== OTA install failed | firmware %s -> %s ===\n", FW_VERSION,
@@ -248,7 +248,7 @@ void appendOtaFailureReport(const char* target_tag, const String& error,
   f.print("Device performed a safe automatic restart (no crash, no core "
           "dump)\n\n");
   f.close();
-  Serial.printf("[CrashLog] OTA-Fehlbericht protokolliert -> %s\n", kLogPath);
+  Serial.printf("[CrashLog] OTA failure report recorded -> %s\n", kLogPath);
 }
 
 void appendNetworkWedgeReport(const String& detail) {
@@ -258,7 +258,7 @@ void appendNetworkWedgeReport(const String& detail) {
   rotateLogIfNeeded();
   File f = LittleFS.open(kLogPath, FILE_APPEND);
   if (!f) {
-    Serial.println("[CrashLog] crashlog.txt nicht beschreibbar");
+    Serial.println("[CrashLog] Unable to write crashlog.txt");
     return;
   }
   f.printf("=== WiFi driver wedge | firmware %s ===\n", FW_VERSION);
@@ -267,7 +267,7 @@ void appendNetworkWedgeReport(const String& detail) {
     if (!detail.endsWith("\n")) f.print("\n");
   }
   f.close();
-  Serial.printf("[CrashLog] WLAN-Wedge protokolliert -> %s\n", kLogPath);
+  Serial.printf("[CrashLog] Wi-Fi wedge recorded -> %s\n", kLogPath);
 }
 
 void appendDisplayPipelineTimeoutReport(const String& detail) {

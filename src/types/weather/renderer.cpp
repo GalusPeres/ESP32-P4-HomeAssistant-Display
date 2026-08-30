@@ -98,7 +98,7 @@ void open_current_weather_popup(lv_event_t* event,
 
 lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type) {
   if (!parent) {
-    Serial.println("[TileRenderer] ERROR: parent NULL bei Weather-Tile");
+    Serial.println("[TileRenderer] ERROR: parent NULL for weather tile");
     return nullptr;
   }
 

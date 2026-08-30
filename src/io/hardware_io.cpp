@@ -410,7 +410,7 @@ bool HardwareIoManager::handleLocalEntityCommand(const char* entity_id,
 
   const uint8_t index = static_cast<uint8_t>(matched_index);
   if (channels_[index].type != HardwareIoType::Relay) {
-    Serial.printf("[HardwareIO] lokale Sensor-Entity ist nicht schaltbar: %s\n",
+    Serial.printf("[HardwareIO] Local sensor entity is not switchable: %s\n",
                   entity_id);
     return true;
   }
@@ -426,12 +426,12 @@ bool HardwareIoManager::handleLocalEntityCommand(const char* entity_id,
   } else if (command == "off" || command == "0" || command == "false") {
     state = false;
   } else {
-    Serial.printf("[HardwareIO] ungueltiger lokaler Relay-Befehl fuer %s\n",
+    Serial.printf("[HardwareIO] Invalid local relay command for %s\n",
                   entity_id);
     return true;
   }
   applyRelay(index, state, true);
-  Serial.printf("[HardwareIO] lokales Relay '%s' -> %s\n",
+  Serial.printf("[HardwareIO] Local relay '%s' -> %s\n",
                 entity_id, state ? "ON" : "OFF");
   return true;
 }
@@ -598,7 +598,7 @@ bool HardwareIoManager::loadPath(const char* path) {
   String board_variant;
   String error;
   if (!parseDocument(json, loaded, count, board_variant, error, true)) {
-    Serial.printf("[HardwareIO] %s ungueltig: %s\n", path, error.c_str());
+    Serial.printf("[HardwareIO] %s invalid: %s\n", path, error.c_str());
     return false;
   }
   channel_count_ = count;
@@ -617,7 +617,7 @@ bool HardwareIoManager::load() {
 #endif
     fs.remove(kConfigPath);
     fs.rename(kConfigTmpPath, kConfigPath);
-    Serial.println("[HardwareIO] aus .tmp wiederhergestellt");
+    Serial.println("[HardwareIO] Restored from .tmp");
     return true;
   }
   if (loadPath(kConfigPath)) return true;
@@ -627,10 +627,10 @@ bool HardwareIoManager::load() {
 #endif
     fs.remove(kConfigPath);
     fs.rename(kConfigBackupPath, kConfigPath);
-    Serial.println("[HardwareIO] aus .bak wiederhergestellt");
+    Serial.println("[HardwareIO] Restored from .bak");
     return true;
   }
-  Serial.println("[HardwareIO] keine Zuordnungen, alle GPIOs bleiben frei");
+  Serial.println("[HardwareIO] No mappings, all GPIOs remain free");
   return false;
 }
 
@@ -670,7 +670,7 @@ void HardwareIoManager::startRuntime() {
     } else {
       configure_one_wire_pin(config.gpio);
       runtime_[i].next_action_ms = now + 250U + static_cast<uint32_t>(i) * 350U;
-      Serial.printf("[HardwareIO] DS18x20 '%s' auf GPIO %d aktiviert\n",
+      Serial.printf("[HardwareIO] DS18x20 '%s' enabled on GPIO %d\n",
                     config.id.c_str(), static_cast<int>(config.gpio));
     }
   }
@@ -890,7 +890,7 @@ bool HardwareIoManager::replaceFromJson(const String& json, String& error) {
   }
   syncAllLocalEntityStates(true);
   if (networkManager.isMqttConnected()) subscribeMqttTopics();
-  Serial.printf("[HardwareIO] %u Zuordnung(en) gespeichert\n",
+  Serial.printf("[HardwareIO] %u mapping(s) saved\n",
                 static_cast<unsigned>(channel_count_));
   return true;
 }
@@ -1044,7 +1044,7 @@ void HardwareIoManager::rememberStaleStateTopic(const String& topic) {
     if (stale_state_topics_[i] == topic) return;
   }
   if (stale_state_topic_count_ >= kHardwareIoMaxChannels) {
-    Serial.println("[HardwareIO] WARNUNG: State-Cleanup-Liste voll");
+    Serial.println("[HardwareIO] WARNING: State cleanup list full");
     return;
   }
   stale_state_topics_[stale_state_topic_count_++] = topic;
@@ -1073,7 +1073,7 @@ void HardwareIoManager::flushStaleStateTopics() {
       if (kept != i) stale_state_topics_[kept] = topic;
       ++kept;
     } else {
-      Serial.printf("[HardwareIO] retained State entfernt: %s\n",
+      Serial.printf("[HardwareIO] Retained state removed: %s\n",
                     topic.c_str());
     }
   }
@@ -1267,7 +1267,7 @@ bool HardwareIoManager::handleMqttMessage(
     } else if (normalized == "toggle") {
       state = !state;
     } else {
-      Serial.printf("[HardwareIO] ungueltiger Relay-Befehl fuer %s\n",
+      Serial.printf("[HardwareIO] Invalid relay command for %s\n",
                     channels_[i].id.c_str());
       return true;
     }

@@ -344,7 +344,7 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
           if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
           SceneEventData* data = static_cast<SceneEventData*>(lv_event_get_user_data(e));
           if (data && data->callback) {
-            Serial.printf("[Tile] Szene aktiviert: %s\n", data->scene_alias.c_str());
+            Serial.printf("[Tile] Scene activated: %s\n", data->scene_alias.c_str());
             data->callback(data->scene_alias.c_str());
           }
         },

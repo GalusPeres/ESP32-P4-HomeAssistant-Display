@@ -89,7 +89,7 @@ static const char* timezone_spec_for_code(const char* code) {
 
 // ========== UI aufbauen ==========
 void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_cb) {
-  Serial.println("[UI] Baue UI auf...");
+  Serial.println("[UI] Building UI...");
 
   lv_obj_t *scr = lv_screen_active();
   lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), 0);
@@ -145,7 +145,7 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   access_gesture_eligible = false;
   mqttPublishDeviceSettings();
 
-  Serial.println("[UI] UI aufgebaut");
+  Serial.println("[UI] UI built");
 }
 
 // ========== Statusbar initialisieren ==========
@@ -876,12 +876,12 @@ void UIManager::serviceNtpSync() {
 
   const DeviceConfig& cfg = configManager.getConfig();
   const uint32_t started_ms = millis();
-  Serial.println("[NTP] Konfiguration startet");
+  Serial.println("[NTP] Configuration starting");
   configTzTime(timezone_spec_for_code(cfg.timezone), "pool.ntp.org", "time.nist.gov", "time.cloudflare.com");
 
   tz_configured = true;
 
-  Serial.printf("[NTP] Konfiguration abgeschlossen (%u ms)\n",
+  Serial.printf("[NTP] Configuration complete (%u ms)\n",
                 static_cast<unsigned>(millis() - started_ms));
 
 }

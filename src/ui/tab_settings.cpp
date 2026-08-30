@@ -1553,8 +1553,8 @@ static void net_mode_update_ui() {
 static void on_net_mode_clicked(lv_event_t*) {
   const bool to_ethernet = !configManager.getConfig().ethernet_enabled;
   if (!configManager.saveEthernetEnabled(to_ethernet)) return;
-  Serial.printf("[Settings] Netzwerkmodus gespeichert: %s (gilt nach Neustart)\n",
-                to_ethernet ? "Ethernet" : "WLAN");
+  Serial.printf("[Settings] Network mode saved: %s (applies after restart)\n",
+                to_ethernet ? "Ethernet" : "Wi-Fi");
   net_mode_update_ui();
 }
 
@@ -1563,8 +1563,8 @@ static void on_ethernet_dhcp_clicked(lv_event_t*) {
   if (enable_static && !selected_static_addressing_available()) return;
   if (!configManager.saveStaticAddressingEnabled(enable_static)) return;
   Serial.printf(
-      "[Settings] Gemeinsamer IP-Modus gespeichert: %s (gilt nach Neustart)\n",
-      enable_static ? "statisch" : "DHCP");
+      "[Settings] Shared IP mode saved: %s (applies after restart)\n",
+      enable_static ? "static" : "DHCP");
   net_mode_update_ui();
 }
 

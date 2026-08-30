@@ -528,7 +528,7 @@ bool ConfigManager::load() {
   Preferences prefs;
 
   if (!prefs.begin(PREF_NAMESPACE, true)) {  // readonly
-    Serial.println("⚠️ ConfigManager: Preferences öffnen fehlgeschlagen");
+    Serial.println("⚠️ ConfigManager: Failed to open preferences");
     return false;
   }
 
@@ -536,7 +536,7 @@ bool ConfigManager::load() {
   config.configured = prefs.getBool("configured", false);
 
   if (!config.configured) {
-    Serial.println("ℹ️ ConfigManager: Keine Konfiguration vorhanden");
+    Serial.println("ℹ️ ConfigManager: No configuration available");
     prefs.end();
     return false;
   }
@@ -756,7 +756,7 @@ bool ConfigManager::load() {
 
   prefs.end();
 
-  Serial.println("✓ ConfigManager: Konfiguration geladen");
+  Serial.println("✓ ConfigManager: Configuration loaded");
   Serial.printf("  WiFi SSID: %s\n", config.wifi_ssid);
   Serial.printf("  MQTT Host: %s:%u\n", config.mqtt_host, config.mqtt_port);
   Serial.printf("  MQTT User: %s\n", config.mqtt_user);
@@ -850,7 +850,7 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   BatchedNvsWrite::Preferences prefs;
 
   if (!prefs.begin(PREF_NAMESPACE, false)) {  // read/write
-    Serial.println("⚠️ ConfigManager: Preferences öffnen fehlgeschlagen");
+    Serial.println("⚠️ ConfigManager: Failed to open preferences");
     return false;
   }
 
@@ -935,7 +935,7 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   config.configured = true;
   runtime_rotation_dirty = false;
 
-  Serial.println("✓ ConfigManager: Konfiguration gespeichert");
+  Serial.println("✓ ConfigManager: Configuration saved");
   Serial.printf("  WiFi SSID: %s\n", config.wifi_ssid);
   Serial.printf("  MQTT Host: %s:%u\n", config.mqtt_host, config.mqtt_port);
 
@@ -998,7 +998,7 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
   BatchedNvsWrite::Preferences prefs;
 
   if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("⚠️ ConfigManager: Preferences öffnen fehlgeschlagen");
+    Serial.println("⚠️ ConfigManager: Failed to open preferences");
     return false;
   }
 
@@ -1026,7 +1026,7 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
   prefs.putUShort("sleep_bat_min", sleep_bat_minutes);
 
   if (!BatchedNvsWrite::finish(prefs)) {
-    Serial.println("ConfigManager: Display-NVS-Transaktion fehlgeschlagen");
+    Serial.println("ConfigManager: Display NVS transaction failed");
     return false;
   }
 
@@ -1044,7 +1044,7 @@ bool ConfigManager::saveDisplaySettings(uint8_t brightness,
   apply_device_capability_limits(config);
   runtime_rotation_dirty = false;
 
-  Serial.println("✓ ConfigManager: Display-Einstellungen gespeichert");
+  Serial.println("✓ ConfigManager: Display settings saved");
   return true;
 }
 
@@ -1060,7 +1060,7 @@ bool ConfigManager::saveScreensaverTimeout(bool enabled, uint16_t seconds) {
       BatchedNvsWrite::kNeedsDisplayGuard);
   BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("ConfigManager: Screensaver-Preferences oeffnen fehlgeschlagen");
+    Serial.println("ConfigManager: Failed to open screensaver preferences");
     return false;
   }
   prefs.putBool("ss_auto_en", enabled);
@@ -1080,7 +1080,7 @@ bool ConfigManager::saveTileBorders(bool enabled) {
       BatchedNvsWrite::kNeedsDisplayGuard);
   BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("ConfigManager: Tile-Border-Preferences oeffnen fehlgeschlagen");
+    Serial.println("ConfigManager: Failed to open tile border preferences");
     return false;
   }
   prefs.putBool("tile_border", enabled);
@@ -1098,7 +1098,7 @@ bool ConfigManager::saveEthernetEnabled(bool enabled) {
       BatchedNvsWrite::kNeedsDisplayGuard);
   BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("ConfigManager: Netzwerkmodus-Preferences oeffnen fehlgeschlagen");
+    Serial.println("ConfigManager: Failed to open network mode preferences");
     return false;
   }
   prefs.putBool("eth_mode", enabled);
@@ -1122,7 +1122,7 @@ bool ConfigManager::saveScreensaverBrightness(uint8_t brightness_pct) {
       BatchedNvsWrite::kNeedsDisplayGuard);
   BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("ConfigManager: Screensaver-Helligkeit konnte nicht gespeichert werden");
+    Serial.println("ConfigManager: Could not save screensaver brightness");
     return false;
   }
   prefs.putUChar("ss_bright", brightness_pct);
@@ -1140,7 +1140,7 @@ bool ConfigManager::saveStaticAddressingEnabled(bool enabled) {
       BatchedNvsWrite::kNeedsDisplayGuard);
   BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("ConfigManager: IP-Modus-Preferences oeffnen fehlgeschlagen");
+    Serial.println("ConfigManager: Failed to open IP mode preferences");
     return false;
   }
   prefs.putBool("net_static", enabled);
@@ -1164,7 +1164,7 @@ bool ConfigManager::clearStaticAddressing() {
       BatchedNvsWrite::kNeedsDisplayGuard);
   BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("ConfigManager: DHCP-Preferences oeffnen fehlgeschlagen");
+    Serial.println("ConfigManager: Failed to open DHCP preferences");
     return false;
   }
   prefs.putBool("net_static", false);
@@ -1194,13 +1194,13 @@ void ConfigManager::clear() {
   BatchedNvsWrite::Preferences prefs;
 
   if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("⚠️ ConfigManager: Preferences öffnen fehlgeschlagen");
+    Serial.println("⚠️ ConfigManager: Failed to open preferences");
     return;
   }
 
   prefs.clear();
   if (!BatchedNvsWrite::finish(prefs)) {
-    Serial.println("ConfigManager: NVS konnte nicht geloescht werden");
+    Serial.println("ConfigManager: Could not erase NVS");
     return;
   }
 
@@ -1233,7 +1233,7 @@ void ConfigManager::clear() {
   clear_settings_tile_snapshot(config);
   runtime_rotation_dirty = false;
 
-  Serial.println("✓ ConfigManager: Konfiguration gelöscht");
+  Serial.println("✓ ConfigManager: Configuration deleted");
 }
 
 void ConfigManager::setRuntimeDisplayRotation(bool rotate_180) {

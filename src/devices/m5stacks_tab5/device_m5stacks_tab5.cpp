@@ -141,7 +141,7 @@ bool reset_ppa_client() {
   if (g_ppa_handle) {
     const esp_err_t unreg_err = ppa_unregister_client(g_ppa_handle);
     if (unreg_err != ESP_OK) {
-      Serial.printf("[Device/M5StacksTab5] PPA unregister verweigert err=%d (Transaktion offen), Retry folgt\n",
+      Serial.printf("[Device/M5StacksTab5] PPA unregister rejected err=%d (transaction open), retry follows\n",
                     static_cast<int>(unreg_err));
       return false;
     }
@@ -157,7 +157,7 @@ bool reset_ppa_client() {
     // das Geraet bis zum Reboot im langsamen M5GFX-Fallback haengen.
     g_ppa_reinit_at_ms = millis() + kPpaReinitRetryMs;
     if (!g_ppa_reinit_at_ms) g_ppa_reinit_at_ms = 1;
-    Serial.printf("[Device/M5StacksTab5] PPA reset failed err=%d (int frei=%u KB, largest=%u KB), Retry in %lu ms\n",
+    Serial.printf("[Device/M5StacksTab5] PPA reset failed err=%d (int free=%u KB, largest=%u KB), retry in %lu ms\n",
                   static_cast<int>(reg_err),
                   static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
                   static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024),
@@ -197,7 +197,7 @@ void note_ppa_fault() {
   // ppa_unregister_client nicht gelingen. Verklemmung wird direkt im
   // Rotate-Pfad erkannt (g_ppa_wedged) und dort ueber die spaete
   // Fertigmeldung wieder aufgeloest.
-  Serial.printf("[Device/M5StacksTab5] PPA fault #%u (int frei=%u KB, largest=%u KB)\n",
+  Serial.printf("[Device/M5StacksTab5] PPA fault #%u (int free=%u KB, largest=%u KB)\n",
                 static_cast<unsigned>(g_ppa_consecutive_faults + 1),
                 static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
                 static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024));
@@ -336,7 +336,7 @@ bool ppa_rotate_to_panel(int32_t x, int32_t y, int32_t w, int32_t h,
     // wieder frei und der Client laesst sich sauber neu aufsetzen. Dieses
     // Lauschen ist kostenlos und laeuft deshalb unbegrenzt weiter.
     if (g_ppa_done && xSemaphoreTake(g_ppa_done, 0) == pdTRUE) {
-      Serial.printf("[Device/M5StacksTab5] PPA Verklemmung geloest (Transaktion nach %lu ms doch fertig), Client-Reset\n",
+      Serial.printf("[Device/M5StacksTab5] PPA wedge cleared (transaction completed after %lu ms), client reset\n",
                     static_cast<unsigned long>(millis() - g_ppa_wedged_since_ms));
       g_ppa_wedged = false;
       g_ppa_consecutive_faults = 0;
@@ -356,12 +356,12 @@ bool ppa_rotate_to_panel(int32_t x, int32_t y, int32_t w, int32_t h,
       }
       g_ppa_wedge_retry_at_ms = millis() + g_ppa_wedge_retry_delay_ms;
       if (reset_ppa_client()) {
-        Serial.println("[Device/M5StacksTab5] PPA Verklemmung geloest (Client-Reset erfolgreich)");
+        Serial.println("[Device/M5StacksTab5] PPA wedge cleared (client reset successful)");
         g_ppa_wedged = false;
         g_ppa_consecutive_faults = 0;
         pause_ppa_for(kPpaFaultCooldownMs);
       } else if (g_ppa_wedge_reset_attempts >= kPpaWedgeResetMaxAttempts) {
-        Serial.printf("[Device/M5StacksTab5] PPA Reset-Versuche erschoepft — CPU-Modus bis zur spaeten Fertigmeldung oder Neustart (int_raw=0x%08lx err_st=0x%08lx)\n",
+        Serial.printf("[Device/M5StacksTab5] PPA reset attempts exhausted — CPU mode until late completion or restart (int_raw=0x%08lx err_st=0x%08lx)\n",
                       static_cast<unsigned long>(REG_READ(PPA_INT_RAW_REG)),
                       static_cast<unsigned long>(REG_READ(PPA_SR_PARAM_ERR_ST_REG)));
       }
@@ -410,7 +410,7 @@ bool ppa_rotate_to_panel(int32_t x, int32_t y, int32_t w, int32_t h,
   // die CPU dieses eine Rechteck.
   Dma2dArbiterGuard dma2d_guard(250);
   if (!dma2d_guard.locked()) {
-    log_ppa_fallback("2D-DMA-Arbiter belegt");
+    log_ppa_fallback("2D DMA arbiter busy");
     return false;
   }
 

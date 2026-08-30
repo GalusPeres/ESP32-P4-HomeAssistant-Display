@@ -100,6 +100,27 @@ static const i18n::Strings& camera_text() {
   return i18n::strings(configManager.getConfig().language);
 }
 
+static const char* status_log_name(const char* text) {
+  if (!text || !text[0]) return "empty";
+  const i18n::Strings& strings = camera_text();
+  if (strcmp(text, strings.camera_frame_memory_failed) == 0) return "frame-memory-failed";
+  if (strcmp(text, strings.camera_decoder_start_failed) == 0) return "decoder-start-failed";
+  if (strcmp(text, strings.camera_invalid_response) == 0) return "invalid-response";
+  if (strcmp(text, strings.camera_decoder_error) == 0) return "decoder-error";
+  if (strcmp(text, strings.camera_ready) == 0) return "ready";
+  if (strcmp(text, strings.camera_input_buffer_full) == 0) return "input-buffer-full";
+  if (strcmp(text, strings.camera_connection_ended) == 0) return "connection-ended";
+  if (strcmp(text, strings.camera_http_connecting) == 0) return "connecting";
+  if (strcmp(text, strings.camera_url_open_failed) == 0) return "url-open-failed";
+  if (strcmp(text, strings.camera_input_memory_failed) == 0) return "input-memory-failed";
+  if (strcmp(text, strings.camera_buffering) == 0) return "buffering";
+  if (strcmp(text, strings.camera_stream_stopped) == 0) return "stream-stopped";
+  if (strcmp(text, strings.camera_empty_url) == 0) return "empty-url";
+  if (strcmp(text, strings.camera_already_running) == 0) return "already-running";
+  if (strcmp(text, strings.camera_task_start_failed) == 0) return "task-start-failed";
+  return "dynamic";
+}
+
 static void set_image_source_without_redraw(lv_obj_t* image,
                                             const lv_image_dsc_t* source) {
   if (!image || !source) return;
@@ -117,8 +138,8 @@ static void set_image_source_without_redraw(lv_obj_t* image,
 
 static void set_status(const char* text, bool error = false) {
   Serial.printf("[CameraStream] Status%s: %s\n",
-                error ? " FEHLER" : "",
-                text ? text : "");
+                error ? " ERROR" : "",
+                status_log_name(text));
   portENTER_CRITICAL(&g_state_mux);
   snprintf(g_status, sizeof(g_status), "%s", text ? text : "");
   g_status_error = error;
@@ -261,12 +282,12 @@ static bool ensure_jpeg_decoder() {
       jpeg_new_decoder_engine(&engine_config, &g_jpeg_decoder);
   if (result != ESP_OK || !g_jpeg_decoder) {
     g_jpeg_decoder = nullptr;
-    Serial.printf("[CameraStream] JPEG-Engine konnte nicht starten: %s\n",
+    Serial.printf("[CameraStream] JPEG engine could not start: %s\n",
                   esp_err_to_name(result));
     set_status(camera_text().camera_decoder_start_failed, true);
     return false;
   }
-  Serial.println("[CameraStream] JPEG-Hardwaredecoder bereit");
+  Serial.println("[CameraStream] JPEG hardware decoder ready");
   return true;
 }
 
@@ -309,7 +330,7 @@ static bool decode_jpeg_frame(const uint8_t* jpeg, size_t jpeg_bytes) {
   if (!jpeg || jpeg_bytes < 4 || jpeg_bytes > UINT32_MAX ||
       jpeg[0] != 0xFF || jpeg[1] != 0xD8 ||
       jpeg[jpeg_bytes - 2] != 0xFF || jpeg[jpeg_bytes - 1] != 0xD9) {
-    Serial.printf("[CameraStream] Ungueltiger JPEG-Frame: %u Bytes\n",
+    Serial.printf("[CameraStream] Invalid JPEG frame: %u bytes\n",
                   static_cast<unsigned>(jpeg_bytes));
     set_status(camera_text().camera_invalid_response, true);
     return false;
@@ -321,7 +342,7 @@ static bool decode_jpeg_frame(const uint8_t* jpeg, size_t jpeg_bytes) {
   if (result != ESP_OK ||
       picture_info.width != kWidth || picture_info.height != kHeight) {
     Serial.printf(
-        "[CameraStream] JPEG-Format ungueltig: decode=%s size=%ux%u\n",
+        "[CameraStream] Invalid JPEG format: decode=%s size=%ux%u\n",
         esp_err_to_name(result),
         static_cast<unsigned>(picture_info.width),
         static_cast<unsigned>(picture_info.height));
@@ -351,7 +372,7 @@ static bool decode_jpeg_frame(const uint8_t* jpeg, size_t jpeg_bytes) {
     Dma2dArbiterGuard dma2d_guard(500);
     if (!dma2d_guard.locked()) {
       release_write_buffer(index);
-      Serial.println("[CameraStream] JPEG ausgelassen: 2D-DMA belegt");
+      Serial.println("[CameraStream] JPEG skipped: 2D DMA busy");
       return true;
     }
     result = jpeg_decoder_process(
@@ -373,7 +394,7 @@ static bool decode_jpeg_frame(const uint8_t* jpeg, size_t jpeg_bytes) {
   if (result != ESP_OK || decoded_bytes < kPixelBytes) {
     release_write_buffer(index);
     Serial.printf(
-        "[CameraStream] JPEG-Decode fehlgeschlagen: %s bytes=%u/%u\n",
+        "[CameraStream] JPEG decode failed: %s bytes=%u/%u\n",
         esp_err_to_name(result),
         static_cast<unsigned>(decoded_bytes),
         static_cast<unsigned>(kPixelBytes));
@@ -386,7 +407,7 @@ static bool decode_jpeg_frame(const uint8_t* jpeg, size_t jpeg_bytes) {
   ++g_worker_frame_count;
   if (g_worker_frame_count == 1) {
     Serial.printf(
-        "[CameraStream] Erstes Bild dekodiert: jpeg=%u Bytes decode=%ums "
+        "[CameraStream] First image decoded: jpeg=%u bytes decode=%ums "
         "int=%uKB largest=%uKB psram=%uKB\n",
         static_cast<unsigned>(jpeg_bytes),
         static_cast<unsigned>(millis() - decode_started_ms),
@@ -442,13 +463,13 @@ class JpegRecordStream final : public Stream {
           length_bytes_ = 0;
           if (!received_flush_record_) {
             received_flush_record_ = true;
-            Serial.println("[CameraStream] Bridge-Flush-Record empfangen");
+            Serial.println("[CameraStream] Bridge flush record received");
           }
           continue;
         }
         if (expected_bytes_ > kMaxJpegBytes) {
           Serial.printf(
-              "[CameraStream] JPEG-Frame zu gross: %u > %u Bytes\n",
+              "[CameraStream] JPEG frame too large: %u > %u bytes\n",
               static_cast<unsigned>(expected_bytes_),
               static_cast<unsigned>(kMaxJpegBytes));
           set_status(camera_text().camera_input_buffer_full, true);
@@ -468,7 +489,7 @@ class JpegRecordStream final : public Stream {
       if (!received_first_frame_) {
         received_first_frame_ = true;
         Serial.printf(
-            "[CameraStream] Erster vollstaendiger JPEG-Frame: %u Bytes "
+            "[CameraStream] First complete JPEG frame: %u bytes "
             "int=%uKB largest=%uKB psram=%uKB\n",
             static_cast<unsigned>(expected_bytes_),
             static_cast<unsigned>(
@@ -531,12 +552,12 @@ class HttpChunkedBodyDecoder {
         case State::SizeLine: {
           const char ch = static_cast<char>(raw[offset++]);
           if (ch == '\n') {
-            if (!parse_size_line()) return fail("ungueltige Chunk-Groesse");
+            if (!parse_size_line()) return fail("invalid chunk size");
             size_line_len_ = 0;
             state_ = chunk_remaining_ == 0 ? State::Done : State::Data;
           } else if (ch != '\r') {
             if (size_line_len_ + 1 >= sizeof(size_line_)) {
-              return fail("Chunk-Groessenzeile zu lang");
+              return fail("chunk size line too long");
             }
             size_line_[size_line_len_++] = ch;
           }
@@ -553,13 +574,13 @@ class HttpChunkedBodyDecoder {
         }
         case State::DataCr:
           if (raw[offset++] != '\r') {
-            return fail("CR nach Chunk fehlt");
+            return fail("missing CR after chunk");
           }
           state_ = State::DataLf;
           break;
         case State::DataLf:
           if (raw[offset++] != '\n') {
-            return fail("LF nach Chunk fehlt");
+            return fail("missing LF after chunk");
           }
           state_ = State::SizeLine;
           break;
@@ -610,7 +631,7 @@ class HttpChunkedBodyDecoder {
   }
 
   bool fail(const char* reason) {
-    Serial.printf("[CameraStream] HTTP-Chunk-Fehler: %s\n", reason);
+    Serial.printf("[CameraStream] HTTP chunk error: %s\n", reason);
     set_status(camera_text().camera_connection_ended, true);
     state_ = State::Done;
     return false;
@@ -705,7 +726,7 @@ static int connect_camera_socket(const CameraEndpoint& endpoint) {
   addrinfo* addresses = nullptr;
   const int lookup = getaddrinfo(endpoint.host, port_text, &hints, &addresses);
   if (lookup != 0 || !addresses) {
-    Serial.printf("[CameraStream] TCP DNS fehlgeschlagen: %d\n", lookup);
+    Serial.printf("[CameraStream] TCP DNS failed: %d\n", lookup);
     return -1;
   }
 
@@ -882,9 +903,9 @@ static bool read_http_header_value(const char* header,
 
 static void finish_camera_task(int socket_fd, uint8_t* input) {
   Serial.printf(
-      "[CameraStream] Task-Ende: stop=%s frames=%u int=%uKB "
+      "[CameraStream] Task end: stop=%s frames=%u int=%uKB "
       "largest=%uKB psram=%uKB\n",
-      g_stop_requested ? "ja" : "nein",
+      g_stop_requested ? "yes" : "no",
       static_cast<unsigned>(g_worker_frame_count),
       static_cast<unsigned>(
           heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024U),
@@ -906,7 +927,7 @@ static void run_camera_task_http_legacy() {
   HttpEndpoint endpoint;
   if (!parse_http_url(url.c_str(), endpoint)) {
     Serial.println(
-        "[CameraStream] Abgelehnt: Kamera-Transport muss lokales HTTP sein");
+        "[CameraStream] Rejected: camera transport must use local HTTP");
     set_status(camera_text().camera_invalid_response, true);
     return;
   }
@@ -924,7 +945,7 @@ static void run_camera_task_http_legacy() {
   const uint32_t get_started_ms = millis();
   int socket_fd = connect_http_socket(endpoint);
   if (socket_fd < 0) {
-    Serial.printf("[CameraStream] HTTP-Verbindung fehlgeschlagen: errno=%d\n",
+    Serial.printf("[CameraStream] HTTP connection failed: errno=%d\n",
                   errno);
     set_status(camera_text().camera_url_open_failed, true);
     return;
@@ -941,7 +962,7 @@ static void run_camera_task_http_legacy() {
       static_cast<size_t>(request_bytes) >= sizeof(request) ||
       !socket_send_all(socket_fd, request,
                        static_cast<size_t>(request_bytes))) {
-    Serial.printf("[CameraStream] HTTP GET senden fehlgeschlagen: errno=%d\n",
+    Serial.printf("[CameraStream] HTTP GET send failed: errno=%d\n",
                   errno);
     set_status(camera_text().camera_url_open_failed, true);
     finish_camera_task(socket_fd, nullptr);
@@ -972,7 +993,7 @@ static void run_camera_task_http_legacy() {
     break;
   }
   if (header_marker == SIZE_MAX) {
-    Serial.printf("[CameraStream] HTTP-Header unvollstaendig: %u Bytes\n",
+    Serial.printf("[CameraStream] HTTP header incomplete: %u bytes\n",
                   static_cast<unsigned>(header_bytes));
     set_status(camera_text().camera_url_open_failed, true);
     finish_camera_task(socket_fd, nullptr);
@@ -982,7 +1003,7 @@ static void run_camera_task_http_legacy() {
   header[header_marker] = '\0';
   int code = 0;
   if (sscanf(header, "HTTP/%*u.%*u %d", &code) != 1) code = -1;
-  Serial.printf("[CameraStream] HTTP GET=%d nach %ums\n", code,
+  Serial.printf("[CameraStream] HTTP GET=%d after %ums\n", code,
                 static_cast<unsigned>(millis() - get_started_ms));
   if (code != 200) {
     char message[64];
@@ -1003,13 +1024,13 @@ static void run_camera_task_http_legacy() {
   // lwIP treats SO_RCVBUF only as a socket hint for TCP; the SDK-wide TCP
   // window remains independent. ESP-Hosted transport blocks therefore live
   // in DMA-capable PSRAM instead of relying on this value as a RAM limit.
-  Serial.printf("[CameraStream] HTTP RX-Puffer-Hinweis: %d Bytes\n",
+  Serial.printf("[CameraStream] HTTP RX buffer hint: %d bytes\n",
                 kHttpReceiveBufferBytes);
-  Serial.printf("[CameraStream] HTTP-Transfer: %s\n",
+  Serial.printf("[CameraStream] HTTP transfer: %s\n",
                 chunked ? "chunked" : "identity");
-  Serial.printf("[CameraStream] JPEG-Framing: %s\n", framing);
+  Serial.printf("[CameraStream] JPEG framing: %s\n", framing);
   if (strcasecmp(framing, kJpegFraming) != 0) {
-    Serial.println("[CameraStream] Bridge liefert kein JPEG-Framing");
+    Serial.println("[CameraStream] Bridge did not provide JPEG framing");
     set_status(camera_text().camera_invalid_response, true);
     finish_camera_task(socket_fd, nullptr);
     return;
@@ -1018,7 +1039,7 @@ static void run_camera_task_http_legacy() {
   uint8_t* input = static_cast<uint8_t*>(heap_caps_aligned_alloc(
       64, kMaxJpegBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   if (!input) {
-    Serial.printf("[CameraStream] JPEG-Eingangspuffer (%u Bytes) fehlt\n",
+    Serial.printf("[CameraStream] JPEG input buffer (%u bytes) missing\n",
                   static_cast<unsigned>(kMaxJpegBytes));
     set_status(camera_text().camera_input_memory_failed, true);
     finish_camera_task(socket_fd, nullptr);
@@ -1052,8 +1073,8 @@ static void run_camera_task_http_legacy() {
           static_cast<uint32_t>(now - low_dma_headroom_since_ms) >=
           kDmaHeadroomGraceMs) {
         Serial.printf(
-            "[CameraStream] Sicherheitsstopp: DMA frei=%u KB Reserve=%u KB "
-            "Headroom=%u KB seit %u ms; MQTT/WLAN bleiben aktiv\n",
+            "[CameraStream] Safety stop: DMA free=%u KB reserve=%u KB "
+            "headroom=%u KB for %u ms; MQTT/Wi-Fi remain active\n",
             static_cast<unsigned>(dma_free / 1024U),
             static_cast<unsigned>(mqtt_dma_reserve / 1024U),
             static_cast<unsigned>(dma_headroom / 1024U),
@@ -1070,7 +1091,7 @@ static void run_camera_task_http_legacy() {
     if (received < 0) {
       if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
         stream_ok = false;
-        Serial.printf("[CameraStream] TCP-Empfangsfehler: errno=%d\n", errno);
+        Serial.printf("[CameraStream] TCP receive error: errno=%d\n", errno);
         break;
       }
       taskYIELD();
@@ -1089,8 +1110,8 @@ static void run_camera_task_http_legacy() {
       break;
     }
   }
-  Serial.printf("[CameraStream] HTTP-Stream beendet: ok=%s\n",
-                stream_ok ? "ja" : "nein");
+  Serial.printf("[CameraStream] HTTP stream ended: ok=%s\n",
+                stream_ok ? "yes" : "no");
 
   if (g_stop_requested) {
     set_status(camera_text().camera_stream_stopped);
@@ -1111,7 +1132,7 @@ static void run_camera_task() {
   CameraEndpoint endpoint;
   if (!parse_camera_url(url.c_str(), endpoint)) {
     Serial.println(
-        "[CameraStream] Abgelehnt: Kamera-Transport muss tcp-ack-v1 sein");
+        "[CameraStream] Rejected: camera transport must use tcp-ack-v1");
     set_status(camera_text().camera_invalid_response, true);
     return;
   }
@@ -1130,7 +1151,7 @@ static void run_camera_task() {
   const uint32_t connect_started_ms = millis();
   int socket_fd = connect_camera_socket(endpoint);
   if (socket_fd < 0) {
-    Serial.printf("[CameraStream] TCP-Verbindung fehlgeschlagen: errno=%d\n",
+    Serial.printf("[CameraStream] TCP connection failed: errno=%d\n",
                   errno);
     set_status(camera_text().camera_url_open_failed, true);
     return;
@@ -1144,7 +1165,7 @@ static void run_camera_task() {
       static_cast<size_t>(request_bytes) >= sizeof(request) ||
       !socket_send_all(socket_fd, request,
                        static_cast<size_t>(request_bytes))) {
-    Serial.printf("[CameraStream] TCP-Anmeldung fehlgeschlagen: errno=%d\n",
+    Serial.printf("[CameraStream] TCP handshake failed: errno=%d\n",
                   errno);
     set_status(camera_text().camera_url_open_failed, true);
     finish_camera_task(socket_fd, nullptr);
@@ -1162,7 +1183,7 @@ static void run_camera_task() {
       chunk_bytes == 0 ||
       chunk_bytes > kCameraChunkBytes) {
     Serial.printf(
-        "[CameraStream] TCP-Anmeldung ungueltig: result=%u status=%u "
+        "[CameraStream] Invalid TCP handshake: result=%u status=%u "
         "chunk=%u\n",
         static_cast<unsigned>(hello_result),
         static_cast<unsigned>(hello_status),
@@ -1172,14 +1193,14 @@ static void run_camera_task() {
     return;
   }
   Serial.printf(
-      "[CameraStream] TCP-ACK verbunden nach %ums, Block=%u Bytes\n",
+      "[CameraStream] TCP ACK connected after %ums, block=%u bytes\n",
       static_cast<unsigned>(millis() - connect_started_ms),
       static_cast<unsigned>(chunk_bytes));
 
   uint8_t* input = static_cast<uint8_t*>(heap_caps_aligned_alloc(
       64, kMaxJpegBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   if (!input) {
-    Serial.printf("[CameraStream] JPEG-Eingangspuffer (%u Bytes) fehlt\n",
+    Serial.printf("[CameraStream] JPEG input buffer (%u bytes) missing\n",
                   static_cast<unsigned>(kMaxJpegBytes));
     set_status(camera_text().camera_input_memory_failed, true);
     finish_camera_task(socket_fd, nullptr);
@@ -1214,8 +1235,8 @@ static void run_camera_task() {
     }
 
     Serial.printf(
-        "[CameraStream] Sicherheitsstopp: DMA frei=%u KB Reserve=%u KB "
-        "Headroom=%u KB seit %u ms; MQTT/WLAN bleiben aktiv\n",
+        "[CameraStream] Safety stop: DMA free=%u KB reserve=%u KB "
+        "headroom=%u KB for %u ms; MQTT/Wi-Fi remain active\n",
         static_cast<unsigned>(dma_free / 1024U),
         static_cast<unsigned>(mqtt_dma_reserve / 1024U),
         static_cast<unsigned>(dma_headroom / 1024U),
@@ -1235,14 +1256,14 @@ static void run_camera_task() {
         socket_receive_exact(socket_fd, header, sizeof(header));
     if (header_result != SocketReadResult::Ok) {
       if (header_result == SocketReadResult::Error) {
-        Serial.printf("[CameraStream] TCP-Empfangsfehler: errno=%d\n", errno);
+        Serial.printf("[CameraStream] TCP receive error: errno=%d\n", errno);
       }
       stream_ok = header_result == SocketReadResult::Stopped;
       break;
     }
     if (memcmp(header, kCameraFrameMagic,
                sizeof(kCameraFrameMagic)) != 0) {
-      Serial.println("[CameraStream] TCP-Nachrichtenkennung ungueltig");
+      Serial.println("[CameraStream] Invalid TCP message identifier");
       set_status(camera_text().camera_invalid_response, true);
       stream_ok = false;
       break;
@@ -1257,7 +1278,7 @@ static void run_camera_task() {
         stream_ok = false;
         break;
       }
-      Serial.println("[CameraStream] Bridge-Flush-Nachricht empfangen");
+      Serial.println("[CameraStream] Bridge flush message received");
       continue;
     }
     if (message_type == kCameraMessageEnd) {
@@ -1267,7 +1288,7 @@ static void run_camera_task() {
         jpeg_bytes == 0 ||
         jpeg_bytes > kMaxJpegBytes) {
       Serial.printf(
-          "[CameraStream] TCP-Bildkopf ungueltig: typ=%u bytes=%u\n",
+          "[CameraStream] Invalid TCP image header: type=%u bytes=%u\n",
           static_cast<unsigned>(message_type),
           static_cast<unsigned>(jpeg_bytes));
       set_status(
@@ -1294,7 +1315,7 @@ static void run_camera_task() {
       if (chunk_result != SocketReadResult::Ok) {
         if (chunk_result == SocketReadResult::Error) {
           Serial.printf(
-              "[CameraStream] TCP-Blockfehler: errno=%d offset=%u\n",
+              "[CameraStream] TCP block error: errno=%d offset=%u\n",
               errno, static_cast<unsigned>(received_bytes));
         }
         stream_ok = false;
@@ -1307,7 +1328,7 @@ static void run_camera_task() {
       write_be32(ack + 4, sequence);
       write_be32(ack + 8, static_cast<uint32_t>(received_bytes));
       if (!socket_send_all(socket_fd, ack, sizeof(ack))) {
-        Serial.printf("[CameraStream] TCP-ACK senden fehlgeschlagen: errno=%d\n",
+        Serial.printf("[CameraStream] TCP ACK send failed: errno=%d\n",
                       errno);
         stream_ok = false;
         break;
@@ -1324,7 +1345,7 @@ static void run_camera_task() {
     if (!received_first_frame) {
       received_first_frame = true;
       Serial.printf(
-          "[CameraStream] Erster bestaetigter JPEG-Frame: %u Bytes "
+          "[CameraStream] First acknowledged JPEG frame: %u bytes "
           "int=%uKB largest=%uKB psram=%uKB\n",
           static_cast<unsigned>(jpeg_bytes),
           static_cast<unsigned>(
@@ -1361,8 +1382,8 @@ static void run_camera_task() {
     vTaskDelay(1);
   }
 
-  Serial.printf("[CameraStream] TCP-ACK-Stream beendet: ok=%s\n",
-                stream_ok ? "ja" : "nein");
+  Serial.printf("[CameraStream] TCP ACK stream ended: ok=%s\n",
+                stream_ok ? "yes" : "no");
   if (g_stop_requested) {
     set_status(camera_text().camera_stream_stopped);
   } else {
@@ -1412,7 +1433,7 @@ bool camera_stream_start(const char* url, uint32_t corner_rgb) {
   }
   if (!ensure_frame_buffers()) return false;
   Serial.printf(
-      "[CameraStream] JPEG-Bildpuffer bereit: %u x %u Bytes, int=%uKB "
+      "[CameraStream] JPEG image buffers ready: %u x %u bytes, int=%uKB "
       "largest=%uKB psram=%uKB\n",
       static_cast<unsigned>(kFrameBufferCount),
       static_cast<unsigned>(kPixelBytes),
@@ -1461,7 +1482,7 @@ bool camera_stream_start(const char* url, uint32_t corner_rgb) {
     set_status(camera_text().camera_task_start_failed, true);
     return false;
   }
-  Serial.printf("[CameraStream] Task gestartet: Core=%d Prioritaet=%u\n",
+  Serial.printf("[CameraStream] Task started: core=%d priority=%u\n",
                 static_cast<int>(task_core),
                 static_cast<unsigned>(kCameraTaskPriority));
   return true;
@@ -1471,8 +1492,8 @@ void camera_stream_stop() {
   const bool was_active = task_is_active();
   g_stop_requested = true;
   Device::displayEndFullFramePreview();
-  Serial.printf("[CameraStream] Stop angefordert (aktiv=%s)\n",
-                was_active ? "ja" : "nein");
+  Serial.printf("[CameraStream] Stop requested (active=%s)\n",
+                was_active ? "yes" : "no");
   bool active = false;
   portENTER_CRITICAL(&g_state_mux);
   g_release_buffers = true;
@@ -1534,13 +1555,13 @@ void camera_stream_process_ui(lv_obj_t* image,
     if (direct_preview && !g_direct_preview_logged) {
       g_direct_preview_logged = true;
       Serial.println(
-          "[CameraStream] Present-Pfad: direkte Geraeteausgabe "
-          "(Quellpuffer und LVGL synchron)");
+          "[CameraStream] Presentation path: direct device output "
+          "(source buffer and LVGL synchronized)");
     } else if (!direct_preview && !g_direct_fallback_logged) {
       g_direct_fallback_logged = true;
       Serial.println(
-          "[CameraStream] Direkte Geraeteausgabe nicht verfuegbar; "
-          "Frame wird ausgelassen, LVGL bleibt reaktionsschnell");
+          "[CameraStream] Direct device output unavailable; "
+          "frame skipped to keep LVGL responsive");
     }
     drop_unpresented_frame = !direct_preview;
   }

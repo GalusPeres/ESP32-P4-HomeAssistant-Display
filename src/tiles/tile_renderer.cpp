@@ -136,7 +136,7 @@ static ClimateState* allocate_climate_states(const char* grid_name) {
   }
   if (!memory) {
     Serial.printf(
-        "[Climate] WARN: Kein State-Speicher fuer %s, nutze Notfallpuffer\n",
+        "[Climate] WARN: No state storage for %s, using emergency buffer\n",
         grid_name ? grid_name : "?");
     return g_climate_emergency_states;
   }
@@ -146,7 +146,7 @@ static ClimateState* allocate_climate_states(const char* grid_name) {
   }
   if (internal_fallback) {
     Serial.printf(
-        "[Climate] WARN: %s-State nutzt %u Bytes internen RAM\n",
+        "[Climate] WARN: %s state uses %u bytes of internal RAM\n",
         grid_name ? grid_name : "?",
         static_cast<unsigned>(sizeof(ClimateState) * TILES_PER_GRID));
   }
@@ -166,7 +166,7 @@ bool tile_renderer_init_cold_storage() {
       MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   if (!weather) {
     Serial.printf(
-        "[Tiles/Mem] ERROR: Weather-State (%u Bytes) nicht in PSRAM allokiert\n",
+        "[Tiles/Mem] ERROR: Weather state (%u bytes) not allocated in PSRAM\n",
         static_cast<unsigned>(sizeof(WeatherTileWidgets) * kWeatherCount));
     return false;
   }
@@ -179,7 +179,7 @@ bool tile_renderer_init_cold_storage() {
       MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   if (!media) {
     Serial.printf(
-        "[Tiles/Mem] ERROR: Media-State (%u Bytes) nicht in PSRAM allokiert\n",
+        "[Tiles/Mem] ERROR: Media state (%u bytes) not allocated in PSRAM\n",
         static_cast<unsigned>(sizeof(MediaTileWidgets) * kMediaCount));
     for (size_t i = 0; i < kWeatherCount; ++i) weather[i].~WeatherTileWidgets();
     heap_caps_free(weather);
@@ -197,7 +197,7 @@ bool tile_renderer_init_cold_storage() {
   g_tab2_media = media + TILES_PER_GRID * 2U;
   g_screensaver_media = media + TILES_PER_GRID * 3U;
   Serial.printf(
-      "[Tiles/Mem] Weather=%u Bytes Media=%u Bytes in PSRAM\n",
+      "[Tiles/Mem] Weather=%u bytes Media=%u bytes in PSRAM\n",
       static_cast<unsigned>(sizeof(WeatherTileWidgets) * kWeatherCount),
       static_cast<unsigned>(sizeof(MediaTileWidgets) * kMediaCount));
 #endif
@@ -612,7 +612,7 @@ void queue_sensor_tile_update(GridType grid_type, uint8_t grid_index, const char
   if (next_head == g_queue_tail) {
     // Queue voll - aeltestes Element verwerfen und ueberschreiben
     if ((g_queue_overflow_count++ % 10) == 0) {
-      Serial.println("[Queue] VOLL! Aeltestes Sensor-Update wird ueberschrieben");
+      Serial.println("[Queue] FULL! Oldest sensor update will be overwritten");
     }
     g_queue_tail = (g_queue_tail + 1) % QUEUE_SIZE;
   }
@@ -2466,7 +2466,7 @@ void queue_climate_tile_update(
   const uint8_t next = (g_climate_head + 1) % CLIMATE_QUEUE_SIZE;
   if (next == g_climate_tail) {
     g_climate_tail = (g_climate_tail + 1) % CLIMATE_QUEUE_SIZE;
-    Serial.println("[Queue] Climate voll, aeltestes Update ersetzt");
+    Serial.println("[Queue] Climate queue full, oldest update replaced");
   }
   ClimateUpdate& update = g_climate_queue[g_climate_head];
   update.grid_type = grid_type;
@@ -2826,7 +2826,7 @@ void queue_weather_tile_update(GridType grid_type, uint8_t grid_index, const cha
   uint8_t next_head = (g_weather_head + 1) % WEATHER_QUEUE_SIZE;
   if (next_head == g_weather_tail) {
     if ((g_weather_overflow_count++ % 10) == 0) {
-      Serial.println("[Queue] VOLL! Aeltestes Weather-Update wird ueberschrieben");
+      Serial.println("[Queue] FULL! Oldest weather update will be overwritten");
     }
     g_weather_tail = (g_weather_tail + 1) % WEATHER_QUEUE_SIZE;
   }
@@ -3154,7 +3154,7 @@ static bool read_media_cover_jpeg_size(const uint8_t* data, size_t len, uint16_t
   free(work);
   if (rc != JDR_OK || jd.width == 0 || jd.height == 0 ||
       jd.width > UINT16_MAX || jd.height > UINT16_MAX) {
-    Serial.printf("[MediaCover] JPEG info fehlgeschlagen: %d\n", static_cast<int>(rc));
+    Serial.printf("[MediaCover] JPEG info failed: %d\n", static_cast<int>(rc));
     return false;
   }
 
@@ -3183,7 +3183,7 @@ static lv_image_dsc_t* make_media_cover_decoded_jpeg_hw_dsc(const uint8_t* data,
   esp_err_t err = jpeg_decoder_get_info(data, static_cast<uint32_t>(len), &info);
   if (err != ESP_OK || info.width == 0 || info.height == 0 ||
       info.width > 512U || info.height > 512U) {
-    Serial.printf("[MediaCover] HW JPEG info fehlgeschlagen: %s (%ux%u)\n",
+    Serial.printf("[MediaCover] HW JPEG info failed: %s (%ux%u)\n",
                   esp_err_to_name(err),
                   static_cast<unsigned>(info.width),
                   static_cast<unsigned>(info.height));
@@ -3207,7 +3207,7 @@ static lv_image_dsc_t* make_media_cover_decoded_jpeg_hw_dsc(const uint8_t* data,
       jpeg_alloc_decoder_mem(requested_bytes, &mem_cfg, &allocated_bytes));
   if (!decoded || allocated_bytes < requested_bytes) {
     free(decoded);
-    Serial.printf("[MediaCover] HW JPEG PSRAM-Puffer fehlt: %u Bytes\n",
+    Serial.printf("[MediaCover] HW JPEG PSRAM buffer missing: %u bytes\n",
                   static_cast<unsigned>(requested_bytes));
     return nullptr;
   }
@@ -3233,7 +3233,7 @@ static lv_image_dsc_t* make_media_cover_decoded_jpeg_hw_dsc(const uint8_t* data,
     Dma2dArbiterGuard dma2d_guard(2000);
     if (!dma2d_guard.locked()) {
       free(decoded);
-      Serial.println("[MediaCover] 2D-DMA-Arbiter Timeout, nutze SW-Fallback");
+      Serial.println("[MediaCover] 2D DMA arbiter timeout, using software fallback");
       return nullptr;
     }
     if (!s_media_jpeg_decoder) {
@@ -3244,7 +3244,7 @@ static lv_image_dsc_t* make_media_cover_decoded_jpeg_hw_dsc(const uint8_t* data,
       if (err != ESP_OK || !s_media_jpeg_decoder) {
         s_media_jpeg_decoder = nullptr;
         free(decoded);
-        Serial.printf("[MediaCover] HW JPEG Engine nicht verfuegbar: %s\n",
+        Serial.printf("[MediaCover] HW JPEG engine unavailable: %s\n",
                       esp_err_to_name(err));
         return nullptr;
       }
@@ -3258,7 +3258,7 @@ static lv_image_dsc_t* make_media_cover_decoded_jpeg_hw_dsc(const uint8_t* data,
                                &decoded_bytes);
     if (err != ESP_OK || decoded_bytes < requested_bytes) {
       free(decoded);
-      Serial.printf("[MediaCover] HW JPEG decode fehlgeschlagen: decode=%s bytes=%u/%u\n",
+      Serial.printf("[MediaCover] HW JPEG decode failed: decode=%s bytes=%u/%u\n",
                     esp_err_to_name(err),
                     static_cast<unsigned>(decoded_bytes),
                     static_cast<unsigned>(requested_bytes));
@@ -3322,7 +3322,7 @@ static lv_image_dsc_t* make_media_cover_decoded_jpeg_hw_dsc(const uint8_t* data,
   dsc->data_size = final_bytes;
   dsc->data = reinterpret_cast<const uint8_t*>(final_pixels);
 
-  Serial.printf("[MediaCover] HW JPEG: %ux%u -> %ux%u, %u Bytes in %u ms\n",
+  Serial.printf("[MediaCover] HW JPEG: %ux%u -> %ux%u, %u bytes in %u ms\n",
                 static_cast<unsigned>(info.width),
                 static_cast<unsigned>(info.height),
                 static_cast<unsigned>(dst_w),
@@ -3347,14 +3347,14 @@ static lv_image_dsc_t* make_media_cover_decoded_jpeg_dsc(const uint8_t* data, si
   JRESULT rc = jd_prepare(&jd, media_cover_jpeg_input, work, 4096, &ctx);
   if (rc != JDR_OK || jd.width == 0 || jd.height == 0 ||
       jd.width > UINT16_MAX || jd.height > UINT16_MAX) {
-    Serial.printf("[MediaCover] MQTT JPEG prepare fehlgeschlagen: %d\n", static_cast<int>(rc));
+    Serial.printf("[MediaCover] MQTT JPEG prepare failed: %d\n", static_cast<int>(rc));
     free(work);
     return nullptr;
   }
 
   const size_t full_pixels = static_cast<size_t>(jd.width) * jd.height;
   if (full_pixels == 0 || full_pixels > (512U * 512U)) {
-    Serial.printf("[MediaCover] MQTT JPEG zu gross: %ux%u\n",
+    Serial.printf("[MediaCover] MQTT JPEG too large: %ux%u\n",
                   static_cast<unsigned>(jd.width),
                   static_cast<unsigned>(jd.height));
     free(work);
@@ -3375,7 +3375,7 @@ static lv_image_dsc_t* make_media_cover_decoded_jpeg_dsc(const uint8_t* data, si
   rc = jd_decomp(&jd, media_cover_jpeg_output, 0);
   free(work);
   if (rc != JDR_OK) {
-    Serial.printf("[MediaCover] MQTT JPEG decode fehlgeschlagen: %d\n", static_cast<int>(rc));
+    Serial.printf("[MediaCover] MQTT JPEG decode failed: %d\n", static_cast<int>(rc));
     free(full);
     return nullptr;
   }
@@ -3434,7 +3434,7 @@ static lv_image_dsc_t* make_media_cover_decoded_jpeg_dsc(const uint8_t* data, si
   dsc->data_size = final_bytes;
   dsc->data = reinterpret_cast<const uint8_t*>(final_pixels);
 
-  Serial.printf("[MediaCover] MQTT JPEG dekodiert: %ux%u -> %ux%u, %u Bytes\n",
+  Serial.printf("[MediaCover] MQTT JPEG decoded: %ux%u -> %ux%u, %u bytes\n",
                 static_cast<unsigned>(ctx.w),
                 static_cast<unsigned>(ctx.h),
                 static_cast<unsigned>(dst_w),
@@ -3578,20 +3578,20 @@ static lv_image_dsc_t* make_media_cover_dsc_from_bytes(const uint8_t* data, size
     if (lv_image_dsc_t* hardware = make_media_cover_decoded_jpeg_hw_dsc(data, len)) {
       return hardware;
     }
-    Serial.println("[MediaCover] HW JPEG nicht nutzbar, Software-Fallback");
+    Serial.println("[MediaCover] HW JPEG unavailable, using software fallback");
 #endif
     return make_media_cover_decoded_jpeg_dsc(data, len);
   }
   if (is_media_cover_png(data, len)) {
     lv_image_dsc_t* dsc = make_media_cover_raw_dsc(data, len);
     if (dsc) {
-      Serial.printf("[MediaCover] MQTT PNG an LVGL-Decoder uebergeben: %ux%u\n",
+      Serial.printf("[MediaCover] MQTT PNG passed to LVGL decoder: %ux%u\n",
                     static_cast<unsigned>(dsc->header.w),
                     static_cast<unsigned>(dsc->header.h));
     }
     return dsc;
   }
-  Serial.printf("[MediaCover] MQTT Bildformat unbekannt: %02X %02X %02X %02X\n",
+  Serial.printf("[MediaCover] Unknown MQTT image format: %02X %02X %02X %02X\n",
                 data[0], data[1], data[2], data[3]);
   return nullptr;
 }
@@ -3626,7 +3626,7 @@ static lv_image_dsc_t* make_media_cover_dsc_from_base64(const String& encoded) {
   const uint32_t base64_done_ms = millis();
   lv_image_dsc_t* dsc = make_media_cover_dsc_from_bytes(decoded, static_cast<size_t>(decoded_len));
   free(decoded);
-  Serial.printf("[MediaCover] Verarbeitung: base64=%u ms bild=%u ms gesamt=%u ms\n",
+  Serial.printf("[MediaCover] Processing: base64=%u ms image=%u ms total=%u ms\n",
                 static_cast<unsigned>(base64_done_ms - started_ms),
                 static_cast<unsigned>(millis() - base64_done_ms),
                 static_cast<unsigned>(millis() - started_ms));
@@ -3657,7 +3657,7 @@ static void log_media_cover_download_blocked() {
   const uint32_t now = millis();
   if (last_log_ms != 0 && static_cast<uint32_t>(now - last_log_ms) < 30000) return;
   last_log_ms = now;
-  Serial.println("[MediaCover] HTTPS Cover Download auf ESP32-P4 uebersprungen (WiFi-SDIO Stabilitaet)");
+  Serial.println("[MediaCover] HTTPS cover download skipped on ESP32-P4 (Wi-Fi SDIO stability)");
 }
 
 static lv_image_dsc_t* download_media_cover_jpeg(const String& url, bool* deferred) {
@@ -3674,7 +3674,7 @@ static lv_image_dsc_t* download_media_cover_jpeg(const String& url, bool* deferr
 
   constexpr size_t kMaxDownloadBytes = 96U * 1024U;
   constexpr size_t kReadChunkBytes = 512U;
-  Serial.printf("[MediaCover] lade: %s\n", url.c_str());
+  Serial.printf("[MediaCover] Downloading: %s\n", url.c_str());
   HTTPClient http;
   http.setTimeout(1200);
   http.setReuse(false);
@@ -3695,7 +3695,7 @@ static lv_image_dsc_t* download_media_cover_jpeg(const String& url, bool* deferr
 
   int code = http.GET();
   if (code != HTTP_CODE_OK) {
-    Serial.printf("[MediaCover] HTTP %d fuer Cover\n", code);
+    Serial.printf("[MediaCover] HTTP %d for cover\n", code);
     http.end();
     plain_client.stop();
     secure_client.stop();
@@ -3704,7 +3704,7 @@ static lv_image_dsc_t* download_media_cover_jpeg(const String& url, bool* deferr
 
   int content_len = http.getSize();
   if (content_len > 0 && static_cast<size_t>(content_len) > kMaxDownloadBytes) {
-    Serial.printf("[MediaCover] Cover zu gross: %d Bytes\n", content_len);
+    Serial.printf("[MediaCover] Cover too large: %d bytes\n", content_len);
     http.end();
     plain_client.stop();
     secure_client.stop();
@@ -3715,7 +3715,7 @@ static lv_image_dsc_t* download_media_cover_jpeg(const String& url, bool* deferr
   if (buffer_cap < 1024) buffer_cap = 1024;
   uint8_t* data = alloc_media_cover_download_buffer(buffer_cap);
   if (!data) {
-    Serial.println("[MediaCover] Download-Puffer fehlt");
+    Serial.println("[MediaCover] Download buffer missing");
     http.end();
     plain_client.stop();
     secure_client.stop();
@@ -3739,7 +3739,7 @@ static lv_image_dsc_t* download_media_cover_jpeg(const String& url, bool* deferr
     if (available > 0) {
       size_t room = buffer_cap - total;
       if (!room) {
-        Serial.println("[MediaCover] Cover Download-Limit erreicht");
+        Serial.println("[MediaCover] Cover download limit reached");
         free(data);
         http.end();
         plain_client.stop();
@@ -3768,7 +3768,7 @@ static lv_image_dsc_t* download_media_cover_jpeg(const String& url, bool* deferr
   delay(20);
 
   if (total < 32) {
-    Serial.printf("[MediaCover] zu wenig Daten: %u Bytes\n", static_cast<unsigned>(total));
+    Serial.printf("[MediaCover] Insufficient data: %u bytes\n", static_cast<unsigned>(total));
     free(data);
     return nullptr;
   }
@@ -3779,22 +3779,22 @@ static lv_image_dsc_t* download_media_cover_jpeg(const String& url, bool* deferr
   } else if (is_media_cover_png(data, total)) {
     dsc = make_media_cover_raw_dsc(data, total);
     if (dsc) {
-      Serial.printf("[MediaCover] PNG an LVGL-Decoder uebergeben: %ux%u\n",
+      Serial.printf("[MediaCover] PNG passed to LVGL decoder: %ux%u\n",
                     static_cast<unsigned>(dsc->header.w),
                     static_cast<unsigned>(dsc->header.h));
     }
   } else {
-    Serial.printf("[MediaCover] unbekanntes Bildformat: %02X %02X %02X %02X\n",
+    Serial.printf("[MediaCover] Unknown image format: %02X %02X %02X %02X\n",
                   data[0], data[1], data[2], data[3]);
   }
   if (dsc) {
     if (dsc->header.w && dsc->header.h) {
-      Serial.printf("[MediaCover] OK: %ux%u, %u Bytes\n",
+      Serial.printf("[MediaCover] OK: %ux%u, %u bytes\n",
                     static_cast<unsigned>(dsc->header.w),
                     static_cast<unsigned>(dsc->header.h),
                     static_cast<unsigned>(total));
     } else {
-      Serial.printf("[MediaCover] OK: RAW, %u Bytes\n", static_cast<unsigned>(total));
+      Serial.printf("[MediaCover] OK: RAW, %u bytes\n", static_cast<unsigned>(total));
     }
   }
   free(data);
@@ -3980,7 +3980,7 @@ static void media_cover_worker_task(void*) {
     if (!g_media_cover_result_queue ||
         xQueueSend(g_media_cover_result_queue, &result, 0) != pdTRUE) {
       if ((g_media_cover_result_full_count++ % 5) == 0) {
-        Serial.println("[MediaCover] Ergebnis-Queue voll, Cover verworfen");
+        Serial.println("[MediaCover] Result queue full, cover dropped");
       }
       // Inline statt free_media_cover_dsc(): das dort enthaltene
       // lv_image_cache_drop() ist LVGL-API und darf nicht vom Worker-Task
@@ -4035,7 +4035,7 @@ static void queue_media_cover_request(GridType grid_type,
   }
   if (!ensure_media_cover_worker()) {
     if ((g_media_cover_request_full_count++ % 5) == 0) {
-      Serial.println("[MediaCover] Worker konnte nicht gestartet werden");
+      Serial.println("[MediaCover] Worker could not be started");
     }
     return;
   }
@@ -4049,7 +4049,7 @@ static void queue_media_cover_request(GridType grid_type,
 
   if (xQueueSend(g_media_cover_request_queue, &req, 0) != pdTRUE) {
     if ((g_media_cover_request_full_count++ % 5) == 0) {
-      Serial.println("[MediaCover] Request-Queue voll, Cover wird spaeter erneut versucht");
+      Serial.println("[MediaCover] Request queue full, cover will be retried later");
     }
     return;
   }
@@ -4218,7 +4218,7 @@ static void update_media_cover(GridType grid_type,
       ref->failed_at_ms = 0;
       free_media_cover_dsc(old);
       free_media_cover_dsc(old_popup);
-      Serial.println("[MediaCover] Cover von Nachbar-Tile uebernommen (kein Download)");
+      Serial.println("[MediaCover] Cover adopted from neighboring tile (no download)");
       return;
     }
     free_media_cover_dsc(cloned);
@@ -4267,7 +4267,7 @@ static bool update_media_cover_from_base64(MediaTileWidgets& widgets, const Stri
   if (!adopted_from_sibling) {
     lv_image_dsc_t* decoded_dsc = make_media_cover_dsc_from_base64(encoded);
     if (!decoded_dsc) {
-      Serial.println("[MediaCover] MQTT Cover konnte nicht dekodiert werden");
+      Serial.println("[MediaCover] MQTT cover could not be decoded");
       return false;
     }
 
@@ -4303,9 +4303,9 @@ static bool update_media_cover_from_base64(MediaTileWidgets& widgets, const Stri
   free_media_cover_dsc(old);
   free_media_cover_dsc(old_popup);
   if (adopted_from_sibling) {
-    Serial.println("[MediaCover] MQTT Cover von Nachbar-Tile uebernommen (kein Re-Decode)");
+    Serial.println("[MediaCover] MQTT cover adopted from neighboring tile (no re-decode)");
   } else {
-    Serial.printf("[MediaCover] MQTT Cover geladen (Tile-Skalierung=%u ms)\n",
+    Serial.printf("[MediaCover] MQTT cover loaded (tile scaling=%u ms)\n",
                   static_cast<unsigned>(tile_scale_ms));
   }
   return true;
@@ -4514,7 +4514,7 @@ void update_media_tile_state(GridType grid_type, uint8_t grid_index, const char*
       update_media_cover(grid_type, grid_index, widgets, cover_url);
     }
     if (!cover_url.length() && !cover_data.length()) {
-      Serial.println("[MediaCover] keine Cover-URL im Media-Payload");
+      Serial.println("[MediaCover] No cover URL in media payload");
     }
   }
 
@@ -4540,7 +4540,7 @@ void queue_media_tile_update(GridType grid_type, uint8_t grid_index, const char*
   uint8_t next_head = (g_media_head + 1) % MEDIA_QUEUE_SIZE;
   if (next_head == g_media_tail) {
     if ((g_media_overflow_count++ % 10) == 0) {
-      Serial.println("[Queue] VOLL! Aeltestes Media-Update wird ueberschrieben");
+      Serial.println("[Queue] FULL! Oldest media update will be overwritten");
     }
     g_media_tail = (g_media_tail + 1) % MEDIA_QUEUE_SIZE;
   }
@@ -4815,7 +4815,7 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
   // Memory Monitoring - Vorher
   uint32_t heap_before = ESP.getFreeHeap();
   uint32_t psram_before = ESP.getFreePsram();
-  Serial.printf("[TileRenderer] Lade %d Tiles... | Heap: %u KB | PSRAM: %u KB\n",
+  Serial.printf("[TileRenderer] Loading %d tiles... | Heap: %u KB | PSRAM: %u KB\n",
                 TILES_PER_GRID, heap_before / 1024, psram_before / 1024);
 
   // Reset sensor widget pointers for this grid to avoid stale references
@@ -4825,7 +4825,7 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
   clear_media_widgets(grid_type);
 
   if (parent == nullptr) {
-    Serial.println("[TileRenderer] ERROR: Parent ist NULL!");
+    Serial.println("[TileRenderer] ERROR: Parent is NULL!");
     return;
   }
 
@@ -4869,7 +4869,7 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
   size_t render_count = 0;
   for (int i = 0; i < TILES_PER_GRID; ++i) {
     if (!layouts[i].valid) continue;
-    Serial.printf("[TileRenderer] Erstelle Tile %d/%d...\n", i + 1, TILES_PER_GRID);
+    Serial.printf("[TileRenderer] Creating tile %d/%d...\n", i + 1, TILES_PER_GRID);
 
     Tile layout_tile = config.tiles[i];
     layout_tile.col = layouts[i].col;
@@ -4887,7 +4887,7 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
       yield();
     }
 
-    Serial.printf("[TileRenderer] Tile %d/%d fertig\n", i + 1, TILES_PER_GRID);
+    Serial.printf("[TileRenderer] Tile %d/%d complete\n", i + 1, TILES_PER_GRID);
   }
   // Memory Monitoring - Nachher
   uint32_t heap_after = ESP.getFreeHeap();
@@ -4895,10 +4895,10 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
   int32_t heap_used = heap_before - heap_after;
   int32_t psram_used = psram_before - psram_after;
 
-  Serial.printf("[TileRenderer] ԣ� Alle Tiles geladen | Heap: %u KB (-%d KB) | PSRAM: %u KB (-%d KB)\n",
+  Serial.printf("[TileRenderer] All tiles loaded | Heap: %u KB (-%d KB) | PSRAM: %u KB (-%d KB)\n",
                 heap_after / 1024, heap_used / 1024,
                 psram_after / 1024, psram_used / 1024);
-  Serial.printf("[TileRenderer] Min Free Heap seit Boot: %u KB\n", ESP.getMinFreeHeap() / 1024);
+  Serial.printf("[TileRenderer] Minimum free heap since boot: %u KB\n", ESP.getMinFreeHeap() / 1024);
 }
 
 lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type, scene_publish_cb_t scene_cb) {

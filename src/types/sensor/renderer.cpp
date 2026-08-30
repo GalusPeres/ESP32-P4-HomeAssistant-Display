@@ -43,7 +43,7 @@ static bool is_disabled_token(const String& value) {
 
 lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type) {
   if (!parent) {
-    Serial.println("[TileRenderer] ERROR: parent NULL bei Sensor-Tile");
+    Serial.println("[TileRenderer] ERROR: parent NULL for sensor tile");
     return nullptr;
   }
 
@@ -59,7 +59,7 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
 
   lv_obj_t* card = lv_button_create(parent);
   if (!card) {
-    Serial.println("[TileRenderer] ERROR: Konnte Sensor-Card nicht erstellen");
+    Serial.println("[TileRenderer] ERROR: Could not create sensor card");
     return nullptr;
   }
 
@@ -225,7 +225,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   // Value Label (Wert + Einheit kombiniert)
   lv_obj_t* v = lv_label_create(card);
   if (!v) {
-    Serial.println("[TileRenderer] ERROR: Konnte Value-Label nicht erstellen");
+    Serial.println("[TileRenderer] ERROR: Could not create value label");
     return card;
   }
   set_label_style(v, lv_color_white(), get_sensor_value_font(tile));

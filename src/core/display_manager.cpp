@@ -278,7 +278,7 @@ bool DisplayManager::allocDrawBuffers(size_t requested_lines, lv_display_render_
   if (!disp || requested_lines == 0) return false;
   if (g_preserved_draw_buffer_active) {
     Serial.println(
-        "[Display] Pufferwechsel abgelehnt: Kamera-Puffer ist noch aktiv");
+        "[Display] Buffer switch rejected: camera buffer is still active");
     return false;
   }
   if (g_bytes_per_pixel == 0) {
@@ -326,8 +326,8 @@ bool DisplayManager::allocDrawBuffers(size_t requested_lines, lv_display_render_
   // gefuehrt wurde.
   if (!nb1 && require_fast_internal) {
     Serial.printf(
-        "[Display] Schneller SRAM-Restore noch nicht moeglich "
-        "(dma frei=%u KB, largest=%u KB)\n",
+        "[Display] Fast SRAM restore not yet possible "
+        "(dma free=%u KB, largest=%u KB)\n",
         (unsigned)(free_internal / 1024),
         (unsigned)(largest_block / 1024));
     return false;
@@ -369,9 +369,9 @@ bool DisplayManager::allocDrawBuffers(size_t requested_lines, lv_display_render_
   g_fast_internal_draw_buffer = single;
   g_single_psram_draw_buffer = false;
 
-  Serial.printf("[Display] Draw-Puffer: %s %s, %u Zeilen, %u Bytes/Puffer | int frei=%u KB | dma frei=%u KB | dma largest=%u KB\n",
+  Serial.printf("[Display] Draw buffer: %s %s, %u lines, %u bytes/buffer | int free=%u KB | dma free=%u KB | dma largest=%u KB\n",
                 single ? "1x" : "2x",
-                single ? "SRAM(schnell)" : (psram ? "PSRAM" : "SRAM"),
+                single ? "SRAM(fast)" : (psram ? "PSRAM" : "SRAM"),
                 (unsigned)use_lines, (unsigned)buf_bytes,
                 (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
                 (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA) / 1024),
@@ -391,7 +391,7 @@ bool DisplayManager::setSinglePsramBufferLines(size_t lines) {
       return true;
     }
     Serial.println(
-        "[Display] Temporaerer PSRAM-Zeichenpuffer bereits aktiv");
+        "[Display] Temporary PSRAM draw buffer already active");
     return false;
   }
   if (g_single_psram_draw_buffer && g_buffer_lines == lines && buf1 && !buf2) {
@@ -417,8 +417,8 @@ bool DisplayManager::setSinglePsramBufferLines(size_t lines) {
   if (free_psram < bytes + kLargeDrawPsramReserveBytes ||
       largest_psram < bytes) {
     Serial.printf(
-        "[Display] Grosser PSRAM-Zeichenpuffer abgelehnt: benoetigt=%u KB "
-        "frei=%u KB largest=%u KB Reserve=%u KB\n",
+        "[Display] Large PSRAM draw buffer rejected: required=%u KB "
+        "free=%u KB largest=%u KB reserve=%u KB\n",
         static_cast<unsigned>(bytes / 1024U),
         static_cast<unsigned>(free_psram / 1024U),
         static_cast<unsigned>(largest_psram / 1024U),
@@ -429,7 +429,7 @@ bool DisplayManager::setSinglePsramBufferLines(size_t lines) {
   lv_color_t* next = static_cast<lv_color_t*>(
       heap_caps_aligned_alloc(64, bytes, psram_caps));
   if (!next) {
-    Serial.println("[Display] Grosser PSRAM-Zeichenpuffer nicht allokierbar");
+    Serial.println("[Display] Unable to allocate large PSRAM draw buffer");
     return false;
   }
 
@@ -463,8 +463,8 @@ bool DisplayManager::setSinglePsramBufferLines(size_t lines) {
   g_single_psram_draw_buffer = true;
 
   Serial.printf(
-      "[Display] Kamera-Zeichenpuffer: 1x PSRAM, %u Zeilen, %u KB | "
-      "PSRAM frei=%u KB\n",
+      "[Display] Camera draw buffer: 1x PSRAM, %u lines, %u KB | "
+      "PSRAM free=%u KB\n",
       static_cast<unsigned>(lines),
       static_cast<unsigned>(bytes / 1024U),
       static_cast<unsigned>(
@@ -515,9 +515,9 @@ bool DisplayManager::restoreDrawBufferAfterSinglePsram() {
   }
 
   Serial.printf(
-      "[Display] Reservierter UI-Zeichenpuffer wieder aktiv: %s, "
-      "%u Zeilen, %u Bytes\n",
-      g_fast_internal_draw_buffer ? "SRAM(schnell)" : "PSRAM",
+      "[Display] Reserved UI draw buffer active again: %s, "
+      "%u lines, %u bytes\n",
+      g_fast_internal_draw_buffer ? "SRAM(fast)" : "PSRAM",
       static_cast<unsigned>(g_buffer_lines),
       static_cast<unsigned>(restored_bytes));
   return true;
@@ -557,7 +557,7 @@ bool DisplayManager::setBufferLines(size_t lines, lv_display_render_mode_t rende
     const size_t bytes = (size_t)SCREEN_WIDTH * g_buffer_lines * g_bytes_per_pixel;
     lv_display_set_buffers(disp, buf1, buf2, bytes, render_mode);
     g_render_mode = render_mode;
-    Serial.printf("[Display] Render-Mode umgestellt: %d (Zeilen=%d)\n", (int)render_mode, (int)g_buffer_lines);
+    Serial.printf("[Display] Render mode changed: %d (lines=%d)\n", (int)render_mode, (int)g_buffer_lines);
     return true;
   }
 
@@ -834,7 +834,7 @@ void IRAM_ATTR DisplayManager::touch_cb(lv_indev_t* indev_drv, lv_indev_data_t *
 
 // ========== Initialisierung ==========
 bool DisplayManager::init() {
-  Serial.println("[Display] Initialisiere Display Manager...");
+  Serial.println("[Display] Initializing Display Manager...");
 
   // Waveshare: Display is already initialised by BoardHAL::init().
   // 720×720 square display – no rotation needed by default.
@@ -859,8 +859,8 @@ bool DisplayManager::init() {
       heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (largest_lvgl_pool < LV_MEM_SIZE) {
     Serial.printf(
-        "[Display] LVGL-Pool nicht verfuegbar: benoetigt=%u KB, "
-        "groesster PSRAM-Block=%u KB\n",
+        "[Display] LVGL pool unavailable: required=%u KB, "
+        "largest PSRAM block=%u KB\n",
         static_cast<unsigned>(LV_MEM_SIZE / 1024U),
         static_cast<unsigned>(largest_lvgl_pool / 1024U));
     return false;
@@ -872,7 +872,7 @@ bool DisplayManager::init() {
   // Display erstellen
   disp = lv_display_create(SCREEN_WIDTH, SCREEN_HEIGHT);
   if (!disp) {
-    Serial.println("[Display] Display-Erstellung fehlgeschlagen!");
+    Serial.println("[Display] Display creation failed!");
     return false;
   }
 
@@ -904,7 +904,7 @@ bool DisplayManager::init() {
   // Kleinere DMA-Puffer fuer mehr verfuegbaren Heap (wichtig bei vielen Kacheln!)
   static constexpr size_t TARGET_LINES = SCREEN_HEIGHT / Device::kDisplayFlushBands;
   if (!allocDrawBuffers(TARGET_LINES, LV_DISPLAY_RENDER_MODE_PARTIAL)) {
-    Serial.println("[Display] DMA-Buffer-Allokation fehlgeschlagen!");
+    Serial.println("[Display] DMA buffer allocation failed!");
     return false;
   }
 #if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
@@ -940,7 +940,7 @@ bool DisplayManager::init() {
   }
 #endif
 
-  Serial.println("[OK] Display Manager initialisiert");
+  Serial.println("[OK] Display Manager initialized");
   return true;
 }
 

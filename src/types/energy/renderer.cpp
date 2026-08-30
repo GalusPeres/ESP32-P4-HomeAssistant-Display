@@ -54,13 +54,13 @@ lv_obj_t* render_energy_tile(lv_obj_t* parent,
                              uint8_t index,
                              GridType grid_type) {
   if (!parent) {
-    Serial.println("[TileRenderer] ERROR: parent NULL bei Energy-Tile");
+    Serial.println("[TileRenderer] ERROR: parent NULL for energy tile");
     return nullptr;
   }
 
   lv_obj_t* card = lv_button_create(parent);
   if (!card) {
-    Serial.println("[TileRenderer] ERROR: Konnte Energy-Card nicht erstellen");
+    Serial.println("[TileRenderer] ERROR: Could not create energy card");
     return nullptr;
   }
 

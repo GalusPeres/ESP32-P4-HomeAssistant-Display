@@ -9,7 +9,7 @@ lv_obj_t* render_text_tile(lv_obj_t* parent, int col, int row, const Tile& tile,
 
   lv_obj_t* card = lv_button_create(parent);
   if (!card) {
-    Serial.println("[TileRenderer] ERROR: Konnte Text-Card nicht erstellen");
+    Serial.println("[TileRenderer] ERROR: Could not create text card");
     return nullptr;
   }
 

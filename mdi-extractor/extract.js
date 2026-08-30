@@ -4,7 +4,7 @@ const path = require('path');
 // Pfad zur SCSS Variables Datei von @mdi/font
 const scssPath = path.join(__dirname, 'node_modules', '@mdi', 'font', 'scss', '_variables.scss');
 
-console.log('🔍 Lese MDI Variables...');
+console.log('🔍 Reading MDI variables...');
 
 // Lese die SCSS Datei
 const scssContent = fs.readFileSync(scssPath, 'utf8');
@@ -21,17 +21,17 @@ while ((match = iconRegex.exec(scssContent)) !== null) {
   icons.push({ name: iconName, codepoint: codepoint.toUpperCase() });
 }
 
-console.log(`✅ ${icons.length} Icons gefunden!`);
+console.log(`✅ Found ${icons.length} icons!`);
 
 // ALLE Icons ausgeben (keine Filterung)
-console.log(`🎯 Alle ${icons.length} Icons werden ausgegeben`);
+console.log(`🎯 Exporting all ${icons.length} icons`);
 
 // Ausgabe als C++ Map
-console.log('\n📋 C++ Map Einträge:\n');
+console.log('\n📋 C++ map entries:\n');
 icons.forEach(icon => {
   console.log(`  {"${icon.name}", 0x${icon.codepoint}},`);
 });
 
 // Speichere in Datei
 fs.writeFileSync('icons.txt', icons.map(i => `{"${i.name}", 0x${i.codepoint}},`).join('\n'));
-console.log('\n💾 Gespeichert in icons.txt');
+console.log('\n💾 Saved to icons.txt');

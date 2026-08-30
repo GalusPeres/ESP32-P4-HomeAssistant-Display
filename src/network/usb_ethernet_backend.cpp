@@ -780,8 +780,8 @@ private:
           return false;
         }
         Serial.printf(
-            "[USB-ETH] RX-Fallback: %u x %u KB (zweiter Transfer "
-            "nicht verfuegbar)\n",
+            "[USB-ETH] RX fallback: %u x %u KB (second transfer "
+            "unavailable)\n",
             static_cast<unsigned>(rx_count),
             static_cast<unsigned>(kRxBufferSize / 1024));
         break;
@@ -1436,7 +1436,7 @@ private:
       if (!allocateRxSlot(i)) continue;
       if (submitRx(i)) {
         Serial.printf(
-            "[USB-ETH] RX-Puffer nachgeruestet: wieder %u x %u KB aktiv\n",
+            "[USB-ETH] RX buffer restored: %u x %u KB active again\n",
             static_cast<unsigned>(kRxTransferCount),
             static_cast<unsigned>(kRxBufferSize / 1024));
       } else {
@@ -1560,11 +1560,11 @@ private:
 
     if (releaseDataTransfers()) {
       if (has_rx_transfers || tx_transfer_) {
-        Serial.println("[USB-ETH] Datenpuffer fuer WiFi freigegeben");
+        Serial.println("[USB-ETH] Data buffers released for Wi-Fi");
       }
     } else {
       data_release_pending_.store(true);
-      Serial.println("[USB-ETH] Datenpuffer-Freigabe wird nachgeholt");
+      Serial.println("[USB-ETH] Data buffer release deferred");
     }
 
     // Mirror the carrier-off sequence used by the reference RTL8156 driver:
@@ -1573,13 +1573,13 @@ private:
     if (attached_.load() && dev_) {
       rtl8153bNicReset();
       adapter_data_path_ready_ = false;
-      Serial.println("[USB-ETH] RTL8156-Datenpfad gestoppt");
+      Serial.println("[USB-ETH] RTL8156 data path stopped");
     }
   }
 
   void serviceDataPath() {
     if (data_release_pending_.load() && releaseDataTransfers()) {
-      Serial.println("[USB-ETH] Datenpuffer fuer WiFi freigegeben");
+      Serial.println("[USB-ETH] Data buffers released for Wi-Fi");
     }
 
     if (!netif_connect_pending_.load() || !netif_started_ ||
@@ -1590,13 +1590,13 @@ private:
 
     if (!adapter_data_path_ready_ && !enableAdapterDataPathHardware()) {
       netif_connect_at_ = millis() + 1000;
-      Serial.println("[USB-ETH] RTL8156-Datenpfad noch nicht bereit");
+      Serial.println("[USB-ETH] RTL8156 data path not ready yet");
       return;
     }
 
     if (data_release_pending_.load() || !allocateDataTransfers()) {
       netif_connect_at_ = millis() + 1000;
-      Serial.println("[USB-ETH] Datenpuffer noch nicht verfuegbar");
+      Serial.println("[USB-ETH] Data buffers not available yet");
       return;
     }
 

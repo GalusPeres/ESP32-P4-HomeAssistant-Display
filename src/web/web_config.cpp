@@ -101,11 +101,11 @@ WebConfigServer::WebConfigServer()
 
 bool WebConfigServer::start() {
   if (running) {
-    Serial.println("⚠️ WebConfigServer läuft bereits");
+    Serial.println("⚠️ WebConfigServer already running");
     return true;
   }
 
-  Serial.println("\n🌐 Starte WiFi-Konfigurationsmodus...");
+  Serial.println("\n🌐 Starting WiFi configuration mode...");
 
   // Stoppe bisherige WiFi-Verbindung (hilft beim Captive Portal)
 #if defined(DEVICE_ESP32_S3_RGB_480)
@@ -127,22 +127,22 @@ bool WebConfigServer::start() {
     restoreStaModeAfterAp();
   }
   if (!ap_ok) {
-    Serial.println("❌ Access Point konnte nicht gestartet werden!");
+    Serial.println("❌ Could not start access point!");
     return false;
   }
 
   delay(500);
 
   IPAddress ip = WiFi.softAPIP();
-  Serial.printf("✓ Access Point gestartet: %s\n", ap_ssid);
-  Serial.printf("  Passwort: %s\n", AP_PASS);
-  Serial.printf("  IP-Adresse: %s\n", ip.toString().c_str());
+  Serial.printf("✓ Access point started: %s\n", ap_ssid);
+  Serial.printf("  Password: %s\n", AP_PASS);
+  Serial.printf("  IP address: %s\n", ip.toString().c_str());
 
   // DNS Server für Captive Portal (alle DNS-Anfragen zu uns umleiten)
   if (dnsServer.start(53, "*", AP_IP)) {
-    Serial.println("✓ DNS Server gestartet (Port 53, alle Domains → 192.168.4.1)");
+    Serial.println("✓ DNS server started (port 53, all domains → 192.168.4.1)");
   } else {
-    Serial.println("⚠️ DNS Server konnte nicht gestartet werden!");
+    Serial.println("⚠️ Could not start DNS server!");
   }
 
   // WebServer::stop() schliesst nur den Socket und behaelt alle Handler.
@@ -171,8 +171,8 @@ bool WebConfigServer::start() {
   }
 
   server.begin();
-  Serial.println("✓ Webserver gestartet auf http://192.168.4.1");
-  Serial.printf("  Verbinde dich mit WiFi '%s' und öffne Browser\n", ap_ssid);
+  Serial.println("✓ Web server started at http://192.168.4.1");
+  Serial.printf("  Connect to WiFi '%s' and open your browser\n", ap_ssid);
 
   running = true;
   config_saved = false;
@@ -183,23 +183,23 @@ void WebConfigServer::stop() {
   if (!running)
     return;
 
-  Serial.println("🛑 Stoppe WebConfigServer...");
+  Serial.println("🛑 Stopping WebConfigServer...");
 
   dnsServer.stop();
-  Serial.println("  ✓ DNS Server gestoppt");
+  Serial.println("  ✓ DNS server stopped");
 
   server.stop();
-  Serial.println("  ✓ Webserver gestoppt");
+  Serial.println("  ✓ Web server stopped");
 
   WiFi.softAPdisconnect(true);
   restoreStaModeAfterAp();
-  Serial.println("  ✓ AP getrennt");
+  Serial.println("  ✓ AP disconnected");
 
-  Serial.println("  ✓ WiFi-Modus: STA");
+  Serial.println("  ✓ WiFi mode: STA");
 
   running = false;
   Serial.println(
-      "✓ WebConfigServer gestoppt - bereit für normale WiFi-Verbindung");
+      "✓ WebConfigServer stopped - ready for normal WiFi connection");
 }
 
 void WebConfigServer::handle() {
@@ -209,7 +209,7 @@ void WebConfigServer::handle() {
 }
 
 void WebConfigServer::handleRoot() {
-  Serial.println("📄 Config-Seite angefordert");
+  Serial.println("📄 Configuration page requested");
   sendChunkedResponse(server, 200, "text/html", getConfigPage());
 }
 
@@ -222,11 +222,11 @@ void WebConfigServer::handleCaptivePortal() {
   server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   server.sendHeader("Pragma", "no-cache");
   sendChunkedResponse(server, 200, "text/html", getConfigPage());
-  Serial.println("  ✓ Config-Seite direkt gesendet");
+  Serial.println("  ✓ Configuration page sent directly");
 }
 
 void WebConfigServer::handleSave() {
-  Serial.println("💾 Speichere WiFi-Konfiguration...");
+  Serial.println("💾 Saving WiFi configuration...");
 
   // Lese POST-Parameter (nur WiFi im AP-Modus!)
   DeviceConfig cfg = configManager.getConfig();  // enthaelt Defaultwerte (Display, Sleep, MQTT)
@@ -278,11 +278,11 @@ void WebConfigServer::handleSave() {
 
   // Speichere Konfiguration (MQTT-Daten bleiben erhalten!)
   if (configManager.save(cfg)) {
-    Serial.println("✓ WiFi-Konfiguration erfolgreich gespeichert");
+    Serial.println("✓ WiFi configuration saved successfully");
     config_saved = true;
     sendChunkedResponse(server, 200, "text/html", getSuccessPage());
   } else {
-    Serial.println("❌ Fehler beim Speichern der Konfiguration");
+    Serial.println("❌ Failed to save configuration");
     server.send(500, "text/html", "<h1>Saving the configuration failed</h1>");
   }
 }
@@ -296,7 +296,7 @@ void WebConfigServer::handleNotFound() {
   server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   server.sendHeader("Pragma", "no-cache");
   sendChunkedResponse(server, 200, "text/html", getConfigPage());
-  Serial.println("  ✓ Config-Seite gesendet (Not Found → Config Page)");
+  Serial.println("  ✓ Configuration page sent (not found → configuration page)");
 }
 
 String WebConfigServer::getConfigPage() {

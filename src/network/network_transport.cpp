@@ -39,7 +39,7 @@ void NetworkTransportManager::begin() {
     if (Device::kCapabilities.supports_native_ethernet) {
       nativeEthernetBackend.begin();
     }
-    Serial.println("[Network/Transport] Netzwerkmodus: Ethernet");
+    Serial.println("[Network/Transport] Network mode: Ethernet");
   }
   refreshActiveTransport();
 }

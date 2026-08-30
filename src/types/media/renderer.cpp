@@ -291,7 +291,7 @@ lv_obj_t* render_media_tile(lv_obj_t* parent,
                             uint8_t index,
                             GridType grid_type) {
   if (!parent) {
-    Serial.println("[TileRenderer] ERROR: parent NULL bei Media-Tile");
+    Serial.println("[TileRenderer] ERROR: parent NULL for media tile");
     return nullptr;
   }
 

@@ -136,7 +136,7 @@ static bool ensure_folder_cache_storage() {
     g_folder_cache_in_psram = true;
   }
   if (!storage) {
-    Serial.printf("[Tiles] ERROR: Kein Speicher fuer Folder-Cache-Slot (%u Bytes)\n",
+    Serial.printf("[Tiles] ERROR: No memory for folder cache slot (%u bytes)\n",
                   static_cast<unsigned>(sizeof(FolderCacheEntry)));
     return false;
   }
@@ -146,10 +146,10 @@ static bool ensure_folder_cache_storage() {
   for (size_t i = 0; i < g_folder_cache_slot_count; ++i) {
     new (&g_folder_cache[i]) FolderCacheEntry();
   }
-  Serial.printf("[Tiles] Folder-Cache: %u Slots x %u Bytes in %s\n",
+  Serial.printf("[Tiles] Folder cache: %u slots x %u bytes in %s\n",
                 static_cast<unsigned>(g_folder_cache_slot_count),
                 static_cast<unsigned>(sizeof(FolderCacheEntry)),
-                g_folder_cache_in_psram ? "PSRAM" : "internem RAM");
+                g_folder_cache_in_psram ? "PSRAM" : "internal RAM");
   return true;
 }
 
@@ -168,12 +168,12 @@ static bool ensure_cache_build_snapshot() {
     internal_fallback = g_cache_build_saved_widgets != nullptr;
   }
   if (!g_cache_build_saved_widgets) {
-    Serial.printf("[Tiles] ERROR: Kein Speicher fuer Cache-Build-Snapshot (%u Bytes)\n",
+    Serial.printf("[Tiles] ERROR: No memory for cache-build snapshot (%u bytes)\n",
                   static_cast<unsigned>(sizeof(TileWidgetCache)));
     return false;
   }
   if (internal_fallback) {
-    Serial.printf("[Tiles] WARN: Cache-Build-Snapshot nutzt internen RAM (%u Bytes)\n",
+    Serial.printf("[Tiles] WARN: Cache-build snapshot uses internal RAM (%u bytes)\n",
                   static_cast<unsigned>(sizeof(TileWidgetCache)));
   }
   return true;
@@ -353,8 +353,8 @@ static bool ensure_entity_cache_storage() {
       MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (!memory) {
     Serial.printf(
-        "[Tiles/Mem] ERROR: Entity-Cache (%u Bytes) nicht in PSRAM allokiert; "
-        "Cache deaktiviert\n",
+        "[Tiles/Mem] ERROR: Entity cache (%u bytes) not allocated in PSRAM; "
+        "cache disabled\n",
         static_cast<unsigned>(sizeof(EntityCacheEntry) * kEntityCacheSize));
     return false;
   }
@@ -362,7 +362,7 @@ static bool ensure_entity_cache_storage() {
   for (size_t i = 0; i < kEntityCacheSize; ++i) {
     new (&g_entity_cache[i]) EntityCacheEntry();
   }
-  Serial.printf("[Tiles/Mem] Entity-Cache=%u Bytes in PSRAM\n",
+  Serial.printf("[Tiles/Mem] Entity cache=%u bytes in PSRAM\n",
                 static_cast<unsigned>(sizeof(EntityCacheEntry) *
                                       kEntityCacheSize));
 #endif
@@ -984,7 +984,7 @@ static bool evict_folder_cache_before_build(uint16_t requested_folder_id,
     lvgl_used_after = monitor.total_size - monitor.free_size;
   }
   Serial.printf(
-      "[Tiles] folder-cache evict folder=%u vor folder=%u mode=%s in %lu ms | "
+      "[Tiles] folder-cache evict folder=%u before folder=%u mode=%s in %lu ms | "
       "resident=%u->%u | int=%lu->%lu KB largest=%lu->%lu KB | "
       "LVGL=%lu->%lu KB | root-children=%lu->%lu\n",
       static_cast<unsigned>(victim_id),
@@ -1053,7 +1053,7 @@ static void build_folder_cache_entry(FolderCacheEntry& entry, GridType grid_type
     if (entry.folder_id == tileConfig.getActiveFolderId()) {
       entry.grid_config = tileConfig.getActiveGrid();
     } else if (!tileConfig.loadFolderGrid(entry.folder_id, entry.grid_config)) {
-      Serial.printf("[Tiles] ERROR: Grid-Konfiguration fuer folder=%u nicht geladen\n",
+      Serial.printf("[Tiles] ERROR: Grid configuration for folder=%u not loaded\n",
                     static_cast<unsigned>(entry.folder_id));
       return;
     }
@@ -1157,7 +1157,7 @@ static void process_navigation_preload() {
     if (target->grid && target->loaded && target->widgets_valid) {
       if (!folder_cache_post_build_reserve_ok(memory_after)) {
         Serial.printf(
-            "[Tiles] nav-preload rollback folder=%u: reserve unterschritten | "
+            "[Tiles] nav-preload rollback folder=%u: reserve below threshold | "
             "int=%lu KB dma=%lu KB largest_dma=%lu KB psram=%lu KB\n",
             static_cast<unsigned>(folder_id),
             static_cast<unsigned long>(memory_after.internal_free / 1024),
@@ -1480,7 +1480,7 @@ static void apply_cached_state_for_index(GridType grid_type, const TileGridConfi
 void build_tiles_tab(lv_obj_t *parent, GridType grid_type, scene_publish_cb_t scene_cb) {
   uint8_t idx = (uint8_t)grid_type;
   if (!tile_renderer_init_cold_storage()) {
-    Serial.println("[Tiles/Mem] ERROR: Renderer-State nicht verfuegbar");
+    Serial.println("[Tiles/Mem] ERROR: Renderer state unavailable");
     return;
   }
   if (grid_type == GridType::TAB0) {
@@ -1678,7 +1678,7 @@ void tiles_reload_layout(GridType grid_type) {
     g_active_cache->icon_generation = g_tiles_icon_generation;
     g_active_cache->last_used_ms = millis();
   }
-  Serial.printf("[%s] Layout neu geladen\n", getGridName(grid_type));
+  Serial.printf("[%s] Layout reloaded\n", getGridName(grid_type));
   schedule_preview_load(grid_type);
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
   if (grid_type == GridType::TAB0 && g_active_cache) {
@@ -1714,7 +1714,7 @@ void tiles_release_layout(GridType grid_type) {
   lv_obj_clean(g_tiles_grids[idx]);
   g_tiles_loaded[idx] = false;
 
-  Serial.printf("[%s] Layout freigegeben\n", getGridName(grid_type));
+  Serial.printf("[%s] Layout released\n", getGridName(grid_type));
 }
 
 void tiles_release_all() {
@@ -1887,7 +1887,7 @@ void tiles_process_reload_requests() {
         }
         g_folder_switch_pending = false;
         g_pending_folder_id = kInvalidFolderId;
-        Serial.printf("[Tiles] ERROR: Kein Cache-Slot fuer folder=%u\n",
+        Serial.printf("[Tiles] ERROR: No cache slot for folder=%u\n",
                       static_cast<unsigned>(folder_id));
         uiManager.finishFolderSwitch(folder_id, false);
         return;

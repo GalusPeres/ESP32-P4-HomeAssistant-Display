@@ -614,9 +614,9 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
   if (needs_reload) {
     bool ok = save(merged);
     if (ok) {
-      Serial.printf("[Bridge] Konfiguration aus Home Assistant uebernommen: "
-                    "sensoren=%d energy=%d wetter=%d lichter=%d schalter=%d "
-                    "media=%d climate=%d covers=%d cameras=%d szenen=%d\n",
+      Serial.printf("[Bridge] Configuration received from Home Assistant: "
+                    "sensors=%d energy=%d weather=%d lights=%d switches=%d "
+                    "media=%d climate=%d covers=%d cameras=%d scenes=%d\n",
                     countListEntries(data.sensors_text),
                     countListEntries(data.energy_text),
                     countListEntries(data.weathers_text),
@@ -1491,7 +1491,7 @@ void HaBridgeConfig::rebuildEntityIndexes() {
   // wirklich ist -- "intern frei" darf durch einen Rebuild nicht mehr sinken.
   const size_t total_bytes = indexApproxBytes(units_index_) + indexApproxBytes(names_index_) +
                              indexApproxBytes(values_index_) + indexApproxBytes(icons_index_);
-  Serial.printf("[Bridge] Entity-Index neu aufgebaut: units=%u names=%u values=%u icons=%u (~%u KB PSRAM) | intern frei: %u KB\n",
+  Serial.printf("[Bridge] Entity index rebuilt: units=%u names=%u values=%u icons=%u (~%u KB PSRAM) | internal free: %u KB\n",
                 (unsigned)units_index_.size(), (unsigned)names_index_.size(),
                 (unsigned)values_index_.size(), (unsigned)icons_index_.size(),
                 (unsigned)((total_bytes + 1023) / 1024),

@@ -119,8 +119,8 @@ static bool restore_previous_draw_buffer(CameraPopupContext* ctx) {
     restored = displayManager.restoreBufferLinesAfterOta(requested_lines);
     if (!restored) {
       Serial.println(
-          "[Camera] SRAM-Puffer derzeit fragmentiert; "
-          "normaler PSRAM-Puffer wird wiederhergestellt");
+          "[Camera] SRAM buffer currently fragmented; "
+          "restoring normal PSRAM buffer");
     }
   }
   if (!restored) {
@@ -137,7 +137,7 @@ static bool restore_previous_draw_buffer(CameraPopupContext* ctx) {
   ctx->previous_draw_buffer_requested_lines = 0;
   ctx->previous_draw_buffer_fast = false;
   ctx->draw_buffer_restore_retry_at_ms = 0;
-  Serial.printf("[Camera] Display-Puffer wiederhergestellt (%u Zeilen angefordert)\n",
+  Serial.printf("[Camera] Display buffer restored (%u lines requested)\n",
                 static_cast<unsigned>(requested_lines));
   return true;
 }
@@ -381,7 +381,7 @@ void process_camera_popup() {
         const size_t restore_lines =
             g_camera_popup->previous_draw_buffer_requested_lines;
         Serial.printf(
-            "[Camera] Display-Puffer-Restore wird wiederholt (%u Zeilen)\n",
+            "[Camera] Display buffer restore will be retried (%u lines)\n",
             static_cast<unsigned>(restore_lines));
       }
     }
@@ -432,15 +432,15 @@ void camera_popup_handle_mqtt_status(const char* payload) {
   const uint8_t protocol_version = protocol_field.as<uint8_t>();
   if (protocol_version != kRequiredBridgeCameraProtocol) {
     Serial.printf(
-        "[Camera] Bridge-Kameraprotokoll %u ist inkompatibel "
-        "(erwartet %u; Bridge v0.6.28+)\n",
+        "[Camera] Bridge camera protocol %u is incompatible "
+        "(expected %u; Bridge v0.6.28+)\n",
         protocol_version, kRequiredBridgeCameraProtocol);
     camera_popup_set_status(
         camera_text().camera_bridge_update_required, true);
     return;
   }
   const char* status = doc["status"] | "";
-  Serial.printf("[Camera] Bridge-Status: entity=%s status=%s\n",
+  Serial.printf("[Camera] Bridge status: entity=%s status=%s\n",
                 entity,
                 status);
   if (strcmp(status, "ready") == 0) {
@@ -460,15 +460,15 @@ void camera_popup_handle_mqtt_status(const char* payload) {
         strcmp(transport, "tcp-ack-v1") != 0 ||
         strcmp(framing, "ack-jpeg-v1") != 0) {
       Serial.printf(
-          "[Camera] Ungueltiges Streamformat: %ux%u@%u transport=%s "
-          "framing=%s (erwartet %ux%u@<=%u tcp-ack-v1/ack-jpeg-v1)\n",
+          "[Camera] Invalid stream format: %ux%u@%u transport=%s "
+          "framing=%s (expected %ux%u@<=%u tcp-ack-v1/ack-jpeg-v1)\n",
           width, height, fps, transport, framing,
           camera_geometry::kWidth, camera_geometry::kHeight,
           camera_geometry::kFps);
       camera_popup_set_status(camera_text().camera_invalid_response, true);
       return;
     }
-    Serial.printf("[Camera] Stream-URL empfangen (%u Zeichen)\n",
+    Serial.printf("[Camera] Stream URL received (%u characters)\n",
                   static_cast<unsigned>(strlen(url)));
     camera_popup_set_status(camera_text().camera_connecting, false);
     if (!g_camera_popup->large_draw_buffer_active) {
@@ -485,8 +485,8 @@ void camera_popup_handle_mqtt_status(const char* payload) {
         g_camera_popup->large_draw_buffer_active = true;
       } else {
         Serial.println(
-            "[Camera] Grosser LVGL-Zeichenpuffer nicht verfuegbar; "
-            "normaler sicherer Renderpfad bleibt aktiv");
+            "[Camera] Large LVGL draw buffer unavailable; "
+            "normal safe rendering path remains active");
       }
     }
     if (!camera_stream_start(url, g_camera_popup->surface_color) &&
@@ -499,7 +499,7 @@ void camera_popup_handle_mqtt_status(const char* payload) {
     return;
   }
   if (strcmp(status, "error") == 0) {
-    Serial.printf("[Camera] Bridge-Fehler: %s\n",
+    Serial.printf("[Camera] Bridge error: %s\n",
                   static_cast<const char*>(doc["error"] | ""));
     camera_popup_set_status(localize_camera_error(doc["error"] | ""), true);
     return;

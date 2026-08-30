@@ -153,10 +153,10 @@ static void initMqttDmaReserve() {
       MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
   if (g_mqtt_dma_reserve) {
     g_mqtt_dma_reserve_held = true;
-    Serial.printf("[MQTT] DMA-Reserve angelegt: %u KB\n",
+    Serial.printf("[MQTT] DMA reserve allocated: %u KB\n",
                   static_cast<unsigned>(kMqttDmaReserveBytes / 1024));
   } else {
-    Serial.println("[MQTT] WARNUNG: DMA-Reserve konnte nicht angelegt werden");
+    Serial.println("[MQTT] WARNING: Could not allocate DMA reserve");
   }
 #endif
 }
@@ -168,7 +168,7 @@ static void releaseMqttDmaReserve(const char* reason) {
   heap_caps_free(g_mqtt_dma_reserve);
   g_mqtt_dma_reserve = nullptr;
   g_mqtt_dma_reserve_rearm_since = 0;
-  Serial.printf("[MQTT] DMA-Reserve freigegeben (%s), largest=%u KB\n",
+  Serial.printf("[MQTT] DMA reserve released (%s), largest=%u KB\n",
                 reason ? reason : "?",
                 static_cast<unsigned>(
                     heap_caps_get_largest_free_block(
@@ -200,7 +200,7 @@ static size_t serviceMqttDmaHeadroom(uint32_t now_ms) {
     largest =
         heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
     Serial.printf(
-        "[MQTT] DMA-Reserve freigegeben: largest %u KB -> %u KB\n",
+        "[MQTT] DMA reserve released: largest %u KB -> %u KB\n",
         static_cast<unsigned>(largest_before_release / 1024),
         static_cast<unsigned>(largest / 1024));
   }
@@ -219,7 +219,7 @@ static size_t serviceMqttDmaHeadroom(uint32_t now_ms) {
           g_mqtt_dma_reserve_held = true;
           largest = heap_caps_get_largest_free_block(
               MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
-          Serial.printf("[MQTT] DMA-Reserve wieder angelegt, largest=%u KB\n",
+          Serial.printf("[MQTT] DMA reserve allocated again, largest=%u KB\n",
                         static_cast<unsigned>(largest / 1024));
         }
         g_mqtt_dma_reserve_rearm_since = 0;
@@ -279,7 +279,7 @@ static bool enqueueOutboundCmd(MqttCmdKind kind,
   MqttOutboundCmd* cmd = mqttAllocOutbound(
       kind, topic, payload, payload_len, retain, large_buffer_hold_ms);
   if (!cmd) {
-    Serial.println("[MQTT] Outbound-Alloc fehlgeschlagen -> Kommando verworfen");
+    Serial.println("[MQTT] Outbound allocation failed -> command dropped");
     return false;
   }
   const BaseType_t queued = priority
@@ -288,7 +288,7 @@ static bool enqueueOutboundCmd(MqttCmdKind kind,
   if (queued != pdTRUE) {
     heap_caps_free(cmd);
     ++g_mqtt_outbound_dropped;
-    Serial.printf("[MQTT] Outbound-%s-Queue voll -> verworfen (#%u)\n",
+    Serial.printf("[MQTT] Outbound %s queue full -> dropped (#%u)\n",
                   kind != MqttCmdKind::PUBLISH
                       ? "Control"
                       : (large_publish ? "Large-Publish" : "Publish"),
@@ -436,7 +436,7 @@ bool HomeTilesNetworkManager::ensureWifiStationStarted() {
 #endif
     if (!wifi_started) {
       networkTransport.setWifiDriverActive(false);
-      Serial.println("WiFi: STA-Start fehlgeschlagen");
+      Serial.println("WiFi: STA start failed");
       return false;
     }
     logNetworkHeap("after-WiFi.mode");
@@ -470,15 +470,15 @@ void HomeTilesNetworkManager::stopWifiForWired() {
   // sequence, which issued several RPCs exactly while DMA was being released.
   const bool stopped = WiFi.mode(WIFI_OFF);
   if (sd_was_mounted && !Device::resumeSDCardAfterNetworkTransition()) {
-    Serial.println("[Network] WARNUNG: SD-Karte nach WiFi-Stopp nicht gemountet");
+    Serial.println("[Network] WARNING: SD card not mounted after Wi-Fi stop");
   }
   networkTransport.setWifiDriverActive(!stopped);
   wifi_ps_state_known = false;
 
   if (stopped) {
-    Serial.println("[Network] WiFi/SDIO gestoppt: Ethernet ist aktiv");
+    Serial.println("[Network] Wi-Fi/SDIO stopped: Ethernet is active");
   } else {
-    Serial.println("[Network] WiFi-Stopp fuer Ethernet fehlgeschlagen");
+    Serial.println("[Network] Wi-Fi stop for Ethernet failed");
     wifi_suspended_for_wired = false;
   }
 }
@@ -495,7 +495,7 @@ bool HomeTilesNetworkManager::recoverWifiFromDmaStarvation() {
   }
 
   Serial.println(
-      "[Network] MQTT-TX-Recovery: WLAN/SDIO kontrolliert neu aufbauen");
+      "[Network] MQTT TX recovery: rebuilding Wi-Fi/SDIO in a controlled manner");
   if (webAdminServer.isRunning()) webAdminServer.stop();
   stopMdns();
   was_connected = false;
@@ -509,7 +509,7 @@ bool HomeTilesNetworkManager::recoverWifiFromDmaStarvation() {
   const bool stopped = WiFi.mode(WIFI_OFF);
   if (sd_was_mounted && !Device::resumeSDCardAfterNetworkTransition()) {
     Serial.println(
-        "[Network] WARNUNG: SD-Karte nach WLAN-Recovery nicht gemountet");
+        "[Network] WARNING: SD card not mounted after Wi-Fi recovery");
   }
 
   wifi_ps_state_known = false;
@@ -523,7 +523,7 @@ bool HomeTilesNetworkManager::recoverWifiFromDmaStarvation() {
     // Recovery-Versuch ist durch den Cooldown begrenzt.
     networkTransport.setWifiDriverActive(true);
     mqtt_transport_recovery_requested = false;
-    Serial.println("[Network] WLAN/SDIO-Recovery: Treiber-Stopp fehlgeschlagen");
+    Serial.println("[Network] Wi-Fi/SDIO recovery: driver stop failed");
     return true;
   }
 
@@ -533,7 +533,7 @@ bool HomeTilesNetworkManager::recoverWifiFromDmaStarvation() {
   wifi_retry_at = 0;
   connectWifi();
   mqtt_transport_recovery_requested = false;
-  Serial.println("[Network] WLAN/SDIO-Recovery: Neuaufbau angestossen");
+  Serial.println("[Network] Wi-Fi/SDIO recovery: rebuild initiated");
   return true;
 #else
   mqtt_transport_recovery_requested = false;
@@ -547,10 +547,10 @@ void HomeTilesNetworkManager::init() {
   networkTransport.begin();
   networkTransport.update();
   transport_generation_seen = networkTransport.generation();
-  Serial.println("🌐 Initialisiere Network Manager...");
+  Serial.println("🌐 Initializing Network Manager...");
 
   if (!configManager.isConfigured()) {
-    Serial.println("⚠️ Keine Netzwerk-Konfiguration vorhanden");
+    Serial.println("⚠️ No network configuration available");
     return;
   }
 
@@ -566,9 +566,9 @@ void HomeTilesNetworkManager::init() {
     // NIE - ohne Kabel/Adapter ist das Geraet bewusst offline statt in den
     // frueheren WiFi-Fallback zu laufen, der beide Stacks gleichzeitig ins
     // DMA-RAM gezwungen hat.
-    Serial.printf("[Network] Ethernet-Modus: %s, WLAN bleibt aus\n",
+    Serial.printf("[Network] Ethernet mode: %s, Wi-Fi remains off\n",
                   wired_was_connected ? networkTransport.activeName()
-                                      : "warte auf Link/DHCP");
+                                      : "waiting for link/DHCP");
   } else {
     // WLAN-Modus: kein Ethernet-Backend gestartet, also entfaellt auch die
     // fruehere Wartefrist vor dem WiFi-Start.
@@ -602,10 +602,10 @@ void HomeTilesNetworkManager::init() {
     setMqttBufferSize(mqttNormalBufferSize(), "init");
     mqtt_client.setCallback(mqttCallback);
   } else {
-    Serial.println("MQTT: keine Konfiguration vorhanden - ueberspringe Verbindung");
+    Serial.println("MQTT: No configuration available - skipping connection");
   }
 
-  Serial.println("✓ Network Manager initialisiert");
+  Serial.println("✓ Network Manager initialized");
 }
 
 // ========== WiFi verbinden ==========
@@ -632,7 +632,7 @@ void HomeTilesNetworkManager::connectWifi() {
   networkTransport.update();
   if (isWiredConnected()) {
     stopWifiForWired();
-    Serial.printf("WiFi: nicht gestartet, %s ist aktiv\n",
+    Serial.printf("WiFi: Not started, %s is active\n",
                   networkTransport.activeName());
     return;
   }
@@ -644,13 +644,13 @@ void HomeTilesNetworkManager::connectWifi() {
     const uint32_t link_since = wired_link_up_since;
     if (link_since == 0 ||
         (uint32_t)(millis() - link_since) < kWiredLinkWifiBlockMs) {
-      Serial.println("WiFi: nicht gestartet, Ethernet-Link aktiv");
+      Serial.println("WiFi: Not started, Ethernet link active");
       return;
     }
   }
 
   if (!configManager.isConfigured()) {
-    Serial.println("WiFi: Keine Konfiguration vorhanden");
+    Serial.println("WiFi: No configuration available");
     return;
   }
 
@@ -670,7 +670,7 @@ void HomeTilesNetworkManager::connectWifi() {
       }
       return;
     }
-    Serial.printf("WiFi: Verbinde mit %s\n", cfg.wifi_ssid);
+    Serial.printf("WiFi: Connecting to %s\n", cfg.wifi_ssid);
     applyWifiAddressing(cfg);
     WiFi.begin(cfg.wifi_ssid, cfg.wifi_pass);
 
@@ -682,7 +682,7 @@ void HomeTilesNetworkManager::connectWifi() {
     if (attempt_ms >= kWifiRpcSlowMs) {
       if (wifi_start_failures < 255) ++wifi_start_failures;
       Serial.printf(
-          "WiFi: Verbindungsversuch blockierte %lu ms (RPC-Timeout-Verdacht %u/%u)\n",
+          "WiFi: Connection attempt blocked for %lu ms (suspected RPC timeout %u/%u)\n",
           static_cast<unsigned long>(attempt_ms),
           static_cast<unsigned>(wifi_start_failures),
           static_cast<unsigned>(kWifiStartWedgeThreshold));
@@ -713,10 +713,10 @@ bool HomeTilesNetworkManager::probeWifiDriverHealth(const char* context) {
 
   wifi_start_failures = kWifiStartWedgeThreshold;
   Serial.printf(
-      "[Network] WLAN-Liveness-Probe blockierte %lu ms (%s): "
-      "ESP-Hosted/C6 antwortet nicht\n",
+      "[Network] Wi-Fi liveness probe blocked for %lu ms (%s): "
+      "ESP-Hosted/C6 is not responding\n",
       static_cast<unsigned long>(elapsed),
-      context && context[0] ? context : "ohne Kontext");
+      context && context[0] ? context : "without context");
   handleWifiDriverWedge(context);
   return false;
 #else
@@ -732,22 +732,22 @@ void HomeTilesNetworkManager::handleWifiDriverWedge(const char* context) {
   const bool wired = isWiredLinkUp();
   String detail;
   detail.reserve(512);
-  detail += "ESP-Hosted RPC-Timeout zum C6";
+  detail += "ESP-Hosted RPC timeout to C6";
   if (context && context[0]) {
     detail += " (";
     detail += context;
     detail += ')';
   }
   detail += '\n';
-  detail += "Wedge-Indizien ";
+  detail += "Wedge indicators ";
   detail += wifi_start_failures;
   detail += '/';
   detail += kWifiStartWedgeThreshold;
   detail += '\n';
   detail += "Uptime ";
   detail += millis() / 1000;
-  detail += " s | Ethernet-Link ";
-  detail += wired ? "vorhanden" : "fehlt";
+  detail += " s | Ethernet link ";
+  detail += wired ? "present" : "missing";
   detail += '\n';
   char mem[96];
   snprintf(mem, sizeof(mem), "mem int=%uKB largest=%uKB dma_largest=%uKB\n",
@@ -794,13 +794,13 @@ void HomeTilesNetworkManager::handleWifiDriverWedge(const char* context) {
                 ? "camera_stream=active\n"
                 : "camera_stream=inactive\n";
   detail += wired
-                ? "Weiterlauf ueber Ethernet, WiFi bis zum Neustart deaktiviert\n"
-                : "Sicherer Neustart folgt (setzt den C6 mit zurueck)\n";
+                ? "Continuing over Ethernet; Wi-Fi disabled until restart\n"
+                : "Safe restart follows (also resets the C6)\n";
   CrashLog::appendNetworkWedgeReport(detail);
 
-  Serial.printf("[Network] WLAN-Treiber reagiert nicht mehr - %s\n",
-                wired ? "laufe auf Ethernet weiter (WiFi aus bis Neustart)"
-                      : "sicherer Neustart");
+  Serial.printf("[Network] Wi-Fi driver is no longer responding - %s\n",
+                wired ? "continuing over Ethernet (Wi-Fi off until restart)"
+                      : "safe restart");
   if (!wired) {
     if (millis() >= kWedgeRestartMinUptimeMs) {
       Serial.flush();
@@ -822,7 +822,7 @@ void HomeTilesNetworkManager::disconnectWifiManual() {
   }
   WiFi.setAutoReconnect(false);
   if (isWifiStationEnabled()) WiFi.disconnect();
-  Serial.println("WiFi: manuell getrennt (kein Auto-Reconnect bis Verbinden/Neustart)");
+  Serial.println("WiFi: Manually disconnected (no automatic reconnect until connect/restart)");
 }
 
 // ========== MQTT verbinden (worker-only) ==========
@@ -836,7 +836,7 @@ void HomeTilesNetworkManager::connectMqtt() {
   }
 
   if (!configManager.isConfigured()) {
-    Serial.println("MQTT: Keine Konfiguration vorhanden");
+    Serial.println("MQTT: No configuration available");
     return;
   }
 
@@ -850,7 +850,7 @@ void HomeTilesNetworkManager::connectMqtt() {
     snprintf(client_id, sizeof(client_id), "Tab5_LVGL-%012llX", mac);
   }
 
-  Serial.printf("MQTT: Verbinde mit %s:%u als %s\n", cfg.mqtt_host, cfg.mqtt_port, client_id);
+  Serial.printf("MQTT: Connecting to %s:%u as %s\n", cfg.mqtt_host, cfg.mqtt_port, client_id);
 
   const char* stat_topic = mqttTopics.topic(TopicKey::STAT_CONN);
   if (!stat_topic || !*stat_topic) {
@@ -875,14 +875,14 @@ void HomeTilesNetworkManager::connectMqtt() {
     const uint32_t shift =
         mqtt_connect_failures < 5 ? mqtt_connect_failures : 5;
     mqtt_retry_at = millis() + (3000UL << shift);  // 6s..96s
-    Serial.printf("MQTT: Verbindung fehlgeschlagen, State=%d (Retry in %lus)\n",
+    Serial.printf("MQTT: Connection failed, state=%d (retry in %lus)\n",
                   mqtt_client.state(),
                   static_cast<unsigned long>((3000UL << shift) / 1000));
     return;
   }
 
   mqtt_connect_failures = 0;
-  Serial.println("✓ MQTT verbunden");
+  Serial.println("✓ MQTT connected");
   mqtt_connected_at = millis();
   logNetworkHeap("after-MQTT-connect");
 
@@ -924,7 +924,7 @@ void HomeTilesNetworkManager::connectMqtt() {
   // abgearbeitet.
   if (mqtt_preserve_outbound_on_connect) {
     mqtt_preserve_outbound_on_connect = false;
-    Serial.println("[MQTT] DMA-Recovery: wartende Requests bleiben erhalten");
+    Serial.println("[MQTT] DMA recovery: pending requests preserved");
   } else {
     purgeOutboundQueue();
   }
@@ -948,14 +948,14 @@ void HomeTilesNetworkManager::connectMqtt() {
 void HomeTilesNetworkManager::beginMqttWorker() {
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
   Serial.println(
-      "[Network] ESP-Hosted SDIO-Puffer: DMA-PSRAM bevorzugt, "
-      "interner DMA-Fallback aktiv");
+      "[Network] ESP-Hosted SDIO buffers: DMA-capable PSRAM preferred, "
+      "internal DMA fallback active");
 #endif
   if (!g_mqtt_publish_queue) {
     g_mqtt_publish_queue =
         xQueueCreate(kMqttPublishQueueDepth, sizeof(MqttOutboundCmd*));
     if (!g_mqtt_publish_queue) {
-      Serial.println("[MQTT] Outbound-Publish-Queue konnte nicht erstellt werden");
+      Serial.println("[MQTT] Could not create outbound publish queue");
     }
   }
   if (!g_mqtt_large_publish_queue) {
@@ -963,14 +963,14 @@ void HomeTilesNetworkManager::beginMqttWorker() {
         xQueueCreate(kMqttLargePublishQueueDepth, sizeof(MqttOutboundCmd*));
     if (!g_mqtt_large_publish_queue) {
       Serial.println(
-          "[MQTT] Outbound-Large-Publish-Queue konnte nicht erstellt werden");
+          "[MQTT] Could not create outbound large-publish queue");
     }
   }
   if (!g_mqtt_control_queue) {
     g_mqtt_control_queue =
         xQueueCreate(kMqttControlQueueDepth, sizeof(MqttOutboundCmd*));
     if (!g_mqtt_control_queue) {
-      Serial.println("[MQTT] Outbound-Control-Queue konnte nicht erstellt werden");
+      Serial.println("[MQTT] Could not create outbound control queue");
     }
   }
   initMqttDmaReserve();
@@ -1002,7 +1002,7 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
         mqtt_client.publish(stat_topic, "0", true);
       }
       mqtt_client.disconnect();
-      Serial.println("[MQTT] Disconnect fuer Reconfigure");
+      Serial.println("[MQTT] Disconnect for reconfiguration");
     }
     purgeOutboundQueue();
     mqtt_post_connect_pending = false;
@@ -1021,9 +1021,9 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
       mqtt_client.setCallback(mqttCallback);
       mqtt_retry_at = 0;  // sofortiger Verbindungsversuch, naechste Iteration
       mqtt_connect_failures = 0;  // frischer Transport, frischer Backoff
-      Serial.println("[MQTT] Reconfigure: neue Einstellungen uebernommen");
+      Serial.println("[MQTT] Reconfigure: new settings applied");
     } else {
-      Serial.println("[MQTT] Reconfigure: kein Host konfiguriert, bleibe getrennt");
+      Serial.println("[MQTT] Reconfigure: no host configured, remaining disconnected");
     }
     return;
   }
@@ -1061,7 +1061,7 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
   if (mqtt_disconnect_requested) {
     if (mqtt_client.connected()) {
       mqtt_client.disconnect();
-      Serial.println("[MQTT] Disconnect auf Anforderung (Hotspot-Modus)");
+      Serial.println("[MQTT] Disconnect requested (hotspot mode)");
     }
     purgeOutboundQueue();
     mqtt_post_connect_pending = false;
@@ -1088,7 +1088,7 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
   if (hold_until != 0 && (int32_t)(now_ms - hold_until) < 0) {
     if (mqtt_client.connected()) {
       mqtt_client.disconnect();
-      Serial.println("[MQTT] Disconnect waehrend Reconnect-Ruhefenster");
+      Serial.println("[MQTT] Disconnect during reconnect quiet period");
     }
     if (mqtt_connected_flag) mqtt_connected_flag = false;
     mqtt_post_connect_pending = false;
@@ -1104,7 +1104,7 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
   if (!mqtt_client.connected()) {
     if (mqtt_connected_flag) {
       mqtt_connected_flag = false;
-      Serial.println("[MQTT] Verbindung verloren");
+      Serial.println("[MQTT] Connection lost");
     }
     if ((int32_t)(now_ms - mqtt_retry_at) >= 0) {
       connectMqtt();
@@ -1121,7 +1121,7 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
                                     : kMqttOutboundDrainNormal);
   mqtt_client.loop();
   if (!mqtt_client.connected()) {
-    Serial.printf("[MQTT] Verbindung in loop verloren, State=%d\n",
+    Serial.printf("[MQTT] Connection lost in loop, state=%d\n",
                   mqtt_client.state());
     mqtt_connected_flag = false;
   }
@@ -1149,7 +1149,7 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
     if ((uint32_t)(now_ms - g_mqtt_last_tx_guard_log_ms) >= 2000) {
       g_mqtt_last_tx_guard_log_ms = now_ms;
-      Serial.printf("[MQTT] %s wartet: DMA largest nur %u KB\n",
+      Serial.printf("[MQTT] %s waiting: DMA largest only %u KB\n",
                     lane,
                     static_cast<unsigned>(largest / 1024));
     }
@@ -1179,7 +1179,7 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
           ok = mqtt_client.unsubscribe(cmd->topic);
         }
         if (!ok) {
-          Serial.printf("[MQTT] Worker: %s '%s' fehlgeschlagen\n",
+          Serial.printf("[MQTT] Worker: %s '%s' failed\n",
                         verb, cmd->topic);
         }
         heap_caps_free(cmd);
@@ -1223,7 +1223,7 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
       const bool ok = mqtt_client.publish(
           cmd->topic, cmd->payload, cmd->payload_len, cmd->retain);
       if (!ok) {
-        Serial.printf("[MQTT] Worker: publish '%s' fehlgeschlagen\n", cmd->topic);
+        Serial.printf("[MQTT] Worker: publish '%s' failed\n", cmd->topic);
       }
       heap_caps_free(cmd);
 
@@ -1266,11 +1266,11 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
           // path has its own DMA guard and will close first if memory remains
           // scarce; normal MQTT publishes continue through their own lane.
           if (camera_stream_is_active()) {
-            log_dma_wait("Recovery wartet auf Kamera-Ende", dma_largest);
+            log_dma_wait("Recovery waiting for camera to stop", dma_largest);
             return;
           }
           Serial.printf(
-              "[MQTT] DMA-Starvation seit %u ms: WLAN/SDIO-Recovery\n",
+              "[MQTT] DMA starvation for %u ms: Wi-Fi/SDIO recovery\n",
               static_cast<unsigned>(now_ms - g_mqtt_dma_low_since));
           // Single-Owner-Regel bleibt erhalten: der Worker schliesst seinen
           // Client selbst, erst danach darf der Loop-Task den Treiber abbauen.
@@ -1301,7 +1301,7 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
         !setMqttBufferSize(kMqttBufferLarge, "queued-publish")) {
       ++g_mqtt_outbound_dropped;
       Serial.printf(
-          "[MQTT] Large-Publish verworfen: Puffer nicht verfuegbar (#%u)\n",
+          "[MQTT] Large publish dropped: buffer unavailable (#%u)\n",
           static_cast<unsigned>(g_mqtt_outbound_dropped));
       heap_caps_free(cmd);
       return;
@@ -1311,7 +1311,7 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
     const bool ok = mqtt_client.publish(
         cmd->topic, cmd->payload, cmd->payload_len, cmd->retain);
     if (!ok) {
-      Serial.printf("[MQTT] Worker: publish '%s' fehlgeschlagen\n", cmd->topic);
+      Serial.printf("[MQTT] Worker: publish '%s' failed\n", cmd->topic);
     }
     heap_caps_free(cmd);
 
@@ -1418,7 +1418,7 @@ void HomeTilesNetworkManager::disconnectMqtt() {
     delay(5);
   }
   if (mqtt_disconnect_requested) {
-    Serial.println("[MQTT] WARNUNG: Worker hat Disconnect-Request nicht bestaetigt");
+    Serial.println("[MQTT] WARNING: Worker did not acknowledge disconnect request");
   }
 }
 
@@ -1431,7 +1431,7 @@ void HomeTilesNetworkManager::requestMqttReconfigure() {
     delay(5);
   }
   if (mqtt_reconfig_requested) {
-    Serial.println("[MQTT] WARNUNG: Worker hat Reconfigure-Request nicht bestaetigt");
+    Serial.println("[MQTT] WARNING: Worker did not acknowledge reconfigure request");
   }
 }
 
@@ -1442,7 +1442,7 @@ void HomeTilesNetworkManager::prepareMqttForOta() {
     delay(5);
   }
   if (mqtt_ota_prep_requested) {
-    Serial.println("[OTA] WARNUNG: MQTT-Worker hat OTA-Vorbereitung nicht bestaetigt");
+    Serial.println("[OTA] WARNING: MQTT worker did not acknowledge OTA preparation");
   }
 }
 
@@ -1454,7 +1454,7 @@ void HomeTilesNetworkManager::deferMqttReconnect(uint32_t hold_ms) {
   mqtt_post_connect_ready_at = 0;
   mqtt_large_until = 0;
   purgeOutboundQueue();
-  Serial.printf("[MQTT] Reconnect fuer %u ms pausiert\n",
+  Serial.printf("[MQTT] Reconnect paused for %u ms\n",
                 static_cast<unsigned>(hold_ms));
 }
 
@@ -1542,7 +1542,7 @@ void HomeTilesNetworkManager::publishBridgeConfig() {
   }
   mqttEnqueuePublishWithLargeBuffer(
       topic.c_str(), payload.c_str(), true, 15000);
-  Serial.println("[Network] Home Assistant Bridge-Konfiguration publiziert");
+  Serial.println("[Network] Home Assistant Bridge configuration published");
 }
 
 const char* HomeTilesNetworkManager::getBridgeApplyTopic() const {
@@ -1554,8 +1554,8 @@ void HomeTilesNetworkManager::publishBridgeRequest(bool force) {
   if (bridge_request_topic_.isEmpty()) return;
   mqttEnqueuePublishWithLargeBuffer(
       bridge_request_topic_.c_str(), force ? "force" : "", false, 30000);
-  Serial.printf("[Network] Home Assistant Bridge-Aktualisierung angefordert%s\n",
-                force ? " (erzwungen)" : "");
+  Serial.printf("[Network] Home Assistant Bridge refresh requested%s\n",
+                force ? " (forced)" : "");
 }
 
 const char* HomeTilesNetworkManager::getBridgeRequestTopic() const {
@@ -1609,7 +1609,7 @@ void HomeTilesNetworkManager::startMdns() {
 
   logMdnsHeap("before-begin");
   if (!MDNS.begin(hostname)) {
-    Serial.println("[mDNS] begin() fehlgeschlagen -- Advertising uebersprungen");
+    Serial.println("[mDNS] begin() failed -- advertising skipped");
     return;
   }
   MDNS.addService("hometiles", "tcp", 80);
@@ -1693,7 +1693,7 @@ void HomeTilesNetworkManager::update() {
   if (wired_link_up && !wired_link_was_up) {
     wired_ip_wait_until = now_ms + kWiredDhcpWaitMs;
     wired_link_up_since = now_ms;
-    Serial.printf("[Network] Ethernet-Link steht; warte bis zu %u ms auf DHCP\n",
+    Serial.printf("[Network] Ethernet link is up; waiting up to %u ms for DHCP\n",
                   static_cast<unsigned>(kWiredDhcpWaitMs));
   } else if (!wired_link_up) {
     wired_ip_wait_until = 0;
@@ -1708,7 +1708,7 @@ void HomeTilesNetworkManager::update() {
   if (wifi_wedge_latched && !wired_link_up &&
       now_ms >= kWedgeRestartMinUptimeMs) {
     Serial.println(
-        "[Network] WLAN-Wedge ohne Ethernet-Link: sicherer Neustart");
+        "[Network] Wi-Fi wedge without Ethernet link: safe restart");
     Serial.flush();
     BoardHAL::prepareForRestart();
     delay(500);
@@ -1736,7 +1736,7 @@ void HomeTilesNetworkManager::update() {
     // Fester Ethernet-Modus: kein WLAN-Fallback mehr. Bis Kabel/DHCP
     // wiederkommen, ist das Geraet bewusst offline.
     Serial.println(
-        "[Network] Ethernet getrennt; warte auf neuen Link (kein WLAN-Fallback)");
+        "[Network] Ethernet disconnected; waiting for a new link (no Wi-Fi fallback)");
   }
   wired_was_connected = wired_connected;
 
@@ -1744,7 +1744,7 @@ void HomeTilesNetworkManager::update() {
   const bool transport_changed =
       current_generation != transport_generation_seen;
   if (transport_changed) {
-    Serial.printf("[Network] Aktiver Transport: %s (generation=%u)\n",
+    Serial.printf("[Network] Active transport: %s (generation=%u)\n",
                   networkTransport.activeName(),
                   static_cast<unsigned>(current_generation));
     transport_generation_seen = current_generation;

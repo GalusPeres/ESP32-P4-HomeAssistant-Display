@@ -306,7 +306,7 @@ bool ScreensaverConfigStore::load() {
 #endif
     fs.remove(kConfigPath);
     fs.rename(kConfigTmpPath, kConfigPath);
-    Serial.println("[ScreensaverConfig] aus .tmp wiederhergestellt");
+    Serial.println("[ScreensaverConfig] Restored from .tmp");
     config_ok = true;
   } else if (loadPath(kConfigPath)) {
     config_ok = true;
@@ -316,22 +316,22 @@ bool ScreensaverConfigStore::load() {
 #endif
     fs.remove(kConfigPath);
     fs.rename(kConfigBackupPath, kConfigPath);
-    Serial.println("[ScreensaverConfig] aus .bak wiederhergestellt");
+    Serial.println("[ScreensaverConfig] Restored from .bak");
     config_ok = true;
   } else if (loadPath(kLegacyConfigTmpPath)) {
-    Serial.println("[ScreensaverConfig] alte v1-.tmp geladen");
+    Serial.println("[ScreensaverConfig] Loaded legacy v1 .tmp");
     config_ok = true;
     config_needs_migration = true;
   } else if (loadPath(kLegacyConfigPath)) {
-    Serial.println("[ScreensaverConfig] alte v1-Konfiguration geladen");
+    Serial.println("[ScreensaverConfig] Loaded legacy v1 configuration");
     config_ok = true;
     config_needs_migration = true;
   } else if (loadPath(kLegacyConfigBackupPath)) {
-    Serial.println("[ScreensaverConfig] alte v1-.bak geladen");
+    Serial.println("[ScreensaverConfig] Loaded legacy v1 .bak");
     config_ok = true;
     config_needs_migration = true;
   } else {
-    Serial.println("[ScreensaverConfig] keine Konfiguration, Standardwerte aktiv");
+    Serial.println("[ScreensaverConfig] No configuration, defaults active");
   }
 
   const bool grid_ok = tileConfig.loadScreensaverGrid(tile_grid_);
@@ -353,14 +353,14 @@ bool ScreensaverConfigStore::load() {
     if (tileConfig.saveScreensaverGrid(tile_grid_)) {
       // Einmalige Migration aus dem verworfenen JSON-Slotformat.
       config_needs_migration = true;
-      Serial.println("[ScreensaverConfig] alte JSON-Slots ins TileGrid migriert");
+      Serial.println("[ScreensaverConfig] Migrated legacy JSON slots into TileGrid");
     }
   }
   if (config_ok && config_needs_migration) {
     if (save()) {
-      Serial.println("[ScreensaverConfig] Konfiguration nach v2 migriert");
+      Serial.println("[ScreensaverConfig] Configuration migrated to v2");
     } else {
-      Serial.println("[ScreensaverConfig] v2-Migration fehlgeschlagen, v1 bleibt nutzbar");
+      Serial.println("[ScreensaverConfig] v2 migration failed, v1 remains usable");
     }
   }
   return config_ok || grid_ok;
@@ -438,7 +438,7 @@ bool ScreensaverConfigStore::save() {
     fs.remove(kConfigTmpPath);
     return false;
   }
-  Serial.printf("[ScreensaverConfig] gespeichert (%u Bytes)\n",
+  Serial.printf("[ScreensaverConfig] Saved (%u bytes)\n",
                 static_cast<unsigned>(written));
   return true;
 }

@@ -149,7 +149,7 @@ static bool ensure_external_temp_history_storage() {
     static bool logged = false;
     if (!logged) {
       logged = true;
-      Serial.printf("[History] Kein PSRAM fuer lokalen Temperaturverlauf (%u Bytes)\n",
+      Serial.printf("[History] No PSRAM for local temperature history (%u bytes)\n",
                     static_cast<unsigned>(kValuesBytes + kValidBytes));
     }
     return false;
@@ -401,14 +401,14 @@ static bool queue_history_fallback_for_entity(const char* entity_id,
       if (local_payload.length()) {
         queue_sensor_popup_history(entity_id, local_payload.c_str(), local_payload.length());
         queue_tile_graph_history(entity_id, local_payload.c_str(), local_payload.length());
-        Serial.printf("[History] %s -> lokale Historie fuer %s (%u Punkte, %uh/%umin)\n",
+        Serial.printf("[History] %s -> local history for %s (%u points, %uh/%umin)\n",
                       reason ? reason : "Fallback", entity_id, points, hours, period_minutes);
       }
     } else {
       String empty_payload = build_empty_history_payload(entity_id, hours, period_minutes, points);
       queue_sensor_popup_history(entity_id, empty_payload.c_str(), empty_payload.length());
       queue_tile_graph_history(entity_id, empty_payload.c_str(), empty_payload.length());
-      Serial.printf("[History] %s -> Zeit ungueltig, leere Historie fuer %s\n",
+      Serial.printf("[History] %s -> invalid time, empty history for %s\n",
                     reason ? reason : "Fallback", entity_id);
     }
     return true;
@@ -418,7 +418,7 @@ static bool queue_history_fallback_for_entity(const char* entity_id,
     String empty_payload = build_empty_history_payload(entity_id, hours, period_minutes, points);
     queue_sensor_popup_history(entity_id, empty_payload.c_str(), empty_payload.length());
     queue_tile_graph_history(entity_id, empty_payload.c_str(), empty_payload.length());
-    Serial.printf("[History] %s -> interne Historie fuer %s leer\n",
+    Serial.printf("[History] %s -> internal history for %s is empty\n",
                   reason ? reason : "Fallback", entity_id);
     return true;
   }
@@ -452,7 +452,7 @@ static void service_pending_history_fallback() {
     const bool fallback_queued = queue_history_fallback_for_entity(
         entity.c_str(), time_valid, "HA Timeout", hours, period_minutes, points);
     if (!fallback_queued) {
-      Serial.printf("[History] HA Timeout fuer %s (kein lokaler Fallback)\n",
+      Serial.printf("[History] HA timeout for %s (no local fallback)\n",
                     entity.c_str());
     }
   }
@@ -510,7 +510,7 @@ static bool init_external_temp_on_bus(const ExternalTempCandidate& candidate,
   candidate.bus->reset_search();
   if (!candidate.bus->search(addr)) {
     if (verbose_log) {
-      Serial.printf("[OneWire] GPIO %u: kein 1-Wire Geraet gefunden\n",
+      Serial.printf("[OneWire] GPIO %u: no 1-Wire device found\n",
                     static_cast<unsigned>(candidate.pin));
     }
     return false;
@@ -518,7 +518,7 @@ static bool init_external_temp_on_bus(const ExternalTempCandidate& candidate,
 
   if (OneWire::crc8(addr, 7) != addr[7]) {
     if (verbose_log) {
-      Serial.printf("[OneWire] GPIO %u: CRC Fehler auf dem Bus\n",
+      Serial.printf("[OneWire] GPIO %u: CRC error on bus\n",
                     static_cast<unsigned>(candidate.pin));
     }
     return false;
@@ -526,7 +526,7 @@ static bool init_external_temp_on_bus(const ExternalTempCandidate& candidate,
 
   if (!is_supported_ds18x20_family(addr[0])) {
     if (verbose_log) {
-      Serial.printf("[OneWire] GPIO %u: unbekannte Family 0x%02X\n",
+      Serial.printf("[OneWire] GPIO %u: unknown family 0x%02X\n",
                     static_cast<unsigned>(candidate.pin),
                     static_cast<unsigned>(addr[0]));
     }
@@ -537,7 +537,7 @@ static bool init_external_temp_on_bus(const ExternalTempCandidate& candidate,
   candidate.sensor->setWaitForConversion(false);
   memcpy(out_addr, addr, sizeof(DeviceAddress));
   candidate.sensor->setResolution(out_addr, 12);
-  Serial.printf("[OneWire] DS18x20 gefunden auf GPIO %u (Family 0x%02X)\n",
+  Serial.printf("[OneWire] DS18x20 found on GPIO %u (family 0x%02X)\n",
                 static_cast<unsigned>(candidate.pin),
                 static_cast<unsigned>(addr[0]));
   return true;
@@ -571,7 +571,7 @@ static void discover_external_temp_sensor(uint32_t now_ms) {
   }
 
   if (verbose_log) {
-    Serial.println("[OneWire] Kein DS18x20 auf GPIO 1/50 gefunden (DATA + 4.7k Pull-up zu 3V3 pruefen).");
+    Serial.println("[OneWire] No DS18x20 found on GPIO 1/50 (check DATA + 4.7k pull-up to 3V3).");
   }
 }
 
@@ -606,7 +606,7 @@ static void service_external_temp_sensor() {
     g_external_temp_valid = false;
     if (g_external_failures < 255) ++g_external_failures;
     if (g_external_failures >= kExternalTempMaxFailures) {
-      Serial.println("[OneWire] Sensor getrennt, starte Neusuche...");
+      Serial.println("[OneWire] Sensor disconnected, starting new search...");
       g_external_dallas = nullptr;
       g_external_pin = 0xFF;
       g_external_failures = 0;
@@ -628,7 +628,7 @@ static void service_external_temp_sensor() {
   static bool warned = false;
   if (!warned) {
     warned = true;
-    Serial.println("[OneWire] OneWire/DallasTemperature nicht gefunden, externer DS18x20 Sensor deaktiviert.");
+    Serial.println("[OneWire] OneWire/DallasTemperature not found, external DS18x20 sensor disabled.");
   }
   g_external_temp_valid = false;
 }
@@ -682,7 +682,7 @@ static void sync_external_temp_entity(bool publish_mqtt) {
 #if TAB5_HAS_ONEWIRE_DS18X20
   static bool reported_pin = false;
   if (!reported_pin && g_external_pin != 0xFF) {
-    Serial.printf("[OneWire] MQTT Publish auf %s (GPIO %u)\n",
+    Serial.printf("[OneWire] MQTT publish to %s (GPIO %u)\n",
                   topic.c_str(),
                   static_cast<unsigned>(g_external_pin));
     reported_pin = true;
@@ -784,7 +784,7 @@ static void handleSceneCommand(const char* payload, size_t) {
 
 static void handleHaWohnTemp(const char* payload, size_t) {
   float v = atof(payload);
-  Serial.printf("HA Wohnbereich Temperatur: %s -> %.2f C\n", payload, v);
+  Serial.printf("HA living area temperature: %s -> %.2f C\n", payload, v);
 }
 
 static bool parseBoolPayload(const char* payload, bool* out) {
@@ -1444,7 +1444,7 @@ static QueueHandle_t mqttInboundQueue() {
   if (!g_mqtt_inbound_queue) {
     g_mqtt_inbound_queue = xQueueCreate(kMqttInboundQueueDepth, sizeof(MqttInboundMsg*));
     if (!g_mqtt_inbound_queue) {
-      Serial.println("[MQTT] Inbound-Queue konnte nicht erstellt werden");
+      Serial.println("[MQTT] Could not create inbound queue");
     }
   }
   return g_mqtt_inbound_queue;
@@ -1510,7 +1510,7 @@ void mqtt_process_inbound_queue(uint8_t max_msgs) {
     MqttInboundMsg* deferred = g_deferred_bridge_apply;
     g_deferred_bridge_apply = nullptr;
     Serial.printf(
-        "[Bridge] Aufgeschobenen Vollabgleich nach Kamera anwenden (%u Bytes)\n",
+        "[Bridge] Applying deferred full synchronization after camera (%u bytes)\n",
         deferred->length);
     processMqttMessage(
         deferred->topic, deferred->payload, deferred->length);
@@ -1530,7 +1530,7 @@ void mqtt_process_inbound_queue(uint8_t max_msgs) {
         }
         g_deferred_bridge_apply = msg;
         Serial.printf(
-            "[Bridge] Vollabgleich waehrend Kamera aufgeschoben (%u Bytes)\n",
+            "[Bridge] Full synchronization deferred while camera is active (%u bytes)\n",
             msg->length);
         msg = nullptr;
         ++processed;
@@ -1591,7 +1591,7 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
     const uint32_t drop_now_ms = millis();
     if (last_drop_log_ms == 0 || (uint32_t)(drop_now_ms - last_drop_log_ms) >= 5000) {
       last_drop_log_ms = drop_now_ms;
-      Serial.printf("[MQTT] Inbound-Queue voll -> Nachricht verworfen (zuletzt: %s)\n",
+      Serial.printf("[MQTT] Inbound queue full -> message dropped (latest: %s)\n",
                     topic ? topic : "?");
     }
   }
@@ -1611,7 +1611,7 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
     char* cfg_buf = mqttConfigBuffer();
     if (!cfg_buf) return;
     if (length >= CFG_BUF) {
-      Serial.printf("[Bridge] WARNUNG: Payload zu gross (%u bytes), wird abgeschnitten!\n", length);
+      Serial.printf("[Bridge] WARNING: Payload too large (%u bytes), truncating!\n", length);
     }
     size_t copy_len = length < CFG_BUF - 1 ? length : CFG_BUF - 1;
     memcpy(cfg_buf, payload, copy_len);
@@ -1624,7 +1624,7 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
     bool applied = haBridgeConfig.applyJson(cfg_buf, &reload, &icons_changed);
     Serial.printf("[Bridge] applyJson: %u ms\n", (unsigned)(millis() - t_parse0));
     if (applied) {
-      Serial.println("[Bridge] Konfiguration von HA empfangen");
+      Serial.println("[Bridge] Configuration received from HA");
       // applyJson ersetzt die Bridge-Metadaten-/Werte-Maps. Panel-interne
       // Local-I/O-Entities sofort wieder eintragen, damit sie auch ohne
       // Bridge-Abhaengigkeit im Tile-Editor und Runtime-Cache erhalten bleiben.
@@ -1637,7 +1637,7 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
         g_bridge_initial_sync_complete = true;
         powerManager.allowSleep();
         displayManager.resetActivityTimer();
-        Serial.println("[Bridge] Initial-Sync: Idle-Timer einmalig gestartet");
+        Serial.println("[Bridge] Initial sync: idle timer started once");
       }
       tiles_request_bridge_cache_refresh();
       if (reload) {
@@ -1648,14 +1648,14 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
         // Die dynamischen Topics stattdessen nur nach einem ruhigen Fenster
         // aktualisieren und mehrere Reloads zusammenfassen.
         mqttRequestDynamicSlotsReload();
-        Serial.println("[Bridge] mqttReloadDynamicSlots nach Ruhefenster eingeplant");
+        Serial.println("[Bridge] mqttReloadDynamicSlots scheduled after quiet period");
       }
       if (icons_changed) {
         tiles_request_icon_refresh();
       }
       sync_local_device_entities(false);
     } else {
-      Serial.println("[Bridge] Ungueltige Bridge-Konfiguration empfangen");
+      Serial.println("[Bridge] Invalid bridge configuration received");
     }
     return;
   }
@@ -1723,7 +1723,7 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
     if (extract_json_string_field(large_buf, "entity_id", response_entity) && response_entity.length()) {
       clear_pending_history_request(response_entity.c_str());
     }
-    Serial.printf("[History] Antwort empfangen: %s, %u Bytes\n",
+    Serial.printf("[History] Response received: %s, %u bytes\n",
                   response_entity.length() ? response_entity.c_str()
                                            : "entity unbekannt",
                   static_cast<unsigned>(copy_len));
@@ -2263,7 +2263,7 @@ void mqttPublishHistoryRequest(const char* entity_id,
   // HA hat Prioritaet: wenn erreichbar, zuerst dort Historie holen.
   if (can_request_ha) {
     if (!time_valid && is_internal_tab5_entity(entity_id)) {
-      Serial.printf("[History] Zeit lokal ungueltig, fordere HA-Historie fuer %s an\n", entity_id);
+      Serial.printf("[History] Local time invalid, requesting HA history for %s\n", entity_id);
     }
 
     String payload = "{\"entity_id\":\"";
@@ -2287,12 +2287,12 @@ void mqttPublishHistoryRequest(const char* entity_id,
       mark_pending_history_request(entity_id, millis(), hours, period_minutes, points);
       return;
     }
-    queue_history_fallback_for_entity(entity_id, time_valid, "HA Publish fehlgeschlagen",
+    queue_history_fallback_for_entity(entity_id, time_valid, "HA publish failed",
                                       hours, period_minutes, points);
     return;
   }
 
-  if (queue_history_fallback_for_entity(entity_id, time_valid, "HA nicht verfügbar",
+  if (queue_history_fallback_for_entity(entity_id, time_valid, "HA unavailable",
                                         hours, period_minutes, points)) {
     return;
   }
@@ -2494,7 +2494,7 @@ void mqttServiceDynamicSlotsReload() {
 // publishes/subscribes gehen per Outbound-Queue zurueck an den Worker.
 void mqttServicePostConnect() {
   if (!networkManager.consumeMqttPostConnectPending()) return;
-  Serial.println("[MQTT] Post-Connect: Subscribes/Discovery/Settings (Loop-Task)");
+  Serial.println("[MQTT] Post-connect: subscriptions/discovery/settings (loop task)");
   mqttSubscribeTopics();
   mqttPublishDiscovery();
   mqttPublishDeviceSettings();

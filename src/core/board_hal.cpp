@@ -86,7 +86,7 @@ void BoardHAL::prepareForRestart() {
 void BoardHAL::restart() {
   Serial.flush();
 #if defined(DEVICE_WAVESHARE_4B)
-  Serial.println("[BoardHAL] Neustart via no-OS restart");
+  Serial.println("[BoardHAL] Restart via no-OS restart");
   Serial.flush();
   esp_restart_noos();
 #elif defined(DEVICE_ESP32_S3_RGB_480)

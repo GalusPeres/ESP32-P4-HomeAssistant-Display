@@ -1117,14 +1117,14 @@ bool DeviceLayoutTest1024x600::displayTryFullFramePreview(
   const esp_err_t err = ppa_do_scale_rotate_mirror(g_ppa_handle, &oper);
   if (err != ESP_OK) {
     preview_disabled_after_fault = true;
-    Serial.printf("[Screensaver/PPA] Preview submit fehlgeschlagen: %d\n",
+    Serial.printf("[Screensaver/PPA] Preview submit failed: %d\n",
                   static_cast<int>(err));
     note_ppa_fault();
     return false;
   }
   if (xSemaphoreTake(g_ppa_done, pdMS_TO_TICKS(kPpaRotateTimeoutMs)) != pdTRUE) {
     preview_disabled_after_fault = true;
-    Serial.println("[Screensaver/PPA] Preview timeout, normaler LVGL-Pfad");
+    Serial.println("[Screensaver/PPA] Preview timeout, using normal LVGL path");
     note_ppa_fault();
     return false;
   }

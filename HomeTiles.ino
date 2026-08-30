@@ -369,14 +369,14 @@ static void arm_fw_install_auto_retry(const char* tag) {
   if (attempts >= kFwInstallMaxAutoRetries) {
     prefs.clear();
     prefs.end();
-    Serial.printf("[Update] Auto-Retry aufgegeben (%u Versuche verbraucht)\n",
+    Serial.printf("[Update] Automatic retry abandoned (%u attempts used)\n",
                   static_cast<unsigned>(attempts));
     return;
   }
   prefs.putString("tag", tag);
   prefs.putUChar("att", attempts + 1);
   prefs.end();
-  Serial.printf("[Update] Auto-Retry %u/%u nach Neustart geplant\n",
+  Serial.printf("[Update] Automatic retry %u/%u scheduled after restart\n",
                 static_cast<unsigned>(attempts + 1),
                 static_cast<unsigned>(kFwInstallMaxAutoRetries));
 }
@@ -393,14 +393,14 @@ static GithubUpdate::CheckResult perform_fw_check() {
   const uint32_t now_ms = millis();
   if (fw_last_check_valid &&
       (uint32_t)(now_ms - fw_last_check_at) < kFwCheckCacheMs) {
-    Serial.println("[Update] Check: letztes Ergebnis wiederverwendet");
+    Serial.println("[Update] Check: reusing previous result");
     return fw_last_check_result;
   }
 
   // Ein zweiter synchroner Aufrufer ist praktisch nicht moeglich (Loop-Task),
   // der Guard haelt den Vertrag fuer UI und Web-Admin trotzdem eindeutig.
   if (fw_check_running) {
-    Serial.println("[Update] Check laeuft bereits");
+    Serial.println("[Update] Check already running");
     return fw_last_check_valid ? fw_last_check_result
                                : GithubUpdate::CheckResult{};
   }
@@ -473,7 +473,7 @@ static void fw_install_progress(size_t written, size_t total) {
 }
 
 static void apply_fw_install() {
-  Serial.printf("[Update] Install angefordert: %s\n", fw_install_tag);
+  Serial.printf("[Update] Install requested: %s\n", fw_install_tag);
   // Internes RAM freimachen, exakt wie prepareDisplayForOtaInstall() beim
   // Web-OTA: Display aus, Draw-Puffer nach PSRAM, MQTT still. Das ist weniger
   // huebsch als ein live gerenderter Balken, aber der Web-OTA-Pfad ist damit
@@ -492,14 +492,14 @@ static void apply_fw_install() {
   if (ok) {
     clear_fw_install_auto_retry();
     settings_fw_install_done();
-    Serial.println("[Update] Erfolgreich - Neustart");
+    Serial.println("[Update] Successful - restarting");
     BoardHAL::prepareForRestart();
     delay(800);  // Erfolgsmeldung kurz stehen lassen
     BoardHAL::restart();
     return;
   }
 
-  Serial.printf("[Update] Fehlgeschlagen: %s\n", err.c_str());
+  Serial.printf("[Update] Failed: %s\n", err.c_str());
   webAdminServer.setGithubUpdateInstallFailed(err.c_str());
   settings_fw_install_failed(err.c_str());
   // Der sichere Neustart unten hinterlaesst keinen Core-Dump. Damit der
@@ -522,14 +522,14 @@ static void apply_fw_install() {
   // Da das Image vollstaendig vor Update.begin() geladen wird (bzw. ein
   // gestartetes Update bei Fehler abgebrochen wurde), ist ein Neustart sicher
   // und bootet die unveraenderte aktive Firmware.
-  Serial.println("[Update] Sicherer Neustart nach fehlgeschlagenem Install");
+  Serial.println("[Update] Safe restart after failed install");
   BoardHAL::prepareForRestart();
   delay(500);
   BoardHAL::restart();
 }
 
 static void apply_system_reboot() {
-  Serial.println("[System] Neustart angefordert");
+  Serial.println("[System] Restart requested");
   displayManager.setInputEnabled(false);
   lv_refr_now(displayManager.getDisplay());
   BoardHAL::prepareForRestart();
@@ -667,7 +667,7 @@ void setup() {
   Serial.println("[Setup] displayManager.init()...");
   Serial.flush();
   if (!displayManager.init()) {
-    Serial.println("[Setup] Display FEHLER!");
+    Serial.println("[Setup] Display FAILED!");
     while(1) delay(1000);
   }
   Serial.println("[Setup] Display OK");
@@ -797,7 +797,7 @@ void setup() {
       boot_brightness = kTab5SafeBrightness;
       tab5_brightness_capped = true;
       tab5_brightness_cap_wait_since = millis();
-      Serial.println("[Setup] Brownout-Reset erkannt: Helligkeit gedrosselt bis WLAN steht");
+      Serial.println("[Setup] Brownout reset detected: brightness limited until Wi-Fi is connected");
     }
 #endif
     BoardHAL::setBrightness(boot_brightness);
@@ -856,7 +856,7 @@ void setup() {
   ui_build_waiter = xTaskGetCurrentTaskHandle();
   xTaskCreatePinnedToCore(build_ui_task, "buildUI", 24576, nullptr, 2, nullptr, ARDUINO_RUNNING_CORE);
   if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(30000)) == 0) {
-    Serial.println("[Setup] WARNUNG: UI Build Timeout!");
+    Serial.println("[Setup] WARNING: UI build timeout!");
   }
   ui_build_waiter = nullptr;
   Serial.println("[Setup] UI built");
@@ -946,18 +946,18 @@ void setup() {
                                         nullptr, tskIDLE_PRIORITY,
                                         &g_mqtt_worker_handle, mqtt_worker_core,
                                         MALLOC_CAP_SPIRAM) == pdPASS) {
-      Serial.printf("[Setup] MQTT-Worker auf Core %d gestartet\n", (int)mqtt_worker_core);
+      Serial.printf("[Setup] MQTT worker started on core %d\n", (int)mqtt_worker_core);
     } else {
       // Bewusst KEIN stiller Fallback auf den Loop-Task: Single-Owner ohne
       // Worker ergibt keinen Sinn, und ein geteilter Client waere genau die
       // Race-Quelle, die dieser Umbau beseitigt. Laut scheitern.
       g_mqtt_worker_handle = nullptr;
-      Serial.println("[Setup] FEHLER: MQTT-Worker konnte nicht gestartet werden -- MQTT bleibt offline!");
+      Serial.println("[Setup] ERROR: MQTT worker could not be started -- MQTT remains offline!");
     }
     log_memory_status("after-mqtt-worker");
     Serial.flush();
   } else {
-    Serial.println("[Setup] Ueberspringe Netzwerk (keine Config)");
+    Serial.println("[Setup] Skipping network (no configuration)");
   }
 
 #if defined(DEVICE_ESP32_S3_RGB_480)
@@ -989,7 +989,7 @@ void loop() {
   static bool logged_mqtt_connected = false;
   static uint32_t last_mem_log_ms = 0;
   if (first_run) {
-    Serial.println("[Loop] ERSTE ITERATION!");
+    Serial.println("[Loop] FIRST ITERATION!");
     Serial.flush();
   }
 
@@ -1032,7 +1032,7 @@ void loop() {
       const String retry_tag = prefs.getString("tag", "");
       prefs.end();
       if (retry_tag.length()) {
-        Serial.printf("[Update] Setze Update nach Neustart automatisch fort: %s\n",
+        Serial.printf("[Update] Automatically resuming update after restart: %s\n",
                       retry_tag.c_str());
         request_fw_install(retry_tag.c_str());
       }
@@ -1091,7 +1091,7 @@ void loop() {
     lv_timer_handler();
     yield();
     if (first_run) {
-      Serial.println("[Loop] lv_timer_handler() KOMPLETT!");
+      Serial.println("[Loop] lv_timer_handler() COMPLETE!");
       Serial.flush();
     }
 
@@ -1136,7 +1136,7 @@ void loop() {
     delay(1);
 
     if (first_run) {
-      Serial.println("[Loop] === ERSTE ITERATION KOMPLETT ===");
+      Serial.println("[Loop] === FIRST ITERATION COMPLETE ===");
       Serial.flush();
       first_run = false;
     }
@@ -1156,7 +1156,7 @@ void loop() {
         powerManager.setDisplayBrightness(
             configManager.getConfig().display_brightness);
       }
-      Serial.println("[Power] Brownout-Helligkeitsdrossel aufgehoben");
+      Serial.println("[Power] Brownout brightness limit removed");
     } else if (BoardHAL::getBrightness() > kTab5SafeBrightness) {
       // Auch waehrend der Wartephase durchsetzen (Slider-Aenderung im
       // Reconnect-Fenster wuerde den Schutz sonst umgehen).
@@ -1176,12 +1176,12 @@ void loop() {
   if (first_run) Serial.println("[Loop] powerManager.update()...");
   powerManager.update(displayManager.getLastActivityTime());
 
-  if (first_run) Serial.println("[Loop] Nach powerManager.update()!");
+  if (first_run) Serial.println("[Loop] After powerManager.update()!");
 
   // --- SLEEP ---
   if (powerManager.isInSleep()) {
     if (!was_asleep) {
-      Serial.println("[Loop] SLEEP MODE AKTIV!");
+      Serial.println("[Loop] SLEEP MODE ACTIVE!");
       was_asleep = true;
     }
     // first_run muss auch hier geloescht werden -- sonst druckt JEDE
@@ -1192,7 +1192,7 @@ void loop() {
     // touch_cb-Bug jeden lv_timer_handler()-Aufruf als Wake gewertet und den
     // Sleep-Zweig so nie laenger als einen Tick am Stueck lief.
     if (first_run) {
-      Serial.println("[Loop] Sleep direkt nach Boot erkannt");
+      Serial.println("[Loop] Sleep detected immediately after boot");
       Serial.flush();
       first_run = false;
     }
@@ -1264,7 +1264,7 @@ void loop() {
     // strukturell klein, ohne dass das Aufwachen selbst etwas anstossen muss.
     BoardHAL::TouchPoint tp;
     if (BoardHAL::getTouch(&tp)) {
-      Serial.printf("[Power] Sleep-Poll Touch erkannt: x=%d y=%d\n", tp.x, tp.y);
+      Serial.printf("[Power] Sleep-poll touch detected: x=%d y=%d\n", tp.x, tp.y);
       powerManager.wakeFromDisplaySleep("sleep-poll");
       was_asleep = false;
       return;
@@ -1387,7 +1387,7 @@ void loop() {
   GuitionS3Diagnostics::service();
   yield();  // Watchdog füttern
   if (first_run) {
-    Serial.println("[Loop] lv_timer_handler() KOMPLETT!");
+    Serial.println("[Loop] lv_timer_handler() COMPLETE!");
     Serial.flush();
   }
 
@@ -1445,7 +1445,7 @@ void loop() {
     const uint32_t min_heap = ESP.getMinFreeHeap();
     if (min_heap + 8192 < last_reported_min_heap) {
       last_reported_min_heap = min_heap;
-      Serial.printf("[Mem] NEUER TIEFSTSTAND: min=%u KB (frei=%u KB, largest=%u KB) @ %lu ms\n",
+      Serial.printf("[Mem] NEW LOW WATERMARK: min=%u KB (free=%u KB, largest=%u KB) @ %lu ms\n",
                     static_cast<unsigned>(min_heap / 1024),
                     static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
                     static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024),
@@ -1476,7 +1476,7 @@ void loop() {
   }
 
   if (first_run) {
-    Serial.println("[Loop] === ERSTE ITERATION KOMPLETT ===");
+    Serial.println("[Loop] === FIRST ITERATION COMPLETE ===");
     Serial.flush();
     first_run = false;
   }

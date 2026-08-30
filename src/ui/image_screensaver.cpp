@@ -204,7 +204,7 @@ bool ensure_composite_draw_buf(ScreensaverState* st) {
       kPpaBufferAlignment, needed,
       MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA | MALLOC_CAP_8BIT));
   if (!st->composite_storage) {
-    Serial.printf("[Screensaver] Composite-Puffer fehlt: %u Bytes\n",
+    Serial.printf("[Screensaver] Composite buffer missing: %u bytes\n",
                   static_cast<unsigned>(needed));
     return false;
   }
@@ -233,7 +233,7 @@ bool present_composited_screensaver_frame(ScreensaverState* st) {
   // Kacheln beim Diawechsel sichtbar und werden gemeinsam praesentiert.
   if (lv_snapshot_take_to_draw_buf(top_layer, LV_COLOR_FORMAT_RGB565,
                                    &st->composite_draw_buf) != LV_RESULT_OK) {
-    Serial.println("[Screensaver] Composite-Snapshot fehlgeschlagen");
+    Serial.println("[Screensaver] Composite snapshot failed");
     return false;
   }
 
@@ -247,7 +247,7 @@ bool present_composited_screensaver_frame(ScreensaverState* st) {
   // camera mirroring state active while the normal UI resumes underneath it.
   Device::displayEndFullFramePreview();
   Serial.printf("[Screensaver] Composite-Preview %s in %u ms\n",
-                preview_ok ? "OK" : "übersprungen",
+                preview_ok ? "OK" : "skipped",
                 static_cast<unsigned>(millis() - snapshot_started));
   return preview_ok;
 }
@@ -261,7 +261,7 @@ bool is_jpeg(const uint8_t* data, size_t len) {
 uint8_t* read_wallpaper_file(const String& file_name, size_t& out_len) {
   out_len = 0;
   if (!Device::sdReadyCached()) {
-    Serial.println("[Screensaver] microSD nicht bereit");
+    Serial.println("[Screensaver] microSD not ready");
     return nullptr;
   }
   String path = String(kImageDir) + "/" + file_name;
@@ -278,14 +278,14 @@ uint8_t* read_wallpaper_file(const String& file_name, size_t& out_len) {
   }
   const size_t len = f.size();
   if (len < 32 || len > kMaxFileBytes) {
-    Serial.printf("[Screensaver] Dateigroesse ungueltig: %u Bytes\n",
+    Serial.printf("[Screensaver] Invalid file size: %u bytes\n",
                   static_cast<unsigned>(len));
     f.close();
     return nullptr;
   }
   uint8_t* buf = static_cast<uint8_t*>(alloc_prefer_psram(len));
   if (!buf) {
-    Serial.println("[Screensaver] Dateipuffer-Alloc fehlgeschlagen");
+    Serial.println("[Screensaver] File buffer allocation failed");
     f.close();
     return nullptr;
   }
@@ -299,7 +299,7 @@ uint8_t* read_wallpaper_file(const String& file_name, size_t& out_len) {
   }
   f.close();
   if (pos != len) {
-    Serial.printf("[Screensaver] Kurz gelesen: %u/%u Bytes\n",
+    Serial.printf("[Screensaver] Short read: %u/%u bytes\n",
                   static_cast<unsigned>(pos), static_cast<unsigned>(len));
     free(buf);
     return nullptr;
@@ -327,7 +327,7 @@ uint16_t* hw_decode_jpeg(const uint8_t* data, size_t len,
 
   const size_t requested_bytes = static_cast<size_t>(pixels) * sizeof(uint16_t);
   if (!psram_budget_ok(requested_bytes)) {
-    Serial.printf("[Screensaver] PSRAM-Budget zu klein fuer %u Bytes\n",
+    Serial.printf("[Screensaver] PSRAM budget too small for %u bytes\n",
                   static_cast<unsigned>(requested_bytes));
     return nullptr;
   }
@@ -339,7 +339,7 @@ uint16_t* hw_decode_jpeg(const uint8_t* data, size_t len,
       jpeg_alloc_decoder_mem(requested_bytes, &mem_cfg, &allocated_bytes));
   if (!decoded || allocated_bytes < requested_bytes) {
     free(decoded);
-    Serial.printf("[Screensaver] HW JPEG PSRAM-Puffer fehlt: %u Bytes\n",
+    Serial.printf("[Screensaver] HW JPEG PSRAM buffer missing: %u bytes\n",
                   static_cast<unsigned>(requested_bytes));
     return nullptr;
   }
@@ -360,7 +360,7 @@ uint16_t* hw_decode_jpeg(const uint8_t* data, size_t len,
     Dma2dArbiterGuard dma2d_guard(2000);
     if (!dma2d_guard.locked()) {
       free(decoded);
-      Serial.println("[Screensaver] 2D-DMA-Arbiter Timeout, nutze SW-Fallback");
+      Serial.println("[Screensaver] 2D DMA arbiter timeout, using software fallback");
       return nullptr;
     }
     if (!s_engine) {
@@ -372,7 +372,7 @@ uint16_t* hw_decode_jpeg(const uint8_t* data, size_t len,
       if (err != ESP_OK || !s_engine) {
         s_engine = nullptr;
         free(decoded);
-        Serial.printf("[Screensaver] HW JPEG Engine nicht verfuegbar: %s\n",
+        Serial.printf("[Screensaver] HW JPEG engine unavailable: %s\n",
                       esp_err_to_name(err));
         return nullptr;
       }
@@ -384,7 +384,7 @@ uint16_t* hw_decode_jpeg(const uint8_t* data, size_t len,
                                &decoded_bytes);
     if (err != ESP_OK || decoded_bytes < requested_bytes) {
       free(decoded);
-      Serial.printf("[Screensaver] HW JPEG decode fehlgeschlagen: %s bytes=%u/%u\n",
+      Serial.printf("[Screensaver] HW JPEG decode failed: %s bytes=%u/%u\n",
                     esp_err_to_name(err),
                     static_cast<unsigned>(decoded_bytes),
                     static_cast<unsigned>(requested_bytes));
@@ -459,7 +459,7 @@ uint16_t* sw_decode_jpeg(const uint8_t* data, size_t len,
   JRESULT rc = jd_prepare(&jd, sw_jpeg_input, work, 4096, &ctx);
   if (rc != JDR_OK || jd.width == 0 || jd.height == 0 ||
       jd.width > UINT16_MAX || jd.height > UINT16_MAX) {
-    Serial.printf("[Screensaver] SW JPEG prepare fehlgeschlagen: %d\n",
+    Serial.printf("[Screensaver] SW JPEG prepare failed: %d\n",
                   static_cast<int>(rc));
     free(work);
     return nullptr;
@@ -477,7 +477,7 @@ uint16_t* sw_decode_jpeg(const uint8_t* data, size_t len,
   const uint16_t h = static_cast<uint16_t>(jd.height >> scale);
   const uint32_t pixels = static_cast<uint32_t>(w) * h;
   if (w == 0 || h == 0 || pixels > kMaxDecodePixels) {
-    Serial.printf("[Screensaver] JPEG zu gross: %ux%u\n",
+    Serial.printf("[Screensaver] JPEG too large: %ux%u\n",
                   static_cast<unsigned>(jd.width),
                   static_cast<unsigned>(jd.height));
     free(work);
@@ -486,7 +486,7 @@ uint16_t* sw_decode_jpeg(const uint8_t* data, size_t len,
 
   const size_t bytes = static_cast<size_t>(pixels) * sizeof(uint16_t);
   if (!psram_budget_ok(bytes)) {
-    Serial.printf("[Screensaver] PSRAM-Budget zu klein fuer %u Bytes\n",
+    Serial.printf("[Screensaver] PSRAM budget too small for %u bytes\n",
                   static_cast<unsigned>(bytes));
     free(work);
     return nullptr;
@@ -504,7 +504,7 @@ uint16_t* sw_decode_jpeg(const uint8_t* data, size_t len,
   rc = jd_decomp(&jd, sw_jpeg_output, scale);
   free(work);
   if (rc != JDR_OK) {
-    Serial.printf("[Screensaver] SW JPEG decode fehlgeschlagen: %d\n",
+    Serial.printf("[Screensaver] SW JPEG decode failed: %d\n",
                   static_cast<int>(rc));
     free(out);
     return nullptr;
@@ -679,7 +679,7 @@ lv_image_dsc_t* s3_decode_jpeg_direct_cover(
       jd_prepare(&decoder, s3_direct_jpeg_input, work, 4096, &ctx);
   if (prepare_result != JDR_OK || decoder.width == 0 || decoder.height == 0 ||
       decoder.width > UINT16_MAX || decoder.height > UINT16_MAX) {
-    Serial.printf("[Screensaver] S3 Direct-JPEG prepare fehlgeschlagen: %d\n",
+    Serial.printf("[Screensaver] S3 direct JPEG prepare failed: %d\n",
                   static_cast<int>(prepare_result));
     free(work);
     return nullptr;
@@ -690,7 +690,7 @@ lv_image_dsc_t* s3_decode_jpeg_direct_cover(
   const uint32_t source_pixels =
       static_cast<uint32_t>(source_w) * source_h;
   if (source_pixels > kMaxDecodePixels) {
-    Serial.printf("[Screensaver] S3 Direct-JPEG zu gross: %ux%u\n",
+    Serial.printf("[Screensaver] S3 direct JPEG too large: %ux%u\n",
                   static_cast<unsigned>(source_w),
                   static_cast<unsigned>(source_h));
     free(work);
@@ -738,7 +738,7 @@ lv_image_dsc_t* s3_decode_jpeg_direct_cover(
       static_cast<size_t>(target_w) * target_h * sizeof(uint16_t);
   if (!psram_budget_ok(output_bytes)) {
     Serial.printf(
-        "[Screensaver] S3 Direct-JPEG PSRAM-Budget zu klein: %u Bytes\n",
+        "[Screensaver] S3 direct JPEG PSRAM budget too small: %u bytes\n",
         static_cast<unsigned>(output_bytes));
     free(work);
     return nullptr;
@@ -758,7 +758,7 @@ lv_image_dsc_t* s3_decode_jpeg_direct_cover(
       static_cast<uint32_t>(ctx.image_w) * ctx.image_h;
   if (decode_result != JDR_OK || ctx.written_pixels != expected_pixels) {
     Serial.printf(
-        "[Screensaver] S3 Direct-JPEG decode fehlgeschlagen: result=%d "
+        "[Screensaver] S3 direct JPEG decode failed: result=%d "
         "pixels=%lu/%lu\n",
         static_cast<int>(decode_result),
         static_cast<unsigned long>(ctx.written_pixels),
@@ -881,7 +881,7 @@ lv_image_dsc_t* decode_wallpaper_to_size(const String& file_name,
   }
   const uint32_t read_ms = millis() - pipeline_started_ms;
   if (!is_jpeg(file, len)) {
-    Serial.println("[Screensaver] Datei ist kein JPEG");
+    Serial.println("[Screensaver] File is not a JPEG");
     GuitionS3Diagnostics::logSlideshowDecode(
         file_name.c_str(), len, 0, 0, target_w, target_h,
         static_cast<uint32_t>(target_w) * sizeof(uint16_t), "none", false,
@@ -1207,7 +1207,7 @@ bool apply_wallpaper(ScreensaverState* st, int index, bool allow_fallback,
   preview_ok = present_composited_screensaver_frame(st);
 #endif
   Serial.printf("[Screensaver] Hardware-Preview %s (%s) in %u ms\n",
-                preview_ok ? "OK" : "übersprungen",
+                preview_ok ? "OK" : "skipped",
                 cache_hit ? "cache" : "decode",
                 static_cast<unsigned>(millis() - started));
   if (!preview_ok) {
@@ -1469,13 +1469,13 @@ void global_screensaver_timer_cb(lv_timer_t* timer) {
     String preview = g_live_preview_wallpaper;
     g_live_preview_wallpaper = String();
     refresh_live_background_and_clock(st, preview);
-    Serial.println("[Screensaver] Bild/Uhr live aktualisiert");
+    Serial.println("[Screensaver] Image/clock updated live");
   }
   if (g_live_grid_refresh_requested) {
     g_live_grid_refresh_requested = false;
     rebuild_slot_grid(st);
     refresh_slot_values(st);
-    Serial.println("[Screensaver] Kacheln live aktualisiert");
+    Serial.println("[Screensaver] Tiles updated live");
   }
   const uint32_t now = millis();
   if (static_cast<int32_t>(now - st->next_slot_refresh_ms) >= 0) {
@@ -1568,7 +1568,7 @@ void show_image_screensaver() {
   if (g_state || powerManager.isInSleep()) return;
   uiManager.lockProtectedAccess();
   const uint32_t started_ms = millis();
-  Serial.printf("[Screensaver] Aufbau startet | idle=%u ms | dim=%u%%\n",
+  Serial.printf("[Screensaver] Setup starting | idle=%u ms | dim=%u%%\n",
                 static_cast<unsigned>(
                     started_ms - displayManager.getLastActivityTime()),
                 static_cast<unsigned>(
@@ -1628,7 +1628,7 @@ void show_image_screensaver() {
 #if defined(DEVICE_ESP32_S3_RGB_480)
   if (atomic_show) lv_obj_invalidate(lv_screen_active());
 #endif
-  Serial.printf("[Screensaver] Sichtbar nach %u ms\n",
+  Serial.printf("[Screensaver] Visible after %u ms\n",
                 static_cast<unsigned>(millis() - started_ms));
 }
 

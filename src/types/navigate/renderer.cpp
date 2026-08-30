@@ -113,7 +113,7 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
     target_kind = NAV_KIND_FOLDER;
     target_folder = navFolderIdFromTile(tile);
   }
-  Serial.printf("[Navigate] Render Navigation-Tile - kind=%u, folder=%u\n",
+  Serial.printf("[Navigate] Render navigation tile - kind=%u, folder=%u\n",
                 static_cast<unsigned>(target_kind),
                 static_cast<unsigned>(target_folder));
 
@@ -132,17 +132,17 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
         NavigateEventData* data = static_cast<NavigateEventData*>(lv_event_get_user_data(e));
         if (!data) return;
         if (data->target_kind == NAV_KIND_SETTINGS) {
-          Serial.printf("[Tile] Navigation CLICKED! Settings, Titel: %s\n", data->title.c_str());
+          Serial.printf("[Tile] Navigation CLICKED! Settings, title: %s\n", data->title.c_str());
           uiManager.requestSettingsAccess(data->title, data->icon_name,
                                           data->bg_color);
         } else if (data->target_kind == NAV_KIND_BACK) {
           uint16_t current = tileConfig.getActiveFolderId();
           uint16_t parent = tileConfig.getFolderParent(current);
-          Serial.printf("[Tile] Navigation CLICKED! Back to %u, Titel: %s\n",
+          Serial.printf("[Tile] Navigation CLICKED! Back to %u, title: %s\n",
                         static_cast<unsigned>(parent), data->title.c_str());
           uiManager.switchToFolder(parent);
         } else {
-          Serial.printf("[Tile] Navigation CLICKED! Folder %u, Titel: %s\n",
+          Serial.printf("[Tile] Navigation CLICKED! Folder %u, title: %s\n",
                         static_cast<unsigned>(data->target_folder_id), data->title.c_str());
           uiManager.requestFolderAccess(data->target_folder_id, data->title,
                                         data->icon_name,

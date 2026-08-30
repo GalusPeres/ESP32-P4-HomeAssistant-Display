@@ -681,7 +681,7 @@ namespace GithubUpdate {
 CheckResult checkLatest() {
   CheckResult result;
   if (!networkTransport.isConnected()) {
-    Serial.println("[Update] Check uebersprungen: kein Netzwerk");
+    Serial.println("[Update] Check skipped: no network");
     return result;
   }
 
@@ -723,7 +723,7 @@ CheckResult checkLatest() {
     http.setTimeout(8000);
     http.setReuse(false);
     if (!http.begin(client, url)) {
-      Serial.printf("[Update] Check fehlgeschlagen: HTTP begin (%s)\n", url.c_str());
+      Serial.printf("[Update] Check failed: HTTP begin (%s)\n", url.c_str());
       logCheckFailureDetails(0, client, url);
       client.stop();
       return result;
@@ -750,11 +750,11 @@ CheckResult checkLatest() {
 
     if (code < 300 || code >= 400 || !location.length()) {
       if (code < 0) {
-        Serial.printf("[Update] Check fehlgeschlagen: HTTP %d (%s)\n",
+        Serial.printf("[Update] Check failed: HTTP %d (%s)\n",
                       code,
                       HTTPClient::errorToString(code).c_str());
       } else {
-        Serial.printf("[Update] Check fehlgeschlagen: HTTP %d\n", code);
+        Serial.printf("[Update] Check failed: HTTP %d\n", code);
       }
       result.tls_alloc_failed =
           logCheckFailureDetails(code, client, url) == MBEDTLS_ERR_SSL_ALLOC_FAILED;
@@ -769,23 +769,23 @@ CheckResult checkLatest() {
     if (location.indexOf("/releases/latest") < 0) {
       // Weder Tag- noch latest-Pfad: Repo ohne Releases (leitet auf
       // /releases um) oder etwas Unerwartetes.
-      Serial.printf("[Update] Kein Release gefunden (%s)\n", location.c_str());
+      Serial.printf("[Update] No release found (%s)\n", location.c_str());
       return result;
     }
     url = location;  // Rename-Redirect: neue Repo-URL erneut anfragen
   }
 
   if (!tag.length() || tag.length() >= sizeof(result.latest_tag)) {
-    Serial.printf("[Update] Unerwarteter Tag: '%s'\n", tag.c_str());
+    Serial.printf("[Update] Unexpected tag: '%s'\n", tag.c_str());
     return result;
   }
 
   snprintf(result.latest_tag, sizeof(result.latest_tag), "%s", tag.c_str());
   result.ok = true;
   result.update_available = isNewerThanCurrent(result.latest_tag);
-  Serial.printf("[Update] Installiert %s, neuestes Release %s -> %s\n",
+  Serial.printf("[Update] Installed %s, latest release %s -> %s\n",
                 FW_VERSION, result.latest_tag,
-                result.update_available ? "Update verfügbar" : "aktuell");
+                result.update_available ? "update available" : "up to date");
   return result;
 }
 
@@ -808,7 +808,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
   }
   String url = releaseDownloadUrl(
       tag, String("hometiles_") + tag + "_" + asset_device_key + ".bin");
-  Serial.printf("[Update] Lade %s\n", url.c_str());
+  Serial.printf("[Update] Downloading %s\n", url.c_str());
 #if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
   Serial.printf(
       "[S3Diag/GitHubOTA] phase=asset-select tag=%s url=%s\n", tag,
@@ -1006,7 +1006,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
           static_cast<unsigned>(kStageBlockBytes / 1024));
       failed = true;
     } else {
-      Serial.printf("[Update] Safe %s staging: %uB TCP RX, %uB Lesechunk, %uKB Ranges, %uKB PSRAM in %u Bloecken\n",
+      Serial.printf("[Update] Safe %s staging: %uB TCP RX, %uB read chunk, %uKB ranges, %uKB PSRAM in %u blocks\n",
                     kStageCompleteImage ? "full-image" : "rolling-range",
                     static_cast<unsigned>(kSocketRxBufferBytes),
                     static_cast<unsigned>(kInstallReadChunk),
@@ -1025,13 +1025,13 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
       g_install_retryable = false;
       failed = true;
       Serial.println(
-          "[Update] Update.begin fehlgeschlagen: keine naechste OTA-Partition");
+          "[Update] Update.begin failed: no next OTA partition");
     } else if (total_sz > next_partition->size) {
       error_out = "image exceeds next OTA partition";
       g_install_retryable = false;
       failed = true;
       Serial.printf(
-          "[Update] Update.begin abgelehnt: image=%u target=%s size=%u\n",
+          "[Update] Update.begin rejected: image=%u target=%s size=%u\n",
           static_cast<unsigned>(total_sz), next_partition->label,
           static_cast<unsigned>(next_partition->size));
     } else if (!Update.begin(total_sz, U_FLASH)) {
@@ -1042,7 +1042,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
       g_install_retryable = false;
       failed = true;
       Serial.printf(
-          "[Update] Update.begin fehlgeschlagen: target=%s size=%u "
+          "[Update] Update.begin failed: target=%s size=%u "
           "code=%u -> %s\n",
           next_partition->label, static_cast<unsigned>(total_sz),
           static_cast<unsigned>(update_error), Update.errorString());
@@ -1051,7 +1051,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
       write_ctx.total = total_sz;
       write_ctx.progress = progress;
       write_ctx.error = &error_out;
-      Serial.printf("[Update] Update.begin OK, Groesse: %u\n",
+      Serial.printf("[Update] Update.begin OK, size: %u\n",
                     static_cast<unsigned>(total_sz));
       if (!writeUpdateBytes(image_head, head_ctx.len, &write_ctx)) {
         if (!error_out.length()) error_out = Update.errorString();
@@ -1093,7 +1093,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
         stage_ctx.progress = kStageCompleteImage ? progress : nullptr;
         error_out = "";
 
-        Serial.printf("[Update] Lade Range %u-%u (Versuch %u/%u)\n",
+        Serial.printf("[Update] Downloading range %u-%u (attempt %u/%u)\n",
                       static_cast<unsigned>(range_start),
                       static_cast<unsigned>(range_end),
                       static_cast<unsigned>(attempt),
@@ -1116,9 +1116,9 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
           range_failure_retryable = true;
         }
 #endif
-        Serial.printf("[Update] Range fehlgeschlagen: %s\n", error_out.c_str());
+        Serial.printf("[Update] Range failed: %s\n", error_out.c_str());
         installDiagLine(String("Range ") + range_start + "-" + range_end +
-                        " Versuch " + attempt + ": " + error_out + " | " +
+                        " attempt " + attempt + ": " + error_out + " | " +
                         memSnapshotLine());
         // Nach einem Streamabriss braucht der ESP-Hosted-Link deutlich
         // laenger als ein paar hundert Millisekunden, um Queues und Mempool
@@ -1147,7 +1147,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
       if (kStageCompleteImage && progress) {
         progress(head_ctx.len + staged_len, total_sz);
       }
-      Serial.printf("[Update] Download progress: %u / %u Bytes\n",
+      Serial.printf("[Update] Download progress: %u / %u bytes\n",
                     static_cast<unsigned>(head_ctx.len + staged_len),
                     static_cast<unsigned>(total_sz));
       if (staged_len < image_remainder) {
@@ -1158,13 +1158,13 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
     if (!failed) {
       if (kStageCompleteImage) {
         Serial.printf(
-            "[Update] Download vollstaendig im PSRAM: %u / %u Bytes\n",
+            "[Update] Download complete in PSRAM: %u / %u bytes\n",
             static_cast<unsigned>(head_ctx.len + staged_len),
             static_cast<unsigned>(total_sz));
       } else {
         reportInstallProgress(write_ctx, true);
         Serial.printf(
-            "[Update] Range-Download und Installation vollstaendig: %u / %u Bytes\n",
+            "[Update] Range download and installation complete: %u / %u bytes\n",
             static_cast<unsigned>(head_ctx.len + staged_len),
             static_cast<unsigned>(total_sz));
       }
@@ -1189,12 +1189,12 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
 #endif
       failed = true;
       Serial.printf(
-          "[Update] Update.begin fehlgeschlagen: size=%u code=%u -> %s\n",
+          "[Update] Update.begin failed: size=%u code=%u -> %s\n",
           static_cast<unsigned>(total_sz),
           static_cast<unsigned>(update_error), Update.errorString());
     } else {
       update_started = true;
-      Serial.printf("[Update] Update.begin OK, Groesse: %u\n",
+      Serial.printf("[Update] Update.begin OK, size: %u\n",
                     static_cast<unsigned>(total_sz));
       write_ctx.total = total_sz;
       write_ctx.progress = progress;
@@ -1232,7 +1232,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
     g_install_retryable = false;
     failed = true;
     Serial.printf(
-        "[Update] Installation unvollstaendig: written=%u expected=%u\n",
+        "[Update] Installation incomplete: written=%u expected=%u\n",
         static_cast<unsigned>(write_ctx.written),
         static_cast<unsigned>(total_sz));
   }
@@ -1240,8 +1240,8 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
 
   if (failed) {
     if (update_started) Update.abort();
-    Serial.printf("[Update] Install fehlgeschlagen: %s\n", error_out.c_str());
-    installDiagLine(String("Abbruch bei ") + (head_ctx.len + staged_len) +
+    Serial.printf("[Update] Install failed: %s\n", error_out.c_str());
+    installDiagLine(String("Aborted at ") + (head_ctx.len + staged_len) +
                     " / " + total_sz + " Bytes: " + error_out);
     return false;
   }
@@ -1263,7 +1263,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
     g_install_retryable = false;
 #endif
     Serial.printf(
-        "[Update] Update.end(%s) fehlgeschlagen: written=%u expected=%u "
+        "[Update] Update.end(%s) failed: written=%u expected=%u "
         "code=%u -> %s\n",
         kUpdateEndMode,
         static_cast<unsigned>(write_ctx.written),
@@ -1273,7 +1273,7 @@ bool install(const char* tag, ProgressFn progress, String& error_out) {
     return false;
   }
   GuitionS3Diagnostics::logOtaPartitions("github-end");
-  Serial.printf("[Update] %u Bytes installiert - bereit zum Neustart\n",
+  Serial.printf("[Update] %u bytes installed - ready to restart\n",
                 static_cast<unsigned>(total_sz));
   return true;
 }
