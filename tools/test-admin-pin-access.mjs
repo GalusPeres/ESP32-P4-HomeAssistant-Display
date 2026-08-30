@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
+import {extractFunction} from './lib/admin-source.mjs';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const requireMarker = (source, marker, label) => {
@@ -216,22 +218,8 @@ for (const marker of [
   "hint?.classList.toggle('is-hidden', !!hidden)",
 ]) requireMarker(admin, marker, 'Admin access interaction');
 
-const extractFunction = (source, name) => {
-  const start = source.indexOf(`function ${name}`);
-  if (start < 0) throw new Error(`Missing function ${name}`);
-  const bodyStart = source.indexOf('{', start);
-  let depth = 0;
-  for (let index = bodyStart; index < source.length; index++) {
-    if (source[index] === '{') depth++;
-    if (source[index] !== '}') continue;
-    depth--;
-    if (depth === 0) return source.slice(start, index + 1);
-  }
-  throw new Error(`Unterminated function ${name}`);
-};
-
-const hideRoundtrip = extractFunction(admin, 'hideSettingsTileFromGrid');
-const restoreRoundtrip = extractFunction(admin, 'restoreHiddenSettingsTile');
+const hideRoundtrip = extractFunction('hideSettingsTileFromGrid');
+const restoreRoundtrip = extractFunction('restoreHiddenSettingsTile');
 const immutableSnapshotPosition = hideRoundtrip.indexOf(
   'const snapshot = normalizeHiddenSettingsSnapshot(');
 const flushBeforeHidePosition = hideRoundtrip.indexOf(
@@ -262,13 +250,13 @@ for (const [label, block, queueMarker, reconcileMarker] of [
   }
 }
 
-const saveAccess = extractFunction(admin, 'saveSettingsAccess');
+const saveAccess = extractFunction('saveSettingsAccess');
 if (!saveAccess.includes('reconcileAfterSave &&') ||
     !saveAccess.includes('else if (reconcileAfterSave && tileSnapshot')) {
   throw new Error('Explicit Settings transfers must suppress the automatic early UI update');
 }
 
-const accessControls = extractFunction(admin, 'initSettingsAccessControls');
+const accessControls = extractFunction('initSettingsAccessControls');
 for (const marker of [
   'hidden.checked',
   '? await hideSettingsTileFromGrid()',
@@ -279,7 +267,7 @@ if (accessControls.includes('flushSettingsTileSaveBeforeHide')) {
   throw new Error('Settings visibility checkbox must not keep a second transfer path');
 }
 
-const tileDrag = extractFunction(admin, 'enableTileDrag');
+const tileDrag = extractFunction('enableTileDrag');
 if (tileDrag.includes("document.querySelectorAll('#tab-tiles-' + tab + ' .tile')")) {
   throw new Error('Parking tile must not receive normal grid-tile drag listeners');
 }

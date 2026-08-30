@@ -1,4 +1,5 @@
 #include "src/ui/weather_popup.h"
+#include "src/core/json_scan.h"
 #include "src/ui/light_popup.h"
 #include "src/ui/climate_popup.h"
 #include "src/ui/sensor_popup.h"
@@ -446,110 +447,31 @@ static void decode_basic_json_escapes(String& text) {
 }
 
 static bool extract_json_string_field(const String& src, const char* key, String& out) {
-  if (!key || !*key) return false;
-  String pattern = "\"";
-  pattern += key;
-  pattern += "\"";
-  int idx = src.indexOf(pattern);
-  if (idx < 0) return false;
-  int colon = src.indexOf(':', idx);
-  if (colon < 0) return false;
-  int pos = colon + 1;
-  while (pos < src.length() && (src.charAt(pos) == ' ' || src.charAt(pos) == '\t')) {
-    ++pos;
+  int begin = 0;
+  int end = 0;
+  if (!hometiles_json::stringSpan(src.c_str(), src.length(), key, &begin, &end)) {
+    return false;
   }
-  if (pos >= src.length() || src.charAt(pos) != '"') return false;
-  int start = pos + 1;
-  bool escaped = false;
-  for (int i = start; i < src.length(); ++i) {
-    char c = src.charAt(i);
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (c == '\\') {
-      escaped = true;
-      continue;
-    }
-    if (c == '"') {
-      out = src.substring(start, i);
-      return true;
-    }
-  }
-  return false;
+  out = src.substring(begin, end);
+  return true;
 }
 
 static int find_json_array_start(const String& src, const char* key) {
-  if (!key || !*key) return -1;
-  String pattern = "\"";
-  pattern += key;
-  pattern += "\"";
-  int idx = src.indexOf(pattern);
-  if (idx < 0) return -1;
-  int colon = src.indexOf(':', idx);
-  if (colon < 0) return -1;
-  int pos = colon + 1;
-  while (pos < src.length() && (src.charAt(pos) == ' ' || src.charAt(pos) == '\t')) {
-    ++pos;
-  }
-  return pos < src.length() && src.charAt(pos) == '[' ? pos : -1;
+  return hometiles_json::arrayStart(src.c_str(), src.length(), key);
 }
 
 static bool extract_json_object_field(const String& src, const char* key, String& out) {
-  if (!key || !*key) return false;
-  String pattern = "\"";
-  pattern += key;
-  pattern += "\"";
-  int idx = src.indexOf(pattern);
-  if (idx < 0) return false;
-  int colon = src.indexOf(':', idx);
-  if (colon < 0) return false;
-  int pos = colon + 1;
-  while (pos < src.length() && (src.charAt(pos) == ' ' || src.charAt(pos) == '\t')) {
-    ++pos;
+  int begin = 0;
+  int end = 0;
+  if (!hometiles_json::objectSpan(src.c_str(), src.length(), key, &begin, &end)) {
+    return false;
   }
-  if (pos >= src.length() || src.charAt(pos) != '{') return false;
-  int depth = 0;
-  bool in_string = false;
-  for (int i = pos; i < src.length(); ++i) {
-    char c = src.charAt(i);
-    if (c == '"' && (i == 0 || src.charAt(i - 1) != '\\')) {
-      in_string = !in_string;
-    }
-    if (in_string) continue;
-    if (c == '{') {
-      ++depth;
-    } else if (c == '}') {
-      --depth;
-      if (depth == 0) {
-        out = src.substring(pos, i + 1);
-        return true;
-      }
-    }
-  }
-  return false;
+  out = src.substring(begin, end);
+  return true;
 }
 
 static bool extract_json_number_field(const String& src, const char* key, float& out) {
-  if (!key || !*key) return false;
-  String pattern = "\"";
-  pattern += key;
-  pattern += "\"";
-  int idx = src.indexOf(pattern);
-  if (idx < 0) return false;
-  int colon = src.indexOf(':', idx);
-  if (colon < 0) return false;
-  int pos = colon + 1;
-  while (pos < src.length() && (src.charAt(pos) == ' ' || src.charAt(pos) == '\t')) {
-    ++pos;
-  }
-  if (pos >= src.length()) return false;
-  const char* start = src.c_str() + pos;
-  char* end = nullptr;
-  float val = strtof(start, &end);
-  if (!end || end == start) return false;
-  out = val;
-  return true;
+  return hometiles_json::number(src.c_str(), src.length(), key, &out);
 }
 
 static bool extract_json_number_or_string_field(const String& src, const char* key, float& out) {
@@ -1332,35 +1254,14 @@ static void update_week_range_label(WeatherPopupContext* ctx) {
 }
 
 static bool next_json_object_in_array(const String& array, int& cursor, String& out) {
-  bool in_string = false;
-  int depth = 0;
-  int start = -1;
-
-  for (int i = cursor; i < array.length(); ++i) {
-    char c = array.charAt(i);
-    if (c == '"' && (i == 0 || array.charAt(i - 1) != '\\')) {
-      in_string = !in_string;
-    }
-    if (in_string) continue;
-    if (c == ']' && depth == 0) {
-      cursor = i + 1;
-      return false;
-    }
-    if (c == '{') {
-      if (depth == 0) start = i;
-      ++depth;
-    } else if (c == '}') {
-      --depth;
-      if (depth == 0 && start >= 0) {
-        out = array.substring(start, i + 1);
-        cursor = i + 1;
-        return true;
-      }
-    }
+  int begin = 0;
+  int end = 0;
+  if (!hometiles_json::nextObjectInArray(
+          array.c_str(), array.length(), &cursor, &begin, &end)) {
+    return false;
   }
-
-  cursor = array.length();
-  return false;
+  out = array.substring(begin, end);
+  return true;
 }
 
 static void style_mode_button(lv_obj_t* btn, bool active) {
@@ -3188,30 +3089,8 @@ static void build_popup_ui(WeatherPopupContext* ctx, const WeatherPopupInit& ini
     return btn;
   };
 
-  lv_obj_t* close_btn = lv_button_create(card);
-  lv_obj_set_size(close_btn, popup_layout::kCloseButtonSize,
-                  popup_layout::kCloseButtonSize);
-  lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_bg_color(close_btn, lv_color_hex(0xFFFFFF), LV_STATE_PRESSED);
-  lv_obj_set_style_bg_opa(close_btn, LV_OPA_20, LV_STATE_PRESSED);
-  lv_obj_set_style_border_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_outline_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_shadow_opa(close_btn, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_radius(close_btn, popup_layout::kCloseButtonRadius, 0);
-  lv_obj_set_style_pad_all(close_btn, 0, 0);
-  lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT,
-               popup_layout::kCloseButtonOffsetX,
-               popup_layout::kCloseButtonOffsetY);
-  lv_obj_set_ext_click_area(close_btn, popup_layout::kCloseButtonClickArea);
-  lv_obj_add_flag(close_btn, LV_OBJ_FLAG_PRESS_LOCK);
-  lv_obj_clear_flag(close_btn, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_CLICKED, ctx);
-  lv_obj_add_event_cb(close_btn, on_close_click, LV_EVENT_RELEASED, ctx);
-  lv_obj_t* close_label = lv_label_create(close_btn);
-  set_label_style(close_label, lv_color_white(), FONT_MDI_ICONS);
-  popup_layout::applyIconScale(close_label);
-  lv_label_set_text(close_label, getMdiChar("window-close").c_str());
-  lv_obj_center(close_label);
+  lv_obj_t* close_btn =
+      popup_layout::createCloseButton(card, on_close_click, ctx);
 
   ctx->header_week_btn = make_header_action_button("7D", kFooterWeekButtonX, FONT_UNIT);
   ctx->header_today_btn =

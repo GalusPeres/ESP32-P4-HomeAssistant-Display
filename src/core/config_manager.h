@@ -6,8 +6,8 @@
 #include "src/devices/device.h"
 #include "src/core/pin_access.h"
 
-// WiFi/MQTT Configuration Manager
-// Speichert und lädt Verbindungsdaten aus dem Flash-Speicher (Preferences)
+// WiFi/MQTT configuration manager.
+// Stores and loads the connection data in flash (Preferences).
 
 #define CONFIG_WIFI_SSID_MAX     32
 #define CONFIG_WIFI_PASS_MAX     64
@@ -58,8 +58,8 @@ struct DeviceConfig {
   char wifi_gateway[CONFIG_IP_ADDR_MAX];
   char wifi_subnet[CONFIG_IP_ADDR_MAX];
   char wifi_dns[CONFIG_IP_ADDR_MAX];
-  // Gemeinsame IP-Konfiguration fuer WLAN und Ethernet. Die wifi_-
-  // Feldnamen bleiben aus Kompatibilitaetsgruenden zu bestehenden Daten.
+  // Shared IP configuration for WLAN and Ethernet. The wifi_ field names stay
+  // as they are for compatibility with existing stored data.
   bool wifi_static_enabled;
   char mqtt_host[CONFIG_MQTT_HOST_MAX];
   uint16_t mqtt_port;
@@ -77,8 +77,8 @@ struct DeviceConfig {
 
   // Display & Power Settings
   uint8_t display_brightness;  // Geraetespezifischer Rohwert: backlight_input_min..255
-  // Einheitlicher sichtbarer Prozentwert. Die Umrechnung auf den jeweiligen
-  // Treiberbereich erfolgt ueber Device::backlightRawFromPercent().
+  // One visible percentage for every device. Device::backlightRawFromPercent()
+  // converts it to the range of the respective driver.
   uint8_t screensaver_brightness_pct;  // 1-100
   bool tile_borders;           // Feine Rahmen um normale Dashboard-Kacheln
   bool display_rotated_180;    // Display 180 deg gedreht?
@@ -95,9 +95,9 @@ struct DeviceConfig {
   uint8_t status_time_font_size;      // 24 or 48
   uint8_t status_date_font_size;      // 20 or 24
 
-  // Fester Netzwerkmodus: false = WLAN (Default), true = Ethernet. Wird nur
-  // beim Boot ausgewertet - im Ethernet-Modus startet WLAN/ESP-Hosted nie,
-  // damit sich beide Stacks nicht das interne DMA-RAM streitig machen.
+  // Fixed network mode: false = WLAN (default), true = Ethernet. Evaluated at
+  // boot only. In Ethernet mode WLAN/ESP-Hosted never starts, so the two stacks
+  // cannot compete for the internal DMA RAM.
   bool ethernet_enabled;
 
   // Local parental-control settings. The hash remains authoritative; the
@@ -116,13 +116,13 @@ class ConfigManager {
 public:
   ConfigManager();
 
-  // Lädt Konfiguration aus Flash-Speicher
+  // Loads the configuration from flash.
   bool load();
 
   // Speichert Konfiguration in Flash-Speicher
   bool save(const DeviceConfig& cfg);
 
-  // Speichert nur Display-Einstellungen
+  // Saves the display settings only.
   bool saveDisplaySettings(uint8_t brightness,
                            bool sleep_enabled,
                            uint16_t sleep_seconds,
@@ -140,7 +140,7 @@ public:
   bool saveEthernetEnabled(bool enabled);
   bool saveStaticAddressingEnabled(bool enabled);
 
-  // Entfernt die gemeinsame statische Adressierung. Der Netzwerkmodus bleibt.
+  // Removes the shared static addressing. The network mode stays as it is.
   bool clearStaticAddressing();
 
   void setRuntimeDisplayRotation(bool rotate_180);
@@ -149,13 +149,13 @@ public:
   // Löscht gespeicherte Konfiguration
   void clear();
 
-  // Prüft ob eine gültige Konfiguration vorhanden ist
+  // Reports whether a valid configuration is stored.
   bool isConfigured() const { return config.configured; }
   bool hasWifiCredentials() const { return config.wifi_ssid[0] != '\0'; }
   bool hasMqttConfig() const { return config.mqtt_host[0] != '\0'; }
   bool bootStaticAddressingEnabled() const { return boot_static_enabled; }
 
-  // Getter für Config-Daten
+  // Accessors for the configuration data.
   const DeviceConfig& getConfig() const { return config; }
   bool verifySettingsPin(const char* pin) const;
   bool getSettingsPin(String& out) const;

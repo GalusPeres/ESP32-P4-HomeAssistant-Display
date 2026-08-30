@@ -3,25 +3,25 @@
 
 #include <stdint.h>
 
-// PPA (Display-Rotation) und HW-JPEG-Decoder (Media-Cover) teilen sich auf
-// dem ESP32-P4 denselben 2D-DMA-Kanalpool samt Interrupt-Pfad. Ueberlappen
-// sich beide zeitlich, kann der IDF-Treiber (release/v5.5) eine PPA-
-// Transaktion verlieren: sie startet nie, die Engine-Semaphore wird nie
-// gegeben, ppa_unregister_client verweigert dauerhaft mit err=259 — das ist
-// der "PPA VERKLEMMT"-Zustand, aus dem nur ein Reboot half (bekanntes TODO
-// in ppa_core.c: "need a way to force end"). Beide Feld-Wedges korrelierten
-// mit Cover-Decode-Aktivitaet; das stabile 8-Zoll-Geraet rotiert dank hoher
-// PPA-Schwelle praktisch nie waehrend eines Decodes. Dieser Mutex stellt die
-// Nicht-Ueberlappung explizit sicher, statt sie dem Zufall zu ueberlassen.
+// On the ESP32-P4 the PPA (display rotation) and the hardware JPEG decoder
+// (media cover art) share the same 2D-DMA channel pool and interrupt path. When
+// both overlap in time, the IDF driver (release/v5.5) can lose a PPA
+// transaction: it never starts, the engine semaphore is never given, and
+// ppa_unregister_client keeps failing with err=259. That is the "PPA wedged"
+// state, which only a reboot recovered from; ppa_core.c carries a known TODO
+// for it ("need a way to force end"). Both field wedges correlated with cover
+// decode activity, and the stable 8-inch device practically never rotates
+// during a decode because of its high PPA threshold. This mutex makes the
+// non-overlap explicit instead of leaving it to chance.
 namespace dma2d_arbiter {
 
-// true = Lock gehalten, unlock() ist Pflicht. false = Timeout abgelaufen.
+// true = the lock is held and unlock() is mandatory. false = timed out.
 bool lock(uint32_t timeout_ms);
 void unlock();
 
 }  // namespace dma2d_arbiter
 
-// RAII-Guard fuer Pfade mit mehreren Return-Stellen.
+// RAII guard for paths with several return points.
 class Dma2dArbiterGuard {
  public:
   explicit Dma2dArbiterGuard(uint32_t timeout_ms)

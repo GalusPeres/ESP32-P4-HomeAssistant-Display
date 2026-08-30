@@ -1,44 +1,9 @@
 import assert from 'node:assert/strict';
-import {spawnSync} from 'node:child_process';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import {fileURLToPath, pathToFileURL} from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const adminSource = fs.readFileSync(
-  path.join(root, 'src', 'web', 'assets', 'admin.js'), 'utf8');
-const settingsHtml = fs.readFileSync(
-  path.join(root, 'src', 'types', 'settings', 'web_html.cpp'), 'utf8');
+import {extractFunction, inlineScriptSafe, readRepoFile} from './lib/admin-source.mjs';
+import {runDomHarness} from './lib/headless-dom.mjs';
 
-function extractFunction(name) {
-  const marker = `function ${name}(`;
-  const start = adminSource.indexOf(marker);
-  assert.notEqual(start, -1, `${name} must exist in admin.js`);
-  const declarationStart =
-    adminSource.slice(Math.max(0, start - 6), start) === 'async '
-      ? start - 6
-      : start;
-  const bodyStart = adminSource.indexOf('{', start + marker.length);
-  let depth = 0;
-  for (let index = bodyStart; index < adminSource.length; index++) {
-    if (adminSource[index] === '{') depth++;
-    if (adminSource[index] !== '}') continue;
-    depth--;
-    if (depth === 0) return adminSource.slice(declarationStart, index + 1);
-  }
-  assert.fail(`${name} body is incomplete`);
-}
-
-function findBrowser() {
-  const candidates = [
-    process.env.CHROME_PATH,
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
-  ].filter(Boolean);
-  return candidates.find(candidate => fs.existsSync(candidate));
-}
+const settingsHtml = readRepoFile('src', 'types', 'settings', 'web_html.cpp');
 
 for (const marker of [
   'configManager.getSettingsPin(stored_pin);',
@@ -47,9 +12,6 @@ for (const marker of [
   assert.ok(settingsHtml.includes(marker),
     `Settings server-rendered PIN field is missing: ${marker}`);
 }
-
-const browser = findBrowser();
-assert.ok(browser, 'Chrome or Edge is required for the Settings PIN test');
 
 const productionFunctions = [
   extractFunction('togglePasswordVisibility'),
@@ -110,7 +72,7 @@ const harness = `<!doctype html><html><body>
         ok: true, reload: false, settings_pin: responseSettingsPin
       })
     });
-    ${productionFunctions.replaceAll('</script', '<\\/script')}
+    ${inlineScriptSafe(productionFunctions)}
     (async () => {
       try {
         const input = settingsAccessElement('settings_pin');
@@ -149,27 +111,9 @@ const harness = `<!doctype html><html><body>
   </script>
 </body></html>`;
 
-const temporaryDirectory = fs.mkdtempSync(
-  path.join(os.tmpdir(), 'hometiles-settings-pin-'));
-const harnessPath = path.join(temporaryDirectory, 'index.html');
-try {
-  fs.writeFileSync(harnessPath, harness, 'utf8');
-  const run = spawnSync(browser, [
-    '--headless=new',
-    '--disable-gpu',
-    '--disable-extensions',
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--disable-background-networking',
-    '--virtual-time-budget=1000',
-    '--dump-dom',
-    pathToFileURL(harnessPath).href
-  ], {encoding: 'utf8', timeout: 30000});
-  assert.equal(run.error, undefined, run.error?.message);
-  assert.equal(run.status, 0, run.stderr || run.stdout);
-  assert.match(run.stdout, /data-result="pass"/,
-    `Settings PIN reveal regression failed:\n${run.stdout}\n${run.stderr}`);
-  console.log('Settings PIN reveal DOM test passed.');
-} finally {
-  fs.rmSync(temporaryDirectory, {recursive: true, force: true});
-}
+runDomHarness({
+  label: 'Settings PIN reveal DOM test',
+  html: harness,
+  tmpPrefix: 'hometiles-settings-pin-',
+  extraArgs: ['--virtual-time-budget=1000']
+});

@@ -9,9 +9,10 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length);
 // header comment) and runs the real per-topic processing on the caller's task.
 // Call from the main loop(). max_msgs=0 drains everything currently queued.
 void mqtt_process_inbound_queue(uint8_t max_msgs = 0);
-// Konsumiert das Post-Connect-Pending-Flag des MQTT-Workers und faehrt die
-// App-Ebene hoch (Subscribes/Discovery/Settings/Snapshot). Muss auf dem
-// Loop-Task laufen (Flash/LVGL/I2C); jede Loop-Iteration aufrufen.
+// Consumes the post-connect pending flag of the MQTT worker and brings the
+// application layer up: subscribes, discovery, settings, snapshot. Must run on
+// the loop task because of flash, LVGL and I2C access; call once per loop
+// iteration.
 void mqttServicePostConnect();
 void mqttSubscribeTopics();
 void mqttPublishDiscovery();
@@ -55,8 +56,9 @@ void mqttServiceLocalSensors();
 void mqttReloadDynamicSlots(bool subscribe_all = false);
 void mqttRequestDynamicSlotsReload(uint32_t quiet_ms = 3000);
 void mqttServiceDynamicSlotsReload();
-// Boot-Scan fuer setup(): Media-Tile in der gespeicherten Config? Ergebnis
-// steuert die Startgroesse des MQTT-Empfangspuffers (Cover-Payloads ~19 KB).
+// Boot scan for setup(): is there a media tile in the stored configuration? The
+// result sets the initial size of the MQTT receive buffer, because cover
+// payloads reach about 19 KB.
 bool mqttAnyMediaTileConfigured();
 
 #endif // MQTT_HANDLERS_H

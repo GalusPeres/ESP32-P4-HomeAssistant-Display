@@ -35,10 +35,11 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Verify browser installer contract
-        run: |
-          node tools/test-installer-otadata.mjs
-          node tools/test-web-installer.mjs
+      - name: Verify generated WebUI assets
+        run: node tools/generate-web-assets.mjs --check
+
+      - name: Run the source and browser test suite
+        run: node tools/run-tests.mjs
 
       - name: Set up Arduino CLI
         uses: arduino/setup-arduino-cli@v2
@@ -200,59 +201,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-
-      - name: Verify generated WebUI assets
-        run: node tools/generate-web-assets.mjs --check
-
-      - name: Verify MQTT packet safety
-        run: node tools/test-mqtt-packet-safety.mjs
-
-      - name: Verify ESP32-S3 popup refresh behavior
-        run: |
-          node tools/test-weather-popup-release.mjs
-          node tools/test-s3-popup-refresh.mjs
-          node tools/test-duplicate-light-entity-updates.mjs
-          node tools/test-s3-render-backpressure.mjs
-          node tools/test-s3-weather-batching.mjs
-
-      - name: Verify Guition S3 update-check display guard
-        run: node tools/test-guition-s3-update-check-resync.mjs
-
-      - name: Verify Guition JC8012 V2 profile contract
-        run: node tools/test-guition-jc8012-v2-profile.mjs
-
-      - name: Verify Guition JC1060 SD power contract
-        run: node tools/test-jc1060-sd-power.mjs
-
-      - name: Verify Waveshare 7B profile contract
-        run: node tools/test-waveshare-7b-profile.mjs
-
-      - name: Verify Guition JC1060 V2 profile contract
-        run: node tools/test-guition-jc1060-v2-profile.mjs
-
-      - name: Verify Waveshare ESP32-S3 4B profile contract
-        run: node tools/test-waveshare-s3-4b-profile.mjs
-
-      - name: Verify Waveshare 4.3 profile contract
-        run: node tools/test-waveshare-4-3-profile.mjs
-
-      - name: Verify Waveshare 10.1 brightness floor
-        run: node tools/test-waveshare-10-brightness-floor.mjs
-
-      - name: Verify new device profile integration
-        run: node tools/test-new-device-profile-integration.mjs
-
-      - name: Verify local release import contract
-        run: node tools/test-import-latest-arduino-build.mjs
-
-      - name: Verify ESP32-P4 folder-cache scope
-        run: node tools/test-p4-folder-cache-scope.mjs
-
-      - name: Verify ESP32-P4 camera presenter safety
-        run: node tools/test-p4-camera-presenter.mjs
-
-      - name: Verify camera bridge timeout semantics
-        run: node tools/test-camera-bridge-timeout.mjs
 
       - name: Restore Arduino cache
         uses: actions/cache@v4

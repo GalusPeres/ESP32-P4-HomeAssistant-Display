@@ -81,6 +81,8 @@ void appendAdminScripts(String& html) {
   appendJsEntry("screensaverLoadFailed", tr.js_screensaver_load_failed);
   appendJsEntry("screensaverNoWallpapers", tr.screensaver_no_wallpapers);
   appendJsEntry("moveFailed", tr.js_move_failed);
+  appendJsEntry("moveUp", tr.js_move_up);
+  appendJsEntry("moveDown", tr.js_move_down);
   appendJsEntry("networkErrorMove", tr.js_network_error_move);
   appendJsEntry("screenshotCreating", tr.js_screenshot_creating);
   appendJsEntry("screenshotSaved", tr.js_screenshot_saved);

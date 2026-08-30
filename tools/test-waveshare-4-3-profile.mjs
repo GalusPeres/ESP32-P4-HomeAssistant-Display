@@ -52,7 +52,7 @@ for (const marker of [
   'define: DEVICE_WAVESHARE_TOUCH_LCD_4_3',
   'silicon_variant: pre_v3',
   'rx_variant: repo-a8204',
-  'test-waveshare-4-3-profile.mjs',
+  'node tools/run-tests.mjs',
   '-eq 28',
 ]) {
   requireMarker(workflow, marker, 'firmware workflow');

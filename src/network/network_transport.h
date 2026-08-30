@@ -4,10 +4,9 @@
 #include <IPAddress.h>
 #include <atomic>
 
-// Die Waveshare Touch-LCD-X-Geraete haben nur USB-Host-Ethernet. Deshalb muss
-// der RTL8156-Weg auch in ihren CI/Release-Builds enthalten sein. Lokale
-// Dev-Builds behalten ihn fuer Hardwaretests auf allen USB-Host-faehigen
-// Profilen.
+// The Waveshare Touch LCD X devices only have USB host Ethernet, so the RTL8156
+// path has to be part of their CI and release builds as well. Local development
+// builds keep it on every USB-host-capable profile for hardware tests.
 #if !defined(HOMETILES_CI_TARGET) || defined(DEVICE_WAVESHARE_TOUCH_LCD_X)
 #define HOMETILES_USB_ETHERNET_DEV 1
 #endif
@@ -29,13 +28,14 @@ public:
   void begin();
   void update();
 
-  // Kann dieser Build auf diesem Geraet ueberhaupt Ethernet? Natives Ethernet
-  // zaehlt immer; beim 8-Zoll-Geraet zaehlt auch USB-Ethernet im Release.
-  // Steuert auch, ob der Modus-Schalter in Settings/Web-Admin erscheint.
+  // Can this build do Ethernet on this device at all? Native Ethernet always
+  // counts, and on the 8-inch device USB Ethernet counts in release builds too.
+  // This also decides whether the mode switch appears in Settings and Web
+  // Admin.
   static bool deviceSupportsEthernet();
 
-  // Fester Netzwerkmodus dieser Boot-Session (in begin() aus der Config
-  // uebernommen): true = Ethernet, WLAN/ESP-Hosted startet nie.
+  // Fixed network mode of this boot session, taken from the configuration in
+  // begin(): true = Ethernet, and WLAN/ESP-Hosted never starts.
   bool isEthernetMode() const { return ethernet_mode_; }
 
   bool isConnected() const;

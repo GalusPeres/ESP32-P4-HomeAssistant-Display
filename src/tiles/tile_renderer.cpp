@@ -1,4 +1,5 @@
 #include "src/tiles/tile_renderer.h"
+#include "src/core/json_scan.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/tiles/tile_config.h"
@@ -766,6 +767,11 @@ static uint32_t hs_to_rgb(float h, float s) {
   return clamp_rgb(r, g, b);
 }
 
+// Lenient variants kept on purpose: unlike hometiles_json::stringSpan these
+// accept the first quoted run after the colon and treat an empty result as a
+// miss. Several callers rely on that for payloads that mix quoted and bare
+// values. Do not merge them into the shared header without checking every
+// caller.
 static bool extract_json_string_field(const String& src, const char* key, String& out) {
   if (!key || !*key) return false;
   String pattern = String("\"") + key + "\"";
@@ -824,23 +830,7 @@ static bool extract_json_array_field(const String& src, const char* key, String&
 }
 
 static bool extract_json_number_field(const String& src, const char* key, float& out) {
-  if (!key || !*key) return false;
-  String pattern = String("\"") + key + "\"";
-  int idx = src.indexOf(pattern);
-  if (idx < 0) return false;
-  int colon = src.indexOf(':', idx);
-  if (colon < 0) return false;
-  int pos = colon + 1;
-  while (pos < src.length() && (src.charAt(pos) == ' ' || src.charAt(pos) == '\t')) {
-    ++pos;
-  }
-  if (pos >= src.length()) return false;
-  const char* start = src.c_str() + pos;
-  char* end = nullptr;
-  float val = strtof(start, &end);
-  if (!end || end == start) return false;
-  out = val;
-  return true;
+  return hometiles_json::number(src.c_str(), src.length(), key, &out);
 }
 
 static bool extract_json_number_field_cstr(const char* src, const char* key, float& out) {
@@ -895,38 +885,13 @@ static bool extract_json_bool_field_cstr(const char* src, const char* key, bool&
 }
 
 static bool extract_json_object_field(const String& src, const char* key, String& out) {
-  if (!key || !*key) return false;
-  String pattern = "\"";
-  pattern += key;
-  pattern += "\"";
-  int idx = src.indexOf(pattern);
-  if (idx < 0) return false;
-  int colon = src.indexOf(':', idx);
-  if (colon < 0) return false;
-  int pos = colon + 1;
-  while (pos < src.length() && (src.charAt(pos) == ' ' || src.charAt(pos) == '\t')) {
-    ++pos;
+  int begin = 0;
+  int end = 0;
+  if (!hometiles_json::objectSpan(src.c_str(), src.length(), key, &begin, &end)) {
+    return false;
   }
-  if (pos >= src.length() || src.charAt(pos) != '{') return false;
-  int depth = 0;
-  bool in_string = false;
-  for (int i = pos; i < src.length(); ++i) {
-    char c = src.charAt(i);
-    if (c == '"' && (i == 0 || src.charAt(i - 1) != '\\')) {
-      in_string = !in_string;
-    }
-    if (in_string) continue;
-    if (c == '{') {
-      ++depth;
-    } else if (c == '}') {
-      --depth;
-      if (depth == 0) {
-        out = src.substring(pos, i + 1);
-        return true;
-      }
-    }
-  }
-  return false;
+  out = src.substring(begin, end);
+  return true;
 }
 
 static bool extract_json_number_or_string_field(const String& src, const char* key, float& out) {
@@ -2682,79 +2647,66 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
   }
 
   if (has_forecast && forecast_limit > 0) {
-    bool in_string = false;
-    int depth = 0;
-    int start = -1;
+    int cursor = 0;
+    int obj_begin = 0;
+    int obj_end = 0;
     uint8_t fallback_slot = 0;
-    for (int i = 0; i < forecast_raw.length(); ++i) {
-      char c = forecast_raw.charAt(i);
-      if (c == '"' && (i == 0 || forecast_raw.charAt(i - 1) != '\\')) {
-        in_string = !in_string;
-      }
-      if (in_string) continue;
-      if (c == '{') {
-        if (depth == 0) start = i;
-        depth++;
-      } else if (c == '}') {
-        depth--;
-        if (depth == 0 && start >= 0) {
-          String obj = forecast_raw.substring(start, i + 1);
-          String f_condition;
-          String f_icon;
-          String f_day;
-          String f_date_local;
-          float f_temp = 0.0f;
-          float f_low = 0.0f;
-          const bool f_has_temp = extract_json_number_or_string_field(obj, "temperature", f_temp);
-          bool f_has_low = false;
-          if (extract_json_number_or_string_field(obj, "templow", f_low)) f_has_low = true;
-          if (!f_has_low && extract_json_number_or_string_field(obj, "temperature_low", f_low)) f_has_low = true;
-          if (!f_has_low && extract_json_number_or_string_field(obj, "temp_low", f_low)) f_has_low = true;
-          if (!f_has_low && extract_json_number_or_string_field(obj, "low", f_low)) f_has_low = true;
-          extract_json_string_field(obj, "condition", f_condition);
-          extract_json_string_field(obj, "icon", f_icon);
-          String datetime;
-          extract_json_string_field(obj, "date_local", f_date_local);
-          if (extract_json_string_field(obj, "datetime", datetime)) {
-            f_day = weekday_from_iso(datetime);
-            if (!f_date_local.length() && datetime.length() >= 10) {
-              f_date_local = datetime.substring(0, 10);
-            }
-          }
-          if (!f_icon.length() && f_condition.length()) {
-            f_icon = weather_icon_from_condition(f_condition);
-          }
-          if (!base_forecast_date.length() && f_date_local.length()) {
-            base_forecast_date = f_date_local;
-          }
-
-          int slot_index = -1;
-          if (base_forecast_date.length() && f_date_local.length()) {
-            const int offset = iso_date_day_offset(base_forecast_date, f_date_local);
-            if (offset >= 0 && offset < forecast_limit) {
-              slot_index = offset;
-            }
-          }
-          if (slot_index < 0) {
-            while (fallback_slot < forecast_limit && forecast_slots[fallback_slot].has_data) ++fallback_slot;
-            if (fallback_slot < forecast_limit) {
-              slot_index = fallback_slot++;
-            }
-          }
-          if (slot_index >= 0 && slot_index < forecast_limit) {
-            TileForecastSlot& slot = forecast_slots[slot_index];
-            slot.has_data = true;
-            slot.date_local = f_date_local;
-            slot.day_text = f_day;
-            slot.icon_name = f_icon;
-            slot.has_temp = f_has_temp;
-            slot.temp = f_temp;
-            slot.has_low = f_has_low;
-            slot.low = f_low;
-          }
-
-          start = -1;
+    while (hometiles_json::nextObjectInArray(
+        forecast_raw.c_str(), forecast_raw.length(), &cursor,
+        &obj_begin, &obj_end)) {
+      String obj = forecast_raw.substring(obj_begin, obj_end);
+      String f_condition;
+      String f_icon;
+      String f_day;
+      String f_date_local;
+      float f_temp = 0.0f;
+      float f_low = 0.0f;
+      const bool f_has_temp = extract_json_number_or_string_field(obj, "temperature", f_temp);
+      bool f_has_low = false;
+      if (extract_json_number_or_string_field(obj, "templow", f_low)) f_has_low = true;
+      if (!f_has_low && extract_json_number_or_string_field(obj, "temperature_low", f_low)) f_has_low = true;
+      if (!f_has_low && extract_json_number_or_string_field(obj, "temp_low", f_low)) f_has_low = true;
+      if (!f_has_low && extract_json_number_or_string_field(obj, "low", f_low)) f_has_low = true;
+      extract_json_string_field(obj, "condition", f_condition);
+      extract_json_string_field(obj, "icon", f_icon);
+      String datetime;
+      extract_json_string_field(obj, "date_local", f_date_local);
+      if (extract_json_string_field(obj, "datetime", datetime)) {
+        f_day = weekday_from_iso(datetime);
+        if (!f_date_local.length() && datetime.length() >= 10) {
+          f_date_local = datetime.substring(0, 10);
         }
+      }
+      if (!f_icon.length() && f_condition.length()) {
+        f_icon = weather_icon_from_condition(f_condition);
+      }
+      if (!base_forecast_date.length() && f_date_local.length()) {
+        base_forecast_date = f_date_local;
+      }
+
+      int slot_index = -1;
+      if (base_forecast_date.length() && f_date_local.length()) {
+        const int offset = iso_date_day_offset(base_forecast_date, f_date_local);
+        if (offset >= 0 && offset < forecast_limit) {
+          slot_index = offset;
+        }
+      }
+      if (slot_index < 0) {
+        while (fallback_slot < forecast_limit && forecast_slots[fallback_slot].has_data) ++fallback_slot;
+        if (fallback_slot < forecast_limit) {
+          slot_index = fallback_slot++;
+        }
+      }
+      if (slot_index >= 0 && slot_index < forecast_limit) {
+        TileForecastSlot& slot = forecast_slots[slot_index];
+        slot.has_data = true;
+        slot.date_local = f_date_local;
+        slot.day_text = f_day;
+        slot.icon_name = f_icon;
+        slot.has_temp = f_has_temp;
+        slot.temp = f_temp;
+        slot.has_low = f_has_low;
+        slot.low = f_low;
       }
     }
   }

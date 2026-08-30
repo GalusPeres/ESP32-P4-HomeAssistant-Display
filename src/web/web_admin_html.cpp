@@ -245,6 +245,13 @@ static void appendTileTabHTML(
     html += String(i);
     html += "\" style=\"";
     html += tileStyle;
+    // The grid is the primary control of the editor, so every tile is a real
+    // button: reachable with Tab, activated by Enter/Space (see enableTileKeys
+    // in admin.js) and announced with its title or its localized type name.
+    html += "\" role=\"button\" tabindex=\"0\" aria-label=\"";
+    appendHtmlEscaped(html, tile.title.length()
+                                ? tile.title
+                                : String(get_tile_type_localized_label(tile.type)));
     html += "\" onclick=\"selectTile(parseInt(this.dataset.index), '";
     html += tab_id;
     html += "')\" ondblclick=\"openPreviewNavigation(this, '";
@@ -757,7 +764,9 @@ static String buildFolderTabButtonHtml(const FolderEntry& entry) {
   appendHtmlEscaped(html, icon);
   html += R"html(" data-tab-id=")html";
   html += tab_id;
-  html += R"html(" onclick="switchTab('tab-tiles-)html";
+  html += R"html(" data-tab-target="tab-tiles-)html";
+  html += tab_id;
+  html += R"html(" type="button" onclick="switchTab('tab-tiles-)html";
   html += tab_id;
   html += R"html(')">)html";
   if (icon.length()) {
@@ -994,17 +1003,20 @@ String WebAdminServer::getAdminPage() {
   }
 
   html += R"html(
-        <button class="tab-btn" onclick="switchTab('tab-tiles-screensaver')">
+        <button class="tab-btn" type="button" data-tab-target="tab-tiles-screensaver"
+                onclick="switchTab('tab-tiles-screensaver')">
           <i class="mdi mdi-monitor" style="font-size:24px;"></i>
           <span style="font-size:14px;font-weight:600;">Screensaver</span>
         </button>
-        <button class="tab-btn" onclick="switchTab('tab-hardware')">
+        <button class="tab-btn" type="button" data-tab-target="tab-hardware"
+                onclick="switchTab('tab-hardware')">
           <i class="mdi mdi-electric-switch" style="font-size:24px;"></i>
           <span style="font-size:14px;font-weight:600;">)html";
   html += tr.admin_io;
   html += R"html(</span>
         </button>
-        <button class="tab-btn" onclick="switchTab('tab-network')">
+        <button class="tab-btn" type="button" data-tab-target="tab-network"
+                onclick="switchTab('tab-network')">
           <i class="mdi mdi-cog" style="font-size:24px;"></i>
           <span style="font-size:14px;font-weight:600;">)html";
   html += tr.tile_type_settings;
@@ -1136,7 +1148,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.ssid_label;
   html += R"html(:</label>
                 <input type="text" id="wifi_ssid" name="wifi_ssid" value=")html";
-  html += cfg.wifi_ssid;
+  appendHtmlEscaped(html, cfg.wifi_ssid);
   html += R"html(">
                   </div>
                   <div>
@@ -1144,8 +1156,9 @@ String WebAdminServer::getAdminPage() {
   html += tr.wifi_password_label;
   html += R"html(:</label>
                 <div class="password-field">
-                  <input type="password" id="wifi_pass" name="wifi_pass" value=")html";
-  html += cfg.wifi_pass;
+                  <input type="password" id="wifi_pass" name="wifi_pass"
+                         autocomplete="new-password" value=")html";
+  appendHtmlEscaped(html, cfg.wifi_pass);
   html += R"html(">
                   <button type="button" class="password-toggle" data-label-show=")html";
   html += tr.password_show;
@@ -1189,7 +1202,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.wifi_static_ip_label;
   html += R"html(:</label>
                 <input type="text" id="network_static_ip" name="network_static_ip" inputmode="decimal" autocomplete="on" value=")html";
-  html += cfg.wifi_static_ip;
+  appendHtmlEscaped(html, cfg.wifi_static_ip);
   html += R"html(">
                 </div>
                 <div>
@@ -1197,7 +1210,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.wifi_gateway_label;
   html += R"html(:</label>
                 <input type="text" id="network_gateway" name="network_gateway" inputmode="decimal" autocomplete="on" value=")html";
-  html += cfg.wifi_gateway;
+  appendHtmlEscaped(html, cfg.wifi_gateway);
   html += R"html(">
                 </div>
                 <div>
@@ -1205,7 +1218,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.wifi_subnet_label;
   html += R"html(:</label>
                 <input type="text" id="network_subnet" name="network_subnet" inputmode="decimal" autocomplete="on" value=")html";
-  html += cfg.wifi_subnet;
+  appendHtmlEscaped(html, cfg.wifi_subnet);
   html += R"html(">
                 </div>
                 <div>
@@ -1213,7 +1226,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.wifi_dns_label;
   html += R"html(:</label>
                 <input type="text" id="network_dns" name="network_dns" inputmode="decimal" autocomplete="on" value=")html";
-  html += cfg.wifi_dns;
+  appendHtmlEscaped(html, cfg.wifi_dns);
   html += R"html(">
                 </div>
                 </div>
@@ -1232,7 +1245,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.mqtt_host;
   html += R"html(:</label>
                 <input type="text" id="mqtt_host" name="mqtt_host" value=")html";
-  html += cfg.mqtt_host;
+  appendHtmlEscaped(html, cfg.mqtt_host);
   html += R"html(">
               </div>
               <div>
@@ -1248,7 +1261,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.mqtt_username;
   html += R"html(:</label>
                 <input type="text" id="mqtt_user" name="mqtt_user" value=")html";
-  html += cfg.mqtt_user;
+  appendHtmlEscaped(html, cfg.mqtt_user);
   html += R"html(">
               </div>
               <div>
@@ -1256,8 +1269,9 @@ String WebAdminServer::getAdminPage() {
   html += tr.mqtt_password;
   html += R"html(:</label>
                 <div class="password-field">
-                  <input type="password" id="mqtt_pass" name="mqtt_pass" value=")html";
-  html += cfg.mqtt_pass;
+                  <input type="password" id="mqtt_pass" name="mqtt_pass"
+                         autocomplete="new-password" value=")html";
+  appendHtmlEscaped(html, cfg.mqtt_pass);
   html += R"html(">
                   <button type="button" class="password-toggle" data-label-show=")html";
   html += tr.password_show;
@@ -1275,7 +1289,7 @@ String WebAdminServer::getAdminPage() {
                 <input type="text" id="mqtt_client_id" name="mqtt_client_id" placeholder=")html";
   html += tr.mqtt_client_id_placeholder;
   html += R"html(" value=")html";
-  html += cfg.mqtt_client_id;
+  appendHtmlEscaped(html, cfg.mqtt_client_id);
   html += R"html(">
                 <div class="settings-note">)html";
   html += tr.mqtt_client_id_hint;
@@ -1286,7 +1300,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.mqtt_base_topic;
   html += R"html(:</label>
                 <input type="text" id="mqtt_base" name="mqtt_base" value=")html";
-  html += cfg.mqtt_base_topic;
+  appendHtmlEscaped(html, cfg.mqtt_base_topic);
   html += R"html(">
               </div>
               <div>
@@ -1294,7 +1308,7 @@ String WebAdminServer::getAdminPage() {
   html += tr.ha_prefix;
   html += R"html(:</label>
                 <input type="text" id="ha_prefix" name="ha_prefix" value=")html";
-  html += cfg.ha_prefix;
+  appendHtmlEscaped(html, cfg.ha_prefix);
   html += R"html(">
               </div>
             </div>
@@ -1557,7 +1571,7 @@ String WebAdminServer::getAdminPage() {
   </div>
 
   <!-- Notification Toast -->
-  <div id="notification" class="notification"></div>
+  <div id="notification" class="notification" role="status" aria-live="polite"></div>
 </body>
 </html>
 )html";

@@ -63,6 +63,22 @@ function t(key) {
     return match ? Number(match[1]) : null;
   }
 
+  // Each tab button names the panel it opens, so the active one is found by that
+  // attribute instead of by scanning its inline handler for a quoted name.
+  // aria-current tells assistive technology which tab is open; the active class
+  // only paints it.
+  function setActiveTabButton(tabName) {
+    const buttons = Array.from(document.querySelectorAll('.tab-btn'));
+    buttons.forEach(button => {
+      button.classList.remove('active');
+      button.removeAttribute('aria-current');
+    });
+    const active = buttons.find(button => button.dataset.tabTarget === tabName);
+    if (!active) return;
+    active.classList.add('active');
+    active.setAttribute('aria-current', 'page');
+  }
+
   async function switchTab(tabName) {
     const sequence = ++tabSwitchSequence;
     let target = document.getElementById(tabName);
@@ -113,12 +129,8 @@ function t(key) {
 
     const tabs = document.querySelectorAll('.tab-content');
     tabs.forEach(tab => tab.classList.remove('active'));
-    const btns = document.querySelectorAll('.tab-btn');
-    btns.forEach(btn => btn.classList.remove('active'));
     target.classList.add('active');
-    // Find and activate the button that switches to this tab
-    const activeBtn = Array.from(btns).find(btn => btn.getAttribute('onclick')?.includes("'" + tabName + "'"));
-    if (activeBtn) activeBtn.classList.add('active');
+    setActiveTabButton(tabName);
     try { localStorage.setItem('activeAdminTab', tabName); } catch (e) {}
     updateTileSettingsMaxHeight();
     if (isTileTab) {
@@ -151,8 +163,8 @@ function t(key) {
     }
   }
 
-  // Deckelt das Tile-Settings-Panel exakt auf den Platz unterhalb von
-  // Header/Tabs, damit es intern scrollt statt die Seite zu strecken.
+  // Caps the tile settings panel at exactly the space below header and tabs so
+  // that it scrolls internally instead of stretching the page.
   function updateTileSettingsMaxHeight() {
     document.querySelectorAll('.tile-settings').forEach(panel => {
       panel.style.maxHeight = '';
@@ -160,10 +172,10 @@ function t(key) {
       const tab = panel.closest('.tab-content');
       if (!tab || !tab.classList.contains('active')) return;
       const top = panel.getBoundingClientRect().top + window.scrollY;
-      // Unterhalb des Panels liegen nur noch Card-Padding und Wrapper-Abstaende.
-      // Aus den Styles lesen (nicht ueber scrollHeight messen - der ist bei
-      // grossen Fenstern mindestens Viewport-Hoehe und wuerde das Panel
-      // faelschlich klein deckeln).
+      // Only card padding and wrapper spacing sit below the panel. Read those
+      // from the styles instead of measuring scrollHeight: on large windows
+      // scrollHeight is at least the viewport height and would cap the panel
+      // far too small.
       let below = 24;
       const card = panel.closest('.card');
       if (card) {
@@ -179,11 +191,26 @@ function t(key) {
       if (h > 240) panel.style.maxHeight = h + 'px';
     });
   }
-  window.addEventListener('resize', updateTileSettingsMaxHeight);
+  // Resize fires many times per second while a window is dragged, and both
+  // handlers below are expensive: one forces a layout and reads computed styles
+  // per panel, the other re-renders the whole screensaver editor. Coalescing to
+  // one call per frame keeps that work off every single event.
+  function perFrame(callback) {
+    let frame = 0;
+    return () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        callback();
+      });
+    };
+  }
 
-  // Fuellt die statisch gerenderten Uhr-Kacheln (--:-- Platzhalter) mit der
-  // aktuellen Zeit und haelt sie aktuell. Vom JS neu gerenderte Uhr-Kacheln
-  // bekommen ihre Zeit (inkl. Format) direkt beim Rendern.
+  window.addEventListener('resize', perFrame(updateTileSettingsMaxHeight));
+
+  // Fills the server-rendered clock tiles (--:-- placeholders) with the current
+  // time and keeps them up to date. Clock tiles re-rendered by this script get
+  // their time, including the format, while rendering.
   function fillStaticClockPreviews() {
     if (typeof getClockPreviewTime !== 'function') return;
     document.querySelectorAll('.tile-clock-time').forEach(el => {
@@ -1058,12 +1085,6 @@ function t(key) {
     }
   }
 
-  function changeFileManagerFs() {
-    fileManagerState.fs = 'sd';
-    fileManagerState.path = '/';
-    loadFileManager('/');
-  }
-
   function downloadFileManagerFile(path) {
     window.location.href = fileManagerUrl('/api/files/download', {
       fs: fileManagerState.fs,
@@ -1162,17 +1183,15 @@ function t(key) {
     }
   }
 
-  // Waehrend eines laufenden Uploads keine parallelen Requests starten
-  // (Sensor-Polling): der Server arbeitet eine Verbindung nach der anderen
-  // ab, zusaetzliche Verbindungen stauen sich nur auf und belasten den
-  // knappen internen Puffer-Pool des Geraets.
+  // Do not start parallel requests such as sensor polling while an upload is
+  // running: the server handles one connection at a time, so extra connections
+  // only queue up and strain the small internal buffer pool of the device.
   let fileManagerUploadBusy = false;
 
-  // Sequenzielle kleine Teile statt eines grossen POST: das Geraet hat nur
-  // wenig internen RAM fuer WLAN-Empfangspuffer. Ein grosser Upload laesst
-  // den Browser bis zu 64KB unbestaetigt vorausschicken und hat den
-  // SDIO-Empfangspfad reproduzierbar zum Absturz gebracht -- mit 16KB pro
-  // Request ist die maximale Menge "in der Luft" hart begrenzt.
+  // Sequential small chunks instead of one large POST: the device has little
+  // internal RAM for WLAN receive buffers. A large upload lets the browser send
+  // up to 64KB ahead unacknowledged, which reproducibly crashed the SDIO
+  // receive path. With 16KB per request the amount in flight stays bounded.
   const FILE_MANAGER_UPLOAD_PART_SIZE = 16 * 1024;
 
   async function uploadFileManagerFile() {
@@ -1632,6 +1651,19 @@ function t(key) {
     return trimmed === '-' || trimmed === 'none' || trimmed === 'null' || trimmed === 'no' || trimmed === 'off';
   }
 
+  // Mirrors appendHtmlEscaped() in src/web/web_admin_utils.cpp. The tile
+  // previews are assembled as markup strings, so every tile title, unit, value
+  // and icon name coming from a configuration or from Home Assistant has to be
+  // escaped before it is inserted.
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
   function normalizeMdiIconName(raw) {
     let iconName = String(raw || '').trim().toLowerCase();
     if (iconName.startsWith('mdi:')) iconName = iconName.substring(4);
@@ -1662,6 +1694,43 @@ function t(key) {
   function getTileTypeMeta(typeValue) {
     const key = String(typeValue ?? '0');
     return TILE_TYPE_REGISTRY[key] || TILE_TYPE_REGISTRY['0'] || {};
+  }
+
+  // Keeps the accessible name of a grid tile in step with its rendered content.
+  // The server emits the same name, so a tile stays announced correctly whether
+  // it came from the page load or from a live preview update.
+  function applyTileAriaLabel(tileElem, title, typeValue) {
+    if (!tileElem) return;
+    const label = String(title ?? '').trim() ||
+      String(getTileTypeMeta(typeValue).label || '').trim();
+    if (label) tileElem.setAttribute('aria-label', label);
+    else tileElem.removeAttribute('aria-label');
+  }
+
+  // Associates every plain <label> with the control it introduces. The field
+  // markup is generated by fourteen independent type modules plus the lazily
+  // injected folder fragments, and most of them emit
+  // "<label>Text</label><input id=...>" without a for attribute, so clicking
+  // the text does nothing and a screen reader announces the field unnamed.
+  // Deriving the association from the same adjacency a sighted user reads keeps
+  // it correct for every existing field and for every tile type added later,
+  // instead of repeating the id in fourteen generators.
+  const LABELABLE_CONTROLS = 'input:not([type="hidden"]), select, textarea';
+
+  function associateFieldLabels(root = document) {
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+    root.querySelectorAll('label:not([for])').forEach(label => {
+      // A label that already wraps its control needs no attribute.
+      if (label.querySelector(LABELABLE_CONTROLS)) return;
+      const control = label.nextElementSibling;
+      if (!control || !control.id) return;
+      if (!control.matches(LABELABLE_CONTROLS)) return;
+      // Do not steal a control that another label already points at.
+      const owner = document.querySelector(
+        'label[for="' + CSS.escape(control.id) + '"]');
+      if (owner && owner !== label) return;
+      label.htmlFor = control.id;
+    });
   }
 
   function syncTileTypeSelectValue(selectEl, typeValue) {
@@ -1707,8 +1776,9 @@ function t(key) {
     }
     el.value = keep;
     if (keep && el.value !== keep) {
-      // Gespeicherte Entity fehlt in der aktuellen Bridge-Liste (z.B. Bridge
-      // offline): Auswahl behalten statt sie beim naechsten Autosave zu leeren.
+      // The stored entity is missing from the current bridge list, for example
+      // while the bridge is offline. Keep the selection instead of clearing it
+      // on the next autosave.
       const opt = document.createElement('option');
       opt.value = keep;
       opt.textContent = keep;
@@ -1718,8 +1788,8 @@ function t(key) {
     if (keep) el.dataset.configuredValue = keep;
   }
 
-  // Eine Firmware-Abfrage reicht fuer alle Editoren. Der kurze Cache verhindert
-  // beim schnellen Wechseln zwischen Kacheln wiederholte grosse JSON-Antworten.
+  // One firmware request serves every editor. The short cache avoids repeated
+  // large JSON responses while switching quickly between tiles.
   function refreshEntityOptionLists(tab) {
     return fetchEntityOptions()
       .then(data => {
@@ -2056,10 +2126,10 @@ function t(key) {
       buttonTpl.innerHTML = String(data.button_html || '').trim();
       buttonEl = buttonTpl.content.firstElementChild;
       if (!buttonEl) return false;
-      const fixedBtn = Array.from(nav.querySelectorAll('.tab-btn')).find(btn =>
-        btn.getAttribute('onclick')?.includes("'tab-tiles-screensaver'")) ||
-        Array.from(nav.querySelectorAll('.tab-btn')).find(btn =>
-          btn.getAttribute('onclick')?.includes("'tab-network'"));
+      const navButtons = Array.from(nav.querySelectorAll('.tab-btn'));
+      const fixedBtn = navButtons.find(
+        btn => btn.dataset.tabTarget === 'tab-tiles-screensaver') ||
+        navButtons.find(btn => btn.dataset.tabTarget === 'tab-network');
       if (fixedBtn) nav.insertBefore(buttonEl, fixedBtn);
       else nav.appendChild(buttonEl);
     }
@@ -2087,10 +2157,12 @@ function t(key) {
     const screensaverTab = document.getElementById('tab-tiles-screensaver');
     networkTab.parentNode.insertBefore(tabEl, screensaverTab || networkTab);
     syncFolderFragmentWithRoot(tabEl);
+    associateFieldLabels(tabEl);
 
     initTileTabs();
     if (bindInteractions) {
       enableTileDrag(String(data.tab_id));
+      enableTileKeys(String(data.tab_id));
       enableTileResize(String(data.tab_id));
     }
     if (name !== null || icon !== null) {
@@ -2351,7 +2423,7 @@ function t(key) {
       const raw = localStorage.getItem(SELECTED_TILE_STORAGE_KEY);
       if (!raw) return;
       const saved = JSON.parse(raw);
-      // Migration vom bisherigen Format { tab, index } auf die Auswahl pro Tab.
+      // Migration from the previous { tab, index } format to a per-tab selection.
       if (saved && typeof saved.tab === 'string') {
         const index = Number(saved.index);
         if (Number.isInteger(index) && index >= 0 && index < TILES_PER_GRID) {
@@ -2633,7 +2705,7 @@ function t(key) {
       const raw = localStorage.getItem('tileDrafts');
       if (raw) {
         drafts = JSON.parse(raw);
-        // Drafts sollen nach Page-Refresh nicht gespeicherte Werte ueberschreiben.
+        // Drafts must not overwrite saved values after a page refresh.
         for (const tab in drafts) {
           const tabDrafts = drafts[tab];
           if (!tabDrafts) continue;
@@ -2651,17 +2723,6 @@ function t(key) {
       delete drafts[tab][index];
       persistDrafts();
     }
-  }
-
-  function swapDrafts(tab, fromIdx, toIdx) {
-    if (!drafts[tab]) return;
-    const fromVal = drafts[tab][fromIdx];
-    const toVal = drafts[tab][toIdx];
-    if (fromVal === undefined && toVal === undefined) return;
-    drafts[tab][toIdx] = fromVal;
-    if (toVal === undefined) delete drafts[tab][fromIdx];
-    else drafts[tab][fromIdx] = toVal;
-    persistDrafts();
   }
 
   function updateDraft(tab) {
@@ -2845,9 +2906,9 @@ function t(key) {
         tileSpecific.classList.remove('hidden');
       }
     }
-    // Die Live-Handler sofort anbinden. Bisher geschah das erst nach dem
-    // asynchronen GET der Kacheldaten; bis dahin reagierten Groesse, Position
-    // und Stil in der Screensaver-Vorschau sichtbar nicht.
+    // Bind the live handlers right away. This used to happen only after the
+    // asynchronous GET of the tile data, and until then size, position and style
+    // visibly did not react in the screensaver preview.
     setupLivePreview(tab);
     loadTileData(index, tab);
   }
@@ -3218,8 +3279,8 @@ function t(key) {
       return;
     }
     if (typeof parkClimateMiniEditor === 'function') {
-      // Eine Live-Aenderung baut den Preview-Inhalt neu auf. Die Auswahl
-      // des bearbeiteten Mini-Tiles muss diesen Render-Zyklus ueberleben.
+      // A live change rebuilds the preview content. The selection of the mini
+      // tile being edited has to survive that render cycle.
       parkClimateMiniEditor(tab, true);
     }
     const prefix = tab;
@@ -3334,7 +3395,7 @@ function t(key) {
         : (previewKind === 'cover'
           ? ' style="color:' + coverPreviewColor(coverPreviewState) + '"'
           : '');
-      html += '<i class="mdi mdi-' + iconName + ' tile-icon"' + iconStyle + '></i>';
+      html += '<i class="mdi mdi-' + escapeHtml(iconName) + ' tile-icon"' + iconStyle + '></i>';
     }
 
     let displayTitle = title;
@@ -3343,8 +3404,10 @@ function t(key) {
         titleFromEntity(cameraEntity);
     }
     if (displayTitle) {
-      html += '<div class="tile-title" id="' + tileId + '-title">' + displayTitle + '</div>';
+      html += '<div class="tile-title" id="' + tileId + '-title">' +
+        escapeHtml(displayTitle) + '</div>';
     }
+    applyTileAriaLabel(tileElem, displayTitle, type);
 
     if (previewKind === 'weather') {
       html += '<div class="tile-ghost-icon"><i class="mdi mdi-weather-partly-cloudy"></i></div>';
@@ -3368,7 +3431,8 @@ function t(key) {
                     coverPreviewState?.position !== undefined
         ? String(coverPreviewState.position) + '%' : '--%';
       html += '<div class="tile-value tile-cover-value">' +
-        coverPreviewStateText(coverPreviewState) + '<br>' + value + '</div>';
+        escapeHtml(coverPreviewStateText(coverPreviewState)) +
+        '<br>' + escapeHtml(value) + '</div>';
     }
 
     if (previewKind === 'sensor') {
@@ -3377,7 +3441,7 @@ function t(key) {
       const entity = entitySelect ? entitySelect.value : '';
       const unit = resolveUnitValue(unitInput ? unitInput.value : '', entity, sensorMetaCache.units);
       html += '<div class="tile-value ' + sensorValueClass + '" id="' + tileId + '-value">--';
-      if (unit) html += '<span class="tile-unit">' + unit + '</span>';
+      if (unit) html += '<span class="tile-unit">' + escapeHtml(unit) + '</span>';
       html += '</div>';
       if (entity) {
         tileElem.innerHTML = html;
@@ -3403,7 +3467,8 @@ function t(key) {
       if (textValue) {
         const textFont = document.getElementById(prefix + '_text_value_font')?.value || '0';
         const textClass = getSensorValueFontClass(textFont);
-        html += '<div class="tile-text ' + textClass + '">' + textValue + '</div>';
+        html += '<div class="tile-text ' + textClass + '">' +
+          escapeHtml(textValue) + '</div>';
       }
     }
 
@@ -3573,12 +3638,22 @@ function t(key) {
     syncFolderPinControls(tab);
   }
 
+  let notificationTimer = null;
+
   function showNotification(message, success = true) {
     const notification = document.getElementById('notification');
+    if (!notification) return;
+    // A single shared timer. Every call used to schedule its own, so the timeout
+    // of an earlier message hid the next one long before its three seconds were
+    // up - easy to hit because autosave reports on every field change.
+    if (notificationTimer) clearTimeout(notificationTimer);
     notification.textContent = message;
-    notification.style.background = success ? '#43a047' : '#ef4444';
+    notification.classList.toggle('is-error', !success);
     notification.classList.add('show');
-    setTimeout(() => { notification.classList.remove('show'); }, 3000);
+    notificationTimer = setTimeout(() => {
+      notificationTimer = null;
+      notification.classList.remove('show');
+    }, 3000);
   }
 
   function scheduleAutoSave(tab, tileIndexOverride = null) {
@@ -3601,8 +3676,8 @@ function t(key) {
     const sel = document.getElementById(tab + '_tile_type');
     if (sel) {
       for (const opt of sel.options) {
-        // Ordner behalten und Leeren/Loeschen bleiben erlaubt; alle anderen
-        // Typen sind gesperrt, solange der Ordner noch Kacheln enthaelt.
+        // Keeping the folder and emptying or deleting it stay allowed; every
+        // other type is locked while the folder still contains tiles.
         opt.disabled = locked && opt.value !== '4' && opt.value !== '0';
       }
     }
@@ -4053,8 +4128,8 @@ function t(key) {
       }));
     }
 
-    // Bei einem Import zwischen 7xN und 4xN wird die relative Anordnung in
-    // den beiden unteren Reihen beibehalten und auf das Zielraster gepackt.
+    // An import between 7xN and 4xN keeps the relative arrangement of the two
+    // bottom rows and packs it into the target grid.
     const firstTargetRow = Math.max(0, GRID_ROWS - 2);
     const firstSourceRow = sourceRows > 1 ? sourceRows - 2 : 0;
     const occupied = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(false));
@@ -4120,8 +4195,8 @@ function t(key) {
       }
     }
 
-    // Erst vorhandene Kacheln entfernen, damit die importierten Positionen
-    // nicht an temporaeren Ueberlappungen mit dem alten Grid scheitern.
+    // Remove the existing tiles first so the imported positions do not fail on
+    // temporary overlaps with the old grid.
     for (let i = 0; i < tileCount; i++) {
       if (Number(currentTiles[i]?.type || 0) !== 0) {
         await postTile(folderId, i, buildEmptyImportTile(i));
@@ -4201,9 +4276,9 @@ function t(key) {
         throw new Error('Folder mapping failed');
       }
 
-      // Version 1/2 hatten keinen Screensaver-Block und bleiben unveraendert
-      // importierbar. Auch alternative flache Feldnamen werden akzeptiert,
-      // falls ein Zwischenstand dieser Exportfunktion verwendet wurde.
+      // Versions 1 and 2 had no screensaver block and stay importable
+      // unchanged. Alternative flat field names are accepted as well, in case an
+      // intermediate state of this export function was used.
       const screensaverBlock = payload.screensaver && typeof payload.screensaver === 'object'
         ? payload.screensaver
         : null;
@@ -4221,7 +4296,7 @@ function t(key) {
       showNotification(t('importComplete'));
       setTimeout(() => location.reload(), 600);
     } catch (e) {
-      console.error('Import fehlgeschlagen:', e);
+      console.error('Tile import failed:', e);
       showNotification(t('importFailed'), false);
     }
   }
@@ -4539,7 +4614,7 @@ function t(key) {
           : (previewKind === 'cover'
             ? ' style="color:' + coverPreviewColor(coverPreviewState) + '"'
             : '');
-        html += '<i class="mdi mdi-' + iconName + ' tile-icon"' + iconStyle + '></i>';
+        html += '<i class="mdi mdi-' + escapeHtml(iconName) + ' tile-icon"' + iconStyle + '></i>';
       }
 
       let displayTitle = tile.title || '';
@@ -4548,8 +4623,10 @@ function t(key) {
           titleFromEntity(tile.sensor_entity);
       }
       if (displayTitle.length) {
-        html += '<div class="tile-title" id="' + tab + '-tile-' + index + '-title">' + displayTitle + '</div>';
+        html += '<div class="tile-title" id="' + tab + '-tile-' + index + '-title">' +
+          escapeHtml(displayTitle) + '</div>';
       }
+      applyTileAriaLabel(el, displayTitle, typeValue);
 
       if (previewKind === 'weather') {
         html += '<div class="tile-ghost-icon"><i class="mdi mdi-weather-partly-cloudy"></i></div>';
@@ -4562,7 +4639,10 @@ function t(key) {
         let value = '--';
         if (tile.sensor_entity) value = formatSensorValue(metaValues[tile.sensor_entity] ?? '--', tile.sensor_decimals);
         const unit = resolveUnitValue(tile.sensor_unit || '', tile.sensor_entity || '', metaUnits);
-        html += '<div class="tile-value ' + sensorValueClass + '" id="' + tab + '-tile-' + index + '-value">' + value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '') + '</div>';
+        html += '<div class="tile-value ' + sensorValueClass + '" id="' + tab + '-tile-' + index + '-value">' +
+          escapeHtml(value) +
+          (unit ? '<span class="tile-unit">' + escapeHtml(unit) + '</span>' : '') +
+          '</div>';
       }
       if (previewKind === 'climate') {
         html += climatePreviewSlots(
@@ -4578,8 +4658,8 @@ function t(key) {
                       coverPreviewState?.position !== undefined
           ? String(coverPreviewState.position) + '%' : '--%';
         html += '<div class="tile-value tile-cover-value">' +
-          coverPreviewStateText(coverPreviewState) +
-          '<br>' + value + '</div>';
+          escapeHtml(coverPreviewStateText(coverPreviewState)) +
+          '<br>' + escapeHtml(value) + '</div>';
       }
       if (previewKind === 'clock') {
         const flags = normalizeClockFlags(tile.sensor_decimals);
@@ -4594,7 +4674,8 @@ function t(key) {
         const textValue = tile.text_value || tile.scene_alias || tile.key_macro || '';
         if (textValue) {
           const textClass = getSensorValueFontClass(tile.sensor_value_font);
-          html += '<div class="tile-text ' + textClass + '">' + textValue + '</div>';
+          html += '<div class="tile-text ' + textClass + '">' +
+            escapeHtml(textValue) + '</div>';
         }
       }
       if (previewKind === 'switch' && tile.switch_style === 1) {
@@ -4653,9 +4734,9 @@ function t(key) {
 
     return Promise.all([fetchSensorMetaCache(forceMetaFetch), ...tileRequests])
     .then(results => {
-      // Eine Aktualisierung kann kurz vor dem Drag gestartet worden sein und
-      // erst waehrenddessen eintreffen. In diesem Fall darf sie die lokale
-      // Vorschau nicht mit dem alten Geraetezustand ueberschreiben.
+      // A refresh may have started shortly before the drag and only arrive
+      // during it. In that case it must not overwrite the local preview with the
+      // old device state.
       if (dragSource || resizeState) {
         queueDeferredSensorRefresh(refreshTiles);
         return;
@@ -4680,7 +4761,7 @@ function t(key) {
       return true;
     })
     .catch(err => {
-      console.error('Fehler beim Laden der Sensorwerte:', err);
+      console.error('Sensor values load failed:', err);
       return false;
     });
   }
@@ -4761,9 +4842,9 @@ function t(key) {
       ? gridRows[0]
       : ((rect.height - padTop - padBottom -
           (gapY * (rowCount - 1))) / rowCount);
-    // Bei align-content:space-between (Klima-Slots) liegt der wirksame
-    // Reihenabstand ueber dem nominalen gap; aus der Restflaeche ableiten,
-    // damit Pointer->Zelle auch dort stimmt. Fuer 1fr-Grids identisch.
+    // With align-content:space-between (Climate slots) the effective row
+    // spacing exceeds the nominal gap. Derive it from the leftover area so the
+    // pointer-to-cell mapping is correct there too; identical for 1fr grids.
     let effGapX = gapX;
     let effGapY = gapY;
     if (columnCount > 1 && isFinite(cellW)) {
@@ -5341,10 +5422,9 @@ function t(key) {
       applyLayoutInputsFromLayout(state.tab, finalLayout, false);
       if (commit && state.climateState &&
           typeof previewClimateOuterResize === 'function') {
-        // Die neue Parent- und Mini-Geometrie wird erst beim Loslassen im
-        // selben JavaScript-Schritt angewendet. Dadurch gibt es keinen Frame,
-        // in dem das alte Mini-Raster in die neue Parent-Groesse gequetscht
-        // oder gestreckt wird.
+        // The new parent and mini geometry is applied on release, within the
+        // same JavaScript step. That leaves no frame in which the old mini grid
+        // is squeezed into or stretched over the new parent size.
         previewClimateOuterResize(
           state.tab, state.climateState);
       }
@@ -5377,10 +5457,9 @@ function t(key) {
     updateResizePlaceholder(resizeState.tab, candidate, valid);
     if (!valid) return;
 
-    // Beim Ziehen bleibt die echte Kachel unveraendert. Nur der gestrichelte
-    // Resize-Platzhalter zeigt das Ziel. Das verhindert fuer alle Richtungen
-    // und Groessen, dass Mini-Tiles zwischen Pointer-Frames gestreckt oder
-    // zusammengestaucht werden.
+    // While dragging, the real tile stays unchanged and only the dashed resize
+    // placeholder shows the target. That keeps mini tiles from being stretched
+    // or squeezed between pointer frames, in every direction and size.
     resizeState.lastValidLayout = cloneLayout(candidate);
   }
 
@@ -5602,6 +5681,25 @@ function t(key) {
   function restoreDragPreviewFromSnapshot(tab, snapshot) {
     restoreLocalTileReorder(tab, snapshot);
     restoreDragPreview(tab);
+  }
+
+  // The grid tiles are role="button" with tabindex, so they also have to answer
+  // Enter and Space. One delegated listener per grid element survives every tile
+  // re-render, and the flag keeps a rebound folder from stacking duplicates.
+  function enableTileKeys(tab) {
+    const grid = getTileGrid(tab);
+    if (!grid || grid.dataset.keysBound === '1') return;
+    grid.dataset.keysBound = '1';
+    grid.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ' &&
+          event.key !== 'Spacebar') return;
+      const tile = event.target.closest('.tile[data-index]');
+      if (!tile || tile.parentElement !== grid) return;
+      event.preventDefault();
+      const index = parseInt(tile.dataset.index, 10);
+      if (Number.isNaN(index)) return;
+      selectTile(index, tab);
+    });
   }
 
   function enableTileDrag(tab) {
@@ -5873,9 +5971,9 @@ function t(key) {
       if (data.success) {
         showNotification(t('tilesMovedSaved'));
         clearDeferredSensorRefresh();
-        // applyLocalTileReorder hat den bestaetigten Stand bereits gesetzt.
-        // Kein komplettes Grid-Reload: das wuerde sichtbar zum alten Stand
-        // und wieder zur neuen Position springen koennen.
+        // applyLocalTileReorder already stored the confirmed state. No full grid
+        // reload: that could visibly jump back to the old state and then forward
+        // to the new position again.
       } else {
         if (dragSource && dragSource.tab === tab) dragSource.dropCommitted = false;
         clearDeferredSensorRefresh();
@@ -5890,8 +5988,6 @@ function t(key) {
       showNotification(t('networkErrorMove'), false);
     });
   }
-
-  function loadTileDataAndSelect(tab, index) { selectTile(index, tab); }
 
   function getTopLeftConfiguredTileIndex(tab) {
     let selectedIndex = -1;
@@ -6113,13 +6209,15 @@ function t(key) {
         screensaverWallpaperIndex = index;
         renderScreensaverEditor();
       });
-      // Gleiche Chevron-Grafik wie der Pfeil der Select-Felder.
+      // Same chevron graphic as the arrow of the select fields.
       const chevronSvg = dir =>
         '<svg width="12" height="8" viewBox="0 0 12 8" aria-hidden="true"><path d="' +
         (dir < 0 ? 'M1 6.5l5-5 5 5' : 'M1 1.5l5 5 5-5') +
         '" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       const up = document.createElement('button');
       up.type = 'button'; up.className = 'screensaver-wallpaper-move'; up.innerHTML = chevronSvg(-1);
+      up.setAttribute('aria-label', t('moveUp'));
+      up.title = t('moveUp');
       up.disabled = index === 0;
       up.addEventListener('click', () => {
         if (index === 0) return;
@@ -6129,6 +6227,8 @@ function t(key) {
       });
       const down = document.createElement('button');
       down.type = 'button'; down.className = 'screensaver-wallpaper-move'; down.innerHTML = chevronSvg(1);
+      down.setAttribute('aria-label', t('moveDown'));
+      down.title = t('moveDown');
       down.disabled = index === screensaverDraft.wallpapers.length - 1;
       down.addEventListener('click', () => {
         if (down.disabled) return;
@@ -6206,8 +6306,8 @@ function t(key) {
     date.style.width = 'auto';
     time.style.textAlign = ssClockAlignmentCss(d.time_alignment);
     date.style.textAlign = ssClockAlignmentCss(d.date_alignment);
-    // Beide Zeilen erhalten die Breite der laengeren Zeile. Dadurch ist die
-    // Ausrichtung im Browser dieselbe wie im kompakten LVGL-Uhr-Container.
+    // Both lines take the width of the longer line, so the alignment in the
+    // browser matches the compact LVGL clock container.
     const clockLineWidth = Math.ceil(Math.max(
       time.hidden ? 0 : time.getBoundingClientRect().width,
       date.hidden ? 0 : date.getBoundingClientRect().width));
@@ -6386,7 +6486,9 @@ function t(key) {
     bind('screensaverFocusY', 'input', el => { const w = ssCurrentWallpaper(); if (w) w.focus_y = Number(el.value); }, false);
     bind('screensaverFocusY', 'change', el => { const w = ssCurrentWallpaper(); if (w) w.focus_y = Number(el.value); });
 
-    window.addEventListener('resize', () => { if (screensaverLoaded) renderScreensaverEditor(); });
+    window.addEventListener('resize', perFrame(() => {
+      if (screensaverLoaded) renderScreensaverEditor();
+    }));
   }
 
   let hardwareIoModel = null;
@@ -6869,8 +6971,8 @@ function t(key) {
     loadSelectedTileStates();
     loadDraftsFromStorage();
     loadTileClipboard();
-    // Nach einem Browser-Neuladen auf dem zuletzt geoeffneten Admin-Tab
-    // bleiben. Nur wenn dieser nicht mehr existiert, auf Home zurueckfallen.
+    // Stay on the admin tab that was open before a browser reload. Fall back to
+    // Home only when that tab no longer exists.
     const homeTab = tabByFolder[0] || tileTabs[0];
     const initialFolderId = folderIdFromAdminTabName(initialTab);
     const initialTabKnown = initialTab && (
@@ -6892,9 +6994,11 @@ function t(key) {
     }, 15000);
     tileTabs.forEach(tab => {
       enableTileDrag(tab);
+      enableTileKeys(tab);
       enableTileResize(tab);
     });
     enableSettingsHiddenSlot();
+    associateFieldLabels();
     fillStaticClockPreviews();
     setInterval(fillStaticClockPreviews, 30000);
     updateTileSettingsMaxHeight();
@@ -6932,7 +7036,8 @@ function maybeFillTitleFromSensor(tab) {
       const valueElem = document.getElementById(tab + '-tile-' + currentTileIndex + '-value');
       if (valueElem) {
         const unit = resolveUnitValue(unitInput ? unitInput.value : '', '', sensorMetaCache.units);
-        valueElem.innerHTML = '--' + (unit ? '<span class="tile-unit">' + unit + '</span>' : '');
+        valueElem.innerHTML = '--' +
+          (unit ? '<span class="tile-unit">' + escapeHtml(unit) + '</span>' : '');
         applySensorValueFontClass(valueElem, valueFontSelect ? valueFontSelect.value : '0');
       }
       return;
@@ -6944,14 +7049,15 @@ function maybeFillTitleFromSensor(tab) {
         const decimals = decimalsInput ? decimalsInput.value : '';
         const value = formatSensorValue(values[entity] ?? '--', decimals);
         const unit = resolveUnitValue(unitInput ? unitInput.value : '', entity, (meta && meta.units) || {});
-        valueElem.innerHTML = value + (unit ? '<span class="tile-unit">' + unit + '</span>' : '');
+        valueElem.innerHTML = escapeHtml(value) +
+          (unit ? '<span class="tile-unit">' + escapeHtml(unit) + '</span>' : '');
         applySensorValueFontClass(valueElem, valueFontSelect ? valueFontSelect.value : '0');
       }
     };
     const metaPromise = isSensorMetaCacheLoaded() ? Promise.resolve(sensorMetaCache) : fetchSensorMetaCache();
     metaPromise
       .then(meta => applyMeta(meta))
-      .catch(err => console.error('Fehler beim Laden des Sensorwerts:', err));
+      .catch(err => console.error('Sensor value load failed:', err));
   }
 
   function normalizeSensorValueFont(value) {
@@ -7093,13 +7199,15 @@ function maybeFillTitleFromEnergy(tab) {
       const decimals = decimalsInput ? decimalsInput.value : '1';
       const value = entity ? formatSensorValue(values[entity] ?? '--', decimals) : '--';
       const unit = resolveUnitValue(unitInput ? unitInput.value : '', entity, (meta && meta.units) || {});
-      valueElem.innerHTML = value + (unit && value !== '--' ? '<span class="tile-unit">' + unit + '</span>' : '');
+      valueElem.innerHTML = escapeHtml(value) +
+        (unit && value !== '--'
+          ? '<span class="tile-unit">' + escapeHtml(unit) + '</span>' : '');
       applySensorValueFontClass(valueElem, valueFontSelect ? valueFontSelect.value : '0');
     };
     const metaPromise = isSensorMetaCacheLoaded() ? Promise.resolve(sensorMetaCache) : fetchSensorMetaCache();
     metaPromise
       .then(meta => applyMeta(meta))
-      .catch(err => console.error('Fehler beim Laden des Energy-Werts:', err));
+      .catch(err => console.error('Energy value load failed:', err));
   }
 
   function loadEnergyFields(tab, data) {
@@ -7245,8 +7353,8 @@ function normalizeIconName(value) {
       }
       const btn = document.querySelector(
         '.folder-tab-btn[data-folder-id="' + folderNum + '"]') ||
-        Array.from(document.querySelectorAll('.tab-btn')).find(b =>
-          b.getAttribute('onclick')?.includes('tab-tiles-' + tabId));
+        Array.from(document.querySelectorAll('.tab-btn')).find(
+          b => b.dataset.tabTarget === 'tab-tiles-' + tabId);
       if (btn) {
         btn.dataset.folderName = label;
         btn.dataset.folderIcon = iconName;
@@ -7624,7 +7732,7 @@ function maybeFillTitleFromSwitch(tab) {
     const metaPromise = isSensorMetaCacheLoaded() ? Promise.resolve(sensorMetaCache) : fetchSensorMetaCache();
     metaPromise
       .then(meta => applyMeta(meta))
-      .catch(err => console.error('Fehler beim Laden des Switch-Status:', err));
+      .catch(err => console.error('Switch state load failed:', err));
   }
 
   function loadSwitchFields(tab, data) {
@@ -7812,31 +7920,6 @@ function maybeFillTitleFromMedia(tab) {
     maybeFillTitleFromEntity(tab, '_media_entity');
   }
 
-  function parseMediaPreviewPayload(value) {
-    const out = { title: '--', subtitle: '--', state: '--' };
-    if (value === undefined || value === null) return out;
-    const text = String(value).trim();
-    if (!text.length) return out;
-    if (text.startsWith('{')) {
-      try {
-        const obj = JSON.parse(text);
-        if (obj && typeof obj === 'object') {
-          out.title = obj.media_title || obj.media_channel || obj.state || '--';
-          out.subtitle = obj.media_artist || obj.media_album_name || obj.app_name || obj.source || '--';
-          out.state = obj.state || '--';
-          if (obj.volume_level !== undefined && obj.volume_level !== null) {
-            const pct = Math.max(0, Math.min(100, Math.round(Number(obj.volume_level) * 100)));
-            out.state = (out.state && out.state !== '--') ? (out.state + '  ' + pct + '%') : (pct + '%');
-          }
-        }
-      } catch (e) {}
-      return out;
-    }
-    out.title = text;
-    out.state = text;
-    return out;
-  }
-
   function updateMediaValuePreview(tab) {
     // Media tiles stay intentionally simple in the WebUI preview:
     // only icon and configured tile title are shown.
@@ -7950,13 +8033,6 @@ function maybeFillTitleFromMedia(tab) {
       spanH: Math.max(
         1, Math.min(maxRows, Number(item?.spanH) || 1))
     };
-  }
-
-  function climateGeometryEquals(a, b) {
-    return a.col === b.col &&
-      a.row === b.row &&
-      a.spanW === b.spanW &&
-      a.spanH === b.spanH;
   }
 
   function defaultClimateGeometry(
@@ -8196,14 +8272,6 @@ function maybeFillTitleFromMedia(tab) {
     return null;
   }
 
-  function firstFreeClimateCell(
-      items, configured, capacity, columns, rows,
-      ignoreIndex = -1) {
-    return firstFreeClimatePlacement(
-      items, configured, capacity, columns, rows,
-      ignoreIndex, 1, 1);
-  }
-
   function notifyClimateGridChanged(tab) {
     updateTilePreview(tab);
     updateDraft(tab);
@@ -8214,9 +8282,9 @@ function maybeFillTitleFromMedia(tab) {
   let climateGridDragPreview = null;
 
   function createClimateMiniDragGhost(item, rect) {
-    // Slot-Styles (Grid-Layout der Regler usw.) sind unter .tile.climate
-    // gescopet; ein nackter Klon in document.body verliert sie und zerfaellt
-    // zu Fliesstext. Der Wrapper stellt den Selektor-Kontext wieder her.
+    // The slot styles (grid layout of the controls and so on) are scoped under
+    // .tile.climate. A bare clone in document.body loses them and collapses into
+    // running text, so the wrapper restores the selector context.
     const ghost = document.createElement('div');
     ghost.className =
       'tile climate climate-content-editing climate-mini-drag-ghost';
@@ -8917,7 +8985,7 @@ function maybeFillTitleFromMedia(tab) {
         '<div class="climate-slot climate-slot-control ' +
         'climate-slot-control-compact">' +
         '<span class="climate-minus" aria-hidden="true">-</span>' +
-        '<strong>' + info.value + '</strong>' +
+        '<strong>' + escapeHtml(info.value) + '</strong>' +
         '<span class="climate-plus" aria-hidden="true">+</span></div>';
       return;
     }
@@ -8931,9 +8999,9 @@ function maybeFillTitleFromMedia(tab) {
       preview.innerHTML =
         '<div class="climate-slot climate-slot-control ' +
         orientation + '">' +
-        '<small>' + info.label + '</small>' +
+        '<small>' + escapeHtml(info.label) + '</small>' +
         '<span class="climate-minus">-</span>' +
-        '<strong>' + info.value + '</strong>' +
+        '<strong>' + escapeHtml(info.value) + '</strong>' +
         '<span class="climate-plus">+</span></div>';
       return;
     }
@@ -8941,7 +9009,7 @@ function maybeFillTitleFromMedia(tab) {
       '<div class="climate-slot climate-slot-value' +
       (resolvedKind === CLIMATE_TILE_CONTENT.HVAC_MODE
         ? ' climate-slot-mode' : '') + '">' +
-      '<strong>' + info.value + '</strong></div>';
+      '<strong>' + escapeHtml(info.value) + '</strong></div>';
   }
 
   function selectClimateEditorItem(
@@ -9023,9 +9091,9 @@ function maybeFillTitleFromMedia(tab) {
     const resolved = climateResolvedEditorKinds(tab);
     const active = new Set();
     for (let index = 0; index < capacity; ++index) {
-      // Nur real platzierte Items zaehlen: syncClimateSlotFields blendet
-      // Slots ohne freien Platz aus; deren gespeicherte Geometrie darf
-      // Drag/Resize nicht als Phantom-Belegung blockieren.
+      // Count only items that are actually placed: syncClimateSlotFields hides
+      // slots without free space, and their stored geometry must not block drag
+      // and resize as a phantom occupancy.
       const item = document.getElementById(
         tab + '_climate_slot_row_' + index);
       if (Number(configured[index]) !== CLIMATE_TILE_CONTENT.EMPTY &&
@@ -10323,7 +10391,8 @@ function maybeFillTitleFromMedia(tab) {
               ? ' climate-slot-mode' : '') +
             '" data-climate-preview-item="' +
             slot.itemIndex + '" style="' +
-            gridStyle + '"><strong>' + slot.value + '</strong></div>';
+            gridStyle + '"><strong>' + escapeHtml(slot.value) +
+            '</strong></div>';
         }
         if (compact) {
           return '<div class="climate-slot climate-slot-control ' +
@@ -10331,7 +10400,7 @@ function maybeFillTitleFromMedia(tab) {
             'data-climate-preview-item="' +
             slot.itemIndex + '" style="' + gridStyle + '">' +
             '<span class="climate-minus" aria-hidden="true">-</span>' +
-            '<strong>' + slot.value + '</strong>' +
+            '<strong>' + escapeHtml(slot.value) + '</strong>' +
             '<span class="climate-plus" aria-hidden="true">+</span></div>';
         }
         const controlClass = horizontal
@@ -10348,9 +10417,10 @@ function maybeFillTitleFromMedia(tab) {
           controlClass +
           '" data-climate-preview-item="' +
           slot.itemIndex + '" style="' + gridStyle + '">' +
-          '<small>' + slot.caption + '</small>' +
+          '<small>' + escapeHtml(slot.caption) + '</small>' +
           '<span class="climate-minus">-</span><strong>' +
-          slot.value + '</strong><span class="climate-plus">+</span></div>';
+          escapeHtml(slot.value) +
+          '</strong><span class="climate-plus">+</span></div>';
       }).join('') +
       '</div>';
   }
@@ -10571,7 +10641,7 @@ function getClockPreviewLanguage() {
 
   function getClockPreviewCssPx(raw, fallback) {
     const n = normalizeClockPreviewFont(raw, fallback);
-    // Gleiche Skalierung wie die CSS-Variablen (LVGL-Pixel * Vorschau-Faktor)
+    // Same scaling as the CSS variables (LVGL pixels * preview factor).
     const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--fs' + n));
     return (v > 0) ? v : Math.round(n / 2);
   }

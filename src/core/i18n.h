@@ -206,6 +206,8 @@ struct Strings {
   const char* js_no_layout_found;
   const char* js_tiles_moved_saved;
   const char* js_move_failed;
+  const char* js_move_up;
+  const char* js_move_down;
   const char* js_network_error_move;
   const char* js_screenshot_creating;
   const char* js_screenshot_saved;

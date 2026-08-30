@@ -61,11 +61,11 @@ bool is_light_entity_id(const String& entity_id);
 void update_switch_tile_state(GridType grid_type, uint8_t grid_index, const char* payload);
 void update_media_tile_state(GridType grid_type, uint8_t grid_index, const char* payload);
 
-// Beim Zerstoeren einer Media-Karte (LV_EVENT_DELETE) aufrufen: nullt alle
-// Widget-Array-Eintraege, die noch auf diesen (gleich freigegebenen) Ref
-// zeigen. Ohne das behaelt z.B. ein per Web-Admin geloeschter Tile-Slot
-// seinen Eintrag dauerhaft und der Cover-Retry liest freigegebenen Speicher
-// (Absturz "Load access fault" in String::startsWith, v0.4.16-Coredump).
+// Call when a media card is destroyed (LV_EVENT_DELETE): clears every widget
+// array entry that still points at the reference about to be freed. Without it a
+// tile slot deleted through Web Admin keeps its entry forever and the cover
+// retry reads freed memory, which crashed as "Load access fault" in
+// String::startsWith (v0.4.16 core dump).
 void tile_renderer_forget_media_widgets(const MediaCoverRef* ref);
 
 static inline uint32_t brighten_rgb_color(uint32_t color, uint8_t delta) {
@@ -85,11 +85,11 @@ static inline void disable_pressed_button_animation(lv_obj_t* obj) {
   lv_obj_set_style_translate_y(obj, 0, LV_PART_MAIN | LV_STATE_PRESSED);
 }
 
-// Ein vorgeladenes Popup wird im Klick-Callback sofort eingeblendet. Ist der
-// letzte Press-/Release-Refresh der auslösenden Kachel noch offen, rendert
-// LVGL deren rechteckige Dirty-Fläche bereits mit einem einzelnen Ausschnitt
-// des Popups. Den Button deshalb zuerst vollständig in den Normalzustand
-// zeichnen; anschließend kann das Popup sauber von oben nach unten erscheinen.
+// A preloaded popup is shown immediately from the click callback. If the last
+// press/release refresh of the triggering tile is still pending, LVGL renders
+// that tile's rectangular dirty area with a single slice of the popup already.
+// So draw the button fully back to its normal state first; the popup can then
+// appear cleanly from top to bottom.
 static inline void finish_press_before_popup(lv_event_t* event) {
   if (!event) return;
   lv_obj_t* source = static_cast<lv_obj_t*>(lv_event_get_target(event));

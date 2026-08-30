@@ -8,10 +8,10 @@
 #include <utility>
 #include <esp_heap_caps.h>
 
-// Allocator, der alles in den PSRAM legt (MALLOC_CAP_SPIRAM). Der Standard-
-// malloc routet kleine Allokationen IMMER in den internen Heap -- std::map-
-// Knoten und String-Puffer des Entity-Index wuerden sonst die knappen ~236KB
-// internes SRAM belegen, die fuer UI-Renderband und WiFi reserviert sind.
+// Allocator that puts everything into PSRAM (MALLOC_CAP_SPIRAM). The default
+// malloc ALWAYS routes small allocations into the internal heap, so the
+// std::map nodes and string buffers of the entity index would otherwise consume
+// the scarce ~236KB of internal SRAM reserved for the UI render band and WiFi.
 template <typename T>
 struct PsramAllocator {
   using value_type = T;
@@ -20,8 +20,8 @@ struct PsramAllocator {
   PsramAllocator(const PsramAllocator<U>&) noexcept {}
   T* allocate(size_t n) {
     void* p = heap_caps_malloc(n * sizeof(T), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    // Notnagel interner Heap: ein Allocator darf nie nullptr liefern, der
-    // Container wuerde sonst an Adresse 0 schreiben.
+    // Last resort, the internal heap: an allocator must never return nullptr
+    // because the container would then write to address 0.
     if (!p) p = heap_caps_malloc(n * sizeof(T), MALLOC_CAP_8BIT);
     if (!p) abort();
     return static_cast<T*>(p);
@@ -33,16 +33,16 @@ struct PsramAllocator {
   bool operator!=(const PsramAllocator<U>&) const noexcept { return false; }
 };
 
-// std::string mit PSRAM-Allocator: kurze Werte (<=15 Zeichen, SSO) leben
-// direkt im Map-Knoten (der selbst im PSRAM liegt), laengere Puffer holt der
-// Allocator ebenfalls aus dem PSRAM. Arduino String kann das nicht -- seine
-// Puffer kommen immer aus dem internen Heap.
+// std::string with the PSRAM allocator: short values (<=15 characters, SSO)
+// live directly in the map node, which is itself in PSRAM, and the allocator
+// takes longer buffers from PSRAM as well. Arduino String cannot do this; its
+// buffers always come from the internal heap.
 using PsString = std::basic_string<char, std::char_traits<char>, PsramAllocator<char>>;
 
-// Case-insensitive geordnete Map fuer Entity-Keys -- die Text-Blob-Maps
-// unten matchen Keys ueberall mit strncasecmp/equalsIgnoreCase, der Index
-// muss sich identisch verhalten. is_transparent erlaubt find(const char*)
-// ohne temporaere Key-Kopie.
+// Case-insensitive ordered map for entity keys. The text blob maps below match
+// keys with strncasecmp/equalsIgnoreCase everywhere, so the index has to behave
+// identically. is_transparent allows find(const char*) without a temporary copy
+// of the key.
 struct HaEntityKeyLess {
   using is_transparent = void;
   bool operator()(const PsString& a, const PsString& b) const {
@@ -100,9 +100,9 @@ public:
   String findSensorName(const String& entity_id) const;
   String findSensorInitialValue(const String& entity_id) const;
   String findEntityIcon(const String& entity_id) const;
-  // const char*-Varianten fuer Aufrufer, die selbst keine Arduino Strings
-  // halten (z.B. der PSRAM-Ordner-Entity-Cache) -- dank is_transparent
-  // komplett allokationsfrei bis auf den Rueckgabewert.
+  // const char* variants for callers that hold no Arduino Strings themselves,
+  // such as the PSRAM folder entity cache. Thanks to is_transparent these are
+  // free of allocations except for the return value.
   String findSensorUnit(const char* entity_id) const;
   String findSensorName(const char* entity_id) const;
   String findSensorInitialValue(const char* entity_id) const;
@@ -122,21 +122,21 @@ public:
 private:
   HaBridgeConfigData data;
 
-  // Lookup-Index ueber den 4 "key=value\n"-Text-Blobs (sensor_units_map etc.).
-  // Die Blobs bleiben das fuehrende Format (Web-Admin liest sie direkt,
-  // applyJson tauscht sie als Ganzes) -- aber ALLE find*-Lookups laufen ueber
-  // diese Maps statt den Blob linear zu durchsuchen. Ein einziger Lookup auf
-  // einem ueber die Laufzeit gewachsenen Blob war fuer sich allein schon ein
-  // mehrere-ms-Block; der Bridge-Cache-Refresh macht ~150 davon am Stueck
-  // (gemessen: bridge_cache=2324ms im [LoopGap]-Log). Bewusst NICHT in
-  // HaBridgeConfigData: applyJson kopiert das ganze struct (merged = data),
-  // die Indexe sollen da nicht mitkopiert werden.
+  // Lookup index over the four "key=value\n" text blobs (sensor_units_map and
+  // friends). The blobs stay the leading format, because Web Admin reads them
+  // directly and applyJson swaps them as a whole, but EVERY find* lookup goes
+  // through these maps instead of scanning the blob linearly. A single lookup on
+  // a blob that had grown over runtime was already a multi-millisecond block on
+  // its own, and the bridge cache refresh does about 150 of them in a row
+  // (measured: bridge_cache=2324ms in the [LoopGap] log). Deliberately NOT part
+  // of HaBridgeConfigData: applyJson copies that whole struct (merged = data)
+  // and the indexes must not be copied along.
   HaEntityKeyMap units_index_;
   HaEntityKeyMap names_index_;
   HaEntityKeyMap values_index_;
   HaEntityKeyMap icons_index_;
-  // Nach jedem Blob-Komplett-Austausch aufrufen (load/save/applyJson); die
-  // Einzel-Updates (updateSensorValue etc.) pflegen Blob und Index parallel.
+  // Call after every complete blob swap (load/save/applyJson). The single-value
+  // updates such as updateSensorValue() maintain blob and index together.
   void rebuildEntityIndexes();
 
   static void appendJsonEscaped(String& out, const String& value);

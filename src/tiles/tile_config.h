@@ -67,9 +67,9 @@ static inline void clamp_media_tile_span(TileType type, uint8_t& span_w, uint8_t
   if (span_h > MEDIA_TILE_MAX_SPAN) span_h = MEDIA_TILE_MAX_SPAN;
 }
 
-// Ein Media-Tile darf am rechten/unteren Rand nicht wieder unter sein
-// 2x2-Minimum gekuerzt werden. In diesem Fall die Position nach innen
-// verschieben; fuer andere Tile-Typen bleibt das bisherige Layout unveraendert.
+// A media tile must not be clipped back below its 2x2 minimum at the right or
+// bottom edge. Move its position inwards in that case; the layout of every other
+// tile type stays as it is.
 static inline void clamp_media_tile_layout(TileType type,
                                            uint8_t& col, uint8_t& row,
                                            uint8_t& span_w, uint8_t& span_h) {
@@ -97,9 +97,9 @@ struct Tile {
   String title;
   String icon_name;
   uint32_t bg_color;
-  // Fuer normale Kacheln derzeit immer voll deckend. Der Screensaver nutzt
-  // dasselbe Tile-Objekt und kann damit seinen Hintergrund transparent
-  // zeichnen. Persistiert im bereits vorhandenen Reserved-Byte von V7.
+  // Currently always fully opaque for normal tiles. The screensaver uses the
+  // same tile object and can draw its background transparently through this.
+  // Persisted in the reserved byte V7 already carries.
   uint8_t background_opacity;
 
   uint8_t col;
@@ -524,10 +524,10 @@ struct TileEntitySlot {
   String sensor_entity;
 };
 
-// Read-only-Sicht auf einen Slot des PSRAM-Ordner-Entity-Caches (siehe
-// TileConfig::getFolderEntitiesCached). Die entity-Zeiger zeigen in den
-// Cache und bleiben nur bis zum naechsten getFolderEntitiesCached()-Aufruf
-// fuer denselben Ordner gueltig -- sofort verwenden, nicht aufheben.
+// Read-only view of one slot of the PSRAM folder entity cache, see
+// TileConfig::getFolderEntitiesCached(). The entity pointers point into the
+// cache and stay valid only until the next getFolderEntitiesCached() call for
+// the same folder: use them right away, do not keep them.
 struct FolderEntitySlotView {
   TileType type = TILE_EMPTY;
   const char* entity = "";  // nie nullptr
@@ -537,10 +537,10 @@ struct FolderEntityCacheEntry;
 
 class TileConfig {
 public:
-  // Eigenstaendiges Grid fuer den Screensaver. Die reservierte Storage-ID
-  // ist kein Ordner und erscheint deshalb weder in der Ordnerliste noch in
-  // der Navigation. Gespeichert wird trotzdem im exakt gleichen gepackten
-  // LittleFS-Format wie jedes normale Kachel-Grid.
+  // Stand-alone grid for the screensaver. Its reserved storage ID is not a
+  // folder, so it appears neither in the folder list nor in the navigation. It
+  // is still stored in exactly the same packed LittleFS format as every normal
+  // tile grid.
   static constexpr uint16_t kScreensaverGridStorageId = 0xFFFE;
   static constexpr uint16_t rootFolderId() { return 0; }
 
@@ -550,11 +550,11 @@ public:
   bool loadFolderGrid(uint16_t folder_id, TileGridConfig& out);
   bool loadScreensaverGrid(TileGridConfig& out);
   bool loadFolderGridEntitiesOnly(uint16_t folder_id, TileEntitySlot* out, size_t count);
-  // Wie loadFolderGridEntitiesOnly(), aber ueber einen PSRAM-Cache: der
-  // Flash-Read (~20ms pro Ordner, mehr als ein halber 33ms-Frame bei 30fps)
-  // faellt nur beim ersten Zugriff bzw. nach einer Grid-Aenderung an. NUR vom
-  // Loop-Task aufrufen (baut den Cache um); invalidateFolderEntityCache()
-  // ist dagegen von jedem Task erlaubt.
+  // Like loadFolderGridEntitiesOnly(), but through a PSRAM cache: the flash
+  // read (~20ms per folder, more than half of a 33ms frame at 30fps) only
+  // happens on first access or after a grid change. Call from the loop task
+  // ONLY, because it rebuilds the cache; invalidateFolderEntityCache() in turn
+  // is allowed from any task.
   bool getFolderEntitiesCached(uint16_t folder_id, FolderEntitySlotView* out, size_t count);
   void invalidateFolderEntityCache();
   bool saveFolderGrid(uint16_t folder_id, const TileGridConfig& grid);
@@ -592,11 +592,11 @@ private:
   uint16_t active_folder_id = kRootFolderId;
   std::vector<FolderEntry> folders;
 
-  // Ordner-Entity-Cache (PSRAM): ein Eintrag pro Ordner mit Typ + Entity-ID
-  // aller Kacheln. Invalidierung laeuft ueber einen globalen Generations-
-  // zaehler, weil Grid-Saves auch vom Web-Task kommen -- der Schreiber
-  // erhoeht nur die Zahl (kein free, kein Umbau), neu gebaut wird
-  // ausschliesslich auf dem Loop-Task beim naechsten Zugriff.
+  // Folder entity cache in PSRAM: one entry per folder with the type and
+  // entity ID of every tile. Invalidation runs through a global generation
+  // counter because grid saves also come from the web task. The writer only
+  // raises that counter, with no free and no rebuild; the cache is rebuilt
+  // exclusively on the loop task at the next access.
   FolderEntityCacheEntry* folder_entity_cache_ = nullptr;
   size_t folder_entity_cache_count_ = 0;
   volatile uint32_t folder_entity_cache_gen_ = 1;
