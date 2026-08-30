@@ -1,4 +1,5 @@
 #include "src/network/network_manager.h"
+#include "src/network/jc8012_c6_recovery.h"
 #include "src/network/network_transport.h"
 #include "src/core/config_manager.h"
 #include "src/network/mqtt_handlers.h"
@@ -544,6 +545,13 @@ bool HomeTilesNetworkManager::recoverWifiFromDmaStarvation() {
 
 // ========== Initialisierung ==========
 void HomeTilesNetworkManager::init() {
+#if defined(DEVICE_GUITION_JC8012P4A1) && \
+    defined(HOMETILES_JC8012_C6_RECOVERY)
+  if (Jc8012C6Recovery::isBlocked()) {
+    Serial.println("[Network] Disabled after uncertain C6 recovery state");
+    return;
+  }
+#endif
   networkTransport.begin();
   networkTransport.update();
   transport_generation_seen = networkTransport.generation();
@@ -610,6 +618,10 @@ void HomeTilesNetworkManager::init() {
 
 // ========== WiFi verbinden ==========
 void HomeTilesNetworkManager::connectWifi() {
+#if defined(DEVICE_GUITION_JC8012P4A1) && \
+    defined(HOMETILES_JC8012_C6_RECOVERY)
+  if (Jc8012C6Recovery::isBlocked()) return;
+#endif
   wifi_retry_at = millis() + 5000UL;  // Retry in 5s
 
   // Fester Ethernet-Modus: WLAN bleibt aus, egal was Retry-/Reconnect-Logik
@@ -986,6 +998,10 @@ size_t HomeTilesNetworkManager::mqttDmaReserveBytes() const {
 
 // Worker-Task-Body: die EINZIGE Stelle, die mqtt_client nach init() anfasst.
 void HomeTilesNetworkManager::serviceMqttWorker() {
+#if defined(DEVICE_GUITION_JC8012P4A1) && \
+    defined(HOMETILES_JC8012_C6_RECOVERY)
+  if (Jc8012C6Recovery::isBlocked()) return;
+#endif
   // Reconfigure-Request zuerst und VOR dem mqtt_enabled-Gate geprueft: genau
   // dieses Flag soll hier live neu gesetzt werden (Erstkonfiguration ueber
   // die Admin-Seite, Host geleert, Host geaendert). Alle anderen Requests
@@ -1653,6 +1669,10 @@ void HomeTilesNetworkManager::stopMdns() {
 
 // ========== Update-Schleife (Loop-Task) ==========
 void HomeTilesNetworkManager::update() {
+#if defined(DEVICE_GUITION_JC8012P4A1) && \
+    defined(HOMETILES_JC8012_C6_RECOVERY)
+  if (Jc8012C6Recovery::isBlocked()) return;
+#endif
   if (!configManager.isConfigured()) {
     return;
   }

@@ -74,7 +74,7 @@ bool GuitionSDMMCFS::begin(const char* mountpoint,
   sdmmc_host_t host = SDMMC_HOST_DEFAULT();
   host.slot = SDMMC_HOST_SLOT_0;
   host.max_freq_khz = sdmmc_frequency;
-  host.flags = SDMMC_HOST_FLAG_4BIT;
+  host.flags |= SDMMC_HOST_FLAG_4BIT;
   host.pwr_ctrl_handle = g_sd_power_handle;
 
   sdmmc_slot_config_t slot_config = {};
