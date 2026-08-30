@@ -77,6 +77,21 @@ int main() {
   const char* braced = "{\"attributes\":{\"name\":\"a}b\"},\"tail\":1}";
   assert(objectSpan(braced, len(braced), "attributes", &begin, &end));
   assert(spanEquals(braced, begin, end, "{\"name\":\"a}b\"}"));
+  // An escaped quote followed by a brace remains inside the string.
+  const char* quoted_brace =
+      R"json({"attributes":{"name":"a\"}b","ok":1},"tail":1})json";
+  assert(objectSpan(quoted_brace, len(quoted_brace), "attributes", &begin,
+                    &end));
+  assert(spanEquals(quoted_brace, begin, end,
+                    R"json({"name":"a\"}b","ok":1})json"));
+  // Two backslashes encode one trailing backslash. Their even count must not
+  // escape the quote that closes the string.
+  const char* trailing_backslash =
+      R"json({"attributes":{"path":"C:\\"},"tail":1})json";
+  assert(objectSpan(trailing_backslash, len(trailing_backslash), "attributes",
+                    &begin, &end));
+  assert(spanEquals(trailing_backslash, begin, end,
+                    R"json({"path":"C:\\"})json"));
 
   assert(arrayStart(state, state_length, "forecast") >= 0);
   assert(state[arrayStart(state, state_length, "forecast")] == '[');
@@ -124,6 +139,23 @@ int main() {
   assert(!nextObjectInArray(items, items_length, &cursor, &begin, &end));
   // Iteration stopped at the bracket instead of running into the trailing text.
   assert(cursor < items_length);
+
+  // Array iteration observes the same quote escaping rules: an escaped quote
+  // can precede a brace, and an even backslash run does not escape the closing
+  // quote of a string ending in a backslash.
+  const char* escaped_items =
+      R"json([{"name":"a\"}b"},{"path":"C:\\"},{"done":true}])json";
+  const char* escaped_expected[] = {
+      R"json({"name":"a\"}b"})json", R"json({"path":"C:\\"})json",
+      R"json({"done":true})json"};
+  cursor = 0;
+  for (int index = 0; index < 3; ++index) {
+    assert(nextObjectInArray(escaped_items, len(escaped_items), &cursor, &begin,
+                             &end));
+    assert(spanEquals(escaped_items, begin, end, escaped_expected[index]));
+  }
+  assert(!nextObjectInArray(escaped_items, len(escaped_items), &cursor, &begin,
+                            &end));
 
   // An unterminated object yields nothing rather than a partial span.
   const char* unclosed = "[{\"a\":1";

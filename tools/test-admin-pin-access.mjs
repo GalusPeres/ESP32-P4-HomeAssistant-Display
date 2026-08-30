@@ -5,7 +5,8 @@ import {fileURLToPath} from 'node:url';
 import {extractFunction} from './lib/admin-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
+const read = relative => fs.readFileSync(path.join(root, relative), 'utf8')
+  .replace(/\r\n?/g, '\n');
 const requireMarker = (source, marker, label) => {
   if (!source.includes(marker)) throw new Error(`${label} is missing: ${marker}`);
 };

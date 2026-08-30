@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 
+const readText = url =>
+  fs.readFileSync(url, 'utf8').replace(/\r\n?/g, '\n');
+
 const noop = () => {};
 const classList = {
   add: noop,
@@ -159,7 +162,7 @@ sandbox.window = sandbox;
 
 vm.createContext(sandbox);
 vm.runInContext(
-  fs.readFileSync(new URL('../src/web/assets/admin.js', import.meta.url), 'utf8'),
+  readText(new URL('../src/web/assets/admin.js', import.meta.url)),
   sandbox,
   { filename: 'admin.js' }
 );
@@ -309,16 +312,16 @@ if (JSON.stringify(officialCoverIcons) !== JSON.stringify(expectedCoverIcons)) {
     `Cover icons no longer match Home Assistant: ${JSON.stringify(officialCoverIcons)}`);
 }
 
-const adminCss = fs.readFileSync(
-  new URL('../src/web/assets/admin.css', import.meta.url), 'utf8');
+const adminCss = readText(
+  new URL('../src/web/assets/admin.css', import.meta.url));
 if (!/\.tile\.sensor,\s*\.tile\.cover\s*\{/.test(adminCss) ||
     !/\.tile\.sensor \.tile-title,\s*\.tile\.cover \.tile-title\s*\{/.test(adminCss) ||
     !/\.tile\.sensor \.tile-icon,\s*\.tile\.cover \.tile-icon\s*\{/.test(adminCss)) {
   throw new Error('Cover preview no longer shares the Sensor tile layout');
 }
 
-const coverRenderer = fs.readFileSync(
-  new URL('../src/types/cover/renderer.cpp', import.meta.url), 'utf8');
+const coverRenderer = readText(
+  new URL('../src/types/cover/renderer.cpp', import.meta.url));
 for (const marker of [
   'tile_layout::scale_480(-8)',
   'tile_layout::header_title_font()',
@@ -337,8 +340,8 @@ for (const marker of [
     throw new Error(`Cover renderer lost Sensor layout marker: ${marker}`);
   }
 }
-const tileUiSource = fs.readFileSync(
-  new URL('../src/ui/tab_tiles_unified.cpp', import.meta.url), 'utf8');
+const tileUiSource = readText(
+  new URL('../src/ui/tab_tiles_unified.cpp', import.meta.url));
 for (const marker of [
   '#include "src/types/cover/renderer.h"',
   'icon_name = cover_resolve_icon(',
@@ -353,23 +356,23 @@ if (!/set_label_style\(widget\.value_label,\s*lv_color_white\(\),\s*tile_layout:
   throw new Error('Cover value no longer uses the smaller title font');
 }
 
-const coverWebScriptSource = fs.readFileSync(
-  new URL('../src/types/cover/web_scripts.cpp', import.meta.url), 'utf8');
+const coverWebScriptSource = readText(
+  new URL('../src/types/cover/web_scripts.cpp', import.meta.url));
 for (const key of ['open', 'opening', 'closed', 'closing', 'unavailable', 'unknown']) {
   const injection = new RegExp(`append_i18n\\(\\s*"${key}"`);
   if (!injection.test(coverWebScriptSource)) {
     throw new Error(`Cover WebUI translation is missing: ${key}`);
   }
 }
-const i18nSource = fs.readFileSync(
-  new URL('../src/core/i18n.cpp', import.meta.url), 'utf8');
+const i18nSource = readText(
+  new URL('../src/core/i18n.cpp', import.meta.url));
 if (!i18nSource.includes('return locale(language_code).cover_labels[index]') ||
     !i18nSource.includes('return profile.cover_states[index]')) {
   throw new Error('Cover texts no longer use the central LocaleProfile');
 }
 
-const coverPopupSource = fs.readFileSync(
-  new URL('../src/ui/cover_popup.cpp', import.meta.url), 'utf8');
+const coverPopupSource = readText(
+  new URL('../src/ui/cover_popup.cpp', import.meta.url));
 if (!/if \(remote_update_blocked\(g_ctx\)\) \{\s*defer_remote_apply\(g_ctx, init\);\s*return;/s
     .test(coverPopupSource)) {
   throw new Error(
@@ -474,8 +477,8 @@ if (coverPopupSource.includes('"arrow-down-left"') ||
     'Cover controls restored bent tilt arrows or opaque action tiles');
 }
 
-const adminSource = fs.readFileSync(
-  new URL('../src/web/assets/admin.js', import.meta.url), 'utf8');
+const adminSource = readText(
+  new URL('../src/web/assets/admin.js', import.meta.url));
 if (/\bhumanizeIdentifier\s*\(/.test(adminSource)) {
   throw new Error(
     'Admin WebUI calls the firmware-only humanizeIdentifier helper');

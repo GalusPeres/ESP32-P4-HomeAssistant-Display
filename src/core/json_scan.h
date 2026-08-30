@@ -14,6 +14,18 @@
 // `json` must be NUL-terminated; `length` only bounds the scan.
 namespace hometiles_json {
 
+// A quote is a string delimiter only when the immediately preceding run of
+// backslashes has even length. An odd run escapes the quote, while an even run
+// ends with an escaped backslash and leaves the quote unescaped.
+inline bool isUnescapedQuote(const char* json, int index) {
+  if (!json || index < 0 || json[index] != '"') return false;
+  int backslash_count = 0;
+  for (int i = index - 1; i >= 0 && json[i] == '\\'; --i) {
+    ++backslash_count;
+  }
+  return (backslash_count & 1) == 0;
+}
+
 // Offset of the first character after `"key":` and the blanks behind the colon,
 // or -1 when the key is absent. The search is a plain substring match, which is
 // what the historical HomeTiles scanners did: the payloads are flat, so a key
@@ -84,7 +96,7 @@ inline bool objectSpan(const char* json, int length, const char* key,
   bool in_string = false;
   for (int i = pos; i < length; ++i) {
     const char c = json[i];
-    if (c == '"' && (i == 0 || json[i - 1] != '\\')) in_string = !in_string;
+    if (isUnescapedQuote(json, i)) in_string = !in_string;
     if (in_string) continue;
     if (c == '{') {
       ++depth;
@@ -132,7 +144,7 @@ inline bool nextObjectInArray(const char* json, int length, int* cursor,
   int start = -1;
   for (int i = *cursor; i < length; ++i) {
     const char c = json[i];
-    if (c == '"' && (i == 0 || json[i - 1] != '\\')) in_string = !in_string;
+    if (isUnescapedQuote(json, i)) in_string = !in_string;
     if (in_string) continue;
     if (c == ']' && depth == 0) {
       *cursor = i + 1;

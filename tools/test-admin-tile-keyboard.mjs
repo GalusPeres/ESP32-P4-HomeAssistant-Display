@@ -30,6 +30,10 @@ assert.ok(registry.includes('return entry ? localized_tile_type_label(*entry) : 
 // A clipped tile cannot show an outline, so the focus indicator has to be inset.
 assert.match(css, /\.tile:focus-visible \{[^}]*box-shadow:inset[^}]*\}/,
   'Grid tiles need a visible focus indicator that survives the clip path');
+assert.match(
+  css,
+  /\.tile\.active:focus-visible,\s*\.tile\[data-selected="1"\]:focus-visible\s*\{[^}]*box-shadow:[^}]*inset[^}]*!important[^}]*\}/,
+  'Selected grid tiles must retain a distinct focus ring');
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)/,
   'The Admin styles must honour the reduced-motion preference');
 
@@ -37,7 +41,9 @@ assert.match(css, /@media \(prefers-reduced-motion: reduce\)/,
 for (const marker of [
   'function enableTileKeys(tab)',
   'applyTileAriaLabel(tileElem, displayTitle, type)',
-  'applyTileAriaLabel(el, displayTitle, typeValue)'
+  'applyTileAriaLabel(el, displayTitle, typeValue)',
+  "applyTileAriaLabel(tileElem, '', type)",
+  "applyTileAriaLabel(el, '', typeValue)"
 ]) {
   assert.ok(adminSource.includes(marker),
     `Admin JavaScript must keep the tile keyboard contract: ${marker}`);
@@ -45,15 +51,22 @@ for (const marker of [
 
 const productionFunctions = [
   extractFunction('enableTileKeys'),
-  extractFunction('applyTileAriaLabel')
+  extractFunction('applyTileAriaLabel'),
+  extractFunction('updateTilePreview'),
+  extractFunction('renderTileFromData')
 ].join('\n\n');
 
 const harness = `<!doctype html><html><body>
+  <input id="folder0_tile_title" value="">
+  <input id="folder0_tile_color" value="#353535">
+  <input id="folder0_tile_type" value="0">
   <div id="tab-tiles-folder0">
     <div id="mainGrid" class="tile-grid">
-      <div class="tile sensor" role="button" tabindex="0" data-index="0"
+      <div id="folder0-tile-0" class="tile sensor" role="button" tabindex="0"
+           data-index="0" data-type="1"
            aria-label="Living room"><span id="child">Living room</span></div>
-      <div class="tile empty" role="button" tabindex="0" data-index="1"
+      <div id="folder0-tile-1" class="tile empty" role="button" tabindex="0"
+           data-index="1" data-type="0"
            aria-label="Empty"></div>
     </div>
   </div>
@@ -61,11 +74,21 @@ const harness = `<!doctype html><html><body>
   <script>
   (() => {
     const selected = [];
+    let currentTileIndex = 0;
+    let currentTileTab = 'folder0';
+    const HIDDEN_SETTINGS_TILE_INDEX = -2;
+    const sensorMetaCache = {icons: {}, names: {}, units: {}, values: {}};
     function selectTile(index, tab) { selected.push(tab + ':' + index); }
     function getTileGrid() { return document.getElementById('mainGrid'); }
     function getTileTypeMeta(value) {
-      return String(value) === '0' ? {label: 'Empty'} : {label: 'Sensor'};
+      return String(value) === '0'
+        ? {label: 'Empty', css: 'empty'}
+        : {label: 'Sensor', css: 'sensor'};
     }
+    function getSensorValueFontClass() { return ''; }
+    function resolveIconName() { return ''; }
+    function updateLayoutFromInputs() {}
+    function isScreensaverTileTab() { return false; }
     ${inlineScriptSafe(productionFunctions)}
     function press(target, key) {
       target.dispatchEvent(new KeyboardEvent('keydown',
@@ -120,6 +143,18 @@ const harness = `<!doctype html><html><body>
       applyTileAriaLabel(tiles[1], '', '0');
       if (tiles[1].getAttribute('aria-label') !== 'Empty') {
         throw new Error('An empty tile must still be announced');
+      }
+
+      // Both rendering paths reuse existing tile elements. Deleting a tile
+      // must replace the previous accessible name instead of leaving it stale.
+      updateTilePreview('folder0');
+      if (tiles[0].getAttribute('aria-label') !== 'Empty') {
+        throw new Error('The live preview kept the deleted tile name');
+      }
+      tiles[1].setAttribute('aria-label', 'Old cached title');
+      renderTileFromData('folder0', 1, {type: 0}, sensorMetaCache);
+      if (tiles[1].getAttribute('aria-label') !== 'Empty') {
+        throw new Error('The cached grid kept the deleted tile name');
       }
 
       document.body.dataset.result = 'pass';

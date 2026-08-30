@@ -27,21 +27,30 @@ export function findBrowser() {
   return candidates.find(candidate => fs.existsSync(candidate));
 }
 
+function browserIsRequired() {
+  return process.env.GITHUB_ACTIONS === 'true';
+}
+
 // Renders an inline harness in headless Chrome and asserts on the dumped DOM.
-// Returns false when no browser is installed: a missing development tool is not
-// a firmware defect, so the caller reports a skip instead of a failure.
+// A local checkout may skip when no browser is installed, while GitHub Actions
+// treats the missing browser as an infrastructure failure.
 export function runDomHarness({
   label,
   html,
   tmpPrefix,
   expect = /data-result="pass"/,
   extraArgs = [],
-  timeoutMs = 30000
+  timeoutMs = 30000,
+  browserPath = findBrowser()
 }) {
-  const browser = findBrowser();
+  const browser = browserPath;
   if (!browser) {
-    console.log(
-      `SKIP: ${label} needs a local Chrome or Edge build (set CHROME_PATH).`);
+    const message =
+      `${label} needs a local Chrome or Edge build (set CHROME_PATH).`;
+    if (browserIsRequired()) {
+      throw new Error(`GitHub Actions must run this DOM test: ${message}`);
+    }
+    console.log(`SKIP: ${message}`);
     return false;
   }
 

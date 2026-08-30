@@ -2210,6 +2210,14 @@
       font-size:14px;
     }
 
+    /* Keep keyboard focus distinct from the persistent selection marker. */
+    .tile.active:focus-visible,
+    .tile[data-selected="1"]:focus-visible {
+      box-shadow:
+        0 0 12px rgba(38,166,154,0.55),
+        inset 0 0 0 3px var(--text) !important;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
         animation-duration:0.01ms !important;

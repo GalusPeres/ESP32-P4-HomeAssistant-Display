@@ -3361,6 +3361,7 @@ function t(key) {
       tileElem.classList.add('empty');
       tileElem.style.background = 'transparent';
       tileElem.innerHTML = '';
+      applyTileAriaLabel(tileElem, '', type);
       if (wasActive) tileElem.classList.add('active');
       updateLayoutFromInputs(tab);
       return;
@@ -4569,7 +4570,10 @@ function t(key) {
       }
     }
     const sensorValueClass = getSensorValueFontClass(tile.sensor_value_font);
-    if (typeValue === '0') { el.innerHTML = ''; }
+    if (typeValue === '0') {
+      el.innerHTML = '';
+      applyTileAriaLabel(el, '', typeValue);
+    }
     else {
       const previewKind = meta.preview || 'none';
       const iconEntity = (previewKind === 'sensor' || previewKind === 'switch' ||
