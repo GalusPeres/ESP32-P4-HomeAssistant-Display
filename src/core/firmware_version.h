@@ -3,7 +3,7 @@
 #include "version.txt"
 
 #if defined(DEVICE_GUITION_JC8012P4A1) && \
-    defined(HOMETILES_JC8012_C6_RECOVERY)
+    defined(HOMETILES_ISSUE30_SAFE_BETA)
 #undef FW_VERSION
 #define FW_VERSION "v0.6.8b2"
 #endif

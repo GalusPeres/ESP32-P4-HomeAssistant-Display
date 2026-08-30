@@ -29,7 +29,6 @@
 #include "src/ui/camera_popup.h"
 #include "src/types/energy/energy_data.h"
 #include "src/network/network_manager.h"
-#include "src/network/jc8012_c6_recovery.h"
 #include "src/network/network_transport.h"
 #include "src/network/mqtt_handlers.h"
 #include "src/network/mqtt_topics.h"
@@ -213,14 +212,6 @@ static void build_ui_task(void* param) {
 }
 
 static void apply_hotspot_mode(bool enable) {
-#if defined(DEVICE_GUITION_JC8012P4A1) && \
-    defined(HOMETILES_JC8012_C6_RECOVERY)
-  if (enable && Jc8012C6Recovery::isBlocked()) {
-    Serial.println("[JC8012/C6] Configuration mode blocked after recovery failure");
-    settings_update_ap_mode(false);
-    return;
-  }
-#endif
   if (enable) {
     if (webConfigServer.isRunning()) {
       settings_update_ap_mode(true);
@@ -933,22 +924,6 @@ void setup() {
   mqttTopics.begin(ts);
   Serial.println("[Setup] MQTT Topics OK");
   Serial.flush();
-
-#if defined(DEVICE_GUITION_JC8012P4A1) && \
-    defined(HOMETILES_JC8012_C6_RECOVERY)
-  Serial.println("[Setup] Checking isolated JC8012 C6 recovery payload...");
-  const Jc8012C6Recovery::Result c6_recovery_result =
-      Jc8012C6Recovery::runIfPresent();
-  if (c6_recovery_result == Jc8012C6Recovery::Result::RestartRequired) {
-    delay(Jc8012C6Recovery::kCoprocessorRestartWaitMs);
-    ESP.restart();
-    while (true) delay(1000);
-  }
-  if (c6_recovery_result == Jc8012C6Recovery::Result::Blocked) {
-    Serial.println(
-        "[Setup] Network remains disabled after uncertain C6 recovery state");
-  }
-#endif
 
   if (has_config) {
     Serial.println("[Setup] Network init...");

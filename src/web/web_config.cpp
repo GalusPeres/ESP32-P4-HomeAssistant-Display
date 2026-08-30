@@ -61,7 +61,8 @@ void applyWifiAutoReconnectPolicy() {
 }
 
 bool setWifiModeWithSdRemount(wifi_mode_t mode) {
-#if defined(DEVICE_GUITION_JC1060P470C_FAMILY)
+#if defined(DEVICE_GUITION_JC1060P470C_FAMILY) || \
+    defined(DEVICE_GUITION_JC8012P4A1)
   const bool sd_was_mounted = Device::suspendSDCardForNetworkTransition();
   const bool mode_ok = WiFi.mode(mode);
   if (sd_was_mounted && !Device::resumeSDCardAfterNetworkTransition()) {
