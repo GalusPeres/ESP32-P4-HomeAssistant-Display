@@ -383,7 +383,7 @@ if (coverPopupSource.includes('apply_remote_state_preserving_active_value')) {
     'Cover popup must not rebuild the full popup for remote updates during a drag');
 }
 const coverSliderApply = coverPopupSource.match(
-  /void apply_slider_point\([\s\S]*?\n}\n\nvoid commit_slider/,
+  /void apply_slider_point\([\s\S]*?\r?\n}\r?\n\r?\nvoid commit_slider/,
 )?.[0] ?? '';
 if (!coverSliderApply ||
     !coverSliderApply.includes('is_preset_value(value)') ||
@@ -393,7 +393,7 @@ if (!coverSliderApply ||
     'Cover slider must update preset indicators only at preset boundaries');
 }
 const coverSliderCommit = coverPopupSource.match(
-  /void commit_slider\([\s\S]*?\n}\n\nvoid on_slider_track/,
+  /void commit_slider\([\s\S]*?\r?\n}\r?\n\r?\nvoid on_slider_track/,
 )?.[0] ?? '';
 if (!coverSliderCommit.includes('update_preset_group')) {
   throw new Error('Cover slider must update preset selection on final release');
