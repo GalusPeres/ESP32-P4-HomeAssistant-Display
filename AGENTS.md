@@ -4,6 +4,23 @@ This is the single authoritative agent rulebook for this repository. Every
 agent must read it before inspecting, changing, building, or publishing code.
 Do not create a second competing rule file.
 
+## 0. Shared project context
+
+- After this rulebook, read `PROJECT_CONTEXT.md` completely before inspecting,
+  changing, building, or publishing code.
+- `PROJECT_CONTEXT.md` is the single shared state file for Codex, Claude, and
+  other agents. It records current baselines, verified hardware facts, active
+  problems, failed approaches, and pending validation; it is not a second
+  rulebook.
+- Update `PROJECT_CONTEXT.md` in the same change whenever work materially
+  changes one of those facts. Replace stale entries instead of appending a
+  running diary.
+- Keep shared context concise: no chat transcripts, raw logs, long build
+  histories, or copied issue discussions. Keep it below 160 lines and 12 KiB.
+- Do not create model-specific status, memory, or handoff files. Claude's
+  `CLAUDE.md` is only a small import entry point for this rulebook and the
+  shared context.
+
 ## 1. Scope, worktree, and user ownership
 
 - Inspect `git status` and the relevant recent commits before editing.
