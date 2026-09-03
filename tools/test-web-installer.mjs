@@ -452,7 +452,7 @@ assert.throws(
 );
 
 const docsWorkflow = read(".github/workflows/docs.yml");
-assert.match(docsWorkflow, /push:\s*\n\s+branches:\s*\[master\]/);
+assert.match(docsWorkflow, /push:\s*\n\s+branches:\s*\[main\]/);
 assert.match(docsWorkflow, /workflow_dispatch:/);
 assert.doesNotMatch(
   docsWorkflow,

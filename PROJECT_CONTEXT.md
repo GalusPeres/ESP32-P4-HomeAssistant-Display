@@ -23,8 +23,8 @@ adding model-specific handoffs or a chronological diary.
 ## Current firmware baseline
 
 - Commit `cf68126` is the current functional firmware baseline on GitHub
-  `master`; `FW_VERSION` remains `v0.6.8`. The shared-context consolidation
-  after it changes documentation only.
+  `main`; `FW_VERSION` remains `v0.6.8`. The later shared-context consolidation
+  and default-branch rename change documentation and repository metadata only.
 - The commits after `33b4e06` integrate PR #33 cleanup and accessibility work
   plus the isolated JC8012 V1 startup change. They did not create a new tag or
   release.

@@ -14,7 +14,7 @@ You never upload binaries by hand — you only bump the version and push a tag.
 git add version.txt
 git commit -m "Release vX.Y.Z"
 git tag vX.Y.Z
-git push --atomic origin master refs/tags/vX.Y.Z
+git push --atomic origin main refs/tags/vX.Y.Z
 ```
 
 That's it. The action then:
@@ -43,7 +43,7 @@ workflow events created with `GITHUB_TOKEN`. The documentation workflow
 validates the installer device/asset contract, downloads the same 28 published
 release assets, verifies their GitHub SHA-256 digests, and places them in the
 generated documentation site under `firmware/latest/`. Normal documentation
-changes pushed to `master` still deploy through the workflow's filtered `push`
+changes pushed to `main` still deploy through the workflow's filtered `push`
 trigger. The browser installer must fetch firmware from that same HTTPS origin
 because GitHub release downloads do not provide the cross-origin response
 header required by browser flashing. The `gh-pages` deployment is an orphan
@@ -82,7 +82,7 @@ release is published (GitHub CDN propagation can add a few minutes).
 
 ## Rules that prevent past mistakes
 
-- **Only the tag push triggers a release build.** Normal pushes to `master`
+- **Only the tag push triggers a release build.** Normal pushes to `main`
   build nothing (PRs do get build checks). Bumping `version.txt` alone does
   not release anything.
 - **Don't bump `version.txt` while still developing.** If you flash a dev

@@ -1,5 +1,5 @@
-// Release-Ablauf (GitHub Action baut & veroeffentlicht automatisch, siehe RELEASING.md):
-//   1. FW_VERSION unten erhoehen (erst wenn der Stand wirklich released werden soll!)
-//   2. git commit  ->  git tag vX.Y.Z  ->  git push master und Tag atomar
-// Wichtig: Der Build startet NUR beim Tag-Push, und der Tag muss exakt FW_VERSION entsprechen.
+// Release flow (GitHub Actions builds and publishes automatically; see RELEASING.md):
+//   1. Increase FW_VERSION below only when the current state is ready to release.
+//   2. git commit  ->  git tag vX.Y.Z  ->  atomically push main and the tag
+// Important: Only a tag push starts the build, and the tag must match FW_VERSION exactly.
 #define FW_VERSION "v0.6.8"

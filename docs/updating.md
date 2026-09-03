@@ -135,7 +135,7 @@ full `_factory.bin` at `0x0`.
 
 1. Open `HomeTiles.ino` in the Arduino IDE.
 2. Select the target device in `src/devices/device_select.h`.
-3. Apply the board settings from [BOARD_SETTINGS.md](https://github.com/GalusPeres/HomeTiles/blob/master/BOARD_SETTINGS.md).
+3. Apply the board settings from [BOARD_SETTINGS.md](https://github.com/GalusPeres/HomeTiles/blob/main/BOARD_SETTINGS.md).
 4. Build and flash.
 
 The firmware version comes from `version.txt`. The on-device updater compares this
