@@ -18,6 +18,14 @@ the relevant changes from Espressif's upstream fix commits applied:
   "fix(sdio): recover a dropped RX read instead of deadlocking"), backported
   without the unrelated example/RPC changes from that aggregate commit.
 
+- `guition-jc8012-rx-single-block.patch`: enables Espressif's dormant RX
+  transfer-size workaround for the exact Guition JC8012P4A1 V1 build. Large
+  C6-to-P4 reads are issued as individual 512-byte CMD53 transactions. The
+  v0.6.8b6 field test ran both camera streams at 15-20 FPS and completed Web
+  Admin OTA without the previous `0x109` CRC / `0x107` timeout cascade. The
+  V1 build retains the separately tested 1-bit/40MHz bus configuration; no
+  other device receives either change.
+
 - `issue-167-sdio-workarounds.patch`: experimental backport of the two
   ESP32-P4/ESP32-C6 workarounds reported in upstream issue #167. The
   `TOKEN_RDATA` counter is read as four CMD52 single-byte transactions
@@ -100,18 +108,28 @@ silently promoted to every ESP32-P4 image:
   24-48 hour camera soak has passed without a wedge.
 - `repo-a8204` uses the checked-in `baseline-a8204` SDIO object while retaining
   the common RPC, allocation, PSRAM, PKT_LEN, and pending-drain fixes. It is the
-  published release variant for every ESP32-P4 target.
+  default published release variant for the other ESP32-P4 targets.
+- `repo-guition-jc8012-rx-single-block` uses the `repo-a8204` SDIO driver plus
+  the field-validated single-block port object. It is selected automatically
+  only for `guition_jc8012p4a1`, whose profile is fixed to pre-v3 P4 silicon.
+  The stock port object is injected for every other pre-v3 profile so local
+  sequential builds cannot inherit the Guition workaround.
 - The ESP32-S3 target uses native WiFi and links no ESP-Hosted object.
 
-The local build helper defaults to the release-safe a8204 variant; a short-tail
-test build must select `-EspHostedRxVariant repo-short-tail` explicitly. GitHub
-Actions builds both 8-inch variants under distinct artifact names and verifies
-their final binary markers. The baseline object hashes are:
+The local build helper selects the Guition single-block variant only for the
+exact V1 profile and otherwise defaults to the release-safe a8204 variant. A
+short-tail test build must select `-EspHostedRxVariant repo-short-tail`
+explicitly. GitHub Actions verifies the final per-device binary markers. The
+baseline and device-specific object hashes are:
 
 - `baseline-a8204/esp32p4-libs/sdio_drv.c.obj`
   - SHA-256: `544aa1cb70ed77dad73eff11efc2d3faa1ccc9cda64dcf291bcd55aa50a3764f`
 - `baseline-a8204/esp32p4_es-libs/sdio_drv.c.obj`
   - SHA-256: `0549005b2e710f3ac98795049f4a1a1cb8c74a070c7801d66039be13144f1c53`
+- `baseline-a8204/esp32p4_es-libs/port_esp_hosted_host_sdio.c.obj`
+  - SHA-256: `e6b84ebf980aa117ab73333b459d1c683a7803aee87e988592246202c5b8b598`
+- `guition-jc8012-rx-single-block/esp32p4_es-libs/port_esp_hosted_host_sdio.c.obj`
+  - SHA-256: `f3a569701af6e7483aa52778fcc5134ba90403e722b6eae002b9587973cc43ee`
 
 - `pkt-len-pending-rx-recovery.patch`
   - SHA-256: `bfcb601c22c56db2768b2c90dd0fb38c38f1a766804156e3e1c8b29df8a8bae0`

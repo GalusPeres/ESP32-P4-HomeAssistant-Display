@@ -92,9 +92,10 @@ release is published (GitHub CDN propagation can add a few minutes).
 - **Don't pre-create a draft release for the tag.** The workflow can't see
   drafts and would create a second release. If you want custom release notes,
   edit them *after* the workflow finishes (web UI or `gh release edit`).
-- **Keep target-specific networking paths separated.** All published P4
-  release targets use the checked-in a8204 ESP-Hosted baseline; the ESP32-S3
-  targets use native WiFi. CI verifies the expected markers before packaging.
+- **Keep target-specific networking paths separated.** Guition JC8012P4A1 V1
+  uses its field-validated single-block RX variant; every other published P4
+  target uses the checked-in a8204 ESP-Hosted baseline, and ESP32-S3 targets
+  use native WiFi. CI verifies the expected markers before packaging.
 
 ## Preparing a candidate without releasing
 

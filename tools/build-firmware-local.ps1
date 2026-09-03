@@ -7,7 +7,7 @@ param(
 
     [string[]]$ExtraDefine = @(),
 
-    [ValidateSet('auto', 'repo-short-tail', 'repo-a8204')]
+    [ValidateSet('auto', 'repo-short-tail', 'repo-a8204', 'repo-guition-jc8012-rx-single-block')]
     [string]$EspHostedRxVariant = 'auto',
 
     [switch]$Clean
@@ -165,8 +165,15 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 
 $resolvedEspHostedRxVariant = if ($EspHostedRxVariant -ne 'auto') {
     $EspHostedRxVariant
+} elseif ($Profile -eq 'guition_jc8012p4a1') {
+    'repo-guition-jc8012-rx-single-block'
 } else {
     'repo-a8204'
+}
+
+if ($resolvedEspHostedRxVariant -eq 'repo-guition-jc8012-rx-single-block' -and
+    $Profile -ne 'guition_jc8012p4a1') {
+    throw 'The JC8012 single-block RX variant is limited to the exact Guition V1 profile.'
 }
 
 # The Arduino profile command reinstalls the ESP32 platform immediately before
@@ -187,6 +194,11 @@ foreach ($define in $ExtraDefine) {
 }
 $cppFlags = "-DHOMETILES_CI_TARGET -D$($defines[$Profile]) $($extraDefineFlags -join ' ') $commonFlags"
 $cFlags = $cppFlags
+$elfFlags = if ($Profile -eq 'guition_jc8012p4a1') {
+    '-Wl,--wrap=esp_hosted_get_default_sdio_config'
+} else {
+    ''
+}
 
 Move-Item -LiteralPath $sketchProfiles -Destination $hiddenSketchProfiles
 try {
@@ -201,6 +213,7 @@ try {
         --libraries $repoLibraries `
         --build-property "compiler.c.extra_flags=$cFlags" `
         --build-property "compiler.cpp.extra_flags=$cppFlags" `
+        --build-property "compiler.c.elf.extra_flags=$elfFlags" `
         $repoRoot
     if ($LASTEXITCODE -ne 0) {
         throw "Arduino build failed for profile '$Profile'."
@@ -262,14 +275,34 @@ if (-not $isNativeS3) {
         -not $sdioRxShortTailMarker) {
         throw "ESP-Hosted short-tail CMD53 RX marker missing from $firmwareBin"
     }
-    if ($resolvedEspHostedRxVariant -eq 'repo-a8204' -and
+    if ($resolvedEspHostedRxVariant -ne 'repo-short-tail' -and
         $sdioRxShortTailMarker) {
-        throw "Unexpected ESP-Hosted short-tail CMD53 RX marker found in a8204 baseline build: $firmwareBin"
+        throw "Unexpected ESP-Hosted short-tail CMD53 RX marker found in baseline build: $firmwareBin"
+    }
+    $sdioRxSingleBlockMarker = $firmwareStrings |
+        Select-String -SimpleMatch 'HomeTiles Issue30 RX single-block workaround active: max_blocks_per_CMD53=1'
+    if ($resolvedEspHostedRxVariant -eq 'repo-guition-jc8012-rx-single-block' -and
+        -not $sdioRxSingleBlockMarker) {
+        throw "ESP-Hosted JC8012 single-block RX marker missing from $firmwareBin"
+    }
+    if ($resolvedEspHostedRxVariant -ne 'repo-guition-jc8012-rx-single-block' -and
+        $sdioRxSingleBlockMarker) {
+        throw "Unexpected JC8012 single-block RX marker found in $firmwareBin"
     }
     $obsoletePktLenDrop = $firmwareStrings |
         Select-String -SimpleMatch 'PKT_LEN reg all-ones (bus read error); dropping read'
     if ($obsoletePktLenDrop) {
         throw "Obsolete masked PKT_LEN drop path found in $firmwareBin"
+    }
+
+    $firmwareMap = Join-Path $OutputDirectory 'HomeTiles.ino.map'
+    $hasJc8012SdioWrapper = (Test-Path -LiteralPath $firmwareMap) -and
+        ((Get-Content -LiteralPath $firmwareMap -Raw).Contains('__wrap_esp_hosted_get_default_sdio_config'))
+    if ($Profile -eq 'guition_jc8012p4a1' -and -not $hasJc8012SdioWrapper) {
+        throw "JC8012 V1 SDIO configuration wrapper missing from $firmwareMap"
+    }
+    if ($Profile -ne 'guition_jc8012p4a1' -and $hasJc8012SdioWrapper) {
+        throw "Unexpected JC8012 V1 SDIO configuration wrapper found in $firmwareMap"
     }
 }
 

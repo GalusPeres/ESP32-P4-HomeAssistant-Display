@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('repo-short-tail', 'repo-a8204')]
+    [ValidateSet('repo-short-tail', 'repo-a8204', 'repo-guition-jc8012-rx-single-block')]
     [string]$EspHostedRxVariant = 'repo-a8204'
 )
 
@@ -44,6 +44,25 @@ foreach ($variant in $variants) {
         throw "ESP-Hosted RX object not found: $sdioObject"
     }
     $objects += Get-Item -LiteralPath $sdioObject
+
+    # JC8012P4A1 V1 is fixed to the pre-v3 P4 silicon profile, which links the
+    # esp32p4_es archive. Always inject either the proven single-block reader or
+    # its stock baseline so consecutive local builds cannot leak the workaround
+    # into another pre-v3 device profile.
+    if ($variant -eq 'esp32p4_es-libs') {
+        $portSdioVariant = if ($EspHostedRxVariant -eq 'repo-guition-jc8012-rx-single-block') {
+            'guition-jc8012-rx-single-block'
+        } else {
+            'baseline-a8204'
+        }
+        $portSdioObject = Join-Path `
+            (Join-Path (Join-Path $rxFixDirectory $portSdioVariant) $variant) `
+            'port_esp_hosted_host_sdio.c.obj'
+        if (-not (Test-Path -LiteralPath $portSdioObject)) {
+            throw "ESP-Hosted SDIO port object not found: $portSdioObject"
+        }
+        $objects += Get-Item -LiteralPath $portSdioObject
+    }
 
     $archiveChanged = $false
     $verifyDirectory = Join-Path $env:TEMP ("hometiles-esp-hosted-verify-" + [Guid]::NewGuid())

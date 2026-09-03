@@ -1,0 +1,30 @@
+diff --git a/host/port/esp/freertos/include/port_esp_hosted_host_config.h b/host/port/esp/freertos/include/port_esp_hosted_host_config.h
+--- a/host/port/esp/freertos/include/port_esp_hosted_host_config.h
++++ b/host/port/esp/freertos/include/port_esp_hosted_host_config.h
+@@ -243,6 +243,9 @@
+     #define H_SDIO_RX_LIMIT_XFER_SIZE_WORKDAROUND // limit transfer to one ESP_BLOCK_SIZE at a time
+   #endif
+ 
++  /* HomeTiles Guition JC8012P4A1 V1 compatibility variant. */
++  #define H_SDIO_RX_LIMIT_XFER_SIZE_WORKDAROUND
++
+   #if defined(H_SDIO_TX_LIMIT_XFER_SIZE_WORKAROUND)
+     #define H_SDIO_TX_BLOCKS_TO_TRANSFER(x) (1)
+   #else
+diff --git a/host/port/esp/freertos/src/port_esp_hosted_host_sdio.c b/host/port/esp/freertos/src/port_esp_hosted_host_sdio.c
+index f072c1d..6f7bbc6 100644
+--- a/host/port/esp/freertos/src/port_esp_hosted_host_sdio.c
++++ b/host/port/esp/freertos/src/port_esp_hosted_host_sdio.c
+@@ -225,6 +225,12 @@ static esp_err_t sdio_read_fromio(sdmmc_card_t *card, uint32_t function, uint32_
+ 	uint16_t blocks;
+ 	esp_err_t res;
+ 	uint8_t *ptr = data;
++	static bool hometiles_rx_single_block_logged;
++
++	if (!hometiles_rx_single_block_logged) {
++		hometiles_rx_single_block_logged = true;
++		ESP_LOGE(TAG, "HomeTiles Issue30 RX single-block workaround active: max_blocks_per_CMD53=1");
++	}
+ 
+ 	// do block mode transfer
+ 	while (remainder >= ESP_BLOCK_SIZE) {

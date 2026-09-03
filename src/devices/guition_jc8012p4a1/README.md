@@ -29,6 +29,10 @@ HomeTiles' display rotation.
 - The 16MB partition table has two 6656KB OTA application slots.
 - Display, brightness control, touch, ESP-Hosted Wi-Fi, LittleFS, 4-bit SDMMC
   and local OTA are wired in.
+- The ESP-Hosted Wi-Fi link uses the Issue #30 field-validated V1 compatibility
+  path: 1-bit SDIO at 40MHz with C6-to-P4 RX reads split into individual
+  512-byte CMD53 transfers. This does not apply to JC8012P4A1 V2 or any other
+  device profile.
 - The live microSD filesystem is used by HomeTiles' file manager, wallpaper
   screensaver and screenshot paths. The existing one-time migration copies only
   legacy `/_tile_grids`, `/_tile_links` and `/icons` data to LittleFS.

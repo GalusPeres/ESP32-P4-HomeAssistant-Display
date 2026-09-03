@@ -90,8 +90,9 @@ Issue: https://github.com/GalusPeres/HomeTiles/issues/30
   5.1-kohm pull-ups on CMD, CLK, and D0-D3 without series termination;
   Waveshare 8-inch uses 51-kohm pull-ups, while Tab5 combines 5.1-kohm
   pull-ups with 22-ohm series resistors and a separately switched WLAN rail.
-  This makes Guition-specific SDIO signal or power margin plausible, but it is
-  not proven until the lower-clock test changes the failure.
+  This makes Guition-specific SDIO signal or power margin plausible. The b6
+  result proves that limiting the RX CMD53 transaction length is an effective
+  mitigation, but it does not by itself prove the underlying electrical cause.
 - Guition's original `JC8012P4A1_C6.bin` and the current HomeTiles host both
   use ESP-Hosted streaming mode. The newer official
   `JC-C6-slave_v2.3.2.bin` uses packet mode and is not a drop-in C6 update for
@@ -102,18 +103,17 @@ Issue: https://github.com/GalusPeres/HomeTiles/issues/30
   report concerns a different `0x102` TX/alignment failure on another board;
   the normal 2.9.3-to-2.11.6 CMD53 RX path does not explain this Guition's
   `0x109` CRC failure, and rollback would discard relevant safety fixes.
-- `v0.6.8b6` is an uncommitted Guition-only diagnostic build pending reporter
-  validation. It retains b5's 1-bit/40-MHz configuration and the b4/b5 logs,
-  and activates Espressif's dormant workaround that splits large P4 RX reads
-  into individual 512-byte CMD53 reads. It changes neither C6 firmware nor
-  camera behavior and must not be published without explicit authorization.
+- `v0.6.8b6` passed the reporter's hardware test: both cameras ran at 15-20 FPS,
+  Web Admin OTA succeeded, and the previous `0x109`/`0x107` failure did not
+  recur. The regular-source integration retains the proven 1-bit/40-MHz V1
+  configuration and splits large P4 RX reads into individual 512-byte CMD53
+  reads. It remains limited to the exact V1 profile; v0.6.9 does not contain it.
 - Lowering camera FPS, resolution, or quality may be used only as a clearly
   identified diagnostic A/B test. It is not an acceptable final fix and must
   not silently reduce normal camera performance.
-- Continue from the current code and official exact-board/Espressif evidence.
-  Prefer the narrowest proven fix, keep unrelated P4 and S3 profiles unchanged,
-  add a focused regression check, and provide only one Guition OTA test BIN
-  when requested. Do not publish it without explicit authorization.
+- Keep the release integration limited to the exact V1 profile and verify the
+  single-block marker plus 1-bit configuration in its final build. Other P4
+  profiles must retain their baseline ESP-Hosted object; S3 remains unaffected.
 
 ## ESP32-P4 network history that remains relevant
 

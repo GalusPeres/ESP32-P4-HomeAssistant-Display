@@ -154,7 +154,7 @@ jobs:
             key: guition_jc8012p4a1
             define: DEVICE_GUITION_JC8012P4A1
             silicon_variant: pre_v3
-            rx_variant: repo-a8204
+            rx_variant: repo-guition-jc8012-rx-single-block
             publish: true
           - label: Guition JC8012P4A1 V2
             profile: guition_jc8012p4a1_v2
@@ -239,6 +239,14 @@ jobs:
             done
             fixed_objects+=("$GITHUB_WORKSPACE/tools/esp-hosted-3.3.7-rx-fix/baseline-a8204/${variant}/sdio_drv.c.obj")
 
+            if [ "${variant}" = "esp32p4_es-libs" ]; then
+              port_sdio_variant="baseline-a8204"
+              if [ "${{ matrix.rx_variant }}" = "repo-guition-jc8012-rx-single-block" ]; then
+                port_sdio_variant="guition-jc8012-rx-single-block"
+              fi
+              fixed_objects+=("$GITHUB_WORKSPACE/tools/esp-hosted-3.3.7-rx-fix/${port_sdio_variant}/${variant}/port_esp_hosted_host_sdio.c.obj")
+            fi
+
             for fixed_object in "${fixed_objects[@]}"; do
               test -f "$fixed_object"
               object_name="$(basename "$fixed_object")"
@@ -306,12 +314,17 @@ jobs:
           trap restore_sketch_profiles EXIT
 
           common_flags="-DLV_CONF_INCLUDE_SIMPLE -I$GITHUB_WORKSPACE -I$HOME/Arduino/libraries"
+          elf_flags=""
+          if [ "${profile}" = "guition_jc8012p4a1" ]; then
+            elf_flags="-Wl,--wrap=esp_hosted_get_default_sdio_config"
+          fi
           arduino-cli compile \
             --fqbn "${fqbn}" \
             --export-binaries \
             --output-dir "build/ci/${{ matrix.key }}" \
             --build-property "compiler.c.extra_flags=-DHOMETILES_CI_TARGET -D${{ matrix.define }} $common_flags" \
-            --build-property "compiler.cpp.extra_flags=-DHOMETILES_CI_TARGET -D${{ matrix.define }} $common_flags"
+            --build-property "compiler.cpp.extra_flags=-DHOMETILES_CI_TARGET -D${{ matrix.define }} $common_flags" \
+            --build-property "compiler.c.elf.extra_flags=${elf_flags}"
 
           restore_sketch_profiles
           trap - EXIT
@@ -333,6 +346,22 @@ jobs:
             short_tail_marker="HomeTiles SDIO RX 512-byte padding disabled (CMD53 short tail, 4-byte aligned)"
             if grep -a -F -q "${short_tail_marker}" "${firmware_bin}"; then
               echo "Unexpected 8-inch short-tail RX patch found in ${{ matrix.label }}" >&2
+              exit 1
+            fi
+
+            single_block_marker="HomeTiles Issue30 RX single-block workaround active: max_blocks_per_CMD53=1"
+            if [ "${{ matrix.rx_variant }}" = "repo-guition-jc8012-rx-single-block" ]; then
+              grep -a -F -q "${single_block_marker}" "${firmware_bin}"
+            elif grep -a -F -q "${single_block_marker}" "${firmware_bin}"; then
+              echo "Unexpected JC8012 single-block RX patch found in ${{ matrix.label }}" >&2
+              exit 1
+            fi
+
+            firmware_map="build/ci/${{ matrix.key }}/HomeTiles.ino.map"
+            if [ "${profile}" = "guition_jc8012p4a1" ]; then
+              grep -F -q "__wrap_esp_hosted_get_default_sdio_config" "${firmware_map}"
+            elif grep -F -q "__wrap_esp_hosted_get_default_sdio_config" "${firmware_map}"; then
+              echo "Unexpected JC8012 SDIO configuration wrapper found in ${{ matrix.label }}" >&2
               exit 1
             fi
 
