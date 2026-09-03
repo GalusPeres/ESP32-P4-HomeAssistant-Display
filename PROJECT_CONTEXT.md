@@ -22,19 +22,18 @@ adding model-specific handoffs or a chronological diary.
 
 ## Current firmware baseline
 
-- Commit `cf68126` is the current functional firmware baseline on GitHub
-  `main`; `FW_VERSION` remains `v0.6.8`. The later shared-context consolidation
-  and default-branch rename change documentation and repository metadata only.
+- Firmware release `v0.6.9` adds Binary Sensor and categorical Sensor history,
+  Waveshare 4.3-inch support, the Waveshare 8 thin-PPA-strip guard, B4 visible
+  brightness calibration, and the stabilization work committed after `v0.6.8`.
 - The commits after `33b4e06` integrate PR #33 cleanup and accessibility work
   plus the isolated JC8012 V1 startup change. They did not create a new tag or
   release.
 - Recent stabilization work includes S3 update/display guards, MQTT packet
   validation, duplicate Light update coalescing, bounded S3 update work, and
   incremental Weather parsing (`e3de63c`, `631de57`, `8d5771c`, `33b4e06`).
-- The final source state passed all 36 `tools/test-*.mjs` tests. A Guition
-  ESP32-4848S040 test build and a Tab5 compile also completed. Compiles are not
-  hardware proof; the Guition S3 test was only reported as better in a short
-  test, not as a completed soak test.
+- The `v0.6.9` source passes all 53 tests. Binary/Text-State Sensor UI paths
+  were exercised on Waveshare 4B, Waveshare 8-inch, and Guition ESP32-S3;
+  GitHub Actions remains responsible for the complete release build matrix.
 - The experimental Guition S3 XIP/`-O2` performance path was reverted in
   `5279456`. Do not reintroduce it as an assumed optimization. It increased
   risk and did not solve the measured interaction problem.
@@ -131,13 +130,23 @@ Issue: https://github.com/GalusPeres/HomeTiles/issues/30
 - Existing safeguards against a permanent network wedge are recovery, not
   proof that the transport defect is solved.
 
+## Binary and textual Sensor history in v0.6.9
+
+- Firmware adds stable tile type 20, reusing `sensor_entity`
+  without changing `PackedTileV7`.
+- Device UI/Web Admin use central DE/EN/FR strings, state-aware HA icons,
+  autosave/previews, and a responsive 24-hour/7-day Sensor popup; textual
+  `sensor.*` states reuse its timeline/Activity while numbers keep the graph.
+- Missing, `unknown`, and `unavailable` remain distinct; state payloads and UI
+  queues are bounded. Notifications and sounds remain deferred.
+- Bridge v0.6.40 (`581150b`) is released with complete bounded Recorder paging,
+  categorical Sensor history, and explicit legacy-firmware compatibility.
+
 ## Product direction still requested
 
 - Stability and exact-device validation come before broad new features.
-- Later Home Assistant work discussed by the maintainer includes binary
-  sensors, notifications/event-driven folder colors, Number, Date/Time,
-  Select, Button, and related entities. Track implementation priority in live
-  issues or a dedicated roadmap, not by expanding this context file.
+- Later work includes notifications/sounds, event-driven folder colors, Number,
+  Date/Time, Select, Button, and related entities; track priority in live issues.
 
 ## Maintenance rule for this file
 

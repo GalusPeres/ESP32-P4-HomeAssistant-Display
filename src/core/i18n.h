@@ -518,6 +518,18 @@ struct LocaleProfile {
   // i18n::timezone_option(), Gruppen-Index siehe TimezoneOptionInfo::group
   const char* timezone_group_labels[6];
   const char* timezone_labels[27];
+
+  // Binary sensor UI labels. Order: type, entity, history, activity,
+  // history unavailable, no activity, 24-hour range, 7-day range.
+  const char* binary_sensor_labels[8];
+
+  // Canonical binary sensor states shared by the device and Web Admin.
+  // Order: on, off, low, normal, charging, not charging, detected, clear,
+  // cold, connected, disconnected, open, closed, hot, unlocked, locked,
+  // wet, dry, moving, stopped, plugged in, unplugged, power, no power,
+  // home, away, problem, OK, running, not running, unsafe, safe,
+  // update available, up to date, unavailable, unknown.
+  const char* binary_sensor_states[36];
 };
 
 // Sprachunabhaengiger Zeitzonen-Katalog (Codes + Gruppenzuordnung); die
@@ -575,6 +587,12 @@ const char* climate_mini_label(const char* language_code, uint8_t index);
 const char* cover_label(const char* language_code, uint8_t index);
 const char* cover_state_label(const char* language_code,
                               const String& state);
+// Binary sensor labels: 0 type, 1 entity, 2 history, 3 activity,
+// 4 history unavailable, 5 no activity, 6 24-hour range, 7 7-day range.
+const char* binary_sensor_label(const char* language_code, uint8_t index);
+const char* binary_sensor_state_label(const char* language_code,
+                                      const String& state,
+                                      const String& device_class);
 
 }  // namespace i18n
 

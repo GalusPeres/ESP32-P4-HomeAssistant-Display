@@ -1485,6 +1485,28 @@
       top:8px;
       left:6px;
     }
+    .tile.binary_sensor {
+      display:grid;
+      grid-template-rows:auto 1fr;
+      grid-template-columns:1fr;
+    }
+    .tile.binary_sensor .tile-title {
+      text-align:right;
+      align-self:start;
+      width:auto;
+      grid-column:1;
+      grid-row:1;
+      justify-self:end;
+      max-width:70%;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .tile.binary_sensor .tile-icon {
+      position:absolute;
+      top:8px;
+      left:6px;
+    }
 
 .tile.energy { display:grid; grid-template-rows:auto 1fr; grid-template-columns:1fr; }
     .tile.energy .tile-title {

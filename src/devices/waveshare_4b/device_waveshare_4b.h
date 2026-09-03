@@ -7,6 +7,10 @@
 
 namespace DeviceWaveshare4B {
 
+// Hardware-confirmed first visible PWM input. The UI and Home Assistant still
+// expose the full 1..100 percent range; raw 0 remains reserved for blanking.
+inline constexpr uint8_t kVisibleBacklightRawMin = 122;
+
 inline constexpr Device::Profile kProfile{
     "waveshare_4b",
     "Waveshare B4",
@@ -19,7 +23,7 @@ inline constexpr Device::Profile kProfile{
     166,
     166,
     4,
-    1,
+    kVisibleBacklightRawMin,
     Device::RotationStepMode::QuarterTurns,
     0,
     2,

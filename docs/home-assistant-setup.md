@@ -115,8 +115,8 @@ Afterwards the display shows up as a device under the bridge integration:
 Open the integration entry and click **Configure**. There are three sections:
 
 - **Panel Settings** — base topic, HA prefix, and device metadata.
-- **Entity Configuration** — pick the sensors, weather entities, lights, switches,
-  media players, cameras, and scenes/scripts the display should have access to. Scene aliases are
+- **Entity Configuration** — pick the sensors, binary sensors, weather entities,
+  lights, switches, media players, cameras, and scenes/scripts the display should have access to. Scene aliases are
   generated automatically; you can also map them manually (one `alias=entity_id` per line).
 - **Energy Dashboard** — enable electricity, gas, and/or water. This requires the
   Home Assistant [Energy Dashboard](https://my.home-assistant.io/redirect/energy/) to be
@@ -130,6 +130,10 @@ pick here.
 Open the display's [web admin panel](web-admin.md) and add tiles for the entities you
 exposed in Step 6 — sensors, lights, weather, energy, media, scenes, and so on.
 Changes appear on the display immediately.
+
+Binary Sensor and text-valued Sensor history requires HomeTiles Bridge v0.6.40
+or newer. Update it through HACS and restart Home Assistant before configuring
+the new tiles.
 
 For a Camera tile, install HomeTiles Bridge v0.6.28 or newer, select the camera
 in Step 6, and ensure the display can reach the Home Assistant host on TCP
@@ -167,7 +171,7 @@ Assistant device; see [Local Hardware I/O](hardware-io.md).
 - If the device existed in Home Assistant before, delete the old device entry first —
   its ID survives a re-flash, and Home Assistant won't re-discover a known ID.
 
-**Lights/switches/sensors are missing on the display**
+**Lights/switches/sensors/binary sensors are missing on the display**
 
 - They must be selected in the bridge options first (Step 6), then assigned to a tile in
   the web admin (Step 7).

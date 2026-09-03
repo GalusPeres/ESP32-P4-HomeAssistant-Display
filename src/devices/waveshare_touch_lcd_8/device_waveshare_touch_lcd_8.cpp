@@ -77,6 +77,10 @@ constexpr uint8_t kPpaFaultsBeforeReset = 2;
 // 256 let the title jam the engine (display slow forever); 768 over-corrected and
 // pushed the 752 px charts onto the CPU (popups felt sluggish).
 constexpr int32_t kPpaMinRotateWidth = 600;
+// LVGL scrolling can expose full-width dirty strips only a few rows tall.
+// Keep those strips on the CPU because a tiny SRM transaction can be accepted
+// without ever producing the completion callback on ESP32-P4.
+constexpr int32_t kPpaMinRotateHeight = 8;
 // If re-registering the PPA client fails (e.g. no internal heap for the driver
 // state at that moment), don't stay on the slow CPU rotate until reboot: retry
 // the re-init on this interval from the rotate path.
@@ -558,7 +562,8 @@ bool draw_landscape_area(int32_t x, int32_t y, int32_t w, int32_t h, const uint1
   }
 
   if (g_ppa_handle && g_ppa_async_ready && !g_ppa_reset_pending && g_panel_fb_ready &&
-      !ppa_cooldown_active() && w >= kPpaMinRotateWidth) {
+      !ppa_cooldown_active() && w >= kPpaMinRotateWidth &&
+      h >= kPpaMinRotateHeight) {
     uint16_t* fb = panel_fb();
     if (fb) {
       flush_cache_for_dma(data, static_cast<size_t>(w) * static_cast<size_t>(h) * sizeof(uint16_t));

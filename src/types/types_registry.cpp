@@ -9,6 +9,7 @@
 #include "src/types/navigate/renderer.h"
 #include "src/types/scene/renderer.h"
 #include "src/types/sensor/renderer.h"
+#include "src/types/binary_sensor/renderer.h"
 #include "src/types/switch/renderer.h"
 #include "src/types/text/renderer.h"
 #include "src/types/energy/renderer.h"
@@ -23,6 +24,7 @@
 #include "src/types/navigate/web_handler.h"
 #include "src/types/scene/web_handler.h"
 #include "src/types/sensor/web_handler.h"
+#include "src/types/binary_sensor/web_handler.h"
 #include "src/types/switch/web_handler.h"
 #include "src/types/text/web_handler.h"
 #include "src/types/energy/web_handler.h"
@@ -37,6 +39,7 @@
 #include "src/types/navigate/web_html.h"
 #include "src/types/scene/web_html.h"
 #include "src/types/sensor/web_html.h"
+#include "src/types/binary_sensor/web_html.h"
 #include "src/types/switch/web_html.h"
 #include "src/types/text/web_html.h"
 #include "src/types/energy/web_html.h"
@@ -52,6 +55,7 @@
 #include "src/types/navigate/web_scripts.h"
 #include "src/types/scene/web_scripts.h"
 #include "src/types/sensor/web_scripts.h"
+#include "src/types/binary_sensor/web_scripts.h"
 #include "src/types/switch/web_scripts.h"
 #include "src/types/text/web_scripts.h"
 #include "src/types/energy/web_scripts.h"
@@ -67,6 +71,7 @@
 #include "src/types/navigate/web_styles.h"
 #include "src/types/scene/web_styles.h"
 #include "src/types/sensor/web_styles.h"
+#include "src/types/binary_sensor/web_styles.h"
 #include "src/types/switch/web_styles.h"
 #include "src/types/text/web_styles.h"
 #include "src/types/energy/web_styles.h"
@@ -108,6 +113,16 @@ lv_obj_t* render_sensor_wrapper(lv_obj_t* parent,
                                 GridType grid_type,
                                 scene_publish_cb_t) {
   return render_sensor_tile(parent, col, row, tile, index, grid_type);
+}
+
+lv_obj_t* render_binary_sensor_wrapper(lv_obj_t* parent,
+                                       int col,
+                                       int row,
+                                       const Tile& tile,
+                                       uint8_t index,
+                                       GridType grid_type,
+                                       scene_publish_cb_t) {
+  return render_binary_sensor_tile(parent, col, row, tile, index, grid_type);
 }
 
 lv_obj_t* render_scene_wrapper(lv_obj_t* parent,
@@ -245,6 +260,12 @@ bool apply_sensor_wrapper(WebServer& server, Tile& tile, const TileTypeApplyCont
   return true;
 }
 
+bool apply_binary_sensor_wrapper(WebServer& server, Tile& tile,
+                                 const TileTypeApplyContext&) {
+  apply_binary_sensor_fields_from_request(server, tile);
+  return true;
+}
+
 bool apply_scene_wrapper(WebServer& server, Tile& tile, const TileTypeApplyContext&) {
   apply_scene_fields_from_request(server, tile);
   return true;
@@ -340,6 +361,12 @@ void append_sensor_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
   append_sensor_fields_html(html, safeString(ctx.tab_id), safeStrings(ctx.sensor_options));
 }
 
+void append_binary_sensor_fields_wrapper(String& html,
+                                         const TileTypeWebContext& ctx) {
+  append_binary_sensor_fields_html(
+      html, safeString(ctx.tab_id), safeStrings(ctx.binary_sensor_options));
+}
+
 void append_scene_fields_wrapper(String& html, const TileTypeWebContext& ctx) {
   append_scene_fields_html(html, safeString(ctx.tab_id), safeScenes(ctx.scene_options));
 }
@@ -432,6 +459,24 @@ const TileTypeDescriptor kTileTypes[] = {
     append_sensor_fields_wrapper,
     append_sensor_styles,
     append_sensor_scripts
+  },
+  {
+    TILE_BINARY_SENSOR,
+    "Binary Sensor",
+    "binary_sensor",
+    "binary_sensor",
+    "binary_sensor",
+    nullptr,
+    "loadBinarySensorFields",
+    "saveBinarySensorFields",
+    "resetBinarySensorFields",
+    0x2A2A2A,
+    false,
+    render_binary_sensor_wrapper,
+    apply_binary_sensor_wrapper,
+    append_binary_sensor_fields_wrapper,
+    append_binary_sensor_styles,
+    append_binary_sensor_scripts
   },
   {
     TILE_ENERGY,
@@ -750,6 +795,7 @@ static const char* localized_tile_type_label(const TileTypeDescriptor& entry) {
   switch (entry.type) {
     case TILE_EMPTY: return tr.tile_type_empty;
     case TILE_SENSOR: return tr.tile_type_sensor;
+    case TILE_BINARY_SENSOR: return i18n::binary_sensor_label(language, 0);
     case TILE_ENERGY: return tr.tile_type_energy;
     case TILE_WEATHER: return tr.tile_type_weather;
     case TILE_SCENE: return tr.tile_type_scene;

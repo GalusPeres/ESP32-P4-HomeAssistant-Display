@@ -1375,7 +1375,16 @@ static const LocaleProfile kLocaleDe = {
      "UTC+9 - Tokio",
      "UTC+9:30 - Darwin",
      "UTC+10 / UTC+11 - Sydney",
-     "UTC+12 / UTC+13 - Auckland"}};
+     "UTC+12 / UTC+13 - Auckland"},
+    {"Binärsensor", "Binärsensor-Entity", "Verlauf", "Aktivität",
+     "Verlauf nicht verfügbar", "Keine Aktivität", "24H", "7D"},
+    {"An", "Aus", "Niedrig", "Normal", "Lädt", "Lädt nicht",
+     "Erkannt", "Frei", "Kalt", "Verbunden", "Getrennt", "Offen",
+     "Geschlossen", "Heiß", "Entriegelt", "Verriegelt", "Nass",
+     "Trocken", "In Bewegung", "Gestoppt", "Eingesteckt", "Ausgesteckt",
+     "Strom erkannt", "Kein Strom", "Zuhause", "Abwesend", "Problem",
+     "OK", "Läuft", "Läuft nicht", "Unsicher", "Sicher",
+     "Update verfügbar", "Aktuell", "Nicht verfügbar", "Unbekannt"}};
 
 static const LocaleProfile kLocaleEn = {
     "en",
@@ -1444,7 +1453,16 @@ static const LocaleProfile kLocaleEn = {
      "UTC+9 - Tokyo",
      "UTC+9:30 - Darwin",
      "UTC+10 / UTC+11 - Sydney",
-     "UTC+12 / UTC+13 - Auckland"}};
+     "UTC+12 / UTC+13 - Auckland"},
+    {"Binary sensor", "Binary sensor entity", "History", "Activity",
+     "History unavailable", "No activity", "24H", "7D"},
+    {"On", "Off", "Low", "Normal", "Charging", "Not charging",
+     "Detected", "Clear", "Cold", "Connected", "Disconnected", "Open",
+     "Closed", "Hot", "Unlocked", "Locked", "Wet", "Dry", "Moving",
+     "Stopped", "Plugged in", "Unplugged", "Power detected", "No power",
+     "Home", "Away", "Problem", "OK", "Running", "Not running",
+     "Unsafe", "Safe", "Update available", "Up to date", "Unavailable",
+     "Unknown"}};
 
 static const LocaleProfile kLocaleFr = {
     "fr",
@@ -1515,7 +1533,16 @@ static const LocaleProfile kLocaleFr = {
      "UTC+9 - Tokyo",
      "UTC+9:30 - Darwin",
      "UTC+10 / UTC+11 - Sydney",
-     "UTC+12 / UTC+13 - Auckland"}};
+     "UTC+12 / UTC+13 - Auckland"},
+    {"Capteur binaire", "Entité du capteur binaire", "Historique",
+     "Activité", "Historique indisponible", "Aucune activité", "24H", "7D"},
+    {"Activé", "Désactivé", "Faible", "Normal", "En charge",
+     "Pas en charge", "Détecté", "Aucune détection", "Froid", "Connecté",
+     "Déconnecté", "Ouvert", "Fermé", "Chaud", "Déverrouillé",
+     "Verrouillé", "Humide", "Sec", "En mouvement", "Arrêté", "Branché",
+     "Débranché", "Alimentation détectée", "Aucune alimentation", "Présent",
+     "Absent", "Problème", "OK", "En cours", "À l’arrêt", "Dangereux",
+     "Sûr", "Mise à jour disponible", "À jour", "Indisponible", "Inconnu"}};
 
 // Codes + Gruppenzuordnung passend zu LocaleProfile::timezone_labels bzw.
 // timezone_group_labels (siehe i18n.h)
@@ -1880,6 +1907,87 @@ const char* cover_state_label(const char* language_code,
     if (state == kStates[index]) return profile.cover_states[index];
   }
   return profile.cover_states[5];
+}
+
+const char* binary_sensor_label(const char* language_code, uint8_t index) {
+  if (index >= 8) return "";
+  return locale(language_code).binary_sensor_labels[index];
+}
+
+const char* binary_sensor_state_label(const char* language_code,
+                                      const String& state_value,
+                                      const String& device_class_value) {
+  String state = state_value;
+  state.trim();
+  state.toLowerCase();
+  const LocaleProfile& profile = locale(language_code);
+  if (state == "unavailable") return profile.binary_sensor_states[34];
+  if (state == "unknown" || (state != "on" && state != "off")) {
+    return profile.binary_sensor_states[35];
+  }
+
+  const bool active = state == "on";
+  String device_class = device_class_value;
+  device_class.trim();
+  device_class.toLowerCase();
+
+  if (device_class == "battery") {
+    return profile.binary_sensor_states[active ? 2 : 3];
+  }
+  if (device_class == "battery_charging") {
+    return profile.binary_sensor_states[active ? 4 : 5];
+  }
+  if (device_class == "cold") {
+    return profile.binary_sensor_states[active ? 8 : 3];
+  }
+  if (device_class == "connectivity") {
+    return profile.binary_sensor_states[active ? 9 : 10];
+  }
+  if (device_class == "door" || device_class == "garage_door" ||
+      device_class == "opening" || device_class == "window") {
+    return profile.binary_sensor_states[active ? 11 : 12];
+  }
+  if (device_class == "heat") {
+    return profile.binary_sensor_states[active ? 13 : 3];
+  }
+  if (device_class == "lock") {
+    return profile.binary_sensor_states[active ? 14 : 15];
+  }
+  if (device_class == "moisture") {
+    return profile.binary_sensor_states[active ? 16 : 17];
+  }
+  if (device_class == "moving") {
+    return profile.binary_sensor_states[active ? 18 : 19];
+  }
+  if (device_class == "plug") {
+    return profile.binary_sensor_states[active ? 20 : 21];
+  }
+  if (device_class == "power") {
+    return profile.binary_sensor_states[active ? 22 : 23];
+  }
+  if (device_class == "presence") {
+    return profile.binary_sensor_states[active ? 24 : 25];
+  }
+  if (device_class == "problem") {
+    return profile.binary_sensor_states[active ? 26 : 27];
+  }
+  if (device_class == "running") {
+    return profile.binary_sensor_states[active ? 28 : 29];
+  }
+  if (device_class == "safety") {
+    return profile.binary_sensor_states[active ? 30 : 31];
+  }
+  if (device_class == "update") {
+    return profile.binary_sensor_states[active ? 32 : 33];
+  }
+  if (device_class == "carbon_monoxide" || device_class == "gas" ||
+      device_class == "light" || device_class == "motion" ||
+      device_class == "occupancy" || device_class == "smoke" ||
+      device_class == "sound" || device_class == "tamper" ||
+      device_class == "vibration") {
+    return profile.binary_sensor_states[active ? 6 : 7];
+  }
+  return profile.binary_sensor_states[active ? 0 : 1];
 }
 
 }  // namespace i18n

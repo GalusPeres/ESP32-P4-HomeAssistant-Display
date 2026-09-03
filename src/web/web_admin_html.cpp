@@ -21,6 +21,7 @@
 #include "src/core/i18n.h"
 #include "src/devices/device.h"
 #include "src/types/clock/clock_format.h"
+#include "src/types/binary_sensor/renderer.h"
 #include "src/types/energy/energy_data.h"
 #include "src/ui/screensaver_config.h"
 #include <cstring>
@@ -106,6 +107,7 @@ static void appendTileTabHTML(
     const FolderEntry& folder,
     const TileGridConfig& grid,
     const std::vector<String>& sensorOptions,
+    const std::vector<String>& binarySensorOptions,
     const std::vector<String>& energyOptions,
     const std::vector<String>& weatherOptions,
     const std::vector<SceneOption>& sceneOptions,
@@ -258,6 +260,16 @@ static void appendTileTabHTML(
     html += tab_id;
     html += "')\">";
 
+    const char* preview_kind = get_tile_type_preview_kind(tile.type);
+    const bool binary_sensor_preview =
+        preview_kind && strcmp(preview_kind, "binary_sensor") == 0;
+    BinarySensorState binary_sensor_state;
+    if (binary_sensor_preview && tile.sensor_entity.length()) {
+      const String payload =
+          haBridgeConfig.findSensorInitialValue(tile.sensor_entity);
+      binary_sensor_state = parse_binary_sensor_payload(payload.c_str());
+    }
+
     if (tile.type != TILE_EMPTY) {
       // Icon (optional) - normalize icon name (lowercase, trim, remove mdi: prefix)
       String iconName = tile.icon_name;
@@ -266,12 +278,26 @@ static void appendTileTabHTML(
       if (iconName.startsWith("mdi:")) iconName.remove(0, 4);
       else if (iconName.startsWith("mdi-")) iconName.remove(0, 4);
 
+      if (binary_sensor_preview) {
+        iconName = binary_sensor_resolve_icon(tile, binary_sensor_state);
+      }
+
       bool hasIcon = iconName.length() > 0;
 
       if (hasIcon) {
         html += "<i class=\"mdi mdi-";
-        html += iconName;  // Direkt hinzufügen (CSS-Klasse darf nicht escaped werden!)
-        html += " tile-icon\"></i>";
+        appendHtmlEscaped(html, iconName);
+        html += " tile-icon\"";
+        if (binary_sensor_preview) {
+          char color_hex[8];
+          snprintf(color_hex, sizeof(color_hex), "#%06X",
+                   static_cast<unsigned>(
+                       binary_sensor_visual_color(binary_sensor_state)));
+          html += " style=\"color:";
+          html += color_hex;
+          html += "\"";
+        }
+        html += "></i>";
       }
 
       // Title nur anzeigen wenn vorhanden
@@ -286,7 +312,6 @@ static void appendTileTabHTML(
       }
     }
 
-    const char* preview_kind = get_tile_type_preview_kind(tile.type);
     if (preview_kind && strcmp(preview_kind, "weather") == 0) {
       html += "<div class=\"tile-ghost-icon\"><i class=\"mdi mdi-weather-partly-cloudy\"></i></div>";
     }
@@ -315,6 +340,25 @@ static void appendTileTabHTML(
         appendHtmlEscaped(html, tile.sensor_unit);
         html += "</span>";
       }
+      html += "</div>";
+    }
+    if (binary_sensor_preview) {
+      html += "<div class=\"tile-value tile-binary-sensor-value\" id=\"";
+      html += tab_id;
+      html += "-tile-";
+      html += String(i);
+      html += "-value\">";
+      String state_text = "--";
+      if (binary_sensor_state.valid) {
+        const String state_name = binary_sensor_state.available
+                                      ? String(binary_sensor_state_name(
+                                            binary_sensor_state.value))
+                                      : String("unavailable");
+        state_text = i18n::binary_sensor_state_label(
+            configManager.getConfig().language, state_name,
+            String(binary_sensor_state.device_class));
+      }
+      appendHtmlEscaped(html, state_text);
       html += "</div>";
     }
 
@@ -579,6 +623,9 @@ static void appendTileTabHTML(
     html += tr.tile_type_empty;
     html += "</option><option value=\"1\">";
     html += tr.tile_type_sensor;
+    html += "</option><option value=\"20\">";
+    html += i18n::binary_sensor_label(
+        configManager.getConfig().language, 0);
     html += "</option><option value=\"14\">";
     html += tr.tile_type_energy;
     html += "</option><option value=\"2\">";
@@ -701,6 +748,7 @@ static void appendTileTabHTML(
             TileTypeWebContext type_ctx;
             type_ctx.tab_id = &tab_id;
             type_ctx.sensor_options = &sensorOptions;
+            type_ctx.binary_sensor_options = &binarySensorOptions;
             type_ctx.energy_options = &energyOptions;
             type_ctx.weather_options = &weatherOptions;
             type_ctx.scene_options = &sceneOptions;
@@ -790,6 +838,7 @@ bool buildAdminFolderTabFragments(uint16_t folder_id, String& button_html, Strin
 
   const HaBridgeConfigData& ha = haBridgeConfig.get();
   const auto sensorOptions = parseSensorList(ha.sensors_text);
+  const auto binarySensorOptions = parseSensorList(ha.binary_sensors_text);
   auto energyOptions = parseSensorList(ha.energy_text);
   energy_append_cached_entity_ids(energyOptions);
   const auto weatherOptions = parseSensorList(ha.weathers_text);
@@ -858,7 +907,8 @@ bool buildAdminFolderTabFragments(uint16_t folder_id, String& button_html, Strin
   tab_id = "folder" + String(folder_id);
   button_html = buildFolderTabButtonHtml(*folder);
   tab_html = "";
-  appendTileTabHTML(tab_html, folder_id, *folder, grid, sensorOptions, energyOptions, weatherOptions,
+  appendTileTabHTML(tab_html, folder_id, *folder, grid, sensorOptions,
+                    binarySensorOptions, energyOptions, weatherOptions,
                     sceneOptions, switchOptions, mediaOptions, climateOptions,
                     coverOptions, cameraOptions,
                     formatSensorValue, navigateOptionsHtml);
@@ -880,6 +930,7 @@ String WebAdminServer::getAdminPage() {
       String("hometiles_") + FW_VERSION + "_" + Device::profile().key;
   const HaBridgeConfigData& ha = haBridgeConfig.get();
   const auto sensorOptions = parseSensorList(ha.sensors_text);
+  const auto binarySensorOptions = parseSensorList(ha.binary_sensors_text);
   auto energyOptions = parseSensorList(ha.energy_text);
   energy_append_cached_entity_ids(energyOptions);
   const auto weatherOptions = parseSensorList(ha.weathers_text);
@@ -1031,7 +1082,8 @@ String WebAdminServer::getAdminPage() {
     if (entry.id != 0) continue;
     TileGridConfig grid{};
     tileConfig.loadFolderGrid(entry.id, grid);
-    appendTileTabHTML(html, entry.id, entry, grid, sensorOptions, energyOptions,
+    appendTileTabHTML(html, entry.id, entry, grid, sensorOptions,
+                      binarySensorOptions, energyOptions,
                       weatherOptions, sceneOptions, switchOptions, mediaOptions,
                       climateOptions, coverOptions, cameraOptions, formatSensorValue,
                       navigateOptionsHtml);
@@ -1046,7 +1098,8 @@ String WebAdminServer::getAdminPage() {
            "%s", "monitor");
   appendTileTabHTML(html, TileConfig::kScreensaverGridStorageId,
                     screensaver_folder, screensaverConfig.tileGrid(),
-                    sensorOptions, energyOptions, weatherOptions, sceneOptions,
+                    sensorOptions, binarySensorOptions, energyOptions,
+                    weatherOptions, sceneOptions,
                     switchOptions, mediaOptions, climateOptions, coverOptions, cameraOptions,
                     formatSensorValue, navigateOptionsHtml, true);
 

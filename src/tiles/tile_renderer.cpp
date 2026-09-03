@@ -6,6 +6,7 @@
 #include "src/tiles/mdi_icons.h"
 #include "src/types/climate/visuals.h"
 #include "src/types/climate/renderer.h"
+#include "src/types/binary_sensor/renderer.h"
 #include "src/ui/ui_manager.h"
 #include "src/ui/light_popup.h"
 #include "src/ui/sensor_popup.h"
@@ -475,6 +476,12 @@ void tile_renderer_snapshot_tab0(TileWidgetCache* out) {
   memcpy(out->covers, g_tab0_covers, sizeof(out->covers));
   memcpy(out->cover_states, g_tab0_cover_states,
          sizeof(out->cover_states));
+  memcpy(out->binary_sensors,
+         tile_renderer_get_binary_sensor_widgets(GridType::TAB0),
+         sizeof(out->binary_sensors));
+  memcpy(out->binary_sensor_states,
+         tile_renderer_get_binary_sensor_states(GridType::TAB0),
+         sizeof(out->binary_sensor_states));
   memcpy(out->weather, g_tab0_weather, sizeof(out->weather));
   memcpy(out->media, g_tab0_media, sizeof(out->media));
 }
@@ -493,6 +500,11 @@ void tile_renderer_restore_tab0(const TileWidgetCache* in) {
   memcpy(g_tab0_covers, in->covers, sizeof(in->covers));
   memcpy(g_tab0_cover_states, in->cover_states,
          sizeof(in->cover_states));
+  reset_binary_sensor_widgets(GridType::TAB0);
+  memcpy(tile_renderer_get_binary_sensor_widgets(GridType::TAB0),
+         in->binary_sensors, sizeof(in->binary_sensors));
+  memcpy(tile_renderer_get_binary_sensor_states(GridType::TAB0),
+         in->binary_sensor_states, sizeof(in->binary_sensor_states));
   memcpy(g_tab0_weather, in->weather, sizeof(in->weather));
   memcpy(g_tab0_media, in->media, sizeof(in->media));
 }
@@ -4821,6 +4833,7 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
   // Reset sensor widget pointers for this grid to avoid stale references
   clear_sensor_widgets(grid_type);
   clear_switch_widgets(grid_type);
+  reset_binary_sensor_widgets(grid_type);
   clear_weather_widgets(grid_type);
   clear_media_widgets(grid_type);
 

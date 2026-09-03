@@ -786,7 +786,8 @@ static bool readImagePathSd(uint16_t folder_id, size_t index, String& out) {
 static bool entityTileStoresSensorEntity(TileType type) {
   return type == TILE_SENSOR || type == TILE_SWITCH || type == TILE_WEATHER ||
          type == TILE_ENERGY || type == TILE_MEDIA || type == TILE_CLIMATE ||
-         type == TILE_CAMERA || type == TILE_COVER;
+         type == TILE_CAMERA || type == TILE_COVER ||
+         type == TILE_BINARY_SENSOR;
 }
 
 static bool writeLongEntityIdSd(uint16_t folder_id, size_t index, const String& entity) {
@@ -926,7 +927,8 @@ static void packTile(const Tile& in, PackedTileV7& out) {
                           in.type == TILE_ENERGY ||
                           in.type == TILE_SWITCH ||
                           in.type == TILE_CLIMATE ||
-                          in.type == TILE_COVER) &&
+                          in.type == TILE_COVER ||
+                          in.type == TILE_BINARY_SENSOR) &&
                          getTilePopupOpenMode(in) == TILE_POPUP_OPEN_SHORT_PRESS)
                             ? TILE_POPUP_OPEN_SHORT_PRESS
                             : TILE_POPUP_OPEN_LONG_PRESS;
@@ -1087,7 +1089,7 @@ static void unpackTileV7(const PackedTileV7& in, Tile& out) {
   }
   if ((out.type == TILE_SENSOR || out.type == TILE_WEATHER || out.type == TILE_ENERGY ||
        out.type == TILE_SWITCH || out.type == TILE_CLIMATE ||
-       out.type == TILE_COVER) &&
+       out.type == TILE_COVER || out.type == TILE_BINARY_SENSOR) &&
       in.popup_open_mode == TILE_POPUP_OPEN_SHORT_PRESS) {
     out.popup_open_mode = TILE_POPUP_OPEN_SHORT_PRESS;
   }
@@ -1095,7 +1097,7 @@ static void unpackTileV7(const PackedTileV7& in, Tile& out) {
   out.key_modifier = in.key_modifier;
   if (out.type == TILE_SENSOR || out.type == TILE_WEATHER ||
       out.type == TILE_ENERGY || out.type == TILE_CLIMATE ||
-      out.type == TILE_COVER) {
+      out.type == TILE_COVER || out.type == TILE_BINARY_SENSOR) {
     out.key_code = 0;
     out.key_modifier = 0;
   } else if (out.type == TILE_SETTINGS || out.type == TILE_BACK) {

@@ -7,12 +7,14 @@
 #include "src/tiles/tile_renderer_shared.h"
 #include "src/ui/light_popup.h"
 #include "src/ui/sensor_popup.h"
+#include "src/ui/binary_sensor_popup.h"
 #include "src/ui/weather_popup.h"
 #include "src/ui/image_screensaver.h"
 #include "src/ui/ui_manager.h"
 #include "src/ui/ui_surface_style.h"
 #include "src/network/ha_bridge_config.h"
 #include "src/types/cover/renderer.h"
+#include "src/types/binary_sensor/renderer.h"
 #include "src/types/energy/energy_data.h"
 #include "src/web/web_admin.h"
 #include "src/tiles/mdi_icons.h"
@@ -1043,10 +1045,11 @@ static void build_folder_cache_entry(FolderCacheEntry& entry, GridType grid_type
   if (!g_tiles_roots[idx]) return;
   if (!ensure_cache_build_snapshot()) return;
 
-  // Apply pending live light states to the active widget set before the TAB0
-  // pointers are swapped to a hidden folder. Otherwise the full-grid layout
-  // generation change below would discard those active updates.
+  // Apply pending live light and Binary Sensor states to the active widget set
+  // before the TAB0 pointers are swapped to a hidden folder. Otherwise the
+  // full-grid layout generation change below would discard those updates.
   process_switch_update_queue();
+  process_binary_sensor_update_queue();
   clear_cache_entry(entry);
 
   if (!entry.grid_loaded || entry.dirty) {
@@ -1080,6 +1083,7 @@ static void build_folder_cache_entry(FolderCacheEntry& entry, GridType grid_type
   process_switch_update_queue();
   process_climate_update_queue();
   process_cover_update_queue();
+  process_binary_sensor_update_queue();
   process_weather_update_queue();
   lv_obj_update_layout(entry.grid);
 
@@ -1233,7 +1237,7 @@ static void apply_cached_states(GridType grid_type, const TileGridConfig& config
     if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH &&
         tile.type != TILE_WEATHER && tile.type != TILE_ENERGY &&
         tile.type != TILE_MEDIA && tile.type != TILE_CLIMATE &&
-        tile.type != TILE_COVER) continue;
+        tile.type != TILE_COVER && tile.type != TILE_BINARY_SENSOR) continue;
     if (!include_media && tile.type == TILE_MEDIA) continue;
     if (tile.sensor_entity.length() == 0) continue;
 
@@ -1254,6 +1258,8 @@ static void apply_cached_states(GridType grid_type, const TileGridConfig& config
       queue_climate_tile_update(grid_type, i, payload.c_str());
     } else if (tile.type == TILE_COVER) {
       queue_cover_tile_update(grid_type, i, payload.c_str());
+    } else if (tile.type == TILE_BINARY_SENSOR) {
+      queue_binary_sensor_tile_update(grid_type, i, payload.c_str());
     }
   }
 }
@@ -1285,6 +1291,7 @@ void tiles_refresh_visible_from_cache() {
   process_switch_update_queue();
   process_climate_update_queue();
   process_cover_update_queue();
+  process_binary_sensor_update_queue();
   process_weather_update_queue();
   process_media_update_queue();
 }
@@ -1330,7 +1337,7 @@ static void refresh_cache_from_grid_config(const TileGridConfig& config, uint32_
     if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH &&
         tile.type != TILE_WEATHER && tile.type != TILE_ENERGY &&
         tile.type != TILE_MEDIA && tile.type != TILE_CLIMATE &&
-        tile.type != TILE_COVER) continue;
+        tile.type != TILE_COVER && tile.type != TILE_BINARY_SENSOR) continue;
     if (!tile.sensor_entity.length()) continue;
 
     uint32_t t_lookup0 = millis();
@@ -1351,7 +1358,7 @@ static void refresh_cache_from_entity_views(const FolderEntitySlotView* slots, s
     if (slot.type != TILE_SENSOR && slot.type != TILE_SWITCH &&
         slot.type != TILE_WEATHER && slot.type != TILE_ENERGY &&
         slot.type != TILE_MEDIA && slot.type != TILE_CLIMATE &&
-        slot.type != TILE_COVER) continue;
+        slot.type != TILE_COVER && slot.type != TILE_BINARY_SENSOR) continue;
     if (!slot.entity[0]) continue;
 
     uint32_t t_lookup0 = millis();
@@ -1453,7 +1460,7 @@ static void apply_cached_state_for_index(GridType grid_type, const TileGridConfi
   if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH &&
       tile.type != TILE_WEATHER && tile.type != TILE_ENERGY &&
       tile.type != TILE_MEDIA && tile.type != TILE_CLIMATE &&
-      tile.type != TILE_COVER) return;
+      tile.type != TILE_COVER && tile.type != TILE_BINARY_SENSOR) return;
   if (tile.sensor_entity.length() == 0) return;
 
   String payload;
@@ -1473,6 +1480,8 @@ static void apply_cached_state_for_index(GridType grid_type, const TileGridConfi
     queue_climate_tile_update(grid_type, index, payload.c_str());
   } else if (tile.type == TILE_COVER) {
     queue_cover_tile_update(grid_type, index, payload.c_str());
+  } else if (tile.type == TILE_BINARY_SENSOR) {
+    queue_binary_sensor_tile_update(grid_type, index, payload.c_str());
   }
 }
 
@@ -1519,6 +1528,7 @@ void build_tiles_tab(lv_obj_t *parent, GridType grid_type, scene_publish_cb_t sc
         process_switch_update_queue();
         process_climate_update_queue();
         process_cover_update_queue();
+        process_binary_sensor_update_queue();
         process_weather_update_queue();
         process_media_update_queue();
         g_active_cache->last_used_ms = millis();
@@ -1593,6 +1603,7 @@ void tiles_reload_layout(GridType grid_type) {
   reset_switch_widgets(grid_type);
   reset_climate_widgets(grid_type);
   reset_cover_widgets(grid_type);
+  reset_binary_sensor_widgets(grid_type);
   reset_weather_widgets(grid_type);
   reset_weather_widgets(grid_type);
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
@@ -1659,6 +1670,7 @@ void tiles_reload_layout(GridType grid_type) {
   process_switch_update_queue();
   process_climate_update_queue();
   process_cover_update_queue();
+  process_binary_sensor_update_queue();
   process_weather_update_queue();
   process_media_update_queue();
   if (disp) {
@@ -1696,6 +1708,7 @@ void tiles_release_layout(GridType grid_type) {
     reset_media_widgets(grid_type);
     reset_climate_widgets(grid_type);
     reset_cover_widgets(grid_type);
+    reset_binary_sensor_widgets(grid_type);
     clear_cache_entry(*g_active_cache);
     g_active_cache = nullptr;
     g_tiles_grids[idx] = nullptr;
@@ -1707,6 +1720,7 @@ void tiles_release_layout(GridType grid_type) {
   reset_switch_widgets(grid_type);
   reset_climate_widgets(grid_type);
   reset_cover_widgets(grid_type);
+  reset_binary_sensor_widgets(grid_type);
   reset_media_widgets(grid_type);
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     g_tiles_objs[idx][i] = nullptr;
@@ -1721,6 +1735,9 @@ void tiles_release_all() {
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
   clear_navigation_preload_plan();
 #endif
+  // Invalidate queued TAB0 Binary Sensor work and clear its LVGL bindings
+  // before the folder-cache grids that own those objects are deleted.
+  reset_binary_sensor_widgets(GridType::TAB0);
   for (size_t i = 0; i < g_folder_cache_slot_count; ++i) {
     reset_cache_entry(g_folder_cache[i]);
   }
@@ -1931,6 +1948,7 @@ void tiles_process_reload_requests() {
         process_switch_update_queue();
         process_climate_update_queue();
         process_cover_update_queue();
+        process_binary_sensor_update_queue();
         process_weather_update_queue();
         process_media_update_queue();
         if (previous && previous != target && previous->grid) {
@@ -1979,6 +1997,7 @@ void tiles_process_reload_requests() {
         process_switch_update_queue();
         process_climate_update_queue();
         process_cover_update_queue();
+        process_binary_sensor_update_queue();
         process_weather_update_queue();
         process_media_update_queue();
         if (previous && previous != target && previous->grid) {
@@ -2153,6 +2172,7 @@ static void rebuild_tile_at_index(GridType grid_type, uint8_t index) {
   reset_switch_widget(grid_type, index);
   reset_climate_widget(grid_type, index);
   reset_cover_widget(grid_type, index);
+  reset_binary_sensor_widget(grid_type, index);
   reset_weather_widget(grid_type, index);
 
   Tile layout_tile = tile;
@@ -2175,7 +2195,7 @@ static void tiles_refresh_icons_for_grid(GridType grid_type) {
     if (tile.type != TILE_SENSOR && tile.type != TILE_SWITCH &&
         tile.type != TILE_SCENE && tile.type != TILE_ENERGY &&
         tile.type != TILE_MEDIA && tile.type != TILE_CLIMATE &&
-        tile.type != TILE_COVER) continue;
+        tile.type != TILE_COVER && tile.type != TILE_BINARY_SENSOR) continue;
     lv_obj_t* tile_obj = g_tiles_objs[idx][i];
     if (!tile_obj) continue;
 
@@ -2202,6 +2222,15 @@ static void tiles_refresh_icons_for_grid(GridType grid_type) {
         bool dynamic_icon = false;
         icon_name = cover_resolve_icon(
             tile, states ? states[i] : CoverState{}, &dynamic_icon);
+        if (widgets) widgets[i].dynamic_icon = dynamic_icon;
+      } else if (tile.type == TILE_BINARY_SENSOR) {
+        BinarySensorState* states =
+            tile_renderer_get_binary_sensor_states(grid_type);
+        BinarySensorTileWidgets* widgets =
+            tile_renderer_get_binary_sensor_widgets(grid_type);
+        bool dynamic_icon = false;
+        icon_name = binary_sensor_resolve_icon(
+            tile, states ? states[i] : BinarySensorState{}, &dynamic_icon);
         if (widgets) widgets[i].dynamic_icon = dynamic_icon;
       } else if (tile.type == TILE_SCENE) {
         if (tile.scene_alias.length()) {
@@ -2280,6 +2309,8 @@ void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, co
   const TileGridConfig& config = getGridConfig(grid_type);
   bool popup_queued = false;
   uint64_t switch_indices = 0;
+  uint64_t binary_sensor_indices = 0;
+  bool binary_popup_queued = false;
 
   // Find tile with matching sensor_entity
   for (uint8_t i = 0; i < TILES_PER_GRID; i++) {
@@ -2318,12 +2349,32 @@ void tiles_update_sensor_by_entity(GridType grid_type, const char* entity_id, co
       Serial.printf("[%s] Cover %s@%u queued\n",
                     getGridName(grid_type), entity_id, i);
     }
+    if (tile.type == TILE_BINARY_SENSOR &&
+        tile.sensor_entity.equalsIgnoreCase(entity_id)) {
+      binary_sensor_indices |= uint64_t{1} << i;
+      if (!binary_popup_queued) {
+        const BinarySensorState state = parse_binary_sensor_payload(value);
+        if (state.valid) {
+          const String icon = binary_sensor_visual_icon(
+              state, haBridgeConfig.findEntityIcon(entity_id));
+          queue_binary_sensor_popup_state(
+              entity_id, binary_sensor_state_name(state.value),
+              state.available, state.device_class,
+              state.has_last_changed ? state.last_changed : 0, icon);
+          binary_popup_queued = true;
+        }
+      }
+    }
   }
 
   // One entity state can feed several tiles. Keep one queue payload and parse
   // it once in the render loop, then fan the parsed state out to every slot.
   if (switch_indices != 0) {
     queue_switch_tile_updates(grid_type, switch_indices, value);
+  }
+  if (binary_sensor_indices != 0) {
+    queue_binary_sensor_tile_updates(
+        grid_type, binary_sensor_indices, value);
   }
 }
 

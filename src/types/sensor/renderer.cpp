@@ -326,6 +326,19 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
           init.decimals = data->decimals;
           init.bg_color = data->bg_color;
           init.value = haBridgeConfig.findSensorInitialValue(data->entity_id);
+          String state_kind =
+              haBridgeConfig.findSensorStateKind(data->entity_id);
+          state_kind.trim();
+          state_kind.toLowerCase();
+          if (state_kind == "state") {
+            init.state_history_mode = true;
+          } else if (state_kind == "number") {
+            init.state_history_mode = false;
+          } else {
+            // Backward compatibility with older Bridge metadata.
+            init.state_history_mode =
+                sensor_popup_should_use_state_history(init.value, init.unit);
+          }
           finish_press_before_popup(e);
           show_sensor_popup(init);
         },

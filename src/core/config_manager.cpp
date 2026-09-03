@@ -510,9 +510,10 @@ static uint8_t normalize_display_brightness(uint8_t brightness) {
   const uint8_t configured_min = Device::backlightRawFromPercent(
       Device::kConfiguredBrightnessPercentMin);
   if (brightness >= configured_min) return brightness;
-#if defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1)
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) || \
+    defined(DEVICE_WAVESHARE_4B)
   // Preserve raw 0 for the low-level sleep/restart paths only. Persisted
-  // normal and screensaver brightness must remain at the measured 2 % floor.
+  // normal brightness must remain at the exact panel's measured visible floor.
   return configured_min;
 #elif defined(DEVICE_GUITION_ESP32_4848S040)
   // The first S3 brightness test build could persist values below the panel's

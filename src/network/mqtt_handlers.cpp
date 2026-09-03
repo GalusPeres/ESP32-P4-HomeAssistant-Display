@@ -67,6 +67,7 @@ static uint16_t g_external_history_head = 0;
 static uint16_t g_external_history_count = 0;
 static uint32_t g_external_history_last_store_ms = 0;
 static constexpr uint32_t kHistoryHaResponseTimeoutMs = 2000;
+static constexpr uint32_t kDiscreteHistoryHaResponseTimeoutMs = 8000;
 static constexpr uint8_t kHistoryPendingSlots = 8;
 static constexpr uint32_t kDynamicSlotReloadQuietMs = 3000;
 static constexpr uint32_t kDynamicSlotReloadAdminQuietMs = 5000;
@@ -85,6 +86,16 @@ struct PendingHistoryRequest {
 };
 
 static PendingHistoryRequest g_pending_history[kHistoryPendingSlots];
+
+struct PendingDiscreteHistoryRequest {
+  String entity_id;
+  String kind;
+  uint32_t requested_at_ms = 0;
+  uint16_t hours = 24;
+  bool active = false;
+};
+
+static PendingDiscreteHistoryRequest g_pending_discrete_history;
 
 static String buildHaStatestreamTopic(const String& entity_id, const char* suffix);
 
@@ -305,6 +316,23 @@ static String build_empty_history_payload(const char* entity_id,
   return payload;
 }
 
+static String build_discrete_history_unavailable_payload(
+    const char* kind, const char* entity_id, uint16_t hours,
+    const char* error) {
+  String payload;
+  payload.reserve(192);
+  payload = "{\"version\":1,\"kind\":\"";
+  payload += kind ? kind : "state";
+  payload += "\",\"entity_id\":\"";
+  payload += entity_id ? entity_id : "";
+  payload += "\",\"hours\":";
+  payload += String(hours);
+  payload += ",\"history_available\":false,\"error\":\"";
+  payload += error ? error : "unavailable";
+  payload += "\"}";
+  return payload;
+}
+
 static bool extract_json_string_field(const char* json, const char* key, String& out) {
   out = "";
   if (!json || !*json || !key || !*key) return false;
@@ -331,6 +359,29 @@ static bool extract_json_string_field(const char* json, const char* key, String&
   return out.length() > 0;
 }
 
+static bool extract_json_uint16_field(const char* json, const char* key,
+                                      uint16_t& out) {
+  if (!json || !*json || !key || !*key) return false;
+  String pattern = "\"";
+  pattern += key;
+  pattern += "\"";
+  const char* found = strstr(json, pattern.c_str());
+  if (!found) return false;
+  const char* colon = strchr(found + pattern.length(), ':');
+  if (!colon) return false;
+  const char* value = colon + 1;
+  while (*value == ' ' || *value == '\t' || *value == '\r' ||
+         *value == '\n') {
+    ++value;
+  }
+  if (*value < '0' || *value > '9') return false;
+  char* end = nullptr;
+  const unsigned long parsed = strtoul(value, &end, 10);
+  if (!end || end == value || parsed > 0xFFFFUL) return false;
+  out = static_cast<uint16_t>(parsed);
+  return true;
+}
+
 static void clear_pending_history_request(const char* entity_id) {
   if (!entity_id || !*entity_id) return;
   for (uint8_t i = 0; i < kHistoryPendingSlots; ++i) {
@@ -344,6 +395,45 @@ static void clear_pending_history_request(const char* entity_id) {
       g_pending_history[i].points = 288;
     }
   }
+}
+
+static void clear_pending_discrete_history_request(
+    const char* entity_id, const char* response_kind,
+    uint16_t response_hours = 0) {
+  if (!entity_id || !*entity_id || !response_kind || !*response_kind ||
+      !g_pending_discrete_history.active) {
+    return;
+  }
+  if (!g_pending_discrete_history.entity_id.equalsIgnoreCase(entity_id) ||
+      !g_pending_discrete_history.kind.equalsIgnoreCase(response_kind)) {
+    return;
+  }
+  if (response_hours != 0 &&
+      response_hours != g_pending_discrete_history.hours) {
+    return;
+  }
+  g_pending_discrete_history = {};
+}
+
+static void mark_pending_discrete_history_request(const char* entity_id,
+                                                  const char* kind,
+                                                  uint16_t hours) {
+  if (!entity_id || !*entity_id || !kind || !*kind) return;
+  g_pending_discrete_history.entity_id = entity_id;
+  g_pending_discrete_history.kind = kind;
+  g_pending_discrete_history.requested_at_ms = millis();
+  g_pending_discrete_history.hours = hours;
+  g_pending_discrete_history.active = true;
+}
+
+static void queue_discrete_history_unavailable(const char* entity_id,
+                                               const char* kind,
+                                               uint16_t hours,
+                                               const char* error) {
+  if (!entity_id || !*entity_id) return;
+  const String payload = build_discrete_history_unavailable_payload(
+      kind, entity_id, hours, error);
+  queue_sensor_popup_history(entity_id, payload.c_str(), payload.length());
 }
 
 static void mark_pending_history_request(const char* entity_id,
@@ -455,6 +545,21 @@ static void service_pending_history_fallback() {
       Serial.printf("[History] HA timeout for %s (no local fallback)\n",
                     entity.c_str());
     }
+  }
+
+  if (g_pending_discrete_history.active &&
+      static_cast<uint32_t>(now_ms -
+                            g_pending_discrete_history.requested_at_ms) >=
+          kDiscreteHistoryHaResponseTimeoutMs) {
+    const String entity_id = g_pending_discrete_history.entity_id;
+    const String kind = g_pending_discrete_history.kind;
+    const uint16_t hours = g_pending_discrete_history.hours;
+    g_pending_discrete_history = {};
+    queue_discrete_history_unavailable(entity_id.c_str(), kind.c_str(),
+                                       hours, "ha_timeout");
+    Serial.printf("[%s] HA timeout for %s\n",
+                  kind == "binary" ? "BinaryHistory" : "StateHistory",
+                  entity_id.c_str());
   }
 }
 
@@ -1222,7 +1327,8 @@ static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
       const FolderEntitySlotView& slot = slots[i];
       if ((slot.type == TILE_SENSOR || slot.type == TILE_ENERGY ||
            slot.type == TILE_SWITCH || slot.type == TILE_MEDIA ||
-           slot.type == TILE_CLIMATE || slot.type == TILE_COVER) &&
+           slot.type == TILE_CLIMATE || slot.type == TILE_COVER ||
+           slot.type == TILE_BINARY_SENSOR) &&
           slot.entity[0]) {
         add_route(String(slot.entity), -1);
         if (slot.type == TILE_MEDIA) {
@@ -1264,7 +1370,8 @@ static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
     const Tile& tile = screensaver_grid.tiles[i];
     if ((tile.type != TILE_SENSOR && tile.type != TILE_ENERGY &&
          tile.type != TILE_SWITCH &&
-         tile.type != TILE_MEDIA && tile.type != TILE_COVER) ||
+         tile.type != TILE_MEDIA && tile.type != TILE_COVER &&
+         tile.type != TILE_BINARY_SENSOR) ||
         !tile.sensor_entity.length()) {
       continue;
     }
@@ -1348,9 +1455,23 @@ static void rebuildDynamicWeatherRoutes(std::vector<DynamicWeatherRoute>& routes
   }
 }
 
-static bool tryHandleDynamicSensor(const char* topic, const char* payload) {
+static bool tryHandleDynamicSensor(const char* topic, const char* payload,
+                                   size_t payload_len) {
   for (const auto& route : g_dynamic_routes) {
     if (route.topic == topic) {
+      if (route.entity_id.startsWith("binary_sensor.") &&
+          payload_len > BINARY_SENSOR_PAYLOAD_MAX) {
+        static uint32_t last_oversize_log_ms = 0;
+        const uint32_t now_ms = millis();
+        if (last_oversize_log_ms == 0 ||
+            static_cast<uint32_t>(now_ms - last_oversize_log_ms) >= 5000) {
+          last_oversize_log_ms = now_ms;
+          Serial.printf(
+              "[BinarySensor] Oversized state dropped: %s (%u bytes)\n",
+              route.entity_id.c_str(), static_cast<unsigned>(payload_len));
+        }
+        return true;
+      }
       // Update tile-based system (display) - active folder only
       tiles_update_sensor_by_entity(GridType::TAB0, route.entity_id.c_str(), payload);
       // Update sensor values map (for web interface)
@@ -1703,7 +1824,7 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
   size_t copy_len = length < (dyn_len - 1) ? length : (dyn_len - 1);
   memcpy(dyn_buf, payload, copy_len);
   dyn_buf[copy_len] = '\0';
-  if (tryHandleDynamicSensor(topic, dyn_buf)) {
+  if (tryHandleDynamicSensor(topic, dyn_buf, copy_len)) {
     yield();  // Nach Sensor-Update
     return;
   }
@@ -1720,15 +1841,39 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
     memcpy(large_buf, payload, copy_len);
     large_buf[copy_len] = '\0';
     String response_entity;
-    if (extract_json_string_field(large_buf, "entity_id", response_entity) && response_entity.length()) {
-      clear_pending_history_request(response_entity.c_str());
+    const bool has_entity =
+        extract_json_string_field(large_buf, "entity_id", response_entity) &&
+        response_entity.length();
+    String response_kind;
+    extract_json_string_field(large_buf, "kind", response_kind);
+    const bool is_binary = response_kind.equalsIgnoreCase("binary");
+    const bool is_state = response_kind.equalsIgnoreCase("state");
+    const bool is_discrete = is_binary || is_state;
+    if (has_entity) {
+      if (is_discrete) {
+        uint16_t response_hours = 0;
+        extract_json_uint16_field(large_buf, "hours", response_hours);
+        clear_pending_discrete_history_request(
+            response_entity.c_str(), response_kind.c_str(), response_hours);
+        if (is_state) {
+          // A new Bridge may upgrade a legacy numeric request after inspecting
+          // the entity metadata. Clear that old pending slot as well.
+          clear_pending_history_request(response_entity.c_str());
+        }
+      } else {
+        clear_pending_history_request(response_entity.c_str());
+      }
     }
-    Serial.printf("[History] Response received: %s, %u bytes\n",
+    Serial.printf("[%s] Response received: %s, %u bytes\n",
+                  is_binary ? "BinaryHistory"
+                            : (is_state ? "StateHistory" : "History"),
                   response_entity.length() ? response_entity.c_str()
-                                           : "entity unbekannt",
+                                           : "unknown entity",
                   static_cast<unsigned>(copy_len));
     queue_sensor_popup_history(nullptr, large_buf, copy_len);
-    queue_tile_graph_history(nullptr, large_buf, copy_len);
+    if (!is_discrete) {
+      queue_tile_graph_history(nullptr, large_buf, copy_len);
+    }
     return;
   }
 
@@ -2302,6 +2447,72 @@ void mqttPublishHistoryRequest(const char* entity_id,
   } else if (!history_topic || !*history_topic) {
     Serial.printf("History request skipped (no topic): %s\n", entity_id);
   }
+}
+
+static void mqttPublishDiscreteHistoryRequest(const char* entity_id,
+                                              const char* kind,
+                                              const char* log_tag,
+                                              uint16_t hours,
+                                              uint16_t max_transitions) {
+  if (!entity_id || !*entity_id) return;
+
+  hours = hours == 168 ? 168 : 24;
+  if (max_transitions == 0) max_transitions = 48;
+  if (max_transitions < 2) max_transitions = 2;
+  if (max_transitions > 96) max_transitions = 96;
+
+  // Only one popup can be visible. A new request supersedes any pending
+  // request for the previous popup entity or range.
+  g_pending_discrete_history = {};
+  const bool mqtt_online = networkManager.isMqttConnected();
+  const char* history_topic = networkManager.getHistoryRequestTopic();
+  if (!mqtt_online || !history_topic || !*history_topic) {
+    queue_discrete_history_unavailable(
+        entity_id, kind, hours,
+        mqtt_online ? "missing_topic" : "mqtt_offline");
+    Serial.printf("[%s] Request unavailable for %s (%s)\n", log_tag,
+                  entity_id,
+                  mqtt_online ? "missing topic" : "MQTT offline");
+    return;
+  }
+
+  String payload;
+  payload.reserve(160);
+  payload = "{\"version\":1,\"kind\":\"";
+  payload += kind;
+  payload += "\",\"entity_id\":\"";
+  payload += entity_id;
+  payload += "\",\"hours\":";
+  payload += String(hours);
+  payload += ",\"max_transitions\":";
+  payload += String(max_transitions);
+  payload += "}";
+
+  const bool queued = networkManager.mqttEnqueuePublishWithLargeBuffer(
+      history_topic, payload.c_str(), false, 20000, true);
+  Serial.printf("[%s] Request -> MQTT '%s' (%s, priority)\n", log_tag,
+                history_topic, queued ? "queued" : "queue-full");
+  if (queued) {
+    mark_pending_discrete_history_request(entity_id, kind, hours);
+    return;
+  }
+
+  queue_discrete_history_unavailable(entity_id, kind, hours,
+                                     "publish_failed");
+}
+
+void mqttPublishBinaryHistoryRequest(const char* entity_id,
+                                     uint16_t hours,
+                                     uint16_t max_transitions) {
+  mqttPublishDiscreteHistoryRequest(entity_id, "binary", "BinaryHistory",
+                                    hours, max_transitions);
+}
+
+void mqttPublishStateHistoryRequest(const char* entity_id,
+                                    uint16_t hours,
+                                    uint16_t max_transitions) {
+  mqttPublishDiscreteHistoryRequest(entity_id, "state", "StateHistory",
+                                    hours, max_transitions);
 }
 
 void mqttPublishWeatherRequest(const char* entity_id) {

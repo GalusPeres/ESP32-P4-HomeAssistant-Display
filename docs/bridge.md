@@ -7,7 +7,10 @@ MQTT, and executes the light/switch/media/scene commands coming back. Bridge
 v0.6.28 and newer provide the experimental local camera transport used by
 HomeTiles v0.6.3 and newer. Bridge v0.6.32 adds migration-safe entities for the
 local Hardware I/O announced by HomeTiles v0.6.4. Bridge v0.6.35 adds Cover
-entity state, metadata and validated commands for HomeTiles v0.6.5.
+entity state, metadata and validated commands for HomeTiles v0.6.5. Bridge
+v0.6.40 adds Binary Sensor metadata and bounded categorical history for Binary
+Sensor and text-valued Sensor tiles while remaining compatible with older
+firmware.
 
 Every display appears as its own device under the integration — with its base topic
 and status entities — no matter how many panels you run:
@@ -22,6 +25,8 @@ and status entities — no matter how many panels you run:
 - HomeTiles Bridge v0.6.32 or newer when panel-local Switch or temperature
   assignments should appear as Home Assistant entities
 - HomeTiles Bridge v0.6.35 or newer when Cover tiles are used
+- HomeTiles Bridge v0.6.40 or newer when Binary Sensor or categorical Sensor
+  history is used
 
 ## Installation
 
@@ -69,7 +74,8 @@ Base topic, HA prefix, and device metadata — same fields as above.
 
 Select which entities the displays may use:
 
-- **Sensors** — any entity whose state you want on sensor tiles
+- **Sensors** — `sensor.*` entities for numeric or textual Sensor tiles
+- **Binary Sensors** — `binary_sensor.*` entities with device-class states and icons
 - **Weather** — `weather` entities for weather tiles/forecasts
 - **Lights / Switches / Covers / Climate / Media players** — controllable from the displays
 - **Cameras** — sources for the experimental ESP32-P4 Camera tile
@@ -118,7 +124,7 @@ For debugging with an MQTT client (topic layout, `{id}` = panel device id):
 | `tab5_lvgl/config/{id}/bridge` | Display → HA | Device announcement, including local Hardware I/O |
 | `tab5_lvgl/config/{id}/bridge/apply` | HA → Display | Full configuration push |
 | `tab5_lvgl/config/{id}/bridge/icons` | HA → Display | Lightweight icon updates |
-| `tab5_lvgl/config/{id}/history/*` | Both | Sensor history request/response |
+| `tab5_lvgl/config/{id}/history/*` | Both | Numeric, Binary Sensor, and categorical Sensor history request/response |
 | `tab5_lvgl/config/{id}/weather/*` | Both | Weather forecast request/response |
 | `tab5_lvgl/config/{id}/energy/*` | Both | Energy data request/response |
 | `<base>/cmnd/light` | Display → HA | Light control commands |

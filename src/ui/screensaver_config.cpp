@@ -53,6 +53,7 @@ TileType normalize_screensaver_type(int raw) {
     case TILE_SWITCH:
     case TILE_MEDIA:
     case TILE_COVER:
+    case TILE_BINARY_SENSOR:
       return static_cast<TileType>(raw);
     default:
       return TILE_EMPTY;

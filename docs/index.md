@@ -67,22 +67,20 @@ Looking for something specific? [Tile Types](tiles.md) ·
 [FAQ & Troubleshooting](faq.md) ·
 [GitHub](https://github.com/GalusPeres/HomeTiles)
 
-## New In v0.6.8
+## New In v0.6.9
 
-HomeTiles v0.6.8 stabilizes Camera presentation on native ESP32-P4 DSI
-displays, records a persistent diagnostic before a controlled display-pipeline
-restart, and distinguishes a missing Camera response from an outdated Bridge.
-It also fixes Waveshare 7B/7B-C startup and publishes two explicit installer
-entries for ESP32-P4 before v3.0 (revisions 1–199) and exact ESP32-P4 v3.1.
-The exact-v3.1 entry is experimental and has not been hardware-verified; v3.2
-or newer is unsupported and must not be flashed.
+HomeTiles v0.6.9 adds dedicated Binary Sensor tiles with localized states,
+state-aware icons, live Web Admin previews, and 24-hour/7-day Activity history.
+Text-valued Sensor entities use the same categorical timeline while numeric
+Sensors retain their chart.
 
-The Waveshare 10.1-inch and Guition JC1060 V2 now start in their reported
-working orientation, and the 10.1-inch brightness controls keep a readable 2%
-minimum. **HomeTiles Bridge v0.6.37** remains recommended; no new Bridge
-protocol is required.
+The release adds Waveshare ESP32-P4 4.3-inch support, fixes a thin-redraw PPA
+timeout on the Waveshare 8-inch, and maps Waveshare 4B display, screensaver, and
+Home Assistant brightness to the complete visible `1–100 %` range. **HomeTiles
+Bridge v0.6.40** is recommended for the new history features. Camera support
+remains experimental and ESP32-P4-only.
 
-[Read the v0.6.8 release notes :octicons-arrow-right-24:](releases/v0.6.8.md)
+[Read the v0.6.9 release notes :octicons-arrow-right-24:](releases/v0.6.9.md)
 
 ## Device Support
 

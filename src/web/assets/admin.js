@@ -1578,6 +1578,7 @@ function t(key) {
                     Object.prototype.hasOwnProperty.call(payload, 'units') ||
                     Object.prototype.hasOwnProperty.call(payload, 'icons') ||
                     Object.prototype.hasOwnProperty.call(payload, 'names') ||
+                    Object.prototype.hasOwnProperty.call(payload, 'binary_sensor_values') ||
                     Object.prototype.hasOwnProperty.call(payload, 'energy_values') ||
                     Object.prototype.hasOwnProperty.call(payload, 'energy_units') ||
                     Object.prototype.hasOwnProperty.call(payload, 'climate_values');
@@ -1588,6 +1589,7 @@ function t(key) {
       values: Object.assign(
         {},
         payload.values || {},
+        payload.binary_sensor_values || {},
         payload.energy_values || {},
         payload.climate_values || {}
       ),
@@ -1794,6 +1796,7 @@ function t(key) {
     return fetchEntityOptions()
       .then(data => {
         rebuildEntitySelect(tab + '_sensor_entity', data.sensors);
+        rebuildEntitySelect(tab + '_binary_sensor_entity', data.binary_sensors);
         rebuildEntitySelect(tab + '_energy_entity', data.energy);
         rebuildEntitySelect(tab + '_weather_entity', data.weathers);
         rebuildEntitySelect(tab + '_switch_entity', data.switches);
@@ -1896,6 +1899,9 @@ function t(key) {
 
     if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'switch_entity')) {
       tile.sensor_entity = snapshot.switch_entity || '';
+    }
+    if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'binary_sensor_entity')) {
+      tile.sensor_entity = snapshot.binary_sensor_entity || '';
     }
     if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'weather_entity')) {
       tile.sensor_entity = snapshot.weather_entity || '';
@@ -3009,6 +3015,10 @@ function t(key) {
     const opacityInput = isScreensaverTileTab(tab)
       ? document.getElementById('screensaver_tile_opacity') : null;
     const entitySelect = document.getElementById(prefix + '_sensor_entity');
+    const binarySensorSelect = document.getElementById(
+      prefix + '_binary_sensor_entity');
+    const binarySensorPopupModeSelect = document.getElementById(
+      prefix + '_binary_sensor_popup_open_mode');
       const unitInput = document.getElementById(prefix + '_sensor_unit');
       const decimalsInput = document.getElementById(prefix + '_sensor_decimals');
       const valueFontSelect = document.getElementById(prefix + '_sensor_value_font');
@@ -3097,6 +3107,21 @@ function t(key) {
       scheduleAutoSave(tab);
     });
     bindLive(entitySelect, 'change', 'sensorEntity', () => { maybeFillTitleFromSensor(tab); updateTilePreview(tab); updateSensorValuePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(binarySensorSelect, 'change', 'binarySensorEntity', () => {
+      if (binarySensorSelect.value) {
+        binarySensorSelect.dataset.configuredValue = binarySensorSelect.value;
+      } else {
+        delete binarySensorSelect.dataset.configuredValue;
+      }
+      maybeFillTitleFromEntity(tab, '_binary_sensor_entity');
+      updateTilePreview(tab);
+      updateDraft(tab);
+      scheduleAutoSave(tab);
+    });
+    bindLive(binarySensorPopupModeSelect, 'change', 'binarySensorPopupMode', () => {
+      updateDraft(tab);
+      scheduleAutoSave(tab);
+    });
     bindLive(weatherSelect, 'change', 'weatherEntity', () => { maybeFillTitleFromWeather(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(weatherPopupModeSelect, 'change', 'weatherPopupMode', () => { updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(energySelect, 'change', 'energyEntity', () => {
@@ -3303,6 +3328,8 @@ function t(key) {
     const sensorValueClass = getSensorValueFontClass(sensorValueFont);
     const previewKind = meta.preview || 'none';
     const sensorEntity = document.getElementById(prefix + '_sensor_entity')?.value || '';
+    const binarySensorEntity = document.getElementById(
+      prefix + '_binary_sensor_entity')?.value || '';
     const energyEntity = document.getElementById(prefix + '_energy_entity')?.value || '';
     const weatherEntity = document.getElementById(prefix + '_weather_entity')?.value || '';
     const switchEntity = document.getElementById(prefix + '_switch_entity')?.value || '';
@@ -3312,6 +3339,8 @@ function t(key) {
     const cameraEntity = document.getElementById(prefix + '_camera_entity')?.value || '';
     const iconEntity = (previewKind === 'sensor')
       ? (isEnergyType ? energyEntity : sensorEntity)
+      : (previewKind === 'binary_sensor'
+        ? binarySensorEntity
       : (previewKind === 'switch'
         ? switchEntity
         : (previewKind === 'weather'
@@ -3322,7 +3351,7 @@ function t(key) {
               ? climateEntity
               : (previewKind === 'cover'
                 ? coverEntity
-                : (previewKind === 'camera' ? cameraEntity : ''))))));
+                : (previewKind === 'camera' ? cameraEntity : '')))))));
     const rawIcon = iconInput ? iconInput.value : '';
     let iconName = resolveIconName(
       rawIcon,
@@ -3349,6 +3378,15 @@ function t(key) {
           !isExplicitlyDisabledValue(rawIcon)) {
         iconName = coverPreviewIcon(coverPreviewState, iconName);
       }
+    }
+    let binarySensorPreviewState = null;
+    if (previewKind === 'binary_sensor') {
+      binarySensorPreviewState = parseBinarySensorPreviewPayload(
+        binarySensorEntity
+          ? (sensorMetaCache.values[binarySensorEntity] ?? '') : '');
+      iconName = resolveBinarySensorPreviewIcon(
+        rawIcon, binarySensorEntity, binarySensorPreviewState,
+        sensorMetaCache.icons);
     }
 
     tileElem.className = 'tile';
@@ -3395,7 +3433,10 @@ function t(key) {
         ? ' style="color:' + climatePreviewColor(climatePreviewState) + '"'
         : (previewKind === 'cover'
           ? ' style="color:' + coverPreviewColor(coverPreviewState) + '"'
-          : '');
+          : (previewKind === 'binary_sensor'
+            ? ' style="color:' + binarySensorPreviewColor(
+                binarySensorPreviewState) + '"'
+            : ''));
       html += '<i class="mdi mdi-' + escapeHtml(iconName) + ' tile-icon"' + iconStyle + '></i>';
     }
 
@@ -3434,6 +3475,12 @@ function t(key) {
       html += '<div class="tile-value tile-cover-value">' +
         escapeHtml(coverPreviewStateText(coverPreviewState)) +
         '<br>' + escapeHtml(value) + '</div>';
+    }
+    if (previewKind === 'binary_sensor') {
+      html += '<div class="tile-value tile-binary-sensor-value" id="' +
+        tileId + '-value">' +
+        escapeHtml(binarySensorPreviewStateText(binarySensorPreviewState)) +
+        '</div>';
     }
 
     if (previewKind === 'sensor') {
@@ -4189,7 +4236,7 @@ function t(key) {
     const currentTiles = await fetchTilesForImport(folderId);
     const tileCount = GRID_COLS * GRID_ROWS;
     const preparedTiles = prepareScreensaverTilesForImport(sourceTiles, sourceLayout);
-    const supportedTypes = new Set([1, 2, 5, 14, MEDIA_TILE_TYPE]);
+    const supportedTypes = new Set([1, 2, 5, 14, 20, MEDIA_TILE_TYPE]);
     for (const entry of preparedTiles) {
       if (!supportedTypes.has(Number(entry.tile.type || 0))) {
         throw new Error('Unsupported screensaver tile type');
@@ -4369,6 +4416,14 @@ function t(key) {
         fd.append('sensor_graph_height', tile.sensor_graph_height);
       }
       if (tile.popup_open_mode !== undefined && tile.popup_open_mode !== null) {
+        fd.append('popup_open_mode', tile.popup_open_mode);
+      }
+    } else if (safeType === 20) {
+      fd.append(
+        'binary_sensor_entity',
+        tile.sensor_entity || tile.binary_sensor_entity || '');
+      if (tile.popup_open_mode !== undefined &&
+          tile.popup_open_mode !== null) {
         fd.append('popup_open_mode', tile.popup_open_mode);
       }
     } else if (safeType === 2) {
@@ -4576,7 +4631,9 @@ function t(key) {
     }
     else {
       const previewKind = meta.preview || 'none';
-      const iconEntity = (previewKind === 'sensor' || previewKind === 'switch' ||
+      const iconEntity = (previewKind === 'sensor' ||
+                          previewKind === 'binary_sensor' ||
+                          previewKind === 'switch' ||
                           previewKind === 'weather' || previewKind === 'media' ||
                           previewKind === 'climate' || previewKind === 'cover' ||
                           previewKind === 'camera')
@@ -4609,6 +4666,14 @@ function t(key) {
           iconName = coverPreviewIcon(coverPreviewState, iconName);
         }
       }
+      let binarySensorPreviewState = null;
+      if (previewKind === 'binary_sensor') {
+        binarySensorPreviewState = parseBinarySensorPreviewPayload(
+          tile.sensor_entity ? (metaValues[tile.sensor_entity] ?? '') : '');
+        iconName = resolveBinarySensorPreviewIcon(
+          rawIcon, tile.sensor_entity || '', binarySensorPreviewState,
+          metaIcons);
+      }
 
       let html = '';
 
@@ -4617,7 +4682,10 @@ function t(key) {
           ? ' style="color:' + climatePreviewColor(climatePreviewState) + '"'
           : (previewKind === 'cover'
             ? ' style="color:' + coverPreviewColor(coverPreviewState) + '"'
-            : '');
+            : (previewKind === 'binary_sensor'
+              ? ' style="color:' + binarySensorPreviewColor(
+                  binarySensorPreviewState) + '"'
+              : ''));
         html += '<i class="mdi mdi-' + escapeHtml(iconName) + ' tile-icon"' + iconStyle + '></i>';
       }
 
@@ -4664,6 +4732,12 @@ function t(key) {
         html += '<div class="tile-value tile-cover-value">' +
           escapeHtml(coverPreviewStateText(coverPreviewState)) +
           '<br>' + escapeHtml(value) + '</div>';
+      }
+      if (previewKind === 'binary_sensor') {
+        html += '<div class="tile-value tile-binary-sensor-value" id="' +
+          tab + '-tile-' + index + '-value">' +
+          escapeHtml(binarySensorPreviewStateText(binarySensorPreviewState)) +
+          '</div>';
       }
       if (previewKind === 'clock') {
         const flags = normalizeClockFlags(tile.sensor_decimals);
@@ -7027,6 +7101,120 @@ function maybeFillTitleFromSensor(tab) {
     return formatLocalizedNumber(num, d, false);
   }
 
+  const BINARY_SENSOR_ICON_PAIRS = Object.freeze({
+    '': Object.freeze(['radiobox-blank', 'checkbox-marked-circle']),
+    battery: Object.freeze(['battery', 'battery-outline']),
+    battery_charging: Object.freeze(['battery', 'battery-charging']),
+    carbon_monoxide: Object.freeze(['smoke-detector', 'smoke-detector-alert']),
+    cold: Object.freeze(['thermometer', 'snowflake']),
+    connectivity: Object.freeze(['close-network-outline', 'check-network-outline']),
+    door: Object.freeze(['door-closed', 'door-open']),
+    garage_door: Object.freeze(['garage', 'garage-open']),
+    gas: Object.freeze(['check-circle', 'alert-circle']),
+    heat: Object.freeze(['thermometer', 'fire']),
+    light: Object.freeze(['brightness-5', 'brightness-7']),
+    lock: Object.freeze(['lock', 'lock-open']),
+    moisture: Object.freeze(['water-off', 'water']),
+    motion: Object.freeze(['motion-sensor-off', 'motion-sensor']),
+    moving: Object.freeze(['octagon', 'arrow-right']),
+    occupancy: Object.freeze(['home-outline', 'home']),
+    opening: Object.freeze(['square', 'square-outline']),
+    plug: Object.freeze(['power-plug-off', 'power-plug']),
+    power: Object.freeze(['power-plug-off', 'power-plug']),
+    presence: Object.freeze(['home-outline', 'home']),
+    problem: Object.freeze(['check-circle', 'alert-circle']),
+    running: Object.freeze(['stop', 'play']),
+    safety: Object.freeze(['check-circle', 'alert-circle']),
+    smoke: Object.freeze(['smoke-detector-variant', 'smoke-detector-variant-alert']),
+    sound: Object.freeze(['music-note-off', 'music-note']),
+    tamper: Object.freeze(['check-circle', 'alert-circle']),
+    update: Object.freeze(['package', 'package-up']),
+    vibration: Object.freeze(['crop-portrait', 'vibrate']),
+    window: Object.freeze(['window-closed', 'window-open'])
+  });
+  function parseBinarySensorPreviewPayload(value) {
+    const out = {
+      valid: false,
+      state: '',
+      available: false,
+      deviceClass: '',
+      icon: ''
+    };
+    if (value === undefined || value === null) return out;
+
+    let source = value;
+    if (typeof source === 'string') {
+      const text = source.trim();
+      if (!text.length) return out;
+      if (text.startsWith('{')) {
+        try {
+          source = JSON.parse(text);
+        } catch (error) {
+          return out;
+        }
+      } else {
+        source = { state: text };
+      }
+    }
+    if (!source || typeof source !== 'object') return out;
+
+    const attrs = source.attributes && typeof source.attributes === 'object'
+      ? source.attributes : source;
+    const state = String(source.state ?? attrs.state ?? '').trim().toLowerCase();
+    if (!['on', 'off', 'unknown', 'unavailable'].includes(state)) return out;
+
+    out.valid = true;
+    out.state = state;
+    out.available = typeof source.available === 'boolean'
+      ? source.available : state !== 'unavailable';
+    if (state === 'unavailable') out.available = false;
+    out.deviceClass = String(
+      source.device_class ?? attrs.device_class ?? '').trim().toLowerCase();
+    out.icon = normalizeMdiIconName(source.icon ?? attrs.icon ?? '');
+    return out;
+  }
+
+  function binarySensorPreviewIconPair(deviceClass) {
+    return BINARY_SENSOR_ICON_PAIRS[String(deviceClass || '').toLowerCase()] ||
+      BINARY_SENSOR_ICON_PAIRS[''];
+  }
+
+  function resolveBinarySensorPreviewIcon(
+      rawIcon, entityId, state, metaIcons) {
+    if (isExplicitlyDisabledValue(rawIcon)) return '';
+    const configured = normalizeMdiIconName(rawIcon);
+    if (configured) return configured;
+
+    const stateIcon = normalizeMdiIconName(state?.icon || '');
+    if (stateIcon) return stateIcon;
+    const entityIcon = entityId && metaIcons
+      ? normalizeMdiIconName(metaIcons[entityId]) : '';
+    if (entityIcon) return entityIcon;
+
+    const pair = binarySensorPreviewIconPair(state?.deviceClass);
+    const active = state?.valid === true && state?.available === true &&
+      state?.state === 'on';
+    return pair[active ? 1 : 0];
+  }
+
+  function binarySensorPreviewColor(state) {
+    return state?.valid === true && state?.available === true &&
+      state?.state === 'on' ? '#ffc107' : '#9e9e9e';
+  }
+
+  function binarySensorPreviewStateText(state) {
+    if (!state?.valid) return '--';
+    const translations = typeof BINARY_SENSOR_I18N === 'object'
+      ? BINARY_SENSOR_I18N : {};
+    if (state.available === false || state.state === 'unavailable') {
+      return translations.unavailable || '--';
+    }
+    if (state.state === 'unknown') return translations.unknown || '--';
+    const states = translations.states || {};
+    const pair = states[state.deviceClass] || states[''] || {};
+    return pair[state.state] || translations.unknown || '--';
+  }
+
   function updateSensorValuePreview(tab) {
     if (currentTileIndex === -1) return;
     const prefix = tab;
@@ -7181,6 +7369,53 @@ function maybeFillTitleFromSensor(tab) {
     if (valueYOffsetEl) valueYOffsetEl.value = '';
     const graphHeightEl = document.getElementById(prefix + '_sensor_graph_height');
     if (graphHeightEl) graphHeightEl.value = '';
+  }
+
+  function loadBinarySensorFields(tab, data) {
+    const entity = document.getElementById(tab + '_binary_sensor_entity');
+    const configured = data.sensor_entity || data.binary_sensor_entity || '';
+    if (entity) {
+      if (configured) {
+        entity.dataset.configuredValue = configured;
+        if (!Array.from(entity.options).some(option => option.value === configured)) {
+          const option = document.createElement('option');
+          option.value = configured;
+          option.textContent = configured;
+          entity.appendChild(option);
+        }
+      } else {
+        delete entity.dataset.configuredValue;
+      }
+      entity.value = configured;
+    }
+    const popup = document.getElementById(
+      tab + '_binary_sensor_popup_open_mode');
+    if (popup) {
+      popup.value = data.popup_open_mode !== undefined
+        ? String(data.popup_open_mode) : '1';
+    }
+  }
+
+  function saveBinarySensorFields(tab, formData) {
+    const entityEl = document.getElementById(tab + '_binary_sensor_entity');
+    const entity = entityEl
+      ? (entityEl.value || entityEl.dataset.configuredValue || '') : '';
+    formData.append('binary_sensor_entity', entity);
+    formData.append('sensor_entity', entity);
+    const popup = document.getElementById(
+      tab + '_binary_sensor_popup_open_mode');
+    if (popup) formData.append('popup_open_mode', popup.value || '1');
+  }
+
+  function resetBinarySensorFields(tab) {
+    const entity = document.getElementById(tab + '_binary_sensor_entity');
+    if (entity) {
+      entity.value = '';
+      delete entity.dataset.configuredValue;
+    }
+    const popup = document.getElementById(
+      tab + '_binary_sensor_popup_open_mode');
+    if (popup) popup.value = '1';
   }
 
 function maybeFillTitleFromEnergy(tab) {

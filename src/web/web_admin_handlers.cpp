@@ -95,6 +95,7 @@ fs::FS& sdFS() {
 
 static bool tileTypeHasDynamicMqttRoute(TileType type) {
   return type == TILE_SENSOR ||
+         type == TILE_BINARY_SENSOR ||
          type == TILE_SWITCH ||
          type == TILE_MEDIA ||
          type == TILE_WEATHER ||
@@ -2711,7 +2712,8 @@ void WebAdminServer::handleSaveTiles() {
 
   if (screensaver_grid && type != TILE_EMPTY && type != TILE_SENSOR &&
       type != TILE_ENERGY && type != TILE_SCENE && type != TILE_SWITCH &&
-      type != TILE_MEDIA && type != TILE_COVER) {
+      type != TILE_MEDIA && type != TILE_COVER &&
+      type != TILE_BINARY_SENSOR) {
     server.send(400, "application/json",
                 "{\"success\":false,\"error\":\"Tile type not supported in screensaver\"}");
     return;
@@ -3070,6 +3072,29 @@ void WebAdminServer::handleGetSensorValues() {
   json += ",\"names\":";
   appendKeyValueMapJson(json, ha.sensor_names_map);
 
+  // Binary sensors use a structured state payload so the browser can apply
+  // the same device-class label and automatic icon rules as the display.
+  // Overlay the live entity cache on the retained configuration snapshot.
+  json += ",\"binary_sensor_values\":{";
+  bool first_binary_sensor_value = true;
+  const auto binary_sensor_ids = parseSensorList(ha.binary_sensors_text);
+  for (const auto& id : binary_sensor_ids) {
+    String payload;
+    if (!tiles_get_cached_entity_payload(id.c_str(), payload)) {
+      payload = haBridgeConfig.findSensorInitialValue(id);
+    }
+    payload.trim();
+    if (!payload.length()) continue;
+    if (!first_binary_sensor_value) json += ',';
+    first_binary_sensor_value = false;
+    json += '"';
+    appendJsonEscaped(json, id);
+    json += "\":\"";
+    appendJsonEscaped(json, payload);
+    json += '"';
+  }
+  json += "}";
+
   // Climate-Zustaende enthalten neben der Ist-Temperatur auch HVAC-Modus,
   // Aktion und Einheit. Sie liegen im zentralen Entity-Cache als komplettes
   // JSON-Payload und duerfen nicht auf den einfachen Sensorwert reduziert
@@ -3339,6 +3364,16 @@ void WebAdminServer::handleGetEntityOptions() {
   appendLocalIds(sensor_ids, HardwareIoType::Temperature);
   appendHumanizedList(json, "sensors", sensor_ids);
   json += ",";
+  json += "\"binary_sensors\":[";
+  {
+    bool first = true;
+    for (const auto& id : parseSensorList(ha.binary_sensors_text)) {
+      String name = haBridgeConfig.findSensorName(id);
+      if (!name.length()) name = humanizeIdentifier(id, true);
+      appendPair(json, id, name + " - " + id, first);
+    }
+  }
+  json += "],";
   appendHumanizedList(json, "weathers", parseSensorList(ha.weathers_text));
   json += ",";
   appendHumanizedList(json, "climates", parseSensorList(ha.climates_text));

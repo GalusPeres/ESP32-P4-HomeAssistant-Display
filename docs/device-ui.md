@@ -36,10 +36,13 @@ as Light controls. Position and tilt are independent vertical sliders, while a
 second mode exposes the supported open, close and stop actions. Unsupported or
 unavailable controls stay disabled.
 
-### Sensor History
+### Sensor And Binary Sensor History
 
-Sensor tiles chart their history — fetched live from Home Assistant through the
-bridge — with a 24-hour and a 7-day view.
+Numeric Sensor tiles chart their history with a 24-hour and a 7-day view.
+Binary Sensor tiles and text-valued Sensor entities use a colored state timeline
+followed by a scrollable Activity list grouped by local date. State labels and
+icons follow the entity's Home Assistant device class and the selected HomeTiles
+language. History is fetched live through HomeTiles Bridge v0.6.40 or newer.
 
 ![Sensor history, 7 day view](images/8in-sensor-popup-7d.png){ width="70%" }
 

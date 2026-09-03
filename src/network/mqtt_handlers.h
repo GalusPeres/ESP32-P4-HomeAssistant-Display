@@ -48,6 +48,12 @@ void mqttPublishHistoryRequest(const char* entity_id,
                                uint16_t hours = 24,
                                uint16_t period_minutes = 5,
                                uint16_t points = 288);
+void mqttPublishBinaryHistoryRequest(const char* entity_id,
+                                     uint16_t hours = 24,
+                                     uint16_t max_transitions = 48);
+void mqttPublishStateHistoryRequest(const char* entity_id,
+                                    uint16_t hours = 24,
+                                    uint16_t max_transitions = 48);
 void mqttPublishWeatherRequest(const char* entity_id);
 bool mqttPublishEnergyRequest(const char* period = "day");
 void mqttPublishHomeSnapshot();

@@ -60,26 +60,39 @@ the whole chain: MQTT broker, bridge integration, and connecting the display.
 - [FAQ & Troubleshooting](docs/faq.md) — common questions and known quirks
 - [BOARD_SETTINGS.md](BOARD_SETTINGS.md) — Arduino IDE build settings per device
 
-## Highlights Of v0.6.8
+## Highlights Of v0.6.9
 
-- Stabilized Camera presentation across the native ESP32-P4 DSI profiles with
+- Added dedicated Binary Sensor tiles with localized device-class states,
+  state-aware icons, availability handling, and matching live Web Admin
+  previews and autosave.
+- Added 24-hour and 7-day categorical timelines with date-grouped Activity for
+  Binary Sensors and text-valued Sensor entities; numeric Sensors keep their
+  existing chart.
+- Added release and browser-installer support for the Waveshare ESP32-P4 4.3-inch.
+- Fixed a Waveshare 8-inch PPA timeout caused by thin Activity-list redraws and
+  corrected Waveshare 4B display, screensaver, and Home Assistant brightness
+  scaling to the visible `1–100 %` range.
+- Improved ESP32-S3 update/render work and Web Admin accessibility and safety.
+
+[HomeTiles Bridge v0.6.40](https://github.com/GalusPeres/HomeTiles-Bridge/releases/tag/v0.6.40)
+is the recommended companion release and is required for the new Binary Sensor
+and categorical Sensor history. Camera support remains experimental and is
+available only on ESP32-P4 targets.
+
+See the [v0.6.9 release notes](docs/releases/v0.6.9.md) for details.
+
+<details>
+<summary>Highlights of v0.6.8</summary>
+
+- Stabilized Camera presentation across native ESP32-P4 DSI profiles with
   protected double buffering and persistent diagnostics before a safe restart.
-- Corrected the misleading Bridge-version warning when a Camera request receives
-  no response.
-- Fixed Waveshare 7B/7B-C startup and added two explicit browser-installer and
-  release entries: ESP32-P4 before v3.0 (revisions 1–199), and exact ESP32-P4
-  v3.1 only. The v3.1 entry is experimental and has not been hardware-verified.
-- Corrected the default orientation on the Waveshare 10.1-inch and Guition
-  JC1060 V2 and added a readable 2% brightness floor on the 10.1-inch panel.
-- Added the new device profiles introduced after v0.6.7 to the release and
-  browser-installer pipeline.
-
-[HomeTiles Bridge v0.6.37](https://github.com/GalusPeres/HomeTiles-Bridge/releases/tag/v0.6.37)
-remains the recommended companion release; v0.6.8 does not require a new Bridge
-protocol. Camera support remains experimental and is available only on
-ESP32-P4 targets.
+- Fixed Waveshare 7B/7B-C startup and published separate pre-v3 and exact-v3.1
+  release images.
+- Corrected the Waveshare 10.1-inch and Guition JC1060 V2 defaults.
 
 See the [v0.6.8 release notes](docs/releases/v0.6.8.md) for details.
+
+</details>
 
 <details>
 <summary>Highlights of v0.6.4</summary>
@@ -325,7 +338,7 @@ preset, fan, and swing controls to a minimal heat-only interface:
   <img src="docs/images/8in-climate-popup-1.png" alt="Full Climate popup with HVAC modes, temperature range, humidity, preset, fan, and swing controls" width="49%"> <img src="docs/images/8in-climate-popup-2.png" alt="Capability-aware heat-only Climate popup" width="49%">
 </p>
 
-Energy statistics (day and week) and sensor history:
+Energy statistics, numeric Sensor charts, and categorical Sensor history:
 
 <p align="center">
   <img src="docs/images/8in-energy-24h.png" alt="Energy popup day view" width="32%"> <img src="docs/images/8in-energy-7d.png" alt="Energy popup week view" width="32%"> <img src="docs/images/8in-sensor-popup-7d.png" alt="Sensor history popup" width="32%">
@@ -367,12 +380,14 @@ More screenshots and how everything works: [Web Admin Panel](docs/web-admin.md) 
 - On-device settings for display brightness, sleep, orientation, language, time zone, and time format
 - English and German UI/admin support, Cyrillic tile-title glyphs, and 12h/24h time formats
 - Home Assistant energy statistics tile with day and week popup charts
+- Home Assistant Binary Sensor tiles with localized states, dynamic icons, and
+  24-hour/7-day Activity history
 - Home Assistant Cover tiles with position, tilt and feature-aware controls
 - Media player tile with cover art and playback controls
 - microSD file manager in the web admin (upload, download, rename, delete, folders)
 - Runtime storage on internal LittleFS; microSD is optional
 - Screenshot export to microSD from the web interface
-- Tile types currently include: sensor, energy, weather, scene, switch, cover,
+- Tile types currently include: sensor, binary sensor, energy, weather, scene, switch, cover,
   climate, camera, media, folder, clock, text, animation, and empty — see
   [Tile Types](docs/tiles.md)
 
@@ -456,7 +471,8 @@ This firmware expects the Home Assistant side to be provided by the MQTT bridge/
 - [HomeTiles Bridge](https://github.com/GalusPeres/HomeTiles-Bridge)
 
 That integration handles the Home Assistant-side MQTT communication and entity bridge.
-For Energy tiles, Home Assistant energy statistics, live icon updates, and popup history, use the current bridge release.
+For Binary Sensor tiles, categorical Sensor history, Energy statistics, live
+icon updates, and popup history, use HomeTiles Bridge v0.6.40 or newer.
 Camera tiles specifically require HomeTiles Bridge v0.6.28 or newer.
 
 Step-by-step instructions (broker, integration, display): [Home Assistant Setup Guide](docs/home-assistant-setup.md)

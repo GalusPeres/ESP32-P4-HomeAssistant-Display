@@ -117,9 +117,9 @@ shadow.
 ## Add Tiles
 
 The bottom two rows are regular screensaver tile slots. Select an empty slot, choose
-Sensor, Energy, Switch, Scene, or Media, then drag and resize it exactly as on a
+Sensor, Binary Sensor, Energy, Switch, Scene, or Media, then drag and resize it exactly as on a
 normal folder page. Color and **Opacity** are configured together; the reset button
-restores both. Sensor and Energy values remain live while the screensaver is open.
+restores both. Sensor, Binary Sensor, and Energy states remain live while the screensaver is open.
 Popups are not opened in screensaver mode, so touches act directly on supported
 controls or leave the overlay stable.
 

@@ -20,7 +20,11 @@ static int countMapEntries(const String& text);
 static bool listEqualsIgnoringOrder(const String& a, const String& b);
 static bool mapEqualsIgnoringOrder(const String& a, const String& b);
 static bool bridgeConfigEquals(const HaBridgeConfigData& a, const HaBridgeConfigData& b);
-static void parseSensorMetaSection(const String& body, String& units, String& names, String& values);
+static void parseSensorMetaSection(const String& body, String& units,
+                                   String& names, String& values,
+                                   String& state_kinds);
+static void parseBinarySensorMetaSection(const String& body, String& names,
+                                         String& values);
 static void parseEntityNameSection(const String& body, const char* key, String& names);
 static void parseIconMetaSections(const String& body, String& icons);
 static void parseEnergySection(const String& body,
@@ -63,6 +67,7 @@ bool HaBridgeConfig::load() {
   }
 
   data.sensors_text = "";
+  data.binary_sensors_text = "";
   data.energy_text = "";
   data.weathers_text = "";
   data.lights_text = "";
@@ -75,6 +80,7 @@ bool HaBridgeConfig::load() {
   data.sensor_units_map = "";
   data.sensor_names_map = "";
   data.sensor_values_map = "";
+  data.sensor_state_kinds_map = "";
   data.entity_icons_map = "";
   for (size_t i = 0; i < HA_SENSOR_SLOT_COUNT; ++i) {
     char key[12];
@@ -214,6 +220,7 @@ bool HaBridgeConfig::save(const HaBridgeConfigData& incoming) {
 
 bool HaBridgeConfig::hasData() const {
   return data.sensors_text.length() > 0 ||
+         data.binary_sensors_text.length() > 0 ||
          data.energy_text.length() > 0 ||
          data.weathers_text.length() > 0 ||
          data.lights_text.length() > 0 ||
@@ -242,6 +249,10 @@ String HaBridgeConfig::findSensorInitialValue(const String& entity_id) const {
   return findSensorInitialValue(entity_id.c_str());
 }
 
+String HaBridgeConfig::findSensorStateKind(const String& entity_id) const {
+  return findSensorStateKind(entity_id.c_str());
+}
+
 String HaBridgeConfig::findEntityIcon(const String& entity_id) const {
   return findEntityIcon(entity_id.c_str());
 }
@@ -262,6 +273,13 @@ String HaBridgeConfig::findSensorInitialValue(const char* entity_id) const {
   if (!entity_id || !entity_id[0]) return String();
   auto it = values_index_.find(entity_id);
   return (it != values_index_.end()) ? String(it->second.c_str()) : String();
+}
+
+String HaBridgeConfig::findSensorStateKind(const char* entity_id) const {
+  if (!entity_id || !entity_id[0]) return String();
+  auto it = state_kinds_index_.find(entity_id);
+  return (it != state_kinds_index_.end()) ? String(it->second.c_str())
+                                          : String();
 }
 
 String HaBridgeConfig::findEntityIcon(const char* entity_id) const {
@@ -298,6 +316,8 @@ String HaBridgeConfig::buildJsonPayload(const char* device_id,
   appendJsonEscaped(json, Device::profile().key);
   json += "\",\"sensors\":";
   appendSensorsJson(json, data.sensors_text);
+  json += ",\"binary_sensors\":";
+  appendSensorsJson(json, data.binary_sensors_text);
 
   json += ",\"scene_map\":";
   appendSceneMapJson(json, data.scene_alias_text);
@@ -505,6 +525,12 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
     parseArraySection(json.substring(sensors_idx), merged.sensors_text);
   }
 
+  int binary_sensors_idx = json.indexOf("\"binary_sensors\"");
+  if (binary_sensors_idx >= 0) {
+    parseArraySection(json.substring(binary_sensors_idx),
+                      merged.binary_sensors_text);
+  }
+
   int energy_idx = json.indexOf("\"energy\"");
   // Eine Bridge-Antwort ohne Energy-Block ist kein Befehl zum Loeschen.
   // Das kann waehrend HA/energy noch initialisiert oder bei einer partiellen
@@ -566,7 +592,11 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
   uint32_t t_arrays = millis();
 
   const String prev_icons = data.entity_icons_map;
-  parseSensorMetaSection(json, merged.sensor_units_map, merged.sensor_names_map, merged.sensor_values_map);
+  parseSensorMetaSection(json, merged.sensor_units_map,
+                         merged.sensor_names_map, merged.sensor_values_map,
+                         merged.sensor_state_kinds_map);
+  parseBinarySensorMetaSection(
+      json, merged.sensor_names_map, merged.sensor_values_map);
   parseEntityNameSection(json, "media_player_meta", merged.sensor_names_map);
   parseEntityNameSection(json, "climate_meta", merged.sensor_names_map);
   parseEntityNameSection(json, "cover_meta", merged.sensor_names_map);
@@ -615,9 +645,10 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
     bool ok = save(merged);
     if (ok) {
       Serial.printf("[Bridge] Configuration received from Home Assistant: "
-                    "sensors=%d energy=%d weather=%d lights=%d switches=%d "
+                    "sensors=%d binary=%d energy=%d weather=%d lights=%d switches=%d "
                     "media=%d climate=%d covers=%d cameras=%d scenes=%d\n",
                     countListEntries(data.sensors_text),
+                    countListEntries(data.binary_sensors_text),
                     countListEntries(data.energy_text),
                     countListEntries(data.weathers_text),
                     countListEntries(data.lights_text),
@@ -848,6 +879,9 @@ static bool mapEqualsIgnoringOrder(const String& a, const String& b) {
 
 static bool bridgeConfigEquals(const HaBridgeConfigData& a, const HaBridgeConfigData& b) {
   if (!listEqualsIgnoringOrder(a.sensors_text, b.sensors_text)) return false;
+  if (!listEqualsIgnoringOrder(a.binary_sensors_text, b.binary_sensors_text)) {
+    return false;
+  }
   if (!listEqualsIgnoringOrder(a.energy_text, b.energy_text)) return false;
   if (!listEqualsIgnoringOrder(a.weathers_text, b.weathers_text)) return false;
   if (!listEqualsIgnoringOrder(a.lights_text, b.lights_text)) return false;
@@ -1090,10 +1124,13 @@ static void parseEnergySection(const String& body,
   }
 }
 
-static void parseSensorMetaSection(const String& body, String& units, String& names, String& values) {
+static void parseSensorMetaSection(const String& body, String& units,
+                                   String& names, String& values,
+                                   String& state_kinds) {
   units = "";
   names = "";
   values = "";
+  state_kinds = "";
   int meta_idx = body.indexOf("\"sensor_meta\"");
   if (meta_idx < 0) {
     return;
@@ -1129,7 +1166,98 @@ static void parseSensorMetaSection(const String& body, String& units, String& na
       if (values.length()) values += '\n';
       values += entity + "=" + value;
     }
+    String state_kind;
+    if (extractStringField(object, "state_kind", state_kind)) {
+      state_kind.trim();
+      state_kind.toLowerCase();
+      if (state_kind == "number" || state_kind == "state") {
+        if (state_kinds.length()) state_kinds += '\n';
+        state_kinds += entity + "=" + state_kind;
+      }
+    }
     obj_start = segment.indexOf('{', obj_end + 1);
+  }
+}
+
+static void parseBinarySensorMetaSection(const String& body, String& names,
+                                         String& values) {
+  const int meta_idx = body.indexOf("\"binary_sensor_meta\"");
+  if (meta_idx < 0) return;
+  const int array_start = body.indexOf('[', meta_idx);
+  const int array_end = body.indexOf(']', array_start);
+  if (array_start < 0 || array_end < array_start) return;
+
+  const String segment = body.substring(array_start + 1, array_end);
+  int object_start = segment.indexOf('{');
+  while (object_start >= 0) {
+    const int object_end = findMatchingJsonObjectEnd(segment, object_start);
+    if (object_end < 0) break;
+    const String object = segment.substring(object_start, object_end + 1);
+
+    DynamicJsonDocument item_doc(1024);
+    if (deserializeJson(item_doc, object) == DeserializationError::Ok) {
+      JsonObjectConst item = item_doc.as<JsonObjectConst>();
+      const char* entity =
+          item["entity_id"] | static_cast<const char*>(nullptr);
+      if (entity && *entity) {
+        const char* name = item["name"] | static_cast<const char*>(nullptr);
+        if (name && *name) upsertKeyValueMap(names, entity, name);
+
+        const char* raw_state =
+            item["state"] | static_cast<const char*>(nullptr);
+        String state = raw_state ? String(raw_state) : String();
+        state.trim();
+        state.toLowerCase();
+
+        DynamicJsonDocument state_doc(384);
+        if (state == "on" || state == "off" || state == "unknown" ||
+            state == "unavailable") {
+          state_doc["state"] = state;
+        } else {
+          // The metadata array is authoritative for configured binary
+          // sensors. An entity without an HA state is explicitly missing;
+          // retain JSON null so an older on/off value cannot survive a fresh
+          // bridge snapshot or be confused with unknown/unavailable.
+          state_doc["state"] = nullptr;
+        }
+        if (item.containsKey("available")) {
+          JsonVariantConst available = item["available"];
+          if (available.is<bool>()) {
+            state_doc["available"] = available.as<bool>();
+          } else if (available.isNull()) {
+            state_doc["available"] = nullptr;
+          }
+        }
+        if (item.containsKey("device_class")) {
+          JsonVariantConst device_class = item["device_class"];
+          if (device_class.is<const char*>()) {
+            String normalized = device_class.as<const char*>();
+            normalized.trim();
+            normalized.toLowerCase();
+            state_doc["device_class"] = normalized.substring(0, 23);
+          } else if (device_class.isNull()) {
+            state_doc["device_class"] = nullptr;
+          }
+        }
+        if (item.containsKey("icon")) {
+          JsonVariantConst icon = item["icon"];
+          if (icon.is<const char*>()) {
+            String normalized = icon.as<const char*>();
+            normalized.trim();
+            state_doc["icon"] = normalized.substring(0, 39);
+          } else if (icon.isNull()) {
+            state_doc["icon"] = nullptr;
+          }
+        }
+        if (item.containsKey("last_changed")) {
+          state_doc["last_changed"].set(item["last_changed"]);
+        }
+        String state_payload;
+        serializeJson(state_doc, state_payload);
+        upsertKeyValueMap(values, entity, state_payload);
+      }
+    }
+    object_start = segment.indexOf('{', object_end + 1);
   }
 }
 
@@ -1193,6 +1321,7 @@ static void parseEntityIconSection(const String& body, const char* key, String& 
 static void parseIconMetaSections(const String& body, String& icons) {
   icons = "";
   parseEntityIconSection(body, "sensor_meta", icons);
+  parseEntityIconSection(body, "binary_sensor_meta", icons);
   parseEntityIconSection(body, "weather_meta", icons);
   parseEntityIconSection(body, "light_meta", icons);
   parseEntityIconSection(body, "switch_meta", icons);
@@ -1486,14 +1615,17 @@ void HaBridgeConfig::rebuildEntityIndexes() {
   rebuildIndexFromBlob(data.sensor_units_map, units_index_);
   rebuildIndexFromBlob(data.sensor_names_map, names_index_);
   rebuildIndexFromBlob(data.sensor_values_map, values_index_);
+  rebuildIndexFromBlob(data.sensor_state_kinds_map, state_kinds_index_);
   rebuildIndexFromBlob(data.entity_icons_map, icons_index_);
   // Belegt schwarz auf weiss, dass der Index im PSRAM liegt und wie gross er
   // wirklich ist -- "intern frei" darf durch einen Rebuild nicht mehr sinken.
   const size_t total_bytes = indexApproxBytes(units_index_) + indexApproxBytes(names_index_) +
-                             indexApproxBytes(values_index_) + indexApproxBytes(icons_index_);
-  Serial.printf("[Bridge] Entity index rebuilt: units=%u names=%u values=%u icons=%u (~%u KB PSRAM) | internal free: %u KB\n",
+                             indexApproxBytes(values_index_) + indexApproxBytes(state_kinds_index_) +
+                             indexApproxBytes(icons_index_);
+  Serial.printf("[Bridge] Entity index rebuilt: units=%u names=%u values=%u kinds=%u icons=%u (~%u KB PSRAM) | internal free: %u KB\n",
                 (unsigned)units_index_.size(), (unsigned)names_index_.size(),
-                (unsigned)values_index_.size(), (unsigned)icons_index_.size(),
+                (unsigned)values_index_.size(), (unsigned)state_kinds_index_.size(),
+                (unsigned)icons_index_.size(),
                 (unsigned)((total_bytes + 1023) / 1024),
                 (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024));
 }

@@ -1219,6 +1219,7 @@ void loop() {
       process_switch_update_queue();
       process_climate_update_queue();
       process_cover_update_queue();
+      process_binary_sensor_update_queue();
       process_weather_update_queue();
       process_media_update_queue();
       // Uhrzeit/WLAN-/Power-Status haben denselben Bug wie die Sensor-Queues
@@ -1342,6 +1343,7 @@ void loop() {
       process_switch_update_queue(6);
       process_climate_update_queue(4);
       process_cover_update_queue(4);
+      process_binary_sensor_update_queue(4);
       process_weather_update_queue(4);
       process_media_update_queue(2);
       process_tile_graph_queue();

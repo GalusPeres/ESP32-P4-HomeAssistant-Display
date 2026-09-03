@@ -63,6 +63,37 @@ struct CoverTileWidgets {
   bool dynamic_icon = true;
 };
 
+enum class BinarySensorValue : uint8_t {
+  Missing = 0,
+  Off,
+  On,
+  Unknown,
+  Unavailable
+};
+
+struct BinarySensorState {
+  bool valid = false;
+  bool available = false;
+  bool has_available = false;
+  bool has_device_class = false;
+  bool has_last_changed = false;
+  bool has_icon = false;
+  BinarySensorValue value = BinarySensorValue::Missing;
+  uint64_t last_changed = 0;
+  char device_class[24] = {};
+  char icon_name[40] = {};
+};
+
+static constexpr size_t BINARY_SENSOR_PAYLOAD_MAX = 512;
+
+struct BinarySensorTileWidgets {
+  lv_obj_t* icon_label = nullptr;
+  lv_obj_t* title_label = nullptr;
+  lv_obj_t* state_label = nullptr;
+  uint32_t last_payload_hash = 0;
+  bool dynamic_icon = true;
+};
+
 struct ClimateState {
   bool valid = false;
   bool available = true;
@@ -341,6 +372,8 @@ struct TileWidgetCache {
   ClimateState climate_states[TILES_PER_GRID];
   CoverTileWidgets covers[TILES_PER_GRID];
   CoverState cover_states[TILES_PER_GRID];
+  BinarySensorTileWidgets binary_sensors[TILES_PER_GRID];
+  BinarySensorState binary_sensor_states[TILES_PER_GRID];
   WeatherTileWidgets weather[TILES_PER_GRID];
   MediaTileWidgets media[TILES_PER_GRID];
 };
@@ -408,6 +441,18 @@ void reset_cover_widgets(GridType grid_type);
 void queue_cover_tile_update(GridType grid_type, uint8_t grid_index,
                              const char* payload);
 void process_cover_update_queue(uint8_t max_updates = 0);
+
+BinarySensorTileWidgets* tile_renderer_get_binary_sensor_widgets(
+    GridType grid_type);
+BinarySensorState* tile_renderer_get_binary_sensor_states(GridType grid_type);
+void reset_binary_sensor_widget(GridType grid_type, uint8_t grid_index);
+void reset_binary_sensor_widgets(GridType grid_type);
+void queue_binary_sensor_tile_update(GridType grid_type, uint8_t grid_index,
+                                     const char* payload);
+void queue_binary_sensor_tile_updates(GridType grid_type,
+                                      uint64_t grid_indices,
+                                      const char* payload);
+void process_binary_sensor_update_queue(uint8_t max_updates = 0);
 
 void reset_weather_widget(GridType grid_type, uint8_t grid_index);
 void reset_weather_widgets(GridType grid_type);

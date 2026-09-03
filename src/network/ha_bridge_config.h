@@ -64,6 +64,7 @@ static constexpr size_t HA_SCENE_SLOT_COUNT = 6;
 
 struct HaBridgeConfigData {
   String sensors_text;
+  String binary_sensors_text;
   String energy_text;
   String weathers_text;
   String lights_text;
@@ -78,6 +79,7 @@ struct HaBridgeConfigData {
   String sensor_units_map;
   String sensor_names_map;
   String sensor_values_map;
+  String sensor_state_kinds_map;
   String entity_icons_map;
   String sensor_titles[HA_SENSOR_SLOT_COUNT];
   String sensor_custom_units[HA_SENSOR_SLOT_COUNT];
@@ -99,6 +101,7 @@ public:
   String findSensorUnit(const String& entity_id) const;
   String findSensorName(const String& entity_id) const;
   String findSensorInitialValue(const String& entity_id) const;
+  String findSensorStateKind(const String& entity_id) const;
   String findEntityIcon(const String& entity_id) const;
   // const char* variants for callers that hold no Arduino Strings themselves,
   // such as the PSRAM folder entity cache. Thanks to is_transparent these are
@@ -106,6 +109,7 @@ public:
   String findSensorUnit(const char* entity_id) const;
   String findSensorName(const char* entity_id) const;
   String findSensorInitialValue(const char* entity_id) const;
+  String findSensorStateKind(const char* entity_id) const;
   String findEntityIcon(const char* entity_id) const;
   String findSceneEntity(const String& alias) const;
 
@@ -122,7 +126,7 @@ public:
 private:
   HaBridgeConfigData data;
 
-  // Lookup index over the four "key=value\n" text blobs (sensor_units_map and
+  // Lookup index over the five "key=value\n" text blobs (sensor_units_map and
   // friends). The blobs stay the leading format, because Web Admin reads them
   // directly and applyJson swaps them as a whole, but EVERY find* lookup goes
   // through these maps instead of scanning the blob linearly. A single lookup on
@@ -134,6 +138,7 @@ private:
   HaEntityKeyMap units_index_;
   HaEntityKeyMap names_index_;
   HaEntityKeyMap values_index_;
+  HaEntityKeyMap state_kinds_index_;
   HaEntityKeyMap icons_index_;
   // Call after every complete blob swap (load/save/applyJson). The single-value
   // updates such as updateSensorValue() maintain blob and index together.

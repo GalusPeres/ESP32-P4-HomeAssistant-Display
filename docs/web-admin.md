@@ -17,8 +17,9 @@ tab per folder, on the right the **Tile Settings** panel for the selected tile.
 
 1. **Click any empty cell** in the grid. The Tile Settings panel opens for it.
 2. Pick a **Type** — the cell immediately becomes that tile.
-3. Fill in the fields for that type (they change with the type — a Sensor tile asks
-   for an entity, a Clock tile for time/date formats, and so on).
+3. Fill in the fields for that type (they change with the type — Sensor and
+   Binary Sensor tiles ask for an entity, a Clock tile for time/date formats,
+   and so on).
 
 ![Tile type dropdown](images/web-admin-tile-types.png){ width="360" }
 
@@ -33,6 +34,8 @@ Every tile shares the same base settings:
 
 Below that come the type-specific fields. For a Sensor tile, for example: the
 Home Assistant entity, unit, decimals, value size, and an optional gauge display mode.
+Binary Sensor tiles instead offer the configured `binary_sensor.*` entities and
+use their Home Assistant device class for the live state and icon preview.
 
 ![Tile settings for a sensor tile](images/web-admin-tile-settings.png){ width="360" }
 

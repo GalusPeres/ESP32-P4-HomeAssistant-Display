@@ -14,7 +14,8 @@ a **tap** or a **long press** is configurable per tile in the web admin.
 
 ### Sensor
 
-Shows the current value of any Home Assistant entity, with icon, title, and unit.
+Shows the current value of a Home Assistant `sensor.*` entity, with icon,
+title, and unit.
 
 It can also show a DS18B20 input configured on this panel's
 [I/O page](hardware-io.md). That value is sampled locally and remains
@@ -24,10 +25,28 @@ history chart for a local input.
 **Config:** entity, unit, decimals, value size, and an optional display mode that turns
 the tile into a gauge (with min/max range).
 
-**Popup:** a history chart with a 24-hour and a 7-day view — the data is fetched live
-from Home Assistant through the bridge.
+**Popup:** numeric entities use the established chart with a 24-hour and a
+7-day view. Text-valued entities use a categorical timeline and date-grouped
+Activity list instead. The data is fetched live from Home Assistant through
+HomeTiles Bridge v0.6.40 or newer.
 
 ![Sensor history popup](images/8in-sensor-popup-7d.png){ width="65%" }
+
+### Binary Sensor
+
+Shows a Home Assistant `binary_sensor.*` entity. The displayed state and icon
+follow its Home Assistant device class, so a single on/off value can appear as
+Detected/Clear, Open/Closed, Motion/Clear, Wet/Dry, or another localized pair.
+Unknown and unavailable states remain distinct.
+
+**Config:** Binary Sensor entity and whether the popup opens on a short press
+or long press. Title, icon, color, size, and position use the normal shared tile
+settings. Changes update the preview, save automatically, and appear on the
+display like other tile types.
+
+**Popup:** a 24-hour or 7-day colored state timeline followed by a scrollable,
+date-grouped Activity list. HomeTiles Bridge v0.6.40 or newer supplies the
+bounded history data.
 
 ### Energy
 
