@@ -5,12 +5,13 @@
 // For a quick manual switch, uncomment exactly one target below:
 //
 #if !defined(HOMETILES_CI_TARGET)
-#define DEVICE_WAVESHARE_4B
+// #define DEVICE_WAVESHARE_4B
 // #define DEVICE_WAVESHARE_TOUCH_LCD_4_3
 // #define DEVICE_WAVESHARE_TOUCH_LCD_7
 // #define DEVICE_WAVESHARE_TOUCH_LCD_7B
 // #define DEVICE_WAVESHARE_TOUCH_LCD_8
 // #define DEVICE_WAVESHARE_TOUCH_LCD_10_1
+#define DEVICE_WAVESHARE_S3_TOUCH_LCD_4
 // #define DEVICE_WAVESHARE_S3_TOUCH_LCD_4B
 // #define DEVICE_LAYOUT_TEST_1024X600
 // #define DEVICE_LAYOUT_TEST_480X480
@@ -38,6 +39,7 @@
      defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) + \
      defined(DEVICE_WAVESHARE_TOUCH_LCD_8) + \
      defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) + \
+     defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4) + \
      defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B) + \
      defined(DEVICE_LAYOUT_TEST_1024X600) + \
      defined(DEVICE_LAYOUT_TEST_480X480) + \
@@ -56,6 +58,7 @@
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_8) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) && \
+    !defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4) && \
     !defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B) && \
     !defined(DEVICE_LAYOUT_TEST_1024X600) && \
     !defined(DEVICE_LAYOUT_TEST_480X480) && \
@@ -75,6 +78,7 @@
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_8) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) && \
+    !defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4) && \
     !defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B) && \
     !defined(DEVICE_LAYOUT_TEST_1024X600) && \
     !defined(DEVICE_LAYOUT_TEST_480X480) && \
@@ -131,9 +135,10 @@
 #define DEVICE_P4_IDF_DSI
 #endif
 
-// The two 480x480 ESP32-S3 RGB boards share only proven S3 framebuffer,
+// The 480x480 ESP32-S3 RGB boards share only proven S3 framebuffer,
 // storage and OTA lifecycle handling. Panel wiring and init remain separate.
 #if defined(DEVICE_GUITION_ESP32_4848S040) || \
+    defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4) || \
     defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)
 #define DEVICE_ESP32_S3_RGB_480
 #endif
@@ -148,6 +153,7 @@
 #if defined(DEVICE_LAYOUT_TEST_480X480) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_4_3) || \
     defined(DEVICE_GUITION_ESP32_4848S040) || \
+    defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4) || \
     defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)
 #define DEVICE_LAYOUT_480X480
 #endif

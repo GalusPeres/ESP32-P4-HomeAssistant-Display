@@ -54,6 +54,11 @@ const releaseTargets = new Map([
     slug: 'waveshare-touch-lcd-10-1',
     expectedSiliconVariant: 'pre_v3',
   }],
+  ['DEVICE_WAVESHARE_S3_TOUCH_LCD_4', {
+    key: 'waveshare_s3_touch_lcd_4',
+    slug: 'waveshare-s3-touch-lcd-4',
+    expectedSiliconVariant: 'default',
+  }],
   ['DEVICE_WAVESHARE_S3_TOUCH_LCD_4B', {
     key: 'waveshare_s3_touch_lcd_4b',
     slug: 'waveshare-s3-touch-lcd-4b',

@@ -433,6 +433,12 @@ static GithubUpdate::CheckResult perform_fw_check() {
     Device::storageWriteBegin();
     Device::storageWriteEnd();
   }
+#elif defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4)
+  if (s3_rgb_network_active) {
+    Serial.println("[Display/S3] Resynchronizing RGB scanout after update check");
+    Device::storageWriteBegin();
+    Device::storageWriteEnd();
+  }
 #endif
   if (!res.ok && res.tls_alloc_failed) {
     Serial.println(

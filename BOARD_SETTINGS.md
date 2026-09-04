@@ -366,6 +366,42 @@ Arduino IDE:
 - Upload Speed: `921600`
 - USB Mode: `Hardware CDC and JTAG`
 
+## Waveshare ESP32-S3-Touch-LCD-4
+
+Used for:
+- `src/devices/waveshare_s3_touch_lcd_4`
+- build profile `waveshare_s3_touch_lcd_4`
+
+Important:
+- This profile is for the Waveshare ESP32-S3-Touch-LCD-4 (including Rev 4.0 with
+  CH32V003 helper MCU and Rev 1.0-3.0 with TCA9554).
+- ESP32-S3 with `16MB` flash and `8MB` octal PSRAM.
+- The panel is a `480x480` ST7701 RGB display using direct 3-wire SPI on GPIO 42
+  (CS), GPIO 2 (SCK), GPIO 1 (SDA), and 16-bit RGB bus on DE 40, VSYNC 39,
+  HSYNC 38, PCLK 41, R(46,3,8,18,17), G(14,13,12,11,10,9), B(5,45,48,47,21).
+- Capacitive touch is GT911 on SDA 15 / SCL 7.
+- On Rev 4.0, display power/reset and backlight PWM are controlled via the onboard
+  CH32V003 helper MCU at I2C address 0x24 (with fallback to TCA9554 at 0x20).
+- Runtime files use LittleFS, and Camera tiles are unavailable on this ESP32-S3 profile.
+- Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.
+
+Arduino IDE:
+- Board: `ESP32S3 Dev Module`
+- USB CDC On Boot: `Enabled`
+- CPU Frequency: `240MHz (WiFi)`
+- Core Debug Level: `None`
+- USB DFU On Boot: `Disabled`
+- Erase All Flash Before Sketch Upload: `Disabled`
+- Flash Mode: `QIO 80MHz`
+- Flash Size: `16MB (128Mb)`
+- JTAG Adapter: `Disabled`
+- USB Firmware MSC On Boot: `Disabled`
+- Partition Scheme: `Custom`
+- PSRAM: `OPI PSRAM`
+- Upload Mode: `UART0 / Hardware CDC`
+- Upload Speed: `921600`
+- USB Mode: `Hardware CDC and JTAG`
+
 ## Waveshare ESP32-S3-Touch-LCD-4B
 
 Used for:
