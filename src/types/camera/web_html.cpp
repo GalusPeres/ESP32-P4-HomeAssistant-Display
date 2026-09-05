@@ -1,9 +1,9 @@
 #include "src/types/camera/web_html.h"
 
-#include "src/core/config_manager.h"
-#include "src/core/i18n.h"
-#include "src/network/ha_bridge_config.h"
-#include "src/web/web_admin_utils.h"
+#include "src/core/config/config_manager.h"
+#include "src/core/i18n/i18n.h"
+#include "src/network/bridge/ha_bridge_config.h"
+#include "src/web/server/web_admin_utils.h"
 
 void append_camera_fields_html(
     String& html,

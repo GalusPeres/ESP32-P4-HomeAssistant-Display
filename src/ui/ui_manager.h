@@ -8,10 +8,10 @@
 typedef void (*scene_publish_cb_t)(const char* scene_name);
 typedef void (*hotspot_start_cb_t)(bool enable);
 
-// UI Manager - Verwaltet die Benutzeroberfläche
+// UI Manager: owns the device interface.
 class UIManager {
 public:
-  // UI aufbauen
+  // Build the UI.
   void buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_cb = nullptr);
 
   // Statusbar
@@ -21,10 +21,10 @@ public:
   void scheduleNtpSync(uint32_t delay_ms = 0);
   void serviceNtpSync();
 
-  // Tab-Button Live-Update
+  // Live tab-button update
   void refreshTabButton(uint8_t tab_index);
 
-  // Tab wechseln (public für Navigation-Tiles)
+  // Switch tabs; public for navigation tiles.
   void switchToTab(uint8_t index);
   void switchToFolder(uint16_t folder_id);
   void requestSettingsAccess(const String& title = String(),
@@ -42,15 +42,15 @@ public:
 private:
   static constexpr uint8_t TAB_COUNT = 4;
 
-  // Statusbar-Elemente
+  // Status-bar elements
   lv_obj_t *status_container = nullptr;
   lv_obj_t *status_time_label = nullptr;
   lv_obj_t *status_date_label = nullptr;
 
-  // Tab-Inhalte + Navigation
+  // Tab content and navigation
   lv_obj_t *tab_panels[TAB_COUNT] = {nullptr};
   lv_obj_t *tab_buttons[TAB_COUNT] = {nullptr};
-  lv_obj_t *tab_button_overlays[TAB_COUNT] = {nullptr};  // Für aktiven Zustand
+  lv_obj_t *tab_button_overlays[TAB_COUNT] = {nullptr};  // Active-state overlays
   lv_obj_t *tab_labels[TAB_COUNT] = {nullptr};
   lv_obj_t *tab_content_container = nullptr;
   lv_obj_t *nav_container = nullptr;
@@ -77,7 +77,7 @@ private:
   bool tz_configured = false;
   static const char* TZ_EUROPE_BERLIN;
 
-  // Interne Funktionen
+  // Internal functions
   void statusbarInit(lv_obj_t *tab_bar);
   lv_obj_t* setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char *icon_name, const char *tab_name);
   lv_obj_t* createTabPanel(lv_obj_t *parent);
@@ -92,7 +92,7 @@ private:
   static void complete_pending_access(void* context);
 };
 
-// Globale Instanz
+// Global instance
 extern UIManager uiManager;
 
 #endif // UI_MANAGER_H

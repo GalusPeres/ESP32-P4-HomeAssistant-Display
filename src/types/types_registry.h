@@ -2,8 +2,8 @@
 
 #include <Arduino.h>
 #include <vector>
-#include "src/tiles/tile_renderer.h"
-#include "src/web/web_admin_utils.h"
+#include "src/tiles/runtime/tile_renderer.h"
+#include "src/web/server/web_admin_utils.h"
 
 class WebServer;
 class TileConfig;

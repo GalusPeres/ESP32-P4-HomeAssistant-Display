@@ -6,14 +6,14 @@
 #include <utility>
 #include <vector>
 
-#include "src/core/power_manager.h"
-#include "src/network/ha_bridge_config.h"
-#include "src/network/mqtt_handlers.h"
+#include "src/core/power/power_manager.h"
+#include "src/network/bridge/ha_bridge_config.h"
+#include "src/network/mqtt/mqtt_handlers.h"
 #include "src/network/network_manager.h"
-#include "src/tiles/tile_config.h"
-#include "src/tiles/tile_renderer.h"
-#include "src/ui/energy_popup.h"
-#include "src/ui/tab_tiles_unified.h"
+#include "src/tiles/config/tile_config.h"
+#include "src/tiles/runtime/tile_renderer.h"
+#include "src/ui/popups/energy/energy_popup.h"
+#include "src/ui/tabs/tiles/tab_tiles_unified.h"
 
 namespace {
 
@@ -22,9 +22,8 @@ struct PendingEnergyResponse {
   bool valid = false;
 };
 
-// Responses fuer verschiedene Zeitraeume duerfen sich nicht gegenseitig
-// ueberschreiben. Das passiert z. B. wenn direkt nach einem manuellen
-// 7-Tage-Request noch die periodische 24-h-Antwort eintrifft.
+// Responses for different periods must not overwrite each other, for example
+// when the periodic 24-hour response arrives just after a manual 7-day request.
 PendingEnergyResponse g_pending_day;
 PendingEnergyResponse g_pending_week;
 PendingEnergyResponse g_pending_month;
@@ -61,9 +60,8 @@ PendingEnergyResponse& pending_for_period(const char* period) {
   return g_pending_day;
 }
 
-// Nur das kleine period-Feld lesen, bevor die vollstaendige JSON-Antwort in
-// der normalen Loop-Verarbeitung geparst wird. So brauchen wir hier weder ein
-// zweites grosses JSON-Dokument noch eine weitere Payload-Kopie.
+// Read only the small period field before the normal loop parses the complete
+// JSON response. This avoids a second large JSON document or payload copy.
 const char* response_period(const char* payload) {
   if (!payload) return "day";
   const char* key = strstr(payload, "\"period\"");
@@ -92,9 +90,8 @@ bool enqueue_energy_request(const char* period,
                             EnergyRequestState& state,
                             uint32_t now) {
   state.last_attempt_ms = now;
-  // Vor dem Cross-Task-Enqueue markieren: der MQTT-Worker kann den Request
-  // sofort senden und die Antwort bereits zurueckmelden, bevor dieser Aufruf
-  // in den Loop-Task zurueckkehrt.
+  // Mark before enqueueing across tasks: the MQTT worker may send the request
+  // and receive its response before this call returns to the loop task.
   state.awaiting_response = true;
   state.retry_requested = false;
   const bool queued = mqttPublishEnergyRequest(period);
@@ -243,8 +240,8 @@ void parse_energy_response(const char* payload) {
     if (!entry.unit.length()) {
       entry.unit = haBridgeConfig.findSensorUnit(entry.id);
       if (!entry.unit.length()) {
-        // Manche Energy-Antworten enthalten die Einheit nicht. Eine bereits
-        // bekannte Einheit darf dadurch nicht aus dem RAM-Cache verschwinden.
+        // Some Energy responses omit the unit. Preserve a unit already known
+        // to the RAM cache when this happens.
         entry.unit = cached_unit_for_entry(entry.id);
       }
     }
@@ -300,8 +297,8 @@ void queue_energy_response(const char* payload, size_t len) {
 }
 
 void process_energy_response_queue() {
-  // Wochen-/Monatsdaten stammen normalerweise von einer direkten
-  // Benutzeraktion und werden vor dem periodischen Tages-Refresh verarbeitet.
+  // Weekly and monthly data usually follow a direct user action; process them
+  // before the periodic daily refresh.
   PendingEnergyResponse* pending = nullptr;
   if (g_pending_week.valid) {
     pending = &g_pending_week;
@@ -312,8 +309,8 @@ void process_energy_response_queue() {
   }
   if (!pending) return;
 
-  // Buffer uebernehmen statt die bis zu 32 KB grosse Antwort zu kopieren.
-  // Nach dem Parsen gibt der lokale String den Speicher direkt wieder frei.
+  // Take ownership of the buffer instead of copying a response of up to 32 KB.
+  // The local String releases the memory immediately after parsing.
   String payload = std::move(pending->payload);
   pending->valid = false;
   parse_energy_response(payload.c_str());

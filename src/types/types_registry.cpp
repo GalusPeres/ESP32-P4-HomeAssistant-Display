@@ -83,9 +83,9 @@
 #include "src/types/pixelanim/web_styles.h"
 #include "src/types/settings/web_styles.h"
 
-#include "src/core/config_manager.h"
-#include "src/core/i18n.h"
-#include "src/web/web_admin_utils.h"
+#include "src/core/config/config_manager.h"
+#include "src/core/i18n/i18n.h"
+#include "src/web/server/web_admin_utils.h"
 
 namespace {
 

@@ -1,19 +1,18 @@
 #pragma once
 
-#include "src/tiles/tile_renderer.h"
+#include "src/tiles/runtime/tile_renderer.h"
 
 struct ClockWidgetConfig {
   bool show_time = true;
   bool show_date = false;
-  // Wochentag als Praefix der Datumszeile ("Dienstag, 15.07.2026"); ohne
-  // Datum steht der Wochentag allein in der Zeile.
+  // Prefix the date line with the weekday (e.g. "Tuesday, 15.07.2026").
+  // Without a date, show the weekday alone on the line.
   bool show_weekday = false;
-  // Sprachcode fuer den Wochentagsnamen (nullptr = Englisch-Fallback)
+  // Language code for the weekday name; nullptr falls back to English.
   const char* weekday_language = nullptr;
   bool fill_parent = false;
-  // LVGL kennt keinen Glyphen-Schatten: hinter jede Zeile werden mehrere
-  // leicht versetzte dunkle Duplikat-Labels gelegt (Fake-Blur). Wird nur vom
-  // Screensaver genutzt.
+  // LVGL has no glyph shadow. Several slightly offset dark copies behind
+  // each line approximate a blur. Used only by the screensaver.
   bool text_shadow = false;
   uint8_t time_font_size = 40;
   uint8_t date_font_size = 20;
@@ -23,8 +22,8 @@ struct ClockWidgetConfig {
   uint8_t date_alignment = 1;
 };
 
-// Gemeinsamer, rahmenloser Uhr-Inhalt fuer Clock-Tile und Screensaver. Das
-// Objekt besitzt seinen eigenen Sekundentimer und raeumt ihn beim Loeschen auf.
+// Shared borderless clock content for clock tiles and the screensaver.
+// The object owns its one-second timer and releases it when deleted.
 lv_obj_t* create_clock_widget(lv_obj_t* parent, const ClockWidgetConfig& config);
 
 lv_obj_t* render_clock_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index);

@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-#include "src/ui/popup_layout.h"
+#include "src/ui/popups/popup_layout.h"
 
 namespace camera_geometry {
 

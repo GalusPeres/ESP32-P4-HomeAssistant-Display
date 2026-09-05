@@ -9,7 +9,7 @@
 #include <esp_heap_caps.h>
 #include <soc/ppa_reg.h>
 
-#include "src/core/dma2d_arbiter.h"
+#include "src/core/display/dma2d_arbiter.h"
 #include "src/devices/common/p4_dsi_camera_presenter.h"
 #include <LittleFS.h>
 #include <M5Unified.h>
@@ -30,14 +30,14 @@ constexpr int32_t kPanelHeight = 1280;
 constexpr size_t kPanelFrameBytes =
     static_cast<size_t>(kPanelWidth) * static_cast<size_t>(kPanelHeight) * sizeof(uint16_t);
 constexpr size_t kCacheLineSize = 64;
-// PPA nur fuer breite Repaints (Swipes, Vollbild) — kleine Rechtecke rotiert
-// die CPU schneller als der Transaktions-Overhead und jede eingesparte
-// Transaktion senkt das Risiko der Pool-Verklemmung. 600 ist die seit
-// v0.4.11 empirisch stabile Schwelle des 8-Zoll-Geraets.
+// Use PPA only for wide repaints, such as swipes and fullscreen updates.
+// CPU rotation of small rectangles costs less than transaction overhead;
+// fewer transactions also reduce the risk of wedging the pool. The 600-pixel
+// threshold has been empirically stable on the 8-inch device since v0.4.11.
 constexpr int32_t kPpaMinRotateWidth = 600;
-constexpr int32_t kPpaMinRotateHeight = 8;   // duenne Streifen: Treiber validiert keine Mindesthoehe, Verdacht auf 2D-DMA-Verklemmung
+constexpr int32_t kPpaMinRotateHeight = 8;   // Thin strips may wedge 2D-DMA; the driver has no minimum-height check.
 constexpr uint32_t kPpaRotateTimeoutMs = 80;
-constexpr uint32_t kPpaWedgeGraceMs = 400;   // Nachfrist: nur langsam (Bus-Last) oder endgueltig verklemmt?
+constexpr uint32_t kPpaWedgeGraceMs = 400;   // Grace period to distinguish bus load from a wedged engine.
 constexpr uint32_t kPpaFaultCooldownMs = 500;
 constexpr uint32_t kPpaReinitRetryMs = 3000;
 
@@ -63,22 +63,21 @@ uint8_t g_ppa_consecutive_faults = 0;
 uint32_t g_ppa_cooldown_until_ms = 0;
 uint32_t g_ppa_fallback_log_count = 0;
 uint32_t g_ppa_fallback_log_window_ms = 0;
-uint32_t g_ppa_reinit_at_ms = 0;  // 0 = kein Re-Init noetig
-// Bekannte IDF-Luecke (TODO in ppa_core.c): eine SRM-Transaktion kann die
-// 2D-DMA blockieren — unregister schlaegt dann fehl ("client still has
-// unprocessed trans"). Frueher war das ein endgueltiges "PPA aus bis Reboot".
-// In der Praxis (Bus-Last durch HW-JPEG-Cover, PixelAnim, DSI-Scanout) kommt
-// die Transaktion aber oft doch noch durch, nur weit nach der 480-ms-Frist.
-// Deshalb: verklemmt melden, per CPU weiterzeichnen und auf die spaete
-// Fertigmeldung lauschen — danach den Client sauber neu aufsetzen.
+uint32_t g_ppa_reinit_at_ms = 0;  // 0 = no reinitialization needed.
+// Known IDF gap (TODO in ppa_core.c): an SRM transaction can block 2D-DMA,
+// making unregister fail with "client still has unprocessed trans". Previously,
+// PPA then stayed disabled until reboot. Under bus load from hardware JPEG
+// covers, PixelAnim and DSI scanout, transactions often finish well after the
+// 480-ms deadline. Report the wedge, continue CPU drawing and listen for the
+// late completion before safely recreating the client.
 bool g_ppa_wedged = false;
 uint32_t g_ppa_wedged_since_ms = 0;
 uint32_t g_ppa_wedge_retry_at_ms = 0;
 uint32_t g_ppa_wedge_retry_delay_ms = 0;
 uint8_t g_ppa_wedge_reset_attempts = 0;
-constexpr uint32_t kPpaWedgeResetRetryMs = 5000;      // erster Versuch, danach verdoppelnd
-constexpr uint32_t kPpaWedgeResetRetryMaxMs = 60000;  // Backoff-Deckel
-constexpr uint8_t kPpaWedgeResetMaxAttempts = 8;      // danach nur noch still lauschen
+constexpr uint32_t kPpaWedgeResetRetryMs = 5000;      // First retry delay; doubles thereafter.
+constexpr uint32_t kPpaWedgeResetRetryMaxMs = 60000;  // Maximum backoff.
+constexpr uint8_t kPpaWedgeResetMaxAttempts = 8;      // Afterwards, only listen silently.
 
 uint8_t to_panel_rotation(uint8_t logical_rotation) {
   logical_rotation &= 0x03;
@@ -130,10 +129,10 @@ void pause_ppa_for(uint32_t duration_ms) {
   g_ppa_cooldown_until_ms = millis() + duration_ms;
 }
 
-// true = frischer Client einsatzbereit. Bei verweigertem Unregister (offene
-// Transaktion im einzigen Pending-Slot) bleibt das alte Handle erhalten und
-// der Aufrufer versucht es spaeter erneut — Wegwerfen wuerde Client-Slot und
-// Heap leaken (gleiches Muster wie beim 8-Zoll-Geraet seit v0.4.11).
+// true means a fresh client is ready. If unregister fails because the sole
+// pending slot still holds a transaction, retain the old handle and retry
+// later. Discarding it would leak the client slot and heap, as with the
+// 8-inch device's recovery pattern since v0.4.11.
 bool reset_ppa_client() {
   g_ppa_ready = false;
   g_ppa_async_ready = false;
@@ -153,8 +152,8 @@ bool reset_ppa_client() {
   ppa_client_handle_t fresh = nullptr;
   const esp_err_t reg_err = ppa_register_client(&ppa_cfg, &fresh);
   if (reg_err != ESP_OK || !fresh) {
-    // Nicht dauerhaft aufgeben: spaeter automatisch neu versuchen, sonst bleibt
-    // das Geraet bis zum Reboot im langsamen M5GFX-Fallback haengen.
+    // Retry automatically later so the device does not remain in the slower
+    // M5GFX fallback until reboot.
     g_ppa_reinit_at_ms = millis() + kPpaReinitRetryMs;
     if (!g_ppa_reinit_at_ms) g_ppa_reinit_at_ms = 1;
     Serial.printf("[Device/M5StacksTab5] PPA reset failed err=%d (int free=%u KB, largest=%u KB), retry in %lu ms\n",
@@ -193,10 +192,9 @@ bool reset_ppa_client() {
 }
 
 void note_ppa_fault() {
-  // Kein Client-Reset hier: mit einer offenen (verklemmten) Transaktion kann
-  // ppa_unregister_client nicht gelingen. Verklemmung wird direkt im
-  // Rotate-Pfad erkannt (g_ppa_wedged) und dort ueber die spaete
-  // Fertigmeldung wieder aufgeloest.
+  // Do not reset the client here: ppa_unregister_client cannot succeed with
+  // a pending, wedged transaction. The rotation path detects g_ppa_wedged and
+  // recovers when the late completion arrives.
   Serial.printf("[Device/M5StacksTab5] PPA fault #%u (int free=%u KB, largest=%u KB)\n",
                 static_cast<unsigned>(g_ppa_consecutive_faults + 1),
                 static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
@@ -206,8 +204,8 @@ void note_ppa_fault() {
 }
 
 void log_ppa_fallback(const char* reason, int err = 0) {
-  // Budget pro 30s-Fenster statt einmalig: spaetere Ausfaelle (z.B. erst im
-  // WLAN-Menue) sollen im Log sichtbar bleiben.
+  // Renew the log budget every 30 seconds so later failures, such as those
+  // first triggered in the Wi-Fi menu, remain visible.
   const uint32_t now = millis();
   if (now - g_ppa_fallback_log_window_ms > 30000) {
     g_ppa_fallback_log_window_ms = now;
@@ -332,9 +330,8 @@ bool ppa_rotate_to_panel(int32_t x, int32_t y, int32_t w, int32_t h,
                          int32_t source_stride, const uint16_t* data,
                          bool byte_swap) {
   if (g_ppa_wedged) {
-    // Spaete Fertigmeldung der verklemmten Transaktion? Dann ist die Engine
-    // wieder frei und der Client laesst sich sauber neu aufsetzen. Dieses
-    // Lauschen ist kostenlos und laeuft deshalb unbegrenzt weiter.
+    // A late completion means the engine is free and the client can be
+    // recreated safely. Keep listening indefinitely at no additional cost.
     if (g_ppa_done && xSemaphoreTake(g_ppa_done, 0) == pdTRUE) {
       Serial.printf("[Device/M5StacksTab5] PPA wedge cleared (transaction completed after %lu ms), client reset\n",
                     static_cast<unsigned long>(millis() - g_ppa_wedged_since_ms));
@@ -344,11 +341,11 @@ bool ppa_rotate_to_panel(int32_t x, int32_t y, int32_t w, int32_t h,
       pause_ppa_for(kPpaFaultCooldownMs);
     } else if (g_ppa_wedge_reset_attempts < kPpaWedgeResetMaxAttempts &&
                static_cast<int32_t>(millis() - g_ppa_wedge_retry_at_ms) >= 0) {
-      // Ohne Fertigmeldung klappt der Reset nur, wenn die Transaktion still
-      // abgelaufen ist. Jeder Versuch erzeugt eine Fehlerzeile des IDF-
-      // Treibers — deshalb Backoff (5s -> 10s -> ... -> 60s) und nach
-      // kPpaWedgeResetMaxAttempts Schluss damit; das stille Semaphore-
-      // Lauschen oben bleibt als Recovery-Chance bestehen.
+      // Without a completion notification, reset succeeds only if the
+      // transaction finished silently. Each attempt produces an IDF error,
+      // so back off from 5s to 10s up to 60s and stop after
+      // kPpaWedgeResetMaxAttempts. The silent semaphore check above continues
+      // to allow recovery.
       ++g_ppa_wedge_reset_attempts;
       g_ppa_wedge_retry_delay_ms *= 2;
       if (g_ppa_wedge_retry_delay_ms > kPpaWedgeResetRetryMaxMs) {
@@ -369,8 +366,8 @@ bool ppa_rotate_to_panel(int32_t x, int32_t y, int32_t w, int32_t h,
     return false;
   }
   if (!g_ppa_ready || !g_ppa_handle) {
-    // Fehlgeschlagener Reset: zeitgesteuert neu versuchen statt dauerhaft
-    // im langsamen Fallback zu bleiben.
+    // After a failed reset, schedule a retry instead of staying permanently
+    // in the slower fallback.
     if (g_ppa_reinit_at_ms && g_panel_fb &&
         static_cast<int32_t>(millis() - g_ppa_reinit_at_ms) >= 0) {
       g_ppa_reinit_at_ms = 0;
@@ -404,10 +401,9 @@ bool ppa_rotate_to_panel(int32_t x, int32_t y, int32_t w, int32_t h,
     return false;
   }
 
-  // Nie parallel zum HW-JPEG-Decode (geteilter 2D-DMA-Pool, siehe
-  // dma2d_arbiter.h) — die Ueberlappung ist der Hauptverdaechtige fuer die
-  // verlorenen Transaktionen. Kommt der Lock nicht rechtzeitig frei, malt
-  // die CPU dieses eine Rechteck.
+  // Never overlap hardware JPEG decoding: it shares the 2D-DMA pool
+  // (see dma2d_arbiter.h), and overlapping use is the main suspect for lost
+  // transactions. If the lock is not available in time, CPU-render this rectangle.
   Dma2dArbiterGuard dma2d_guard(250);
   if (!dma2d_guard.locked()) {
     log_ppa_fallback("2D DMA arbiter busy");
@@ -482,7 +478,7 @@ bool ppa_rotate_to_panel(int32_t x, int32_t y, int32_t w, int32_t h,
 
 void push_pixels_with_ppa_fallback(int32_t x, int32_t y, int32_t w, int32_t h,
                                    const uint16_t* data, bool dma) {
-  // LVGL uses RGB565_SWAPPED on Tab5, der Panel-Framebuffer RGB565.
+  // Tab5 LVGL uses RGB565_SWAPPED; the panel framebuffer uses RGB565.
   if (ppa_rotate_to_panel(x, y, w, h, w, data, true)) {
     return;
   }

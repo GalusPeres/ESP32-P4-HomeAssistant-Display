@@ -28,9 +28,8 @@ inline constexpr uint8_t kRotationDefault = kProfile.rotation_default;
 inline constexpr uint8_t kRotationFlipped = kProfile.rotation_flipped;
 inline constexpr Capabilities kCapabilities = kProfile.capabilities;
 
-// Einheitliche Prozentwerte fuer normale Display-Helligkeit, Screensaver und
-// MQTT. Gespeichert bleibt aus Kompatibilitaetsgruenden weiterhin der
-// geraetespezifische Rohwert.
+// Use consistent percentages for normal display brightness, screensaver and
+// MQTT. Keep storing the device-specific raw value for compatibility.
 inline uint8_t backlightRawFromPercent(uint8_t percent) {
   if (percent < kConfiguredBrightnessPercentMin) {
     percent = kConfiguredBrightnessPercentMin;
@@ -66,10 +65,9 @@ void displayPushPixels(int32_t x, int32_t y, int32_t w, int32_t h,
                        const uint16_t* data);
 void displayPushPixelsDMA(int32_t x, int32_t y, int32_t w, int32_t h,
                           const uint16_t* data);
-// Gemeinsamer direkter Frame-Pfad fuer Kamera und Vollbildvorschau. Der
-// Quell-Stride ist explizit, weil der P4-JPEG-Decoder Zeilen auf 16 Pixel
-// ausrichtet. false bedeutet: Frame auslassen, niemals still per LVGL neu
-// zeichnen.
+// Shared direct frame path for the camera and fullscreen preview. The source
+// stride is explicit because the P4 JPEG decoder aligns rows to 16 pixels.
+// false means skip the frame; never silently redraw it through LVGL.
 bool displayTryFullFramePreview(int32_t x, int32_t y, int32_t w, int32_t h,
                                 int32_t source_stride,
                                 const uint16_t* data, size_t data_size,

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "src/tiles/tile_renderer.h"
+#include "src/tiles/runtime/tile_renderer.h"
 
 // Renders an "Animation" tile: a low-res pixel-art animation loaded from a
 // ".panim" file on the SD card (folder /animations). The selected file name is

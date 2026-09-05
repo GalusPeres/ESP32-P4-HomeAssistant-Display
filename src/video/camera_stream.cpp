@@ -5,8 +5,8 @@
 #include <freertos/task.h>
 #include <soc/soc_caps.h>
 
-#include "src/core/config_manager.h"
-#include "src/core/i18n.h"
+#include "src/core/config/config_manager.h"
+#include "src/core/i18n/i18n.h"
 #include "src/network/network_manager.h"
 
 #if defined(CONFIG_IDF_TARGET_ESP32P4) && \
@@ -24,7 +24,7 @@
 #include <cstring>
 #include <strings.h>
 
-#include "src/core/dma2d_arbiter.h"
+#include "src/core/display/dma2d_arbiter.h"
 #include "src/devices/device.h"
 #include "src/video/camera_geometry.h"
 
@@ -1334,10 +1334,9 @@ static void run_camera_task() {
         break;
       }
 
-      // Kamera und MQTT teilen sich auf dem P4 den zweiten Core. Nach jedem
-      // bestaetigten 8-KB-Block bekommt der gleich priorisierte MQTT-Worker
-      // sofort eine Scheduling-Chance; so bleibt dessen Socket auch bei einem
-      // dauerhaft gefuellten Kamerastream aktiv.
+      // Camera and MQTT share the second P4 core. After every acknowledged
+      // 8 KB block, give the equal-priority MQTT worker a scheduling point
+      // so its socket stays active even under continuous camera traffic.
       taskYIELD();
     }
     if (!stream_ok || g_stop_requested) break;
@@ -1376,9 +1375,8 @@ static void run_camera_task() {
       g_no_write_buffer_drops = 0;
       last_fps_ms = now;
     }
-    // Mindestens einen Tick wirklich blockieren. Ein reines taskYIELD() gibt
-    // niemals an niedriger priorisierte Tasks ab und hatte im 24-FPS-Test nach
-    // einem langen Kameralauf den MQTT-Keepalive verhungern lassen.
+    // Block for at least one tick. taskYIELD() alone never schedules lower
+    // priority tasks and starved MQTT keepalive during a long 24 FPS camera test.
     vTaskDelay(1);
   }
 
@@ -1467,9 +1465,9 @@ bool camera_stream_start(const char* url, uint32_t corner_rgb) {
   g_direct_preview_logged = false;
   g_direct_fallback_logged = false;
   const BaseType_t task_core = (ARDUINO_RUNNING_CORE == 0) ? 1 : 0;
-  // Darf den MQTT-Worker auf demselben Core niemals ueberholen. Beide laufen
-  // auf Idle-Prioritaet; die expliziten Yield-Punkte oben verteilen die Zeit
-  // innerhalb jedes Frames, ohne den JPEG-/PPA-Pfad auszubremsen.
+  // Never outrank the MQTT worker on this core. Both tasks run at idle
+  // priority; explicit yields within each frame share CPU time without
+  // slowing the JPEG/PPA path.
   constexpr UBaseType_t kCameraTaskPriority = tskIDLE_PRIORITY;
   if (xTaskCreatePinnedToCoreWithCaps(
           camera_task, "cameraJpeg", 16384, nullptr, kCameraTaskPriority,

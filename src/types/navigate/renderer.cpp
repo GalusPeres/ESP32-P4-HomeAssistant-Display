@@ -1,8 +1,8 @@
 #include "src/types/navigate/renderer.h"
-#include "src/tiles/tile_renderer_shared.h"
-#include "src/tiles/tile_renderer_fonts.h"
-#include "src/tiles/mdi_icons.h"
-#include "src/tiles/tile_config.h"
+#include "src/tiles/runtime/tile_renderer_shared.h"
+#include "src/tiles/runtime/tile_renderer_fonts.h"
+#include "src/tiles/icons/mdi_icons.h"
+#include "src/tiles/config/tile_config.h"
 #include "src/ui/ui_manager.h"
 #include <Arduino.h>
 
@@ -23,8 +23,8 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
   lv_obj_set_style_radius(btn, tile_layout::scale_480(22), 0);
   lv_obj_set_style_border_width(btn, 0, 0);
 
-  // Alle Navigationstypen verwenden ohne explizite Farbwahl dieselbe neutrale
-  // Standardflaeche wie die restlichen HomeTiles.
+  // Without an explicit color, all navigation types use the same neutral
+  // background as the other HomeTiles tiles.
   const uint32_t default_color = 0x2A2A2A;
   uint32_t btn_color = tileBgColorOrDefault(tile, default_color);
   lv_obj_set_style_bg_color(btn, lv_color_hex(btn_color), LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -34,7 +34,7 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
   lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_DEFAULT);
   lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_FOCUSED);
 
-  // Pressed-State: 10% heller
+  // Pressed state: 10% brighter.
   uint32_t pressed_color = brighten_rgb_color(btn_color, 0x10);
   lv_obj_set_style_bg_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
   lv_obj_set_style_bg_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | (LV_STATE_FOCUSED | LV_STATE_PRESSED));
@@ -57,7 +57,7 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
 
   set_tile_grid_cell(btn, col, row, tile.span_w, tile.span_h);
 
-  // Icon Label (optional, falls icon_name vorhanden)
+  // Optional icon label when icon_name is set.
   lv_obj_t* icon_lbl = nullptr;
   String iconChar;
   if (tile.icon_name.length() > 0 && FONT_MDI_ICONS != nullptr) {
@@ -72,33 +72,33 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
       set_label_style(icon_lbl, lv_color_white(), FONT_MDI_ICONS);
       lv_label_set_text(icon_lbl, iconChar.c_str());
 
-      // Flexible Positionierung: Icon + Title = 2 Zeilen mittig, nur Icon = 1 Zeile mittig
+      // Center icon and title on two lines, or the icon alone on one line.
       if (has_title) {
         lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0,
                      tile_layout::scale_i16(-20));
       } else {
-        lv_obj_center(icon_lbl);  // Icon mittig (ohne Title)
+        lv_obj_center(icon_lbl);  // Center the icon when there is no title.
       }
     }
   }
 
-  // Title Label (nur anzeigen wenn Titel vorhanden)
+  // Show the title label only when a title is set.
   if (has_title) {
     lv_obj_t* l = lv_label_create(btn);
     if (l) {
       set_label_style(l, lv_color_white(), tile_layout::header_title_font());
       lv_label_set_text(l, tile.title.c_str());
 
-      // Flexible Positionierung: mit Icon unten, ohne Icon mittig
+      // Position below the icon, or center when there is no icon.
       if (icon_lbl) {
         lv_obj_align(l, LV_ALIGN_CENTER, 0, tile_layout::scale(35));
       } else {
-        lv_obj_center(l);  // Title mittig (ohne Icon)
+        lv_obj_center(l);  // Center the title when there is no icon.
       }
     }
   }
 
-  // Event-Handler für Tab-Navigation
+  // Event handler for tab navigation.
   static constexpr uint8_t NAV_KIND_FOLDER = 0;
   static constexpr uint8_t NAV_KIND_SETTINGS = 1;
   static constexpr uint8_t NAV_KIND_BACK = 2;

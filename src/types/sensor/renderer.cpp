@@ -1,10 +1,10 @@
 #include "src/types/sensor/renderer.h"
-#include "src/tiles/tile_renderer_shared.h"
-#include "src/tiles/tile_renderer_fonts.h"
-#include "src/tiles/tile_renderer.h"
-#include "src/tiles/mdi_icons.h"
-#include "src/network/ha_bridge_config.h"
-#include "src/ui/sensor_popup.h"
+#include "src/tiles/runtime/tile_renderer_shared.h"
+#include "src/tiles/runtime/tile_renderer_fonts.h"
+#include "src/tiles/runtime/tile_renderer.h"
+#include "src/tiles/icons/mdi_icons.h"
+#include "src/network/bridge/ha_bridge_config.h"
+#include "src/ui/popups/sensor/sensor_popup.h"
 #include <Arduino.h>
 
 static const lv_font_t* get_sensor_value_font(const Tile& tile) {
@@ -63,13 +63,13 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
     return nullptr;
   }
 
-  // Farbe verwenden (Standard: 0x2A2A2A wenn color = 0)
+  // Use the configured color; default to 0x2A2A2A when color is 0.
   uint32_t card_color = tileBgColorOrDefault(tile, 0x2A2A2A);
   lv_obj_set_style_bg_color(card, lv_color_hex(card_color), LV_PART_MAIN | LV_STATE_DEFAULT);
 lv_obj_set_style_bg_grad_color(card, lv_color_hex(card_color), LV_PART_MAIN | LV_STATE_DEFAULT);
 lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-  // Pressed-State: 10% heller
+  // Pressed state: 10% brighter.
   uint32_t pressed_color = brighten_rgb_color(card_color, 0x10);
   lv_obj_set_style_bg_color(card, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
 lv_obj_set_style_bg_grad_color(card, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
@@ -86,7 +86,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
 
   set_tile_grid_cell(card, col, row, tile.span_w, tile.span_h);
 
-  // Icon Label (optional, falls icon_name vorhanden) - rechtsbündig
+  // Optional right-aligned icon label when icon_name is set.
   lv_obj_t* icon_lbl = nullptr;
   String icon_name = tile.icon_name;
   bool icon_disabled = isMdiIconDisabled(icon_name);
@@ -109,7 +109,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   }
 
   lv_obj_t* title_label = nullptr;
-  // Title Label (nur anzeigen wenn Titel vorhanden) - rechtsbündig
+  // Right-aligned title label, shown only when a title is set.
   if (tile.title.length() > 0) {
     title_label = lv_label_create(card);
     if (title_label) {
@@ -215,14 +215,14 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
       lv_obj_set_style_line_rounded(chart, true, LV_PART_ITEMS);
       lv_obj_set_style_size(chart, 0, 0, LV_PART_INDICATOR);
 
-      // Initial mit LV_CHART_POINT_NONE (wird durch History ersetzt)
+      // Initialize with LV_CHART_POINT_NONE; history will replace it.
       lv_chart_set_all_value(chart, series, LV_CHART_POINT_NONE);
     }
     if (icon_lbl) lv_obj_move_foreground(icon_lbl);
     if (title_label) lv_obj_move_foreground(title_label);
   }
 
-  // Value Label (Wert + Einheit kombiniert)
+  // Value label combines the value and unit.
   lv_obj_t* v = lv_label_create(card);
   if (!v) {
     Serial.println("[TileRenderer] ERROR: Could not create value label");
@@ -253,7 +253,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
                  tile_layout::scale(28) + value_y_offset);
   }
 
-  // Speichern für spätere Updates
+  // Store for later updates.
   SensorTileWidgets* target = tile_renderer_get_sensor_widgets(grid_type);
   if (target && index < TILES_PER_GRID) {
     target[index].value_label = v;
@@ -265,9 +265,9 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
     target[index].series = series;
   }
 
-  // Der Screensaver wird per PPA als fertiger Vollbildframe praesentiert.
-  // Popups erzeugen dort eine zweite Overlay-Ebene und sind in diesem Modus
-  // bewusst deaktiviert; auf allen normalen Grids bleibt das Verhalten gleich.
+  // PPA presents the screensaver as a complete fullscreen frame. Popups would
+  // add a second overlay, so this mode disables them. Normal grids retain
+  // their existing behavior.
   if (tile.sensor_entity.length() && grid_type != GridType::SCREENSAVER) {
     bool icon_override = false;
     if (tile.icon_name.length() && !isMdiIconDisabled(tile.icon_name)) {

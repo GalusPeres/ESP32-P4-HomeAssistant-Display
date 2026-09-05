@@ -30,11 +30,11 @@ bool energy_request_period(const char* period, bool force = false);
 bool energy_request_day_for_tiles(bool force = false);
 void energy_service_periodic();
 bool energy_find_entry(const String& id, const char* period, EnergyEntryData& out);
-// Einheit aus einem beliebigen bereits empfangenen Energy-Zeitraum holen.
-// Aggregierte Energy-IDs existieren nicht zwingend als normale HA-Entity und
-// fehlen deshalb im allgemeinen HaBridgeConfig-Unit-Index.
+// Get the unit from any previously received Energy period. Aggregate Energy
+// IDs need not exist as normal HA entities and can therefore be absent from
+// the general HaBridgeConfig unit index.
 String energy_find_cached_unit(const String& id);
-// Fuegt alle IDs aus bereits empfangenen Energy-Antworten hinzu. Damit kann
-// die WebUI ihre Quellen auch dann anbieten, wenn eine Bridge-Konfigurations-
-// antwort voruebergehend keinen Energy-Block enthielt.
+// Append all IDs from previously received Energy responses. The WebUI can
+// then offer its sources even when a bridge configuration response temporarily
+// omits the Energy block.
 void energy_append_cached_entity_ids(std::vector<String>& ids);

@@ -37,8 +37,8 @@ public:
   void update();
 
   // --- Single-Owner MQTT API ---
-  void beginMqttWorker();    // einmalig aus setup(), VOR dem Task-Start (legt die Queue an)
-  void serviceMqttWorker();  // Worker-Task-Body, eine Iteration pro Aufruf
+  void beginMqttWorker();    // Call once from setup() before task startup to create the queues.
+  void serviceMqttWorker();  // Worker task body; one iteration per call.
 
   // Connection state: a volatile flag written by the worker ONLY. Every other
   // task may read it at any time (one writer, many readers).
@@ -105,7 +105,7 @@ public:
   bool isWifiConnected() const;
   bool wasPreviouslyConnected() const { return was_connected; }
 
-  // Verbindung herstellen
+  // Establish a Wi-Fi connection.
   void connectWifi();
 
   // ESP32-P4 / ESP-Hosted liveness probe. With a stuck C6, WiFi.status() is only
@@ -147,11 +147,11 @@ public:
 
 private:
   NetworkClient net_client;
-  PubSubClient mqtt_client;  // nach init() NUR noch vom Worker-Task beruehrt
+  PubSubClient mqtt_client;  // After init(), accessed only by the worker task.
 
   uint32_t wifi_retry_at = 0;
   uint32_t wired_ip_wait_until = 0;
-  bool wifi_manual_disconnect = false;  // Loop-Task: setzt/liest, UI liest
+  bool wifi_manual_disconnect = false;  // Loop task reads/writes; UI reads.
   bool wifi_suspended_for_wired = false;
   bool wired_link_was_up = false;
   bool wired_was_connected = false;
@@ -174,7 +174,7 @@ private:
   uint32_t wifi_mqtt_offline_since = 0;
   uint32_t wifi_health_probe_at = 0;
   uint32_t mqtt_retry_at = 0;      // worker-only
-  uint8_t mqtt_connect_failures = 0;  // worker-only: Fehlversuche in Folge
+  uint8_t mqtt_connect_failures = 0;  // Worker only: consecutive failures.
   uint32_t last_telemetry = 0;
   bool was_connected = false;
   uint32_t transport_generation_seen = 0;
@@ -184,7 +184,7 @@ private:
   bool wifi_ps_state_known = false;
   bool wifi_ps_enabled = false;
   bool wifi_sleep_profile = false;
-  uint32_t mqtt_connected_at = 0;  // worker-only: millis() des letzten Connects
+  uint32_t mqtt_connected_at = 0;  // Worker only: millis() of the last connection.
 
   // Cross-task signals. Plain aligned bool/uint reads and writes are atomic on
   // this architecture, and every flag has exactly one writer per direction: for
@@ -196,7 +196,7 @@ private:
   volatile bool mqtt_reconfig_requested = false;
   volatile bool mqtt_ota_prep_requested = false;
   volatile bool mqtt_restore_normal_requested = false;
-  volatile bool mqtt_suspended = false;  // OTA laeuft: Worker ruehrt nichts mehr an
+  volatile bool mqtt_suspended = false;  // OTA active: the worker leaves the client untouched.
   // Set by the worker after sustained DMA starvation. The loop task then
   // rebuilds WLAN/SDIO alone, in a controlled way. Until that happens the worker
   // no longer touches the network client.
@@ -207,8 +207,8 @@ private:
   volatile uint32_t mqtt_reconnect_hold_until = 0;
   volatile uint32_t mqtt_post_connect_ready_at = 0;
   volatile uint32_t mqtt_large_until = 0;
-  volatile uint16_t mqtt_buffer_size = 0;  // Spiegel der Client-Puffergroesse, Worker pflegt
-  volatile bool mqtt_media_buffer_needed = false;  // Media-Tiles vorhanden -> 24-KB-Normalpuffer
+  volatile uint16_t mqtt_buffer_size = 0;  // Client buffer-size mirror maintained by the worker.
+  volatile bool mqtt_media_buffer_needed = false;  // Media tiles require the 24 KB normal buffer.
 
   // Target size of the "normal" buffer, depending on the media configuration.
   uint16_t mqttNormalBufferSize() const;
@@ -252,7 +252,7 @@ private:
   void startMdns();
 };
 
-// Globale Instanz
+// Shared instance.
 extern HomeTilesNetworkManager networkManager;
 
 #endif // NETWORK_MANAGER_H

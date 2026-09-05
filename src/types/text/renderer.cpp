@@ -1,7 +1,7 @@
 #include "src/types/text/renderer.h"
-#include "src/tiles/tile_renderer_shared.h"
-#include "src/tiles/tile_renderer_fonts.h"
-#include "src/tiles/mdi_icons.h"
+#include "src/tiles/runtime/tile_renderer_shared.h"
+#include "src/tiles/runtime/tile_renderer_fonts.h"
+#include "src/tiles/icons/mdi_icons.h"
 #include <Arduino.h>
 
 lv_obj_t* render_text_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index) {

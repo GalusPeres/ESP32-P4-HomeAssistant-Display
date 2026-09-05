@@ -1,9 +1,9 @@
 #include "src/types/scene/renderer.h"
-#include "src/tiles/tile_renderer_shared.h"
-#include "src/tiles/tile_renderer_fonts.h"
-#include "src/tiles/mdi_icons.h"
+#include "src/tiles/runtime/tile_renderer_shared.h"
+#include "src/tiles/runtime/tile_renderer_fonts.h"
+#include "src/tiles/icons/mdi_icons.h"
 #include "src/devices/device.h"
-#include "src/network/ha_bridge_config.h"
+#include "src/network/bridge/ha_bridge_config.h"
 #include <Arduino.h>
 #include <libs/tjpgd/tjpgd.h>
 
@@ -334,7 +334,7 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
     }
   }
 
-  // Event-Handler für Scene-Aktivierung
+  // Event handler for scene activation.
   if (scene_cb && tile.scene_alias.length()) {
     SceneEventData* event_data = new SceneEventData{tile.scene_alias, scene_cb};
 

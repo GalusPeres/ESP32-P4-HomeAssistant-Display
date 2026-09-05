@@ -1,5 +1,5 @@
 #include "src/types/navigate/web_handler.h"
-#include "src/web/web_admin_tile_helpers.h"
+#include "src/web/server/handlers/web_admin_tile_helpers.h"
 
 bool apply_navigate_fields_from_request(
     WebServer& server,

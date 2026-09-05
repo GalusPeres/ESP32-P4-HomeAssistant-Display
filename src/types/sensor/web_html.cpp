@@ -1,7 +1,7 @@
 #include "src/types/sensor/web_html.h"
-#include "src/web/web_admin_utils.h"
-#include "src/core/config_manager.h"
-#include "src/core/i18n.h"
+#include "src/web/server/web_admin_utils.h"
+#include "src/core/config/config_manager.h"
+#include "src/core/i18n/i18n.h"
 
 void append_sensor_fields_html(String& html, const String& tab_id, const std::vector<String>& sensorOptions) {
   const auto& tr = i18n::strings(configManager.getConfig().language);

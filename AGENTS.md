@@ -54,7 +54,7 @@ Do not create a second competing rule file.
 - Technical logs are never localized. Keep prefixes stable and rate-limit
   recurring logs so diagnostics do not create performance problems.
 - Put every user-visible UI string in the central `Strings`/`LocaleProfile`
-  schema in `src/core/i18n.h` and `src/core/i18n.cpp`.
+  schema in `src/core/i18n/i18n.h` and `src/core/i18n/i18n.cpp`.
 - Never place display text directly in a renderer, popup, WebUI JavaScript,
   HTTP handler, MQTT handler, or protocol handler.
 - Device UI and WebUI must consume the same central translations.
@@ -247,7 +247,7 @@ mandatory.
 ## 9. Tests and verification before handoff
 
 - Add a focused regression test for every reproduced bug. Name it
-  `tools/test-<topic>.mjs`; the CI suite discovers those files automatically.
+  `tools/tests/<area>/test-<topic>.mjs`; the CI suite discovers them recursively.
 - Run the whole suite with `node tools/run-tests.mjs` (add name fragments to
   run a subset). A harness whose optional tooling is missing reports `SKIP:`.
 - For a tile type, the browser contract test must cover type selection, entity

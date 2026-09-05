@@ -8,10 +8,10 @@
 #include <driver/gpio.h>
 
 #include "src/devices/device.h"
-#include "src/network/ha_bridge_config.h"
-#include "src/network/mqtt_topics.h"
+#include "src/network/bridge/ha_bridge_config.h"
+#include "src/network/mqtt/mqtt_topics.h"
 #include "src/network/network_manager.h"
-#include "src/ui/tab_tiles_unified.h"
+#include "src/ui/tabs/tiles/tab_tiles_unified.h"
 
 namespace {
 
@@ -160,18 +160,17 @@ bool one_wire_reset(gpio_num_t pin) {
   delayMicroseconds(5);
   one_wire_low(pin);
   delayMicroseconds(480);
-  // Die lange Reset-Low-Phase braucht keine Interrupt-Sperre. Nur das enge
-  // Presence-Fenster schuetzen, damit Display/Netzwerk nicht fuer >500 us am
-  // Stueck blockiert werden.
+  // The long reset-low phase needs no interrupt lock. Protect only the narrow
+  // presence window so display/network work is not blocked for over 500 us.
   noInterrupts();
   one_wire_release(pin);
   delayMicroseconds(70);
   const bool present = gpio_get_level(pin) == 0;
   interrupts();
   delayMicroseconds(410);
-  // Nach dem Presence-Puls muss DATA wieder freigegeben sein. Ein dauerhaft
-  // nach GND kurzgeschlossener Bus sieht sonst wie ein vorhandener Sensor aus
-  // und liefert ein CRC-gueltiges Null-Scratchpad.
+  // DATA must return high after the presence pulse. A bus shorted to ground
+  // would otherwise look like a sensor and produce a zero scratchpad with a
+  // valid CRC.
   const bool released = gpio_get_level(pin) != 0;
   return present && released;
 }
@@ -658,8 +657,7 @@ void HardwareIoManager::startRuntime() {
       const int level = config.boot_on
                             ? (config.inverted ? 0 : 1)
                             : (config.inverted ? 1 : 0);
-      // Erst den sicheren Pegel setzen, dann den Ausgang aktivieren. So gibt
-      // es beim Start keinen kurzen Relay-Impuls.
+      // Set the safe level before enabling output to prevent a startup relay pulse.
       gpio_set_level(static_cast<gpio_num_t>(config.gpio), level);
       gpio_set_direction(static_cast<gpio_num_t>(config.gpio), GPIO_MODE_OUTPUT);
       runtime_[i].relay_state = config.boot_on;
@@ -698,10 +696,9 @@ void HardwareIoManager::transitionRuntime(
           previous_channels[old].type != next_channels[next].type) {
         continue;
       }
-      // Bei Relais ist die Polaritaet Teil der physischen Zuordnung. Aendert
-      // sie sich, muss der alte Ausgang zuerst sicher AUS und danach neu
-      // initialisiert werden. Name, ID und Boot-Vorgabe duerfen den aktuell
-      // geschalteten Zustand dagegen nicht veraendern.
+      // Relay polarity belongs to the physical mapping. Changing it requires
+      // safely turning the old output off before reinitializing it. Changes to
+      // name, ID or boot preference must preserve the current switched state.
       if (next_channels[next].type == HardwareIoType::Relay &&
           previous_channels[old].inverted != next_channels[next].inverted) {
         continue;
@@ -712,8 +709,8 @@ void HardwareIoManager::transitionRuntime(
     }
   }
 
-  // Nur entfernte oder physisch veraenderte Kanaele anfassen. Damit schaltet
-  // ein Autosave (z.B. blosses Umbenennen) kein laufendes Relais kurz aus.
+  // Touch only removed or physically changed channels. Autosaving a rename
+  // must not briefly turn off a running relay.
   for (uint8_t old = 0; old < previous_count; ++old) {
     if (previous_kept[old]) continue;
     const HardwareIoChannelConfig& config = previous_channels[old];
@@ -824,10 +821,9 @@ bool HardwareIoManager::replaceFromJson(const String& json, String& error) {
     return false;
   }
 
-  // Ein umbenannter oder geloeschter Kanal darf keinen retained State als
-  // Geistertopic im Broker hinterlassen. Die Topic-Namen werden vor dem
-  // Runtime-Umbau gesichert und bei bestehender bzw. naechster Verbindung
-  // mit einem leeren retained Payload entfernt.
+  // Renamed or removed channels must not leave retained ghost topics. Save
+  // the old topics before rebuilding runtime state, then clear them with empty
+  // retained payloads on this connection or the next one.
   for (uint8_t old = 0; old < channel_count_; ++old) {
     bool topic_kept = false;
     for (uint8_t next = 0; next < candidate_count; ++next) {
@@ -1064,8 +1060,8 @@ void HardwareIoManager::flushStaleStateTopics() {
         break;
       }
     }
-    // Eine zwischenzeitlich wiederverwendete ID gehoert nicht mehr in die
-    // Cleanup-Liste. Sonst koennte ein spaeter Retry ihren neuen State loeschen.
+    // A reused ID no longer belongs in the cleanup list; a delayed retry must
+    // not clear the new channel state.
     if (active_again) continue;
 
     if (!mqtt_connected ||
@@ -1285,9 +1281,9 @@ bool HardwareIoManager::serviceTemperature(uint8_t index, uint32_t now_ms) {
   RuntimeChannel& runtime = runtime_[index];
   const gpio_num_t pin = static_cast<gpio_num_t>(channels_[index].gpio);
 
-  // Das Scratchpad bewusst nur byteweise lesen. Ein komplettes 9-Byte-Lesen
-  // blockiert den Render-/Touch-Loop mehrere Millisekunden; so bleibt jede
-  // einzelne Phase kurz und LVGL kommt zwischen den Bytes wieder zum Zug.
+  // Read one scratchpad byte per step. Reading all nine bytes blocks the
+  // render/touch loop for several milliseconds; separate steps let LVGL run
+  // between bytes.
   if (runtime.scratchpad_reading) {
     runtime.scratchpad[runtime.scratchpad_index++] = one_wire_read_byte(pin);
     if (runtime.scratchpad_index < sizeof(runtime.scratchpad)) return true;
@@ -1332,8 +1328,8 @@ bool HardwareIoManager::serviceTemperature(uint8_t index, uint32_t now_ms) {
       publishChannelState(index, runtime.failures == 1);
       return true;
     }
-    // Ein konfigurierter Kanal entspricht bewusst genau einem Bus/Sensor.
-    // Skip-ROM vermeidet einen langen Suchlauf im UI-Thread.
+    // Each configured channel intentionally represents one bus/sensor.
+    // Skip-ROM avoids a long device search on the UI thread.
     one_wire_write_byte(pin, 0xCC);
     one_wire_write_byte(pin, 0x44);
     runtime.conversion_started_ms = now_ms;
@@ -1374,7 +1370,7 @@ void HardwareIoManager::service() {
         (service_cursor_ + n) % channel_count_);
     if (serviceTemperature(index, now)) {
       service_cursor_ = static_cast<uint8_t>((index + 1) % channel_count_);
-      return;  // nie mehrere 1-Wire-Transaktionen in einem UI-Durchlauf
+      return;  // Perform at most one 1-Wire transaction per UI loop pass.
     }
   }
 }

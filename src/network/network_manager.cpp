@@ -1,15 +1,15 @@
 #include "src/network/network_manager.h"
-#include "src/network/network_transport.h"
-#include "src/core/config_manager.h"
-#include "src/network/mqtt_handlers.h"
-#include "src/network/mqtt_topics.h"
-#include "src/network/ha_bridge_config.h"
-#include "src/web/web_admin.h"
+#include "src/network/transport/network_transport.h"
+#include "src/core/config/config_manager.h"
+#include "src/network/mqtt/mqtt_handlers.h"
+#include "src/network/mqtt/mqtt_topics.h"
+#include "src/network/bridge/ha_bridge_config.h"
+#include "src/web/server/web_admin.h"
 #include "src/ui/ui_manager.h"
-#include "src/ui/tab_settings.h"
+#include "src/ui/tabs/settings/tab_settings.h"
 #include "src/devices/device.h"
-#include "src/core/board_hal.h"
-#include "src/core/crash_log.h"
+#include "src/core/hardware/board_hal.h"
+#include "src/core/diagnostics/crash_log.h"
 #include "src/video/camera_stream.h"
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
@@ -28,62 +28,61 @@ extern "C" void hometiles_sdio_get_rx_diag(
     uint32_t* bus_faults) __attribute__((weak));
 #endif
 
-// Globale Instanz
+// Shared instance.
 HomeTilesNetworkManager networkManager;
 
 static constexpr uint16_t kMqttBufferOta = 1024;
 static constexpr uint16_t kMqttBufferNormal = 16 * 1024;
-// Sobald Media-Tiles konfiguriert sind, muss der "normale" Puffer die
-// Bridge-Media-States mit eingebettetem 240px-Cover fassen (~14 KB JPEG ->
-// ~19 KB Base64+JSON). Mit 16 KB verwirft PubSubClient diese Pakete komplett;
-// Cover kamen dann nur zufaellig waehrend eines 32-KB-Large-Fensters durch.
+// When media tiles are configured, the normal buffer must fit Bridge
+// media states with embedded 240 px covers: about 14 KB JPEG or 19 KB
+// base64/JSON. PubSubClient discards them at 16 KB; covers then arrived
+// only by chance during a 32 KB large-buffer window.
 static constexpr uint16_t kMqttBufferMedia = 24 * 1024;
 static constexpr uint16_t kMqttBufferLarge = 32 * 1024;
 static constexpr uint32_t kMqttPostConnectQuietMs = 3000;
 static constexpr uint32_t kWiredDhcpWaitMs = 10000;
-// Solange der Ethernet-Link steht, WLAN erst nach dieser Frist ohne IP
-// starten. Der hosted-Start frisst genau das DMA-RAM, das das Ethernet-
-// Backend fuer seine Datenpuffer braucht - im Feldtest 2026-07-16 kam
-// Ethernet deshalb nie hoch, waehrend WiFi gegen den toten C6 anrannte.
-// Die Frist deckt zugleich Netze ohne DHCP ab (dann darf WiFi doch ran).
+// While Ethernet has carrier, delay Wi-Fi until this no-IP timeout.
+// Starting Hosted consumes the DMA memory the Ethernet backend needs
+// for data buffers; in the 2026-07-16 field test Ethernet never came up
+// while Wi-Fi kept retrying an unresponsive C6. The timeout also lets
+// Wi-Fi take over on networks without DHCP.
 static constexpr uint32_t kWiredLinkWifiBlockMs = 60000;
-// STA-Start-Fehlversuche in Folge, ab denen der ESP-Hosted-Treiber als
-// tot gilt (RPC-Timeouts zum C6-Coprozessor).
+// Consecutive STA start failures that mark ESP-Hosted unresponsive
+// after RPC timeouts to the C6 coprocessor.
 static constexpr uint8_t kWifiStartWedgeThreshold = 3;
-// Ein gesunder WiFi.begin()/Mode-Aufruf kehrt in Millisekunden zurueck. Nur
-// wenn der C6 nicht mehr antwortet, laeuft er in den 5s-RPC-Timeout - dauert
-// ein Verbindungsversuch laenger als diese Frist, zaehlt er als Wedge-Indiz
-// (auch wenn er formal "erfolgreich" zurueckkehrt).
+// Healthy WiFi.begin()/mode calls return in milliseconds. An unresponsive
+// C6 reaches the 5-second RPC timeout. A connection attempt longer than
+// this threshold is evidence of a stuck transport even if the call
+// formally reports success.
 static constexpr uint32_t kWifiRpcSlowMs = 3000;
-// WiFi.status() ist im ESP-Hosted-Stack gecacht. Wenn MQTT weg ist, obwohl
-// dieser Cache weiter WL_CONNECTED meldet, nach kurzer Schonfrist ein echtes
-// RPC pruefen. Bei gesundem WLAN kostet das nur Millisekunden; bei einem
-// toten C6 entsteht genau ein 5s-Timeout, danach greift die sichere Recovery.
+// ESP-Hosted caches WiFi.status(). If MQTT disconnects while that cache
+// still reports WL_CONNECTED, probe a real RPC after a short grace period.
+// Healthy Wi-Fi takes milliseconds; an unresponsive C6 costs one 5-second
+// timeout before the safe recovery path takes over.
 static constexpr uint32_t kWifiHealthProbeDelayMs = 15000;
 static constexpr uint32_t kWifiHealthProbeIntervalMs = 60000;
-// Automatischer Neustart wegen Wedge fruehestens nach dieser Laufzeit -
-// verhindert eine enge Reboot-Schleife, falls der C6 dauerhaft defekt ist.
+// Minimum uptime before an automatic transport-recovery restart.
+// Avoid a tight reboot loop if the C6 remains faulty.
 static constexpr uint32_t kWedgeRestartMinUptimeMs = 2 * 60 * 1000;
 static constexpr uint8_t kMqttOutboundDrainNormal = 12;
 static constexpr uint8_t kMqttOutboundDrainStorm = 1;
 static constexpr size_t kMqttMinDmaLargestBeforeTx = 8 * 1024;
-// Zusammenhaengender Notfallblock fuer ESP-Hosted. Er wird im gesunden
-// Zustand absichtlich belegt gehalten und bei DMA-Druck freigegeben. Damit
-// steht dem SDIO-RX/TX-Pfad sofort wieder ein unfragmentierter Block zur
-// Verfuegung, statt darauf zu hoffen, dass viele kleine Heap-Luecken spaeter
-// zufaellig zusammenwachsen.
+// Contiguous emergency reserve for ESP-Hosted. Hold it while healthy and
+// release it under DMA pressure so SDIO RX/TX immediately has an
+// unfragmented block, without depending on small free regions eventually
+// coalescing.
 static constexpr size_t kMqttDmaReserveBytes = 12 * 1024;
 static constexpr size_t kMqttDmaReserveRearmLargest =
     kMqttDmaReserveBytes + kMqttMinDmaLargestBeforeTx + 4 * 1024;
 static constexpr uint32_t kMqttDmaReserveRearmStableMs = 5000;
-// Eine Large-Anfrage darf nie unbegrenzt an der DMA-Schwelle warten. Wenn die
-// Reserve bereits freigegeben ist und der Heap sich trotzdem nicht erholt,
-// wird nur der WLAN/SDIO-Transport kontrolliert neu aufgebaut.
+// A large request must not wait indefinitely at the DMA threshold.
+// If releasing the reserve does not restore enough heap, rebuild only
+// the Wi-Fi/SDIO transport in a controlled recovery.
 static constexpr uint32_t kMqttDmaRecoveryWaitMs = 5000;
 static constexpr uint32_t kMqttDmaRecoveryCooldownMs = 30000;
-// Subscribe/Unsubscribe kann sofort ein retained Paket ausloesen. Auf dem P4
-// bekommt der SDIO-RX-Task zwischen diesen Kontrollpaketen Zeit, das Paket bis
-// in die MQTT-Inbound-Queue weiterzureichen und seinen DMA-Puffer freizugeben.
+// Subscribe/unsubscribe can immediately trigger retained packets. On P4,
+// space these control packets so SDIO RX can forward each response to the
+// MQTT inbound queue and release its DMA buffer.
 static constexpr uint32_t kMqttSdioControlQuietMs = 50;
 
 static void applyWifiAutoReconnectPolicy() {
@@ -97,23 +96,22 @@ static void applyWifiAutoReconnectPolicy() {
 #endif
 }
 
-// Waehrend dieses Fensters direkt nach dem Connect bleibt der MQTT-Empfangs-
-// puffer klein. Er liegt inzwischen im PSRAM; das Ruhefenster verhindert aber
-// weiterhin, dass eine grosse History-/Bridge-Antwort mit dem retained-
-// Message-Sturm um die SDIO-RX-Puffer konkurriert.
+// Keep the MQTT receive buffer small immediately after connecting. It
+// now lives in PSRAM, but this quiet window still prevents large history
+// or Bridge replies from competing with the retained-message burst for
+// SDIO RX buffers.
 static constexpr uint32_t kMqttStormWindowMs = 8000;
 
 // ---------------------------------------------------------------------------
 // Outbound-Command-Queues (Single-Owner MQTT)
 //
-// Gegenstueck zur Inbound-Queue in mqtt_handlers.cpp: jeder Task darf
-// enqueuen, NUR der Worker-Task nimmt heraus und fasst mqtt_client an.
-// Normale Publishes, Large-Response-Anfragen und SDIO-Kontrollkommandos liegen
-// bewusst getrennt. History-/Energy-/Bridge-Anfragen muessen bei knapper
-// DMA-Reserve warten, duerfen dabei aber niemals Szenen-, Licht- oder andere
-// kleine Bedienbefehle hinter sich blockieren (Head-of-line-Blocking).
-// Ein Allokations-Block pro Kommando, [MqttOutboundCmd][topic\0][payload],
-// PSRAM bevorzugt -- 1:1 das Muster von mqttAllocInbound().
+// Counterpart to the inbound queue in mqtt_handlers.cpp: any task may
+// enqueue, but only the worker dequeues commands and accesses mqtt_client.
+// Normal publishes, large-response requests and SDIO control commands
+// have separate queues. History, energy and Bridge requests must wait
+// when DMA reserve is low without holding up scene, light or other small
+// interactive commands. Allocate one block per command as
+// [MqttOutboundCmd][topic\0][payload], preferring PSRAM, like mqttAllocInbound().
 // ---------------------------------------------------------------------------
 enum class MqttCmdKind : uint8_t { PUBLISH, SUBSCRIBE, UNSUBSCRIBE };
 
@@ -122,14 +120,14 @@ struct MqttOutboundCmd {
   bool retain;
   uint32_t large_buffer_hold_ms;
   size_t payload_len;
-  char* topic;       // -> in dieselbe Allokation
-  uint8_t* payload;  // -> in dieselbe Allokation (leer bei SUBSCRIBE/UNSUBSCRIBE)
+  char* topic;       // Points into the same allocation.
+  uint8_t* payload;  // Points into the same allocation; empty for SUBSCRIBE/UNSUBSCRIBE.
 };
 
-// 64 reichte rechnerisch fuer einen mqttReloadDynamicSlots()-Burst; der
-// Post-Connect-Burst (kRoutes + Discovery + Settings + Snapshot + Reload,
-// zusammen ~90 Kommandos) kann aber auflaufen, wenn der Worker gerade in
-// einem grossen readPacket() steckt -- deshalb 128.
+// 64 entries covered a mqttReloadDynamicSlots() burst, but the combined
+// post-connect routes, discovery, settings, snapshot and reload can queue
+// about 90 commands while the worker is inside a large readPacket().
+// Use 128 entries to accommodate that burst.
 static constexpr size_t kMqttPublishQueueDepth = 128;
 static constexpr size_t kMqttLargePublishQueueDepth = 32;
 static constexpr size_t kMqttControlQueueDepth = 128;
@@ -179,9 +177,9 @@ static void releaseMqttDmaReserve(const char* reason) {
 #endif
 }
 
-// Gibt bei Druck zuerst den garantierten zusammenhaengenden Reserveblock frei
-// und legt ihn erst wieder an, wenn fuer mehrere Sekunden deutlich mehr als
-// Reserve + Mindestblock verfuegbar war. So entsteht kein Alloc/Free-Pingpong.
+// Under pressure, release the guaranteed contiguous reserve first.
+// Reallocate only after several seconds with substantially more than
+// reserve plus minimum-block headroom, avoiding allocation/free churn.
 static size_t serviceMqttDmaHeadroom(uint32_t now_ms) {
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
   if (!networkTransport.isSdioWifiActive()) {
@@ -260,8 +258,8 @@ static MqttOutboundCmd* mqttAllocOutbound(MqttCmdKind kind,
   return cmd;
 }
 
-// Nie blockieren, nie inline verarbeiten (das wuerde mqtt_client vom
-// falschen Task beruehren) -- bei voller Queue/Alloc-Fehler verwerfen+loggen.
+// Never block or process inline, which would access mqtt_client from
+// the wrong task. Drop and log allocation or queue-capacity failures.
 static bool enqueueOutboundCmd(MqttCmdKind kind,
                                const char* topic,
                                const uint8_t* payload,
@@ -311,12 +309,11 @@ static void purgeOutboundQueue() {
   }
 }
 
-// Volle 48-Bit-MAC statt nur der unteren 16 Bit: zwei Geraete aus aehnlicher
-// Fertigungscharge koennen in den unteren 16 Bit kollidieren (bei diesem
-// Nutzer beobachtet -- zwei Panels meldeten dieselbe device_id und HA hat
-// eines der beiden Zeroconf-Discovery-Events stillschweigend als "schon
-// konfiguriert" verworfen). Kein "tab5_lvgl_"-Praefix mehr, nur die reine
-// MAC als Hex-String.
+// Use the full 48-bit MAC, not just its low 16 bits. Two panels from
+// similar manufacturing batches were observed to collide in those bits:
+// HA silently rejected one Zeroconf event as already configured because
+// both panels reported the same device_id. Use the MAC as hexadecimal
+// text without the former "tab5_lvgl_" prefix.
 void buildDeviceId(char* buffer, size_t len) {
   if (!buffer || !len) return;
   uint64_t mac = ESP.getEfuseMac();
@@ -502,9 +499,9 @@ bool HomeTilesNetworkManager::recoverWifiFromDmaStarvation() {
   stopMdns();
   was_connected = false;
 
-  // Wie beim exklusiven Wechsel zu Ethernet zuerst SD sauber aushaengen:
-  // ESP-Hosted und SD verwenden zwar verschiedene Slots, der IDF-Teardown
-  // setzt aber die gemeinsame SDMMC-Host-Queue zurueck.
+  // As with switching exclusively to Ethernet, unmount SD first.
+  // ESP-Hosted and SD use separate slots, but IDF teardown resets their
+  // shared SDMMC host queue.
   const bool sd_was_mounted = Device::suspendSDCardForNetworkTransition();
   networkTransport.setWifiDriverActive(false);
   WiFi.setAutoReconnect(false);
@@ -520,17 +517,16 @@ bool HomeTilesNetworkManager::recoverWifiFromDmaStarvation() {
   mqtt_connect_failures = 0;
 
   if (!stopped) {
-    // Der alte Treiber ist noch aktiv. Den Worker wieder freigeben; sein
-    // normaler Connect-Backoff bleibt funktionsfaehig und ein erneuter
-    // Recovery-Versuch ist durch den Cooldown begrenzt.
+    // The old driver is still active. Release the worker so normal connection
+    // backoff remains available; the cooldown bounds another recovery attempt.
     networkTransport.setWifiDriverActive(true);
     mqtt_transport_recovery_requested = false;
     Serial.println("[Network] Wi-Fi/SDIO recovery: driver stop failed");
     return true;
   }
 
-  // Dem IDF-Teardown Zeit geben, Tasks/Puffer vollstaendig freizugeben. Das
-  // Display und sein schneller SRAM-Draw-Puffer bleiben dabei unangetastet.
+  // Let IDF teardown release all tasks and buffers. Retain the display
+  // and its fast SRAM draw buffer.
   delay(100);
   wifi_retry_at = 0;
   connectWifi();
@@ -544,7 +540,7 @@ bool HomeTilesNetworkManager::recoverWifiFromDmaStarvation() {
 #endif
 }
 
-// ========== Initialisierung ==========
+// ========== Initialization ==========
 void HomeTilesNetworkManager::init() {
   networkTransport.begin();
   networkTransport.update();
@@ -564,25 +560,23 @@ void HomeTilesNetworkManager::init() {
     wired_ip_wait_until = millis() + kWiredDhcpWaitMs;
   }
   if (networkTransport.isEthernetMode()) {
-    // Fester Ethernet-Modus: WLAN/ESP-Hosted startet in dieser Boot-Session
-    // NIE - ohne Kabel/Adapter ist das Geraet bewusst offline statt in den
-    // frueheren WiFi-Fallback zu laufen, der beide Stacks gleichzeitig ins
-    // DMA-RAM gezwungen hat.
+    // Fixed Ethernet mode never starts Wi-Fi/ESP-Hosted in this boot session.
+    // Without a cable or adapter the device stays offline. The former Wi-Fi
+    // fallback forced both stacks to compete for DMA RAM.
     Serial.printf("[Network] Ethernet mode: %s, Wi-Fi remains off\n",
                   wired_was_connected ? networkTransport.activeName()
                                       : "waiting for link/DHCP");
   } else {
-    // WLAN-Modus: kein Ethernet-Backend gestartet, also entfaellt auch die
-    // fruehere Wartefrist vor dem WiFi-Start.
+    // Wi-Fi mode starts no Ethernet backend, so the former wait before
+    // starting Wi-Fi is unnecessary.
     ensureWifiStationStarted();
-    wifi_retry_at = 0;  // Sofortiger Verbindungsversuch
+    wifi_retry_at = 0;  // Attempt to connect immediately.
   }
 
-  // Bridge-/Request-Topics EINMALIG hier bauen: sie haengen nur von der
-  // (laufzeit-konstanten) Efuse-MAC ab. Frueher baute connectMqtt() sie bei
-  // jedem Reconnect neu -- sobald connectMqtt() auf dem Worker laeuft,
-  // waehrend der Loop-Task getBridgeApplyTopic() etc. liest, waere jedes
-  // String-Reassignment ein echtes Race. init() laeuft vor dem Worker-Start.
+  // Build Bridge/request topics once here: they depend only on the fixed
+  // eFuse MAC. Rebuilding Strings on each worker reconnect would race
+  // loop-task reads such as getBridgeApplyTopic(). init() runs before the
+  // worker starts.
   char did[24];
   buildDeviceId(did, sizeof(did));
   String base = "tab5_lvgl/config/";
@@ -598,7 +592,7 @@ void HomeTilesNetworkManager::init() {
 
   mqtt_enabled = configManager.hasMqttConfig();
   if (mqtt_enabled) {
-    // MQTT-Setup (vor Worker-Start, daher direkter Client-Zugriff okay)
+    // MQTT setup precedes worker startup, so direct client access is safe.
     mqtt_client.setClient(net_client);
     mqtt_client.setServer(cfg.mqtt_host, cfg.mqtt_port);
     setMqttBufferSize(mqttNormalBufferSize(), "init");
@@ -610,22 +604,22 @@ void HomeTilesNetworkManager::init() {
   Serial.println("✓ Network Manager initialized");
 }
 
-// ========== WiFi verbinden ==========
+// ========== Connect Wi-Fi ==========
 void HomeTilesNetworkManager::connectWifi() {
   wifi_retry_at = millis() + 5000UL;  // Retry in 5s
 
-  // Fester Ethernet-Modus: WLAN bleibt aus, egal was Retry-/Reconnect-Logik
-  // oder UI-Aufrufer wollen. Zurueck zu WLAN geht nur ueber den
-  // Netzwerkmodus-Schalter + Neustart.
+  // Fixed Ethernet mode keeps Wi-Fi off regardless of retries, reconnects
+  // or UI requests. Returning to Wi-Fi requires changing the network mode
+  // and restarting.
   if (networkTransport.isEthernetMode()) return;
 
-  // Treiber als tot markiert (C6 antwortet nicht): keine weiteren Versuche.
-  // Jeder Aufruf in den halbtoten hosted-Stack blockiert den Loop-Task fuer
-  // Sekunden (RPC-Timeout) - den Ausweg regelt update() (Ethernet/Neustart).
+  // Do not retry a driver marked unresponsive. Calls into partially alive
+  // Hosted state can block the loop for seconds on RPC timeouts; update()
+  // handles the Ethernet or restart recovery path.
   if (wifi_wedge_latched) return;
 
-  // Jeder Verbindungsaufbau (manuell, neue Zugangsdaten, AP-Ende) hebt ein
-  // vorheriges manuelles Trennen wieder auf.
+  // Any connection attempt, including manual connection, changed credentials
+  // or leaving AP mode, clears a previous manual disconnect.
   if (wifi_manual_disconnect) {
     wifi_manual_disconnect = false;
     applyWifiAutoReconnectPolicy();
@@ -639,10 +633,10 @@ void HomeTilesNetworkManager::connectWifi() {
     return;
   }
   if (isWiredLinkUp()) {
-    // Solange der Kabel-Link steht, gehoert das DMA-RAM dem Ethernet-Backend
-    // (Puffer-Allokation + DHCP-Anlauf). WiFi darf erst uebernehmen, wenn
-    // Ethernet nach kWiredLinkWifiBlockMs immer noch keine IP hat (z.B. Netz
-    // ohne DHCP) - nicht schon nach dem kurzen DHCP-Fenster.
+    // While wired carrier is present, reserve DMA RAM for Ethernet buffers
+    // and DHCP startup. Wi-Fi may take over only after kWiredLinkWifiBlockMs
+    // without an IP, for example on a network without DHCP, rather than after
+    // the shorter DHCP window.
     const uint32_t link_since = wired_link_up_since;
     if (link_since == 0 ||
         (uint32_t)(millis() - link_since) < kWiredLinkWifiBlockMs) {
@@ -660,9 +654,9 @@ void HomeTilesNetworkManager::connectWifi() {
   if (cfg.wifi_ssid && cfg.wifi_ssid[0]) {
     const uint32_t attempt_started = millis();
     if (!ensureWifiStationStarted()) {
-      // STA-Start fehlgeschlagen = RPC zum C6 tot oder Speicher am Limit.
-      // Exponentiell zurueckziehen statt im 5s-Takt je ~5s RPC-Timeout auf
-      // dem Loop-Task zu verbrennen; ab der Schwelle den Wedge behandeln.
+      // STA startup failure means an unresponsive C6 RPC or exhausted memory.
+      // Use exponential backoff instead of spending about 5 seconds in a loop
+      // RPC timeout every 5 seconds; recover after the failure threshold.
       if (wifi_start_failures < 255) ++wifi_start_failures;
       const uint32_t shift =
           wifi_start_failures < 4 ? wifi_start_failures : 4;
@@ -676,10 +670,10 @@ void HomeTilesNetworkManager::connectWifi() {
     applyWifiAddressing(cfg);
     WiFi.begin(cfg.wifi_ssid, cfg.wifi_pass);
 
-    // Wedge-Indiz auch OHNE formalen Fehler: Gesund kehren diese Aufrufe in
-    // Millisekunden zurueck; nur ein toter C6 laesst sie in die 5s-RPC-
-    // Timeouts laufen. Erst der naechste erfolgreich SCHNELLE Versuch (oder
-    // eine stehende Verbindung, siehe update()) setzt den Zaehler zurueck.
+    // A slow call can signal a stuck transport even without a formal error.
+    // Healthy calls take milliseconds; an unresponsive C6 reaches the
+    // 5-second RPC timeout. Only the next fast successful attempt or a live
+    // connection in update() clears the counter.
     const uint32_t attempt_ms = millis() - attempt_started;
     if (attempt_ms >= kWifiRpcSlowMs) {
       if (wifi_start_failures < 255) ++wifi_start_failures;
@@ -810,12 +804,12 @@ void HomeTilesNetworkManager::handleWifiDriverWedge(const char* context) {
       delay(500);
       BoardHAL::restart();
     }
-    // Zu frueh fuer einen Auto-Neustart: latched lassen; update() startet
-    // neu, sobald die Mindestlaufzeit erreicht ist und kein Link da ist.
+    // Too early for an automatic restart: keep the failure latched. update()
+    // restarts after the minimum uptime if no link is available.
   }
 }
 
-// ========== WiFi manuell trennen (WLAN-Popup "Trennen") ==========
+// ========== Manual Wi-Fi disconnect from the Wi-Fi popup ==========
 void HomeTilesNetworkManager::disconnectWifiManual() {
   wifi_manual_disconnect = true;
   if (networkTransport.activeKind() == NetworkTransportKind::Wifi &&
@@ -827,7 +821,7 @@ void HomeTilesNetworkManager::disconnectWifiManual() {
   Serial.println("WiFi: Manually disconnected (no automatic reconnect until connect/restart)");
 }
 
-// ========== MQTT verbinden (worker-only) ==========
+// ========== Connect MQTT (worker only) ==========
 void HomeTilesNetworkManager::connectMqtt() {
   if (!mqtt_enabled) return;
   mqtt_retry_at = millis() + 3000UL;  // Retry in 3s
@@ -869,10 +863,10 @@ void HomeTilesNetworkManager::connectMqtt() {
   }
 
   if (!ok) {
-    // Exponentiell zurueckziehen: Ein toter Broker oder ein gewedgter WLAN-
-    // Stack wird sonst im 3s-Takt mit blockierenden Connects gehammert, die
-    // den Loop-/Worker-Takt und das interne RAM auffressen (Feldtest
-    // 2026-07-16: Endlos-State=-2-Schleife bis 33 KB Heap-Minimum).
+    // Use exponential backoff for an unavailable broker or stuck Wi-Fi stack.
+    // Repeated blocking connects every 3 seconds consumed worker/loop time
+    // and internal RAM in the 2026-07-16 field test: continuous state=-2
+    // failures drove the heap minimum down to 33 KB.
     if (mqtt_connect_failures < 255) ++mqtt_connect_failures;
     const uint32_t shift =
         mqtt_connect_failures < 5 ? mqtt_connect_failures : 5;
@@ -888,9 +882,8 @@ void HomeTilesNetworkManager::connectMqtt() {
   mqtt_connected_at = millis();
   logNetworkHeap("after-MQTT-connect");
 
-  // Status publizieren und die Antwort-Topics direkt subscriben -- direkter
-  // Client-Zugriff ist hier safe, weil connectMqtt() ausschliesslich auf dem
-  // Worker laeuft (Single-Owner).
+  // Publish status and subscribe to reply topics directly. Client access
+  // is safe because connectMqtt() runs only on the owning worker.
   mqtt_client.publish(stat_topic, "1", true);
   const char* ip_topic = mqttTopics.topic(TopicKey::STAT_IP);
   if (ip_topic && *ip_topic) {
@@ -919,11 +912,10 @@ void HomeTilesNetworkManager::connectMqtt() {
     Serial.printf("[MQTT] Listening for icon updates on %s\n", bridge_icons_topic_.c_str());
   }
 
-  // Nach einer normalen Unterbrechung sind alte Bedienkommandos nicht mehr
-  // aktuell. Beim gezielten DMA-Recovery bleiben die bereits angenommenen
-  // Requests dagegen erhalten: sie waren nie auf dem Broker und werden direkt
-  // nach dem Wiederaufbau ueber die bereits oben abonnierten Antwort-Topics
-  // abgearbeitet.
+  // Discard stale interactive commands after an ordinary disconnect.
+  // During targeted DMA recovery, retain accepted requests: they have not
+  // reached the broker and can run after reconnection using the reply
+  // topics subscribed above.
   if (mqtt_preserve_outbound_on_connect) {
     mqtt_preserve_outbound_on_connect = false;
     Serial.println("[MQTT] DMA recovery: pending requests preserved");
@@ -933,11 +925,10 @@ void HomeTilesNetworkManager::connectMqtt() {
 
   mqtt_connected_flag = true;
 
-  // Die App-Ebene (mqttSubscribeTopics/Discovery/DeviceSettings/Snapshot)
-  // faehrt der LOOP-Task hoch (mqttServicePostConnect): diese Funktionen
-  // scannen Flash, pumpen LVGL und lesen Batterie-I2C -- nichts davon darf
-  // auf dem Worker laufen. Ihre publishes/subscribes kommen per
-  // Outbound-Queue hierher zurueck.
+  // The loop task starts the application layer via mqttServicePostConnect():
+  // subscriptions, discovery, device settings and snapshot code access
+  // flash, LVGL and battery I2C, which must not run on the worker. Their
+  // publishes/subscribes return here through the outbound queue.
   mqtt_post_connect_ready_at = mqtt_connected_at + kMqttPostConnectQuietMs;
   mqtt_post_connect_pending = true;
 
@@ -986,21 +977,20 @@ size_t HomeTilesNetworkManager::mqttDmaReserveBytes() const {
 #endif
 }
 
-// Worker-Task-Body: die EINZIGE Stelle, die mqtt_client nach init() anfasst.
+// Worker task body: the only post-init owner of mqtt_client.
 void HomeTilesNetworkManager::serviceMqttWorker() {
-  // Reconfigure-Request zuerst und VOR dem mqtt_enabled-Gate geprueft: genau
-  // dieses Flag soll hier live neu gesetzt werden (Erstkonfiguration ueber
-  // die Admin-Seite, Host geleert, Host geaendert). Alle anderen Requests
-  // unten bleiben bewusst hinter dem Gate, die betreffen nur ein Geraet, das
-  // bereits mqtt_enabled war.
+  // Handle reconfiguration before the mqtt_enabled gate because it updates
+  // that flag live: initial Admin configuration, a cleared host or a new
+  // host. Other requests stay behind the gate because they apply only to
+  // a previously enabled MQTT configuration.
   if (mqtt_reconfig_requested) {
     mqtt_reconfig_requested = false;
     if (mqtt_client.connected()) {
       const char* stat_topic = mqttTopics.topic(TopicKey::STAT_CONN);
       if (stat_topic && *stat_topic) {
-        // Sauberes "0" vor dem Disconnect -- ein regulaeres MQTT DISCONNECT
-        // (was PubSubClient::disconnect() sendet) loest das Last-Will NICHT
-        // aus, die Bridge wuerde also faelschlich "verbunden" weiterzeigen.
+        // Publish a clean "0" before disconnecting. PubSubClient sends a normal
+        // MQTT DISCONNECT, which does not trigger the last will; without this
+        // status update the Bridge would keep showing the device as connected.
         mqtt_client.publish(stat_topic, "0", true);
       }
       mqtt_client.disconnect();
@@ -1021,8 +1011,8 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
       mqtt_client.setClient(net_client);
       mqtt_client.setServer(cfg.mqtt_host, cfg.mqtt_port);
       mqtt_client.setCallback(mqttCallback);
-      mqtt_retry_at = 0;  // sofortiger Verbindungsversuch, naechste Iteration
-      mqtt_connect_failures = 0;  // frischer Transport, frischer Backoff
+      mqtt_retry_at = 0;  // Connect immediately on the next iteration.
+      mqtt_connect_failures = 0;  // Fresh transport, fresh backoff.
       Serial.println("[MQTT] Reconfigure: new settings applied");
     } else {
       Serial.println("[MQTT] Reconfigure: no host configured, remaining disconnected");
@@ -1033,9 +1023,8 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
   if (mqtt_transport_recovery_requested) return;
   if (!mqtt_enabled) return;
 
-  // Request-Flags zuerst -- auch im suspendierten Zustand, damit
-  // restoreMqttBufferNormal() den Worker nach einem abgebrochenen OTA wieder
-  // aufwecken kann.
+  // Process request flags even while suspended so restoreMqttBufferNormal()
+  // can wake the worker after an aborted OTA.
   if (mqtt_ota_prep_requested) {
     mqtt_large_until = 0;
     if (mqtt_client.connected()) {
@@ -1043,13 +1032,12 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
       Serial.println("[OTA] MQTT disconnected for OTA");
     }
     setMqttBufferSize(kMqttBufferOta, "ota");
-    // Der Block schuetzt ausschliesslich MQTT-Publishes. Waehrend OTA ist der
-    // Worker suspendiert; die zusammenhaengenden 12 KB gehoeren deshalb dem
-    // ESP-Hosted-/HTTP-RX-Pfad und werden nach der Wiederherstellung
-    // automatisch erneut angelegt.
+    // This reserve protects MQTT publishes only. While OTA suspends the
+    // worker, release the contiguous 12 KB for ESP-Hosted/HTTP RX. Normal
+    // restoration allocates it again automatically.
     releaseMqttDmaReserve("ota");
     mqtt_connected_flag = false;
-    mqtt_suspended = true;  // waehrend OTA weder reconnecten noch loop() pumpen
+    mqtt_suspended = true;  // Do not reconnect or pump loop() during OTA.
     mqtt_ota_prep_requested = false;
     return;
   }
@@ -1057,7 +1045,7 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
     mqtt_restore_normal_requested = false;
     mqtt_large_until = 0;
     setMqttBufferSize(mqttNormalBufferSize(), "normal");
-    mqtt_suspended = false;  // nach abgebrochenem OTA weitermachen
+    mqtt_suspended = false;  // Resume after aborted OTA.
     return;
   }
   if (mqtt_disconnect_requested) {
@@ -1114,9 +1102,9 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
     return;
   }
 
-  // Erst ausgehende Kommandos, dann den Socket pumpen. Large-Buffer-Wuensche
-  // reisen mit dem Publish-Kommando und werden im Drain unmittelbar vor dem
-  // Versand aktiviert.
+  // Drain outgoing commands before pumping the socket. Large-buffer requests
+  // travel with the publish command and become active immediately before
+  // its transmission.
   const bool startup_storm =
       mqtt_connected_at != 0 && (uint32_t)(now_ms - mqtt_connected_at) < kMqttStormWindowMs;
   drainOutboundQueues(startup_storm ? kMqttOutboundDrainStorm
@@ -1141,8 +1129,8 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
         g_mqtt_sdio_control_quiet_until != 0 &&
         static_cast<int32_t>(now_ms - g_mqtt_sdio_control_quiet_until) < 0;
     if (!control_quiet) g_mqtt_sdio_control_quiet_until = 0;
-    // Auch ohne wartende Large-Anfrage die Reserve bei akutem Druck sofort
-    // freigeben. So bekommt bereits der laufende SDIO-RX-Pfad Headroom.
+    // Release the reserve under acute pressure even without a waiting large
+    // request, giving the currently active SDIO RX path immediate headroom.
     dma_largest = serviceMqttDmaHeadroom(now_ms);
   }
 #endif
@@ -1161,9 +1149,9 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
 #endif
   };
 
-  // Kontrollkommandos behalten Prioritaet, werden auf dem P4 aber weiterhin
-  // einzeln und mit Abstand gesendet. Waehrend des Schutzabstands laufen
-  // Publishes aus ihrer getrennten Queue trotzdem weiter.
+  // Control commands retain priority and P4 sends them individually with
+  // spacing. Publishes in their separate queue can continue during that
+  // guard interval.
   MqttOutboundCmd* cmd = nullptr;
   const bool control_waiting =
       g_mqtt_control_queue &&
@@ -1195,10 +1183,9 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
     }
   }
 
-  // Direkt nach einem Subscribe/Unsubscribe hoechstens ein Publish, danach
-  // wird mqtt_client.loop() aufgerufen und kann ein sofortiges retained Paket
-  // abholen. So bleibt der bisherige SDIO-Schutz erhalten, ohne die Publish-
-  // Lane fuer die gesamten 50 ms komplett anzuhalten.
+  // After subscribe/unsubscribe, send at most one publish before calling
+  // mqtt_client.loop() to receive an immediate retained response. Keep the
+  // SDIO protection without stopping all publishes for the full 50 ms.
   const uint8_t publish_limit = control_quiet ? 1 : max_commands;
   const bool startup_storm =
       mqtt_connected_at != 0 &&
@@ -1207,9 +1194,9 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
   const bool large_waiting =
       !startup_storm && g_mqtt_large_publish_queue &&
       xQueuePeek(g_mqtt_large_publish_queue, &large_peek, 0) == pdTRUE;
-  // Ausserhalb des Startsturms bleibt bei einem normalen 12er-Drain immer ein
-  // Platz fuer die Large-Lane. Ein dauernder Strom kleiner Statuspublishes darf
-  // History/Energy/Bridge nicht verhungern lassen.
+  // Outside the startup burst, reserve one slot for large requests in a
+  // normal 12-command drain. Continuous small status publishes must not
+  // starve history, energy or Bridge requests.
   const uint8_t normal_limit =
       large_waiting && publish_limit > 1 ? publish_limit - 1 : publish_limit;
   uint32_t drained = 0;
@@ -1218,10 +1205,9 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
            xQueueReceive(g_mqtt_publish_queue, &cmd, 0) == pdTRUE) {
       if (!cmd) continue;
 
-      // Normale, kleine Bedienpublishes brauchen keinen 32-KB-Empfangspuffer
-      // und bleiben auch bei fragmentiertem DMA-RAM sendefaehig. Genau diese
-      // Lane darf durch wartende History-/Energy-/Bridge-Anfragen niemals
-      // angehalten werden.
+      // Small interactive publishes need no 32 KB receive buffer and remain
+      // sendable with fragmented DMA RAM. Waiting history, energy or Bridge
+      // requests must never block this queue.
       const bool ok = mqtt_client.publish(
           cmd->topic, cmd->payload, cmd->payload_len, cmd->retain);
       if (!ok) {
@@ -1229,7 +1215,7 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
       }
       heap_caps_free(cmd);
 
-      // Auch ein grosser Publish-Burst darf den Idle-Task nicht aushungern.
+      // Large publish bursts must also give the idle task time to run.
       if ((++drained & 0x07) == 0) vTaskDelay(1);
     }
   }
@@ -1239,15 +1225,14 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
     return;
   }
 
-  // Large-Response-Anfragen erst nach dem Retained-Sturm senden. Sie bleiben
-  // waehrenddessen in ihrer eigenen Queue; normale Bedienbefehle oben laufen
-  // trotzdem weiter.
+  // Send large-response requests only after the retained-message burst.
+  // They wait in their own queue while normal interactive commands continue.
   while (drained < publish_limit &&
          xQueuePeek(g_mqtt_large_publish_queue, &cmd, 0) == pdTRUE) {
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
-    // Die DMA-Pruefung MUSS vor der Puffervergroesserung stehen. Bei zu
-    // kleiner Reserve bleibt nur die Large-Lane stehen; die normale Lane
-    // wurde oben bereits abgearbeitet und bleibt damit immer bedienbar.
+    // Check DMA headroom before enlarging the receive buffer. Insufficient
+    // reserve stops only large requests; the normal queue has already been
+    // serviced above and remains responsive.
     if (networkTransport.isSdioWifiActive()) {
       dma_largest = serviceMqttDmaHeadroom(now_ms);
       if (dma_largest < kMqttMinDmaLargestBeforeTx) {
@@ -1274,8 +1259,8 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
           Serial.printf(
               "[MQTT] DMA starvation for %u ms: Wi-Fi/SDIO recovery\n",
               static_cast<unsigned>(now_ms - g_mqtt_dma_low_since));
-          // Single-Owner-Regel bleibt erhalten: der Worker schliesst seinen
-          // Client selbst, erst danach darf der Loop-Task den Treiber abbauen.
+          // Preserve single ownership: the worker closes its own client before
+          // the loop task may tear down the driver.
           if (mqtt_client.connected()) mqtt_client.disconnect();
           mqtt_connected_flag = false;
           mqtt_post_connect_pending = false;
@@ -1297,8 +1282,8 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
     if (xQueueReceive(g_mqtt_large_publish_queue, &cmd, 0) != pdTRUE) return;
     if (!cmd) continue;
 
-    // Der grosse Puffer wird erst jetzt angelegt, nachdem die DMA-Reserve
-    // ausreicht und das Kommando unmittelbar vor dem Versand steht.
+    // Grow the buffer only now, when DMA reserve is sufficient and the
+    // command is about to be sent.
     if (mqtt_buffer_size < kMqttBufferLarge &&
         !setMqttBufferSize(kMqttBufferLarge, "queued-publish")) {
       ++g_mqtt_outbound_dropped;
@@ -1321,15 +1306,15 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
   }
 }
 
-// Grow/Shrink-Logik des Empfangspuffers, 1:1 aus dem frueheren update()-Code:
-// laeuft nur noch auf dem Worker, weil setBufferSize() den Client anfasst.
+// Keep the former update() receive-buffer grow/shrink policy on the
+// worker because setBufferSize() accesses the client.
 void HomeTilesNetworkManager::serviceBufferHousekeeping(uint32_t now_ms) {
   const uint32_t large_until = mqtt_large_until;
   if (large_until == 0) {
-    // Kein Large-Fenster aktiv: Normalgroesse an die Media-Konfiguration
-    // angleichen (Media-Tile hinzugefuegt/entfernt -> 24 KB rauf/runter).
-    // OTA-Modus (1-KB-Puffer) nicht anfassen; Grows warten wie der
-    // Large-Grow das Startup-Sturmfenster ab, Shrinks sind sofort okay.
+    // Without an active large-response window, match the normal buffer to
+    // the media configuration: adding/removing media tiles selects 24 KB
+    // or the base size. Leave the 1 KB OTA buffer alone. Growth waits for
+    // the startup burst to finish; shrinking is safe immediately.
     const uint16_t normal_size = mqttNormalBufferSize();
     if (mqtt_buffer_size != 0 && mqtt_buffer_size != kMqttBufferOta &&
         mqtt_buffer_size != normal_size &&
@@ -1346,14 +1331,13 @@ void HomeTilesNetworkManager::serviceBufferHousekeeping(uint32_t now_ms) {
   } else if (mqtt_buffer_size < kMqttBufferLarge &&
              (mqtt_connected_at == 0 ||
               (uint32_t)(now_ms - mqtt_connected_at) >= kMqttStormWindowMs)) {
-    // Ausserhalb des Startup-Sturms sofort vergroessern; im Sturm bleibt der
-    // Grow aufgeschoben und wird hier automatisch nachgeholt, sobald das
-    // Fenster vorbei ist (frueher "large-deferred" in update()).
+    // Grow immediately outside the startup burst. Otherwise defer growth
+    // until the window ends, as the former update() "large-deferred" path did.
     setMqttBufferSize(kMqttBufferLarge, "large");
   }
 }
 
-// ========== Single-Owner MQTT: API fuer andere Tasks ==========
+// ========== Single-owner MQTT: API for other tasks ==========
 bool HomeTilesNetworkManager::mqttEnqueuePublish(const char* topic, const char* payload, bool retain) {
   const size_t len = payload ? strlen(payload) : 0;
   return enqueueOutboundCmd(MqttCmdKind::PUBLISH, topic,
@@ -1406,7 +1390,7 @@ bool HomeTilesNetworkManager::consumeMqttPostConnectPending() {
   if (ready_at != 0 && (int32_t)(millis() - ready_at) < 0) {
     return false;
   }
-  mqtt_post_connect_pending = false;  // einziger Konsument ist der Loop-Task
+  mqtt_post_connect_pending = false;  // The loop task is the only consumer.
   mqtt_post_connect_ready_at = 0;
   return true;
 }
@@ -1414,8 +1398,8 @@ bool HomeTilesNetworkManager::consumeMqttPostConnectPending() {
 void HomeTilesNetworkManager::disconnectMqtt() {
   if (!mqtt_enabled) return;
   mqtt_disconnect_requested = true;
-  // Der Worker prueft das Flag am Anfang jeder Iteration (~2ms Takt); der
-  // Aufrufer (Hotspot-Eintritt) ist selten und darf kurz warten.
+  // The worker checks this flag about every 2 ms. Hotspot entry is rare
+  // and can tolerate a short bounded wait.
   for (int i = 0; i < 100 && mqtt_disconnect_requested; ++i) {
     delay(5);
   }
@@ -1425,9 +1409,9 @@ void HomeTilesNetworkManager::disconnectMqtt() {
 }
 
 void HomeTilesNetworkManager::requestMqttReconfigure() {
-  // Bewusst KEIN "if (!mqtt_enabled) return;" wie bei disconnectMqtt() --
-  // der Worker soll mqtt_enabled hier gerade erst neu bestimmen (z.B. erste
-  // MQTT-Konfiguration ueberhaupt, wo es bislang false war).
+  // Do not copy disconnectMqtt()'s "if (!mqtt_enabled) return;" gate.
+  // The worker must determine mqtt_enabled here, including the first
+  // MQTT configuration when it was previously false.
   mqtt_reconfig_requested = true;
   for (int i = 0; i < 100 && mqtt_reconfig_requested; ++i) {
     delay(5);
@@ -1460,7 +1444,7 @@ void HomeTilesNetworkManager::deferMqttReconnect(uint32_t hold_ms) {
                 static_cast<unsigned>(hold_ms));
 }
 
-// ========== MQTT-Status ==========
+// ========== MQTT status ==========
 uint16_t HomeTilesNetworkManager::mqttNormalBufferSize() const {
   return mqtt_media_buffer_needed ? kMqttBufferMedia : kMqttBufferNormal;
 }
@@ -1491,9 +1475,9 @@ bool HomeTilesNetworkManager::setMqttBufferSize(uint16_t size, const char* reaso
 }
 
 void HomeTilesNetworkManager::restoreMqttBufferNormal() {
-  // Request-Flag statt direktem Client-Touch; der Worker setzt den Puffer
-  // zurueck und hebt dabei auch eine evtl. OTA-Suspendierung wieder auf
-  // (Aufrufer: restoreDisplayAfterOtaFailure()).
+  // Request a worker action instead of touching the client directly. The
+  // worker restores the buffer and clears any OTA suspension; the caller
+  // is restoreDisplayAfterOtaFailure().
   mqtt_restore_normal_requested = true;
 }
 
@@ -1506,12 +1490,12 @@ bool HomeTilesNetworkManager::isWifiConnected() const {
   return networkTransport.isWifiConnected();
 }
 
-// ========== Telemetrie senden ==========
+// ========== Send telemetry ==========
 void HomeTilesNetworkManager::publishTelemetry() {
   if (!isMqttConnected()) return;
 
   uint32_t now = millis();
-  if (now - last_telemetry > 30000UL) {  // 30 Sekunden
+  if (now - last_telemetry > 30000UL) {  // 30 seconds
     last_telemetry = now;
     char buf[16];
     snprintf(buf, sizeof(buf), "%lu", (unsigned long)(now / 1000UL));
@@ -1589,23 +1573,20 @@ const char* HomeTilesNetworkManager::getBridgeIconsTopic() const {
 }
 
 // ========== mDNS-Advertising ==========
-// Rein additiv: erlaubt der HA-Bridge (Zeroconf), das Geraet zu finden BEVOR
-// es MQTT-Zugangsdaten hat. Laeuft ausschliesslich, solange noch keine
-// MQTT-Konfiguration vorhanden ist (siehe update()). Ein kurzer Broker-Ausfall
-// darf mDNS nicht staendig abbauen und neu anlegen: ESP-IDF gibt die dafuer
-// reservierten internen/DMA-Bloecke auf P4 nicht in jedem Zyklus vollstaendig
-// zurueck. Wird immer erst NACH
-// webAdminServer.start() versucht -- ein haengender/fehlschlagender
-// MDNS.begin() darf die admin-UI, die schon heute funktioniert, nicht
-// verzoegern.
+// Add Zeroconf discovery for the HA Bridge before MQTT credentials exist.
+// Run only while MQTT is unconfigured, as update() enforces. Brief broker
+// outages must not repeatedly restart mDNS: on P4, ESP-IDF does not always
+// return all reserved internal/DMA blocks in each cycle. Start only after
+// webAdminServer.start(); a blocked or failed MDNS.begin() must not delay
+// the working Admin interface.
 void HomeTilesNetworkManager::startMdns() {
   if (mdns_active) return;
 
   char did[24];
   buildDeviceId(did, sizeof(did));
 
-  // device_id ist reiner Hex-Text (keine Unterstriche mehr) -- als
-  // mDNS-Hostname direkt verwendbar, ohne RFC-952/1123-Zeichenersetzung.
+  // device_id is hexadecimal text without underscores, so it can be used
+  // as the mDNS hostname without RFC 952/1123 character replacement.
   char hostname[24];
   snprintf(hostname, sizeof(hostname), "%s", did);
 
@@ -1616,11 +1597,10 @@ void HomeTilesNetworkManager::startMdns() {
   }
   MDNS.addService("hometiles", "tcp", 80);
 
-  // addServiceTxt() ist auf char*/const char*/String ueberladen. Ein Mix aus
-  // String-Literalen (ueber die deprecated Literal->char*-Konvertierung auch
-  // fuer die char*-Ueberladung gueltig) und einem char[]-Puffer macht die
-  // Ueberladung mehrdeutig -> alle vier Argumente als benannte const char*-
-  // Variablen uebergeben, dann ist nur noch die const-char*-Variante gueltig.
+  // addServiceTxt() has char*, const char* and String overloads. Mixing
+  // string literals and char[] can make overload resolution ambiguous
+  // through the deprecated literal-to-char* conversion. Pass all four
+  // arguments as named const char* values to select that overload.
   const char* svc_name = "hometiles";
   const char* svc_proto = "tcp";
   const char* key_txtvers = "txtvers";
@@ -1653,7 +1633,7 @@ void HomeTilesNetworkManager::stopMdns() {
   mdns_active = false;
 }
 
-// ========== Update-Schleife (Loop-Task) ==========
+// ========== Update loop (loop task) ==========
 void HomeTilesNetworkManager::update() {
   if (!configManager.isConfigured()) {
     return;
@@ -1669,12 +1649,11 @@ void HomeTilesNetworkManager::update() {
   const bool wired_connected = isWiredConnected();
   const bool wired_link_up = isWiredLinkUp();
 
-  // Der ESP-Hosted-Status bleibt bei einem abgestuerzten C6 gelegentlich auf
-  // WL_CONNECTED stehen. MQTT und WebAdmin sind dann bereits tot, aber der
-  // normale WiFi-Reconnect-Zweig wird nie betreten. Nach 15 s MQTT-Ausfall
-  // deshalb einen echten, billigen Mode-RPC als Liveness-Probe senden. Ein
-  // Broker-Ausfall laesst den RPC sofort erfolgreich zurueckkehren und darf
-  // das WLAN nicht neu starten; nur der 5s-RPC-Timeout gilt als C6-Wedge.
+  // A failed C6 can leave ESP-Hosted cached at WL_CONNECTED while MQTT and
+  // Web Admin are already unreachable, bypassing the Wi-Fi reconnect path.
+  // After 15 seconds without MQTT, probe a real mode RPC. A broker outage
+  // returns promptly and must not restart Wi-Fi; only a 5-second RPC
+  // timeout is evidence of an unresponsive C6.
   const bool wifi_claims_connected = networkTransport.isWifiConnected();
   if (mqtt_enabled && !mqtt_suspended && !wifi_manual_disconnect &&
       wifi_claims_connected && !isMqttConnected() && !wifi_wedge_latched) {
@@ -1683,7 +1662,7 @@ void HomeTilesNetworkManager::update() {
       wifi_health_probe_at = now_ms + kWifiHealthProbeDelayMs;
     } else if ((int32_t)(now_ms - wifi_health_probe_at) >= 0) {
       wifi_health_probe_at = now_ms + kWifiHealthProbeIntervalMs;
-      if (!probeWifiDriverHealth("MQTT offline bei gecachtem WiFi-Link")) {
+      if (!probeWifiDriverHealth("MQTT offline, cached WiFi link")) {
         return;
       }
     }
@@ -1703,10 +1682,9 @@ void HomeTilesNetworkManager::update() {
   }
   wired_link_was_up = wired_link_up;
 
-  // WLAN-Treiber ist als tot markiert: Mit Ethernet-Link laeuft das Geraet
-  // normal weiter. Faellt auch der Link weg, gibt es keinen Weg mehr zurueck
-  // ins Netz - der sichere Neustart setzt den C6 mit zurueck (Bericht steht
-  // bereits in /crashlog.txt).
+  // With Wi-Fi marked unresponsive, an Ethernet link can keep the device
+  // online. If that link also disappears, a safe restart resets the C6
+  // and restores a route to recovery. /crashlog.txt already holds the report.
   if (wifi_wedge_latched && !wired_link_up &&
       now_ms >= kWedgeRestartMinUptimeMs) {
     Serial.println(
@@ -1735,8 +1713,8 @@ void HomeTilesNetworkManager::update() {
     wired_ip_wait_until = 0;
     stopWifiForWired();
   } else if (wired_was_connected) {
-    // Fester Ethernet-Modus: kein WLAN-Fallback mehr. Bis Kabel/DHCP
-    // wiederkommen, ist das Geraet bewusst offline.
+    // Fixed Ethernet mode has no Wi-Fi fallback. Stay offline until carrier
+    // and DHCP return.
     Serial.println(
         "[Network] Ethernet disconnected; waiting for a new link (no Wi-Fi fallback)");
   }
@@ -1771,14 +1749,14 @@ void HomeTilesNetworkManager::update() {
   if (!is_connected) {
     wifi_ps_state_known = false;
 
-    // Nicht verbunden - Retry (ausser der Nutzer hat manuell getrennt).
-    // connectWifi() selbst blockt im festen Ethernet-Modus.
+    // Retry a lost connection unless the user disconnected manually.
+    // connectWifi() itself blocks attempts in fixed Ethernet mode.
     if (!wifi_manual_disconnect && !wired_dhcp_pending &&
         (int32_t)(now_ms - wifi_retry_at) >= 0) {
       connectWifi();
     }
 
-    // WebAdmin stoppen wenn Verbindung verloren
+    // Stop Web Admin when the connection is lost.
     if (was_connected && webAdminServer.isRunning()) {
       webAdminServer.stop();
     }
@@ -1786,46 +1764,45 @@ void HomeTilesNetworkManager::update() {
       stopMdns();
     }
   } else {
-    // Verbunden
+    // Connected.
 
-    // Eine stehende WLAN-Verbindung beweist, dass der hosted-Treiber lebt -
-    // langsame Einzelversuche davor waren dann Last, kein Wedge.
+    // A live Wi-Fi connection proves Hosted is responsive; earlier isolated
+    // slow attempts reflected load rather than a stuck transport.
     if (networkTransport.isWifiConnected()) wifi_start_failures = 0;
 
     if (!was_connected) {
       logNetworkHeap(networkTransport.activeName());
     }
 
-    // WebAdmin starten wenn gerade verbunden
+    // Start Web Admin on connection.
     if (!was_connected && !webAdminServer.isRunning()) {
       webAdminServer.start();
     }
 
-    // mDNS dient nur dem erstmaligen Pairing. Sobald MQTT konfiguriert ist,
-    // bleibt es auch bei Broker-Reconnects aus. Das verhindert einen
-    // begin/end-Zyklus samt DMA-Fragmentierung bei jeder kurzen Unterbrechung.
+    // mDNS serves initial pairing only. Once MQTT is configured, keep it off
+    // even across broker reconnects to avoid begin/end cycles and DMA heap
+    // fragmentation on every brief interruption.
     if (configManager.hasMqttConfig()) {
       stopMdns();
     } else if (webAdminServer.isRunning()) {
       startMdns();
     }
 
-    // NTP-Sync triggern bei neuer Verbindung
+    // Trigger NTP synchronization on a new connection.
     if (!was_connected) {
       uiManager.scheduleNtpSync(0);
     }
 
-    // MQTT-Verbindung/Socket/Puffer verwaltet komplett der Worker-Task
-    // (serviceMqttWorker). Hier bleibt nur die Telemetrie, weil
-    // publishTelemetry() -> mqttPublishHomeSnapshot() den Batterie-SoC per
-    // I2C liest und deshalb auf dem Loop-Task bleiben muss; gesendet wird
-    // ueber die Outbound-Queue.
+    // serviceMqttWorker owns MQTT connection, socket and buffers. Telemetry
+    // stays here because publishTelemetry() -> mqttPublishHomeSnapshot()
+    // reads battery state of charge through I2C on the loop task. Actual
+    // transmission goes through the outbound queue.
     if (mqtt_enabled && isMqttConnected()) {
       publishTelemetry();
     }
   }
 
-  // WiFi-Status für nächste Runde merken
+  // Remember Wi-Fi status for the next iteration.
   was_connected = is_connected;
 }
 
@@ -1848,20 +1825,20 @@ void HomeTilesNetworkManager::setWifiPowerSaving(bool enable) {
 
   if (enable) {
     if (wifi_sleep_profile) {
-      // Sleep-Profil: Verbindung minimal halten, maximale Ersparnis.
+      // Sleep profile: retain minimal connectivity for maximum power saving.
       WiFi.setSleep(WIFI_PS_MAX_MODEM);
       WiFi.setTxPower(WIFI_POWER_5dBm);
       Serial.println("🔋 WiFi Sleep Profile: Max Modem Sleep + 5dBm");
     } else {
-      // Normaler Stromsparmodus im Idle.
+      // Normal idle power-saving mode.
       WiFi.setSleep(WIFI_PS_MIN_MODEM);
       WiFi.setTxPower(WIFI_POWER_11dBm);
       Serial.println("🔋 WiFi Power Saving: Light Sleep + 11dBm");
     }
   } else {
-    // Netzteilmodus: Volle Performance
-    WiFi.setSleep(WIFI_PS_NONE);       // Kein Sleep
-    WiFi.setTxPower(WIFI_POWER_19_5dBm); // Maximale Reichweite
+    // Mains profile: full performance.
+    WiFi.setSleep(WIFI_PS_NONE);       // No modem sleep.
+    WiFi.setTxPower(WIFI_POWER_19_5dBm); // Maximum range.
     Serial.println("🔌 WiFi Full Power: No Sleep + 19.5dBm");
   }
 
@@ -1872,6 +1849,6 @@ void HomeTilesNetworkManager::setWifiPowerSaving(bool enable) {
 void HomeTilesNetworkManager::setSleepWifiProfile(bool enable) {
   if (wifi_sleep_profile == enable) return;
   wifi_sleep_profile = enable;
-  // Profilwechsel soll beim naechsten setWifiPowerSaving() sicher angewendet werden.
+  // Apply a changed profile on the next setWifiPowerSaving() call.
   wifi_ps_state_known = false;
 }

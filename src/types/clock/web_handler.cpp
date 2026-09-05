@@ -44,8 +44,8 @@ void apply_clock_fields_from_request(WebServer& server, Tile& tile) {
                                 server.arg("key_modifier").toInt(), 20, 72)
                           : static_cast<uint8_t>(20);
 
-  // Alte, Clock-spezifische Wallpaper-Auswahl beim naechsten Speichern
-  // entfernen. Der Screensaver besitzt jetzt eine eigene globale Konfiguration.
+  // Remove the legacy clock-specific wallpaper selection on the next save.
+  // The screensaver now has its own global configuration.
   tile.scene_alias = "";
 
   tile.sensor_value_font = 0;

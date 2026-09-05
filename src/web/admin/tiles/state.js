@@ -107,7 +107,7 @@
     return trimmed === '-' || trimmed === 'none' || trimmed === 'null' || trimmed === 'no' || trimmed === 'off';
   }
 
-  // Mirrors appendHtmlEscaped() in src/web/web_admin_utils.cpp. The tile
+  // Mirrors appendHtmlEscaped() in src/web/server/web_admin_utils.cpp. The tile
   // previews are assembled as markup strings, so every tile title, unit, value
   // and icon name coming from a configuration or from Home Assistant has to be
   // escaped before it is inserted.

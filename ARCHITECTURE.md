@@ -4,29 +4,48 @@ This contributor guide explains ownership boundaries and remaining maintenance
 work. See [AGENTS.md](AGENTS.md) for rules, [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md)
 for current validation and [RELEASING.md](RELEASING.md) for build/release procedures.
 
-The priority is stable, responsive firmware; refactoring should clarify ownership and make behavior easier to test or extend.
+The priority is stable, responsive firmware; refactoring should clarify
+ownership and make behavior easier to test or extend.
 
 ## Subsystem map
 
 | Area | Primary implementation | Responsibility and boundary |
 | --- | --- | --- |
 | Application orchestration | `HomeTiles.ino` | Startup, operating modes, pending actions, service ordering, LVGL cadence |
-| Hardware | `src/devices/`, `src/core/board_hal.*` | Exact-board initialization, display/touch/storage capabilities and hardware access |
-| Display and power | `src/core/display_manager.*`, `power_manager.*` | LVGL buffers, input, brightness, refresh cadence, sleep/wake sequencing |
-| Device settings | `src/core/config_manager.*` | Settings normalization, legacy migration, NVS persistence and live configuration |
-| Settings access record | `src/core/settings_access_record.h` | Packed parental-control record encoding, validation and version migration |
-| Tile persistence | `src/tiles/tile_config.*` | Stable packed tiles, folder hierarchy, sidecars and filesystem recovery |
-| Tile type contract | `src/tiles/tile_type*.h`, `src/types/types_registry.*` | Persisted IDs, eligibility policies and type descriptors |
-| Tile presentation | `src/types/<type>/`, `src/tiles/tile_renderer.*` | Type renderers, widget bindings, queued state application and shared rendering helpers |
-| Folder presentation | `src/ui/tab_tiles_unified.*` | Active grid, cached folders, navigation, reloads and cached-state dispatch |
-| Popups | `src/ui/*_popup.*`, `popup_layout.h` | Reusable UI objects, interactions, pending responses and local lifecycle |
-| Networking | `src/network/network_transport.*`, `network_manager.*` | Network selection, recovery, MQTT socket ownership and outbound scheduling |
-| Bridge integration | `src/network/mqtt_handlers.*`, `ha_bridge_config.*` | Topic routing, entity metadata, state caches and application commands |
-| Camera | `src/video/camera_stream.*`, `src/ui/camera_popup.*` | Network/JPEG worker, frame ownership and loop-side presentation |
-| Web Admin | `src/web/`, `src/web/admin/`, `src/types/*/admin*.js` | HTTP configuration interface, browser editor, previews and autosave |
-| Firmware update | `src/core/github_update.*`, Web Admin OTA handlers | Device validation, transport, staging, flash writes and update recovery |
-| Localization | `src/core/i18n.*` | Shared device/Web Admin strings and language-dependent formatting |
+| Hardware | `src/devices/`, `src/core/hardware/board_hal.*` | Exact-board initialization, display/touch/storage capabilities and hardware access |
+| Display | `src/core/display/` | LVGL buffers, touch input, tick service and DMA2D arbitration |
+| Power | `src/core/power/` | Brightness, refresh cadence, sleep/wake sequencing and battery telemetry interface |
+| Device settings | `src/core/config/config_manager.*` | Settings normalization, legacy migration, NVS persistence and live configuration |
+| Settings access record | `src/core/config/settings_access_record.h` | Packed parental-control record encoding, validation and version migration |
+| Diagnostics and memory | `src/core/diagnostics/`, `src/core/memory/` | Crash evidence and optional PSRAM budgets |
+| Tile persistence | `src/tiles/config/tile_config.*` | Stable packed tiles, folder hierarchy, sidecars and filesystem recovery |
+| Tile type contract | `src/types/tile_type*.h`, `src/types/types_registry.*` | Persisted IDs, eligibility policies and type descriptors |
+| Tile presentation | `src/types/<type>/`, `src/tiles/runtime/` | Type renderers, widget bindings, queued state application and shared rendering helpers |
+| Icons | `src/tiles/icons/` | MDI lookup and icon data shared by tile types |
+| Folder presentation | `src/ui/tabs/tiles/tab_tiles_unified.*` | Active grid, cached folders, navigation, reloads and cached-state dispatch |
+| Device UI | `src/ui/tabs/settings/`, `src/ui/shared/`, `src/ui/ui_manager.*` | Settings controls, common keyboard/surfaces and screen coordination |
+| Popups | `src/ui/popups/<type>/`, `src/ui/popups/popup_layout.h` | Reusable UI objects, interactions, pending responses and local lifecycle |
+| Screensaver and startup | `src/ui/screensaver/`, `src/ui/startup/` | Screensaver configuration/presentation and boot splash/logo assets |
+| Networking | `src/network/transport/`, `src/network/network_manager.*` | Transport backends, connectivity/recovery policy and MQTT worker scheduling |
+| MQTT | `src/network/mqtt/` | Packet safety, inbound topic routing, state queues and application commands |
+| Bridge integration | `src/network/bridge/` | Entity metadata, Bridge configuration, indexes and device entity IDs |
+| Camera | `src/video/camera_stream.*`, `src/ui/popups/camera/camera_popup.*` | Network/JPEG worker, frame ownership and loop-side presentation |
+| Web server | `src/web/server/` | Server lifecycle/routes; `handlers/` owns endpoints, `render/` builds pages, `assets/` serves embedded resources |
+| Initial web setup | `src/web/setup/` | Setup/AP configuration, separate from normal Web Admin |
+| Browser editor | `src/web/admin/`, `src/types/*/admin*.js` | Drafts, previews, autosave and type-specific browser behavior; generated output stays in `src/web/assets/` |
+| Firmware update | `src/core/firmware/`, `src/web/server/handlers/web_admin_ota.cpp` | Image identity, versioning, download/staging, flash writes and recovery |
+| Localization | `src/core/i18n/i18n.*` | Shared device/Web Admin strings and language-dependent formatting |
 | Build metadata | `tools/device-profiles.json`, `tools/device-catalog.js` | Build, release, silicon and installer identity outside the firmware runtime |
+| Host verification | `tools/tests/<area>/`, `tools/lib/`, `tools/fixtures/` | Domain tests, shared harness code and independent compatibility fixtures |
+
+The subfolders group related code by responsibility across the whole project,
+so hardware, storage, UI, network and HTTP work use the same navigation pattern.
+Paired headers and implementations remain together. Domain code stays with its
+owner: type records belong in `src/types/`, popup lifecycle in `src/ui/popups/`,
+and an exact-board SDIO workaround in that board's `src/devices/` directory.
+Folders do not create new runtime services or justify changing service order.
+Build/generation entry points remain directly under `tools/`; tests are grouped
+by `build`, `core`, `devices`, `network`, `tiles` and `web` beneath `tools/tests/`.
 
 Dependencies are not yet one-way: rendering reads configuration/Bridge metadata,
 network recovery knows camera activity, and popup opening knows peer popups.
@@ -101,7 +120,7 @@ This catalog does not replace hardware drivers or infer pins and panel timings.
 `sketch.yaml`, compile-time device selection, board metadata and exact-profile
 implementation remain firmware concerns. Integration tests check their agreement.
 
-### Browser source units with unchanged deployed bytes
+### Browser source units and deterministic assembly
 
 `src/web/admin/bundle.json` lists 51 ordered source units. General editor code
 lives under `src/web/admin/`; type-specific behavior lives beside its type under
@@ -112,25 +131,28 @@ lives under `src/web/admin/`; type-specific behavior lives beside its type under
 and the syntax of each unit and the assembled result. There is no browser module
 loader, additional network request or runtime dependency introduced by this split.
 
-The extraction preserves the normalized script bytes and compressed JavaScript
-asset bytes from the preceding implementation. `tools/generate-web-assets.mjs`
-updates generated files only when their content changes, preserving build caches.
-The shared browser scope and load order remain dependencies between source units.
+The initial extraction preserved the deployed bytes. Subsequent edits can change
+them without changing runtime behavior: updating a source-path comment added
+7 bytes to the raw script and 4 bytes to gzip. Current artifacts therefore need
+their own checks and size measurements. `tools/generate-web-assets.mjs` writes
+only changed output, preserving build caches. Shared browser scope and load order
+remain dependencies between source units.
 
 ### Tile identities, policies and state dispatch
 
 Each type owns its runtime records in `state.h` or `widgets.h`.
 `tile_renderer.h` preserves compatibility and owns the aggregate grid cache/API.
-`src/tiles/tile_type.h` owns stable numeric IDs, including retired values.
-`tile_type_policy.h` separates entity persistence, cached state, popup-mode,
-MQTT routing/subscription, icon-refresh and screensaver eligibility decisions.
+`src/types/tile_type.h` owns stable numeric IDs, including retired values.
+`src/types/tile_type_policy.h` separates entity persistence, cached state,
+popup-mode, MQTT routing/subscription, icon-refresh and screensaver eligibility.
 They intentionally differ: Camera stores an entity without consuming ordinary
 cached tile state, and Weather uses its own subscription path.
 
-`tile_update_service.h` owns the ordered live-state service list. Active budgets
-remain Sensor 6, Switch 6, Climate 4, Cover 4, Binary Sensor 4, Weather 4 and
-Media 2. Sleep passes zero to drain each queue. Compile-time selection preserves
-direct calls without a permanent callback table or runtime registration.
+`src/tiles/runtime/tile_update_service.h` owns the live-state service list.
+Active budgets remain Sensor 6, Switch 6, Climate 4, Cover 4, Binary Sensor 4,
+Weather 4 and Media 2. Sleep passes zero to drain each queue. Compile-time
+selection preserves direct calls without a permanent callback table or runtime
+registration.
 
 `enqueue_cached_tile_state()` in `tab_tiles_unified.cpp` is shared by full-grid
 and single-slot restoration. It retains existing payload fallbacks, sensor unit
@@ -139,10 +161,11 @@ Cache construction, lifecycle resets and type-specific queues are still separate
 
 ### Settings access codec
 
-`settings_access_record.h` separates record encoding/validation from NVS I/O.
-The implementation stays local to the calling translation unit. Legacy, v3 and
-v4 records remain 60, 132 and 144 bytes with unchanged checksum coverage.
-The hash remains authoritative when validating the bounded recovery PIN copy.
+`src/core/config/settings_access_record.h` separates record encoding/validation
+from NVS I/O. The implementation stays local to the calling translation unit.
+Legacy, v3 and v4 records remain 60, 132 and 144 bytes with unchanged checksum
+coverage. The hash remains authoritative when validating the bounded recovery
+PIN copy.
 
 Corrupt parental-control metadata deliberately recovers by revealing and
 unlocking Settings. That existing recovery behavior is preserved, not newly
@@ -151,13 +174,15 @@ ConfigManager owns the recovery decision and subsequent normalization.
 
 ### HTTP endpoint decomposition
 
-`web_admin_handlers.cpp` retains settings/MQTT/Bridge, status, restart and border
-handlers. Endpoint families now live in `web_admin_tiles.cpp`,
+Under `src/web/server/handlers/`, `web_admin_handlers.cpp` retains settings,
+MQTT/Bridge, status, restart and border handlers. Endpoint families now live in
+`web_admin_tiles.cpp`,
 `web_admin_files.cpp`, `web_admin_diagnostics.cpp`, `web_admin_screensaver.cpp`
 and the existing `web_admin_hardware_io.cpp`. OTA handlers and their state now
 live together in `web_admin_ota.cpp`.
-`web_admin.cpp` retains server lifecycle and route registration. Small shared
-helpers live in `web_admin_handler_utils.h` and `web_admin_tile_helpers.h`.
+`src/web/server/web_admin.cpp` retains server lifecycle and route registration.
+Small shared helpers live in `web_admin_handler_utils.h` and
+`web_admin_tile_helpers.h`.
 Request fields, response behavior and persistence ordering remain the contract.
 
 ## Extending the project
@@ -180,6 +205,8 @@ duplication but do not replace that contract.
 | --- | --- | --- |
 | P4 settings write errors can be missed | Non-S3 `BatchedNvsWrite::finish()` returns true; ConfigManager ignores most individual write results. An earlier failed key write can coexist with a reported successful save and updated RAM state. | Verified unchecked error path; fault-injection reproduction and fix pending |
 | GitHub OTA does not authenticate TLS certificates | `fetchHttpRange()` uses `setInsecure()`. Device/project/silicon metadata checks image compatibility, not the identity of the download server. | Verified configuration; trust model and size-aware hardening pending |
+| MQTT reads live mutable configuration across tasks | The MQTT worker reads `ConfigManager::getConfig()` by reference while the loop can replace that structure during a save. An immutable configuration handoff would clarify ownership. | Unsynchronized access identified; no runtime race reproduced in this review |
+| Battery and IMU policy remains a shared stub | `src/core/power/` reports mains/no battery and touch-only wake for all profiles. Capability flags alone cannot implement board telemetry or IMU behavior. | Existing firmware limitation; requires exact-board implementations and validation |
 | Queued state can outlive slot bindings | Switch/Binary Sensor guard stale layouts; several other queues retain only grid/slot targets across reset paths. | Inconsistent protection confirmed; failing navigation/rebuild scenario not yet reproduced |
 | Idle backlog drains slowly | Active idle service resets its timestamp after one bounded batch every two seconds. A 31-entry sensor backlog needs six service windows, up to roughly 12 seconds. | Scheduling behavior confirmed; latency impact depends on traffic and interaction |
 | Image preview work runs within LVGL service | The preview timer calls `process_preview_step()` from its callback. Work is stepped, but individual storage/decode duration still matters. | Call path confirmed; target-device timing required |
@@ -202,7 +229,7 @@ camera buffer protections remain necessary; removing them would undo prior fixes
 4. Centralize popup exclusion and document each popup's hide/delete semantics.
    Final slider delivery, timer cancellation and entity rebinding remain local
    responsibilities; a shared close function must not silently discard commands.
-5. Give browser editor state explicit interfaces after the byte-preserving split.
+5. Give browser editor state explicit interfaces after source assembly.
    Start with draft/snapshot/autosave boundaries and run the real preview branches.
 6. Separate MQTT session/outbound scheduling from network-interface recovery only
    after worker/loop ownership is executable in tests. Preserve profile-specific
@@ -211,6 +238,8 @@ camera buffer protections remain necessary; removing them would undo prior fixes
 ## Validation and performance acceptance
 
 Host tests establish contracts, not display or network behavior on real hardware.
+`node tools/run-tests.mjs` recursively discovers `tools/tests/<area>/test-*.mjs`;
+optional name fragments select domains or topics without a separate CI test list.
 The codec fixtures execute production C++ with platform shims; queue and cached
 state tests execute production dispatch with controlled endpoints. Browser tests
 exercise editor behavior; asset checks establish deterministic generated bytes.

@@ -1,4 +1,4 @@
-// Runs every tools/test-*.mjs harness. The workflow used to list the tests by
+// Runs every tools/tests/<area>/test-*.mjs harness. The workflow used to list the tests by
 // hand, which silently left new harnesses out of CI; discovering them here keeps
 // the suite and the pipeline in sync.
 //
@@ -9,17 +9,25 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const toolsDir = path.dirname(fileURLToPath(import.meta.url));
+const testsDir = path.join(toolsDir, 'tests');
 const filters = process.argv.slice(2);
 
-const tests = fs.readdirSync(toolsDir)
-  .filter(name => name.startsWith('test-') && name.endsWith('.mjs'))
+function discoverTests(directory, prefix = '') {
+  return fs.readdirSync(directory, {withFileTypes: true}).flatMap(entry => {
+    const name = prefix + entry.name;
+    if (entry.isDirectory()) return discoverTests(path.join(directory, entry.name), name + '/');
+    return entry.isFile() && entry.name.startsWith('test-') && entry.name.endsWith('.mjs') ? [name] : [];
+  });
+}
+
+const tests = discoverTests(testsDir)
   .filter(name => !filters.length || filters.some(f => name.includes(f)))
   .sort();
 
 if (!tests.length) {
   console.error(filters.length
     ? `No test matches: ${filters.join(', ')}`
-    : 'No tests found in tools/');
+    : 'No tests found in tools/tests/');
   process.exit(1);
 }
 
@@ -28,7 +36,7 @@ const skipped = [];
 const started = Date.now();
 
 for (const test of tests) {
-  const run = spawnSync(process.execPath, [path.join(toolsDir, test)],
+  const run = spawnSync(process.execPath, [path.join(testsDir, test)],
     {encoding: 'utf8'});
   const output = `${run.stdout || ''}${run.stderr || ''}`;
   if (run.status === 0) {

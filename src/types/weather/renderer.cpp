@@ -1,10 +1,10 @@
 #include "src/types/weather/renderer.h"
-#include "src/tiles/tile_renderer_shared.h"
-#include "src/tiles/tile_renderer_fonts.h"
-#include "src/tiles/mdi_icons.h"
+#include "src/tiles/runtime/tile_renderer_shared.h"
+#include "src/tiles/runtime/tile_renderer_fonts.h"
+#include "src/tiles/icons/mdi_icons.h"
 #include "src/types/types_registry.h"
-#include "src/network/ha_bridge_config.h"
-#include "src/ui/weather_popup.h"
+#include "src/network/bridge/ha_bridge_config.h"
+#include "src/ui/popups/weather/weather_popup.h"
 #include "src/devices/device_select.h"
 #include <Arduino.h>
 
@@ -289,7 +289,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
       const lv_coord_t total_w = (span_w * GRID_CELL_W) + ((span_w - 1) * GRID_GAP);
       const lv_coord_t cols_total = forecast_cols * WEATHER_FORECAST_COL_W;
       const lv_coord_t remaining = total_w - cols_total;
-      // Gleichmäßig verteilen: Rand links + Gaps + Rand rechts = (forecast_cols + 1) Abstände
+      // Distribute evenly: left margin + gaps + right margin = forecast_cols + 1 spaces.
       const lv_coord_t spacing = remaining / (forecast_cols + 1);
       for (uint8_t i = 0; i < forecast_cols; ++i) {
         lv_obj_t* col = lv_obj_create(forecast_row);

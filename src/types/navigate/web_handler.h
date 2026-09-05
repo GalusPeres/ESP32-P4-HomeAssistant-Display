@@ -1,7 +1,7 @@
 #pragma once
 
 #include <WebServer.h>
-#include "src/tiles/tile_config.h"
+#include "src/tiles/config/tile_config.h"
 
 bool apply_navigate_fields_from_request(
     WebServer& server,

@@ -22,7 +22,7 @@
 #include <driver/ppa.h>
 #include <hal/lcd_types.h>
 
-#include "src/core/dma2d_arbiter.h"
+#include "src/core/display/dma2d_arbiter.h"
 #include "src/devices/layout_test_480x480/waveshare_sdmmc.h"
 #include "src/devices/layout_test_480x480/vendor/displays_config.h"
 #include "src/devices/layout_test_480x480/vendor/gt911.h"
@@ -1035,9 +1035,8 @@ bool DeviceLayoutTest480x480::displayTryFullFramePreview(
     int32_t x, int32_t y, int32_t w, int32_t h,
     int32_t source_stride, const uint16_t* data, size_t data_size,
     bool byte_swap) {
-  // Dieser Pfad ist absichtlich komplett getrennt vom normalen Flush: Bei
-  // jedem Problem zeichnet LVGL wie bisher weiter. Insbesondere gibt es hier
-  // KEINEN CPU-Fallback fuer das rund 2 MB grosse Vollbild.
+  // Keep this path separate from normal flushing so LVGL can continue drawing
+  // if it fails. There is deliberately NO CPU fallback for the ~2 MB full frame.
   static bool preview_disabled_after_fault = false;
   if (preview_disabled_after_fault || !data || source_stride < w ||
       (reinterpret_cast<uintptr_t>(data) & (kCacheLineSize - 1)) != 0 ||
@@ -1061,8 +1060,8 @@ bool DeviceLayoutTest480x480::displayTryFullFramePreview(
   uint16_t* fb = panel_fb();
   if (!fb) return false;
 
-  // Nicht auf einen parallel laufenden JPEG-Decode warten: Nach kurzer Frist
-  // ist der bewaehrte LVGL-Pfad schneller und vor allem risikolos.
+  // Do not wait long for concurrent JPEG decoding. After a short deadline,
+  // prefer the established LVGL path to avoid delay and additional risk.
   Dma2dArbiterGuard dma2d_guard(25);
   if (!dma2d_guard.locked()) return false;
 

@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-#include "src/core/i18n.h"
+#include "src/core/i18n/i18n.h"
 
 namespace clock_tile {
 
@@ -64,8 +64,8 @@ inline uint8_t resolve_date_format(int preferred_raw, int global_raw, const char
   return default_date_format_for_language(language_code);
 }
 
-// Wochentagsname zu tm_wday (0 = Sonntag). Die Geraete-Locale ist immer "C",
-// strftime %A waere daher immer englisch - deshalb die i18n-Tabellen.
+// Weekday name for tm_wday (0 = Sunday). The device locale is always "C",
+// so strftime %A would always be English; use the i18n tables instead.
 inline const char* weekday_name(int tm_wday, const char* language_code) {
   if (tm_wday < 0 || tm_wday > 6) return "";
   return i18n::locale(language_code).weekday_names[tm_wday];

@@ -47,85 +47,9 @@ if ($LASTEXITCODE -ne 0) {
 if ($LASTEXITCODE -ne 0) {
     throw 'Generated WebUI assets are stale. Run tools/generate-web-assets.mjs.'
 }
-& $node.Source (Join-Path $PSScriptRoot 'test-mqtt-packet-safety.mjs')
+& $node.Source (Join-Path $PSScriptRoot 'run-tests.mjs')
 if ($LASTEXITCODE -ne 0) {
-    throw 'MQTT packet safety regression test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-weather-popup-release.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Weather popup release interaction test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-s3-popup-refresh.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'ESP32-S3 popup refresh contract test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-duplicate-light-entity-updates.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Duplicate light entity update test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-s3-render-backpressure.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'ESP32-S3 render backpressure test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-s3-weather-batching.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'ESP32-S3 weather work budget test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-guition-s3-update-check-resync.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Guition S3 update-check display guard test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-admin-cover-editor.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Admin Cover editor contract test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-guition-jc8012-v2-profile.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Guition JC8012P4A1 V2 profile contract test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-jc1060-sd-power.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Guition JC1060P470C SD power contract test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-waveshare-7b-profile.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Waveshare Touch LCD 7B / 7B-C profile contract test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-guition-jc1060-v2-profile.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Guition JC1060P470C V2 profile contract test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-waveshare-s3-4b-profile.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Waveshare ESP32-S3 Touch LCD 4B profile contract test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-waveshare-s3-4-profile.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Waveshare ESP32-S3 Touch LCD 4 Rev 4.0 profile contract test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-waveshare-4-3-profile.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Waveshare Touch LCD 4.3 profile contract test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-waveshare-10-brightness-floor.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Waveshare Touch LCD 10.1 brightness floor contract test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-new-device-profile-integration.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'New device profile integration contract test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-p4-camera-presenter.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'ESP32-P4 camera presenter contract test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-camera-bridge-timeout.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Camera Bridge timeout contract test failed.'
-}
-& $node.Source (Join-Path $PSScriptRoot 'test-import-latest-arduino-build.mjs')
-if ($LASTEXITCODE -ne 0) {
-    throw 'Arduino build importer contract test failed.'
+    throw 'Host regression suite failed.'
 }
 
 $isNativeS3 = $buildProfile.chipFamily -eq 'ESP32-S3'
@@ -292,7 +216,7 @@ if (-not $isNativeS3) {
 }
 
 $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $firmwareBin).Hash
-Write-Host "Safe firmware build completed: $firmwareBin"
+Write-Host "Firmware compilation completed: $firmwareBin"
 Write-Host "SHA256: $hash"
 if (-not $isNativeS3) {
     Write-Host "ESP-Hosted RX variant: $resolvedEspHostedRxVariant"

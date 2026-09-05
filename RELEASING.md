@@ -56,7 +56,7 @@ or an install flow that can opt into a full erase; it verifies `partitions.csv`
 and the current redundant OTA selection, writes the regular app image once to
 the inactive slot, verifies it, and only then commits a new redundant OTA
 selection entry. NVS and LittleFS remain untouched.
-`tools/test-installer-otadata.mjs` and `tools/test-web-installer.mjs` guard this
+`tools/tests/build/test-installer-otadata.mjs` and `tools/tests/build/test-web-installer.mjs` guard this
 contract.
 
 The checked-in release notes are not copied into the GitHub release

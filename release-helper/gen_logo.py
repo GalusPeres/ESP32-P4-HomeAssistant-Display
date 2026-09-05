@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerates src/ui/hometiles_logo.cpp from docs/images/logo.svg.
+"""Regenerates src/ui/startup/hometiles_logo.cpp from docs/images/logo.svg.
 
 The SVG only contains rects and axis-aligned bars, so instead of pulling in
 a full SVG renderer this just re-draws the same coordinates with Pillow at
@@ -59,7 +59,7 @@ def to_c_source(img):
     ]
     body = ",\n    ".join(lines)
 
-    return f'''#include "src/ui/hometiles_logo.h"
+    return f'''#include "src/ui/startup/hometiles_logo.h"
 
 // Generated from docs/images/logo.svg (viewBox 0 0 48 48), rendered at {w}x{h}
 // with {SUPERSAMPLE}x supersampling and box-filter downsampling for clean antialiased

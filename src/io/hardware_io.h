@@ -21,10 +21,9 @@ struct HardwareIoChannelConfig {
   uint8_t precision = 1;
 };
 
-// Persistente, bewusst kleine Hardware-I/O-Laufzeit. Relais werden direkt
-// geschaltet; DS18x20-Sensoren laufen als gestaffelte, asynchrone 1-Wire-
-// Zustandsmaschine. Im normalen Render-/Touch-Pfad wird nichts alloziert und
-// kein Flash gelesen.
+// Bounded hardware-I/O runtime. Relays switch directly; DS18x20 sensors use
+// a stepped, asynchronous 1-Wire state machine. The normal render/touch path
+// performs no allocations or flash reads.
 class HardwareIoManager {
  public:
   HardwareIoManager();
@@ -43,12 +42,11 @@ class HardwareIoManager {
   bool handleMqttMessage(const char* topic, const uint8_t* payload,
                          size_t length);
 
-  // Diese physischen Kanaele verwenden auf dem Panel und in Home Assistant
-  // dieselbe kurze sichtbare Entity-ID (switch.<geraet>_<name> bzw.
-  // sensor.<geraet>_<name>). Die unsichtbare Kanal-ID bleibt fuer MQTT und
-  // die HA-unique_id stabil; die HA-unique_id enthaelt ausserdem die volle
-  // Geraete-ID. Bei mehreren gleichen Panels vergibt HA bei Bedarf _2/_3.
-  // Auf dem Panel funktionieren die Kanaele direkt und ohne MQTT/Bridge.
+  // Physical channels share the same short visible entity ID on the panel
+  // and in Home Assistant: switch.<device>_<name> or sensor.<device>_<name>.
+  // The internal channel ID stays stable for MQTT and HA unique_id, which also
+  // contains the full device ID. HA can append _2/_3 for duplicate panels.
+  // Panel control works directly without MQTT or Bridge.
   bool localEntityInfo(uint8_t index, String& entity_id, String& name,
                        HardwareIoType& type) const;
   bool isLocalEntityId(const char* entity_id) const;

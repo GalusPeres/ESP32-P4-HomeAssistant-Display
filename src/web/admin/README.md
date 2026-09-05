@@ -10,7 +10,7 @@ not the assembled file.
 
 ```text
 node tools/generate-web-assets.mjs
-node tools/test-admin-bundle.mjs
+node tools/tests/web/test-admin-bundle.mjs
 node tools/run-tests.mjs
 ```
 

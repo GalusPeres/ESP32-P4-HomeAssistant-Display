@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
-#include "src/tiles/tile_config.h"
+#include "src/tiles/config/tile_config.h"
 
 struct ClimateState {
   bool valid = false;

@@ -1,30 +1,30 @@
 #include "src/ui/ui_manager.h"
 
-#include "src/ui/tab_tiles_unified.h"
-#include "src/ui/tab_settings.h"
-#include "src/ui/light_popup.h"
-#include "src/ui/sensor_popup.h"
-#include "src/ui/weather_popup.h"
-#include "src/ui/energy_popup.h"
-#include "src/ui/media_popup.h"
-#include "src/ui/climate_popup.h"
-#include "src/ui/cover_popup.h"
-#include "src/ui/pin_popup.h"
-#include "src/core/display_manager.h"
-#include "src/core/config_manager.h"
-#include "src/core/i18n.h"
+#include "src/ui/tabs/tiles/tab_tiles_unified.h"
+#include "src/ui/tabs/settings/tab_settings.h"
+#include "src/ui/popups/light/light_popup.h"
+#include "src/ui/popups/sensor/sensor_popup.h"
+#include "src/ui/popups/weather/weather_popup.h"
+#include "src/ui/popups/energy/energy_popup.h"
+#include "src/ui/popups/media/media_popup.h"
+#include "src/ui/popups/climate/climate_popup.h"
+#include "src/ui/popups/cover/cover_popup.h"
+#include "src/ui/popups/pin/pin_popup.h"
+#include "src/core/display/display_manager.h"
+#include "src/core/config/config_manager.h"
+#include "src/core/i18n/i18n.h"
 #include "src/devices/device_select.h"
-#include "src/tiles/mdi_icons.h"
-#include "src/tiles/tile_config.h"
-#include "src/network/mqtt_handlers.h"
-#include "src/network/network_transport.h"
+#include "src/tiles/icons/mdi_icons.h"
+#include "src/tiles/config/tile_config.h"
+#include "src/network/mqtt/mqtt_handlers.h"
+#include "src/network/transport/network_transport.h"
 #include "src/fonts/ui_fonts.h"
-#include "src/ui/popup_layout.h"
+#include "src/ui/popups/popup_layout.h"
 
 #include <time.h>
 #include <string.h>
 
-#include "src/core/board_hal.h"
+#include "src/core/hardware/board_hal.h"
 
 static const lv_font_t* get_status_time_font() {
   const DeviceConfig& cfg = configManager.getConfig();
@@ -42,7 +42,7 @@ static const lv_font_t* get_status_date_font() {
 
 
 
-// Globale Instanz
+// Global instance
 
 UIManager uiManager;
 
@@ -87,7 +87,7 @@ static const char* timezone_spec_for_code(const char* code) {
 
 
 
-// ========== UI aufbauen ==========
+// Build the UI.
 void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_cb) {
   Serial.println("[UI] Building UI...");
 
@@ -148,7 +148,7 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   Serial.println("[UI] UI built");
 }
 
-// ========== Statusbar initialisieren ==========
+// Initialize the status bar.
 
 void UIManager::statusbarInit(lv_obj_t *tab_bar) {
   if (status_container || !tab_bar) return;
@@ -189,7 +189,7 @@ void UIManager::statusbarInit(lv_obj_t *tab_bar) {
   lv_obj_set_style_text_color(status_time_label, lv_color_white(), 0);
 
   lv_obj_set_style_text_font(status_time_label, get_status_time_font(), 0);
-  // Platzhalter nur mit Zeichen, die im Ziffern-Font vorhanden sind
+  // Use placeholder characters supported by the digit font.
   lv_label_set_text(status_time_label, "");
 
 
@@ -205,7 +205,7 @@ void UIManager::statusbarInit(lv_obj_t *tab_bar) {
   lv_obj_set_style_text_color(status_date_label, lv_color_hex(0xC8C8C8), 0);
 
   lv_obj_set_style_text_font(status_date_label, get_status_date_font(), 0);
-  // Platzhalter nur mit Zeichen, die im Ziffern-Font vorhanden sind
+  // Use placeholder characters supported by the digit font.
   lv_label_set_text(status_date_label, "");
 }
 
@@ -221,11 +221,11 @@ lv_obj_t* UIManager::setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char
   lv_obj_set_style_shadow_width(btn, 0, 0);
   lv_obj_set_style_outline_width(btn, 0, 0);
 
-  // PRESSED State: Helle Orange Farbe beim Drücken
+  // Use bright orange while pressed.
   lv_obj_set_style_bg_opa(btn, LV_OPA_30, LV_STATE_PRESSED);
   lv_obj_set_style_bg_color(btn, lv_color_hex(0xE38422), LV_STATE_PRESSED);
 
-  // Animation deaktivieren
+  // Disable animation.
   lv_obj_set_style_transform_width(btn, 0, LV_STATE_PRESSED);
   lv_obj_set_style_transform_height(btn, 0, LV_STATE_PRESSED);
 
@@ -234,7 +234,7 @@ lv_obj_t* UIManager::setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char
   lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(btn, LV_OBJ_FLAG_CLICKABLE);
 
-  // Flexbox column Layout: Icon oben, Text unten
+  // Column flex layout: icon above text
   lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
   lv_obj_set_style_pad_gap(btn, popup_layout::scale(12), 0);
@@ -245,7 +245,7 @@ lv_obj_t* UIManager::setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char
   bool has_icon = (icon_name && strlen(icon_name) > 0);
   bool has_name = (tab_name && strlen(tab_name) > 0);
 
-  // Icon (wenn gesetzt)
+  // Icon, if configured
   if (has_icon) {
     String iconChar = getMdiChar(String(icon_name));
     if (iconChar.length() > 0) {
@@ -257,7 +257,7 @@ lv_obj_t* UIManager::setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char
     }
   }
 
-  // Name oder Fallback-Nummer
+  // Name or fallback number
   if (has_name) {
     text_label = lv_label_create(btn);
     lv_label_set_text(text_label, tab_name);
@@ -267,7 +267,7 @@ lv_obj_t* UIManager::setupTabButton(lv_obj_t *btn, uint8_t tab_index, const char
     lv_obj_set_width(text_label, LV_PCT(90));
     lv_obj_set_style_text_align(text_label, LV_TEXT_ALIGN_CENTER, 0);
   } else if (!has_icon) {
-    // Fallback: Wenn beides leer
+    // Fallback when both are empty
     text_label = lv_label_create(btn);
     const char* fallback = (tab_index == 3) ? "Settings" : "";
     if (fallback[0] == '\0') {
@@ -323,7 +323,7 @@ void UIManager::switchToTab(uint8_t index) {
     displayManager.setBufferLines(kTilesBufferLines);
   }
 
-  // Alten Tab deaktivieren (falls vorhanden)
+  // Deactivate the previous tab, if present.
   if (active_tab_index != UINT8_MAX && active_tab_index < TAB_COUNT) {
     if (tab_panels[active_tab_index]) {
       lv_obj_add_flag(tab_panels[active_tab_index], LV_OBJ_FLAG_HIDDEN);
@@ -331,7 +331,7 @@ void UIManager::switchToTab(uint8_t index) {
     if (tab_buttons[active_tab_index]) {
       lv_obj_set_style_bg_opa(tab_buttons[active_tab_index], LV_OPA_TRANSP, 0);
     }
-    // Label bleibt IMMER weiss - nicht aendern!
+    // Keep the label white in every state.
   }
 
   if (index <= 2) {
@@ -341,14 +341,14 @@ void UIManager::switchToTab(uint8_t index) {
     }
   }
 
-  // Neuen Tab aktivieren
+  // Activate the new tab.
   if (tab_panels[index]) {
     lv_obj_clear_flag(tab_panels[index], LV_OBJ_FLAG_HIDDEN);
   }
   if (tab_buttons[index]) {
     lv_obj_set_style_bg_opa(tab_buttons[index], LV_OPA_COVER, 0);
   }
-  // Label bleibt IMMER weiss - nicht aendern!
+  // Keep the label white in every state.
 
   active_tab_index = index;
 
@@ -402,7 +402,7 @@ void UIManager::switchToTab(uint8_t index) {
 }
 
 void UIManager::switchToFolder(uint16_t folder_id) {
-  // Priorisiere Navigation: kurze Pause fuer Thumbnail/URL-Background-Jobs.
+  // Prioritize navigation by briefly pausing thumbnail/URL background work.
   tiles_switch_to_folder(folder_id);
   switchToTab(0);
 }
@@ -761,16 +761,16 @@ void UIManager::nav_button_event_cb(lv_event_t *e) {
 
   lv_obj_t *target = static_cast<lv_obj_t*>(lv_event_get_target(e));
 
-  // Optimierte Schleife: meist sind es nur 4 Tabs, aber trotzdem schnell beenden
+  // Usually only four tabs, but stop immediately after finding the match.
   for (uint8_t i = 0; i < TAB_COUNT; ++i) {
     if (self->tab_buttons[i] == target) {
       self->switchToTab(i);
-      return;  // Sofort beenden statt break+return
+      return;  // Return immediately instead of breaking before returning.
     }
   }
 }
 
-// ========== Statusbar aktualisieren ==========
+// Update the status bar.
 void UIManager::updateStatusbar() {
   if (!status_time_label || !status_date_label) return;
 
@@ -815,7 +815,7 @@ void UIManager::updateStatusbar() {
 
   } else {
 
-    // Kein valider Zeitstempel: neutrales Fallback aus Ziffern, damit keine fehlenden Glyphen
+    // Without a valid timestamp, use a neutral digit-only fallback to avoid missing glyphs.
     snprintf(buf, sizeof(buf), "");
 
   }
@@ -830,7 +830,7 @@ void UIManager::updateStatusbar() {
 
   } else {
 
-    // Fallback ohne fehlende Glyphen
+    // Fallback without missing glyphs
     snprintf(buf, sizeof(buf), "");
 
   }
@@ -886,10 +886,10 @@ void UIManager::serviceNtpSync() {
 
 }
 
-// ========== Tab-Button Live-Update ==========
+// Live tab-button update
 void UIManager::refreshTabButton(uint8_t tab_index) {
   (void)tab_index;
-  // Tabs sind im Device-UI deaktiviert (Navigation ueber Ordner-Kacheln).
+  // Device UI tabs are disabled; navigation uses folder tiles.
 }
 
 

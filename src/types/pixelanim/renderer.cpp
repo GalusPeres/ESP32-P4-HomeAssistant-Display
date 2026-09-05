@@ -6,9 +6,9 @@
 #include <math.h>
 #include <new>
 
-#include "src/core/psram_budget.h"
-#include "src/tiles/tile_renderer_shared.h"
-#include "src/tiles/tile_renderer_fonts.h"
+#include "src/core/memory/psram_budget.h"
+#include "src/tiles/runtime/tile_renderer_shared.h"
+#include "src/tiles/runtime/tile_renderer_fonts.h"
 #include "src/devices/device.h"
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X)
 #include "src/devices/active_device.h"

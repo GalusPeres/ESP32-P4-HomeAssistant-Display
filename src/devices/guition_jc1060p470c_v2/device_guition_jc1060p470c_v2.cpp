@@ -22,7 +22,7 @@
 #include <driver/ppa.h>
 #include <hal/lcd_types.h>
 
-#include "src/core/dma2d_arbiter.h"
+#include "src/core/display/dma2d_arbiter.h"
 #include "src/devices/common/p4_dsi_camera_presenter.h"
 #include "src/devices/guition_jc1060p470c_v2/vendor/displays_config.h"
 #include "src/devices/guition_jc1060p470c_v2/vendor/esp_lcd_jd9165.h"

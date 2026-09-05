@@ -7,7 +7,7 @@
 
 #include "PubSubClient.h"
 #include "Arduino.h"
-#include "src/network/mqtt_packet_safety.h"
+#include "src/network/mqtt/mqtt_packet_safety.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #if defined(ARDUINO_ARCH_ESP32)
@@ -19,10 +19,9 @@ namespace {
 
 void* mqttPacketBufferAlloc(size_t size) {
 #if defined(ARDUINO_ARCH_ESP32)
-    // Der MQTT-Paketpuffer muss nicht DMA-faehig sein. Auf ESP32-P4 nimmt ein
-    // interner 24/32-KB-Puffer dem ESP-Hosted-SDIO-Treiber genau den knappen
-    // zusammenhaengenden DMA-Speicher weg. PSRAM ist fuer die TCP-Kopie und
-    // das anschliessende MQTT-Parsen ausreichend schnell.
+    // The MQTT packet buffer does not require DMA capability. An internal
+    // 24/32 KB buffer on P4 consumes contiguous memory that ESP-Hosted SDIO
+    // needs. PSRAM is fast enough for the TCP copy and subsequent MQTT parsing.
     void* external = heap_caps_malloc(
         size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (external != NULL) return external;
@@ -32,9 +31,9 @@ void* mqttPacketBufferAlloc(size_t size) {
 
 void* mqttPacketBufferRealloc(void* current, size_t size) {
 #if defined(ARDUINO_ARCH_ESP32)
-    // heap_caps_realloc darf einen bisherigen internen Block in den PSRAM
-    // verschieben. Das ist wichtig, weil der globale PubSubClient-Konstruktor
-    // bereits vor der PSRAM-Initialisierung seinen kleinen Startpuffer anlegt.
+    // heap_caps_realloc may move an internal allocation into PSRAM. The global
+    // PubSubClient constructor allocates its small initial buffer before
+    // PSRAM initialization, so later relocation is necessary.
     void* external = heap_caps_realloc(
         current, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (external != NULL) return external;

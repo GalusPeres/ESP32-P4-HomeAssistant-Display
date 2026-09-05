@@ -1,6 +1,6 @@
 #include "src/types/text/web_html.h"
-#include "src/core/config_manager.h"
-#include "src/core/i18n.h"
+#include "src/core/config/config_manager.h"
+#include "src/core/i18n/i18n.h"
 
 void append_text_fields_html(String& html, const String& tab_id) {
   const auto& tr = i18n::strings(configManager.getConfig().language);

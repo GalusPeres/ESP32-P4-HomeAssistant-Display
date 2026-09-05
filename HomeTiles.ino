@@ -4,51 +4,51 @@
 #include <HTTPClient.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <freertos/idf_additions.h>  // xTaskCreatePinnedToCoreWithCaps (PSRAM-Task-Stack)
+#include <freertos/idf_additions.h>  // xTaskCreatePinnedToCoreWithCaps (PSRAM task stack)
 #include <nvs_flash.h>
-#include <Preferences.h>  // GitHub-OTA-Auto-Retry ueber den Neustart hinweg
+#include <Preferences.h>  // Persist GitHub OTA retries across restarts
 #include <esp_err.h>
-#include <esp_wifi.h>  // esp_wifi_scan_stop (AP-Wechsel bricht laufenden Scan ab)
+#include <esp_wifi.h>  // Stop an active scan before changing AP mode
 #include <esp_ota_ops.h>
 #include <esp_heap_caps.h>
-#include <esp_system.h>  // esp_reset_reason (Tab5-Brownout-Drossel)
+#include <esp_system.h>  // Reset reason for the Tab5 brownout brightness cap
 
-#include "src/core/board_hal.h"
-#include "src/core/display_manager.h"
-#include "src/core/power_manager.h"
-#include "src/core/config_manager.h"
-#include "src/core/crash_log.h"
-#include "src/core/firmware_version.h"
-#include "src/core/github_update.h"
-#include "src/core/lvgl_tick_service.h"
+#include "src/core/hardware/board_hal.h"
+#include "src/core/display/display_manager.h"
+#include "src/core/power/power_manager.h"
+#include "src/core/config/config_manager.h"
+#include "src/core/diagnostics/crash_log.h"
+#include "src/core/firmware/firmware_version.h"
+#include "src/core/firmware/github_update.h"
+#include "src/core/display/lvgl_tick_service.h"
 #include "src/devices/guition_esp32_4848s040/s3_diagnostics.h"
 #include "src/ui/ui_manager.h"
-#include "src/ui/sensor_popup.h"
-#include "src/ui/weather_popup.h"
-#include "src/ui/energy_popup.h"
-#include "src/ui/camera_popup.h"
+#include "src/ui/popups/sensor/sensor_popup.h"
+#include "src/ui/popups/weather/weather_popup.h"
+#include "src/ui/popups/energy/energy_popup.h"
+#include "src/ui/popups/camera/camera_popup.h"
 #include "src/types/energy/energy_data.h"
 #include "src/network/network_manager.h"
-#include "src/network/network_transport.h"
-#include "src/network/mqtt_handlers.h"
-#include "src/network/mqtt_topics.h"
-#include "src/web/web_config.h"
-#include "src/web/web_admin.h"
-#include "src/ui/tab_settings.h"
-#include "src/ui/boot_splash.h"
-#include "src/ui/tab_tiles_unified.h"
-#include "src/ui/image_screensaver.h"
-#include "src/ui/screensaver_config.h"
+#include "src/network/transport/network_transport.h"
+#include "src/network/mqtt/mqtt_handlers.h"
+#include "src/network/mqtt/mqtt_topics.h"
+#include "src/web/setup/web_config.h"
+#include "src/web/server/web_admin.h"
+#include "src/ui/tabs/settings/tab_settings.h"
+#include "src/ui/startup/boot_splash.h"
+#include "src/ui/tabs/tiles/tab_tiles_unified.h"
+#include "src/ui/screensaver/image_screensaver.h"
+#include "src/ui/screensaver/screensaver_config.h"
 #include "src/io/hardware_io.h"
-#include "src/tiles/tile_config.h"
-#include "src/tiles/tile_renderer.h"
-#include "src/tiles/tile_update_service.h"
-#include "src/tiles/mdi_icons.h"      // MDI Icon Mapping
+#include "src/tiles/config/tile_config.h"
+#include "src/tiles/runtime/tile_renderer.h"
+#include "src/tiles/runtime/tile_update_service.h"
+#include "src/tiles/icons/mdi_icons.h"      // MDI Icon Mapping
 
-// MDI Icons Font (48px, 4bpp) - definiert in src/fonts/mdi_icons_48.c
+// MDI icon font (48px, 4bpp), defined in src/fonts/mdi_icons_48.c.
 LV_FONT_DECLARE(mdi_icons_48);
 
-// Mehr Stack fuer loopTask (verhindert Stack-Overflow bei lv_timer_handler).
+// Extra loopTask stack prevents overflow inside lv_timer_handler().
 SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
 static uint32_t last_status_update = 0;
@@ -64,19 +64,17 @@ static hotspot_start_cb_t ui_hotspot_cb = nullptr;
 static TaskHandle_t g_mqtt_worker_handle = nullptr;
 
 #if defined(DEVICE_M5STACKS_TAB5)
-// Brownout-Schutz (User-Log 2026-07-06): volles Backlight + Funk-Lastspitze
-// (AP-Start oder STA-Verbinden) loest den Brownout-Detektor aus - inklusive
-// Bootschleife, weil die gespeicherte Helligkeit VOR dem WLAN-Start gesetzt
-// wird. Backlight in diesen Phasen deckeln; der Config-Wert (Slider) bleibt
-// unberuehrt, der Loop stellt ihn nach dem Verbinden wieder her.
+// Field logs from 2026-07-06 showed brownouts when full backlight coincided
+// with AP startup or station connection. Applying saved brightness before
+// radio startup could create a boot loop. Cap hardware brightness during
+// these phases without changing the saved value; restore it after connection.
 static constexpr uint8_t kTab5SafeBrightness = 140;
 static constexpr uint32_t kTab5BrightnessRestoreTimeoutMs = 30000;
 static bool tab5_brightness_capped = false;
 static uint32_t tab5_brightness_cap_wait_since = 0;
 #endif
 
-// Splash-Screen bleibt mindestens so lange stehen, dass Version/Geraet
-// tatsaechlich lesbar sind, auch wenn der restliche Boot schneller fertig ist.
+// Keep the device/version splash readable even when the remaining boot is fast.
 static constexpr uint32_t kBootSplashMinVisibleMs = 2500;
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
@@ -218,9 +216,8 @@ static void apply_hotspot_mode(bool enable) {
       settings_update_ap_mode(true);
       return;
     }
-    // Den Worker vor dem Disconnect sperren. Sonst verbindet er sich waehrend
-    // der AP-Initialisierung erneut, solange die STA-Verbindung noch kurz als
-    // aktiv gemeldet wird.
+    // Defer worker reconnects before disconnecting. Station status can remain
+    // briefly connected, allowing an unwanted reconnect during AP setup.
     networkManager.deferMqttReconnect(AP_MODE_TIMEOUT_MS + 10000UL);
     if (networkManager.isMqttConnected())
       networkManager.disconnectMqtt();
@@ -229,15 +226,15 @@ static void apply_hotspot_mode(bool enable) {
     networkManager.stopMdns();
     settings_update_ap_mode(true);
 #if defined(DEVICE_M5STACKS_TAB5)
-    // Vor dem Funk-Moduswechsel deckeln: AP-Start bei vollem Backlight
-    // reisst die Versorgung in den Brownout.
+    // Cap brightness before changing radio mode: AP startup at full
+    // backlight can brown out the power supply.
     if (BoardHAL::getBrightness() > kTab5SafeBrightness) {
       BoardHAL::setBrightness(kTab5SafeBrightness);
       tab5_brightness_capped = true;
     }
     tab5_brightness_cap_wait_since = millis();
 #endif
-    // Laufender Async-Scan (WLAN-Popup) wuerde den Moduswechsel stoeren
+    // An asynchronous Wi-Fi scan would interfere with the mode change.
     esp_wifi_scan_stop();
     if (webConfigServer.start()) {
       ap_mode_started_at = millis();
@@ -270,16 +267,15 @@ static void apply_hotspot_mode(bool enable) {
   ap_mode_disable_block_until = 0;
   settings_update_ap_mode(false);
 #if defined(DEVICE_M5STACKS_TAB5)
-  // Deckel NICHT sofort aufheben - der Reconnect-Burst gleich unten wuerde
-  // sonst wieder bei Volllast zuschlagen. Der Loop stellt die Helligkeit
-  // wieder her, sobald das WLAN steht (oder nach Timeout).
+  // Keep the cap through the reconnect burst below. The loop restores
+  // brightness when Wi-Fi connects or the recovery timeout expires.
   if (tab5_brightness_capped) tab5_brightness_cap_wait_since = millis();
 #endif
   if (configManager.isConfigured()) {
     networkManager.deferMqttReconnect(6000);
     if (WiFi.status() != WL_CONNECTED) {
-      // WiFi.begin() laeuft ins Leere, solange noch ein Scan aktiv ist -
-      // genau deshalb verband sich das Geraet nach "AP beenden" nicht mehr.
+      // WiFi.begin() cannot connect during an active scan; this previously
+      // prevented reconnection after leaving AP mode.
       esp_wifi_scan_stop();
       networkManager.connectWifi();
     }
@@ -291,9 +287,8 @@ static void set_hotspot_mode(bool enable) {
   hotspot_mode_change_pending = true;
 }
 
-// WLAN-Reconnect mit neuen Zugangsdaten (WLAN-Popup "Verbinden"): wie beim
-// Hotspot-Wechsel nur ein Flag setzen - die eigentliche Netzwerkarbeit laeuft
-// im Hauptloop statt im LVGL-Event-Callback.
+// Connecting with edited Wi-Fi credentials only sets a pending flag.
+// As with hotspot changes, network work belongs to the loop, not LVGL callbacks.
 static bool wifi_reconnect_pending = false;
 
 static void request_wifi_reconnect() {
@@ -303,17 +298,15 @@ static void request_wifi_reconnect() {
 static void apply_wifi_reconnect() {
   if (networkTransport.isWifiDriverActive()) esp_wifi_scan_stop();
   if (networkManager.isMqttConnected()) networkManager.disconnectMqtt();
-  // Alte Verbindung trennen; connectWifi() liest die frisch gespeicherten
-  // Zugangsdaten aus der Config. Danach uebernimmt networkManager.update()
-  // (WebAdmin/NTP/MQTT wie bei jedem normalen Verbindungsaufbau).
+  // Disconnect first; connectWifi() reads the newly saved credentials.
+  // networkManager.update() then starts Web Admin/NTP/MQTT as usual.
   if (networkTransport.isWifiConnected()) WiFi.disconnect();
   networkManager.deferMqttReconnect(6000);
   networkManager.connectWifi();
 }
 
-// WLAN-Popup "Trennen" und System-Popup "Pairing": gleiches Pending-Flag-
-// Muster - der LVGL-Event-Callback setzt nur das Flag, die Netzwerkarbeit
-// laeuft im Hauptloop.
+// Wi-Fi disconnect and Home Assistant pairing follow the same pending-flag
+// pattern: the LVGL callback requests work and the loop performs it.
 static bool wifi_disconnect_pending = false;
 static bool ha_pair_pending = false;
 
@@ -325,16 +318,14 @@ static void request_ha_pair() {
   ha_pair_pending = true;
 }
 
-// Update-ueber-GitHub (System-Popup): Check und Install laufen blockierend
-// auf dem Loop-Task - die Klick-Handler im Popup setzen nur diese Flags
-// (gleiches Muster wie Hotspot-Toggle und WLAN-Reconnect).
+// GitHub checks and installation block on the loop task. Popup callbacks
+// only set these flags, as with hotspot changes and Wi-Fi reconnects.
 static bool fw_check_pending = false;
 static bool fw_install_pending = false;
 static bool system_reboot_pending = false;
 static char fw_install_tag[24] = {};
-// Mehrfaches schnelles Tippen bzw. gleichzeitige UI-/Web-Anfragen darf nicht
-// mehrere GitHub-TLS-Handshakes und damit Transport-Last direkt hintereinander
-// erzeugen. Das letzte Ergebnis ist fuer dieses kurze Fenster ausreichend.
+// Repeated taps and concurrent UI/Web requests must not trigger consecutive
+// TLS handshakes. Reuse the last result during this short cache window.
 static constexpr uint32_t kFwCheckCacheMs = 15000;
 static bool fw_check_running = false;
 static bool fw_last_check_valid = false;
@@ -354,11 +345,10 @@ static void request_system_reboot() {
   system_reboot_pending = true;
 }
 
-// GitHub-OTA-Auto-Retry: Frisch gebootet laeuft der 6-MB-Download nachweislich
-// durch (Feldtest 2026-07-16), waehrend der ESP-Hosted-Link im gealterten
-// System an zufaelliger Stelle abreisst. Nach dem sicheren Neustart wegen
-// eines fehlgeschlagenen Installs stoesst das Geraet den Install deshalb von
-// selbst erneut an. Tag + Versuchszaehler ueberleben den Neustart im NVS.
+// A field test on 2026-07-16 completed the 6 MB download after a fresh boot,
+// while the ESP-Hosted link failed partway through on the older running system.
+// Retry installation after a controlled restart, retaining the tag and bounded
+// attempt count in NVS.
 static constexpr uint8_t kFwInstallMaxAutoRetries = 3;
 static constexpr const char* kFwRetryNvsNamespace = "otaretry";
 static bool fw_install_auto_retry_checked = false;
@@ -398,8 +388,8 @@ static GithubUpdate::CheckResult perform_fw_check() {
     return fw_last_check_result;
   }
 
-  // Ein zweiter synchroner Aufrufer ist praktisch nicht moeglich (Loop-Task),
-  // der Guard haelt den Vertrag fuer UI und Web-Admin trotzdem eindeutig.
+  // Loop ownership prevents concurrent synchronous callers; keep an explicit
+  // guard so the shared UI/Web Admin contract remains clear.
   if (fw_check_running) {
     Serial.println("[Update] Check already running");
     return fw_last_check_valid ? fw_last_check_result
@@ -453,8 +443,8 @@ static GithubUpdate::CheckResult perform_fw_check() {
 }
 
 static void apply_fw_check() {
-  // Die "Suche..."-Statuszeile noch auf den Schirm bringen, bevor der
-  // TLS-Handshake den Loop fuer 1-3 Sekunden blockiert
+  // Present the search status before the TLS handshake blocks the loop
+  // for roughly 1-3 seconds.
   lv_refr_now(displayManager.getDisplay());
 
   const GithubUpdate::CheckResult res = perform_fw_check();
@@ -462,11 +452,10 @@ static void apply_fw_check() {
 }
 
 static void fw_install_progress(size_t written, size_t total) {
-  displayManager.resetActivityTimer();  // kein Display-Sleep mitten im Update
+  displayManager.resetActivityTimer();  // Prevent display sleep during the update.
 
-  // GitHub-OTA laeuft im selben "Display aus, Hintergrund still"-Modus wie
-  // Web-OTA. Keine LVGL-Timer pumpen: Animationen/Flushes erzeugen sonst
-  // zusaetzliche DMA- und CPU-Last genau waehrend des SDIO-RX-Stroms.
+  // GitHub OTA uses the same suspended-display mode as Web OTA. Do not service
+  // LVGL timers: animation/flush work would compete with SDIO RX for DMA and CPU.
   static uint32_t last_ui_ms = 0;
   static size_t last_written = 0;
   const uint32_t now_ms = millis();
@@ -481,10 +470,9 @@ static void fw_install_progress(size_t written, size_t total) {
 
 static void apply_fw_install() {
   Serial.printf("[Update] Install requested: %s\n", fw_install_tag);
-  // Internes RAM freimachen, exakt wie prepareDisplayForOtaInstall() beim
-  // Web-OTA: Display aus, Draw-Puffer nach PSRAM, MQTT still. Das ist weniger
-  // huebsch als ein live gerenderter Balken, aber der Web-OTA-Pfad ist damit
-  // stabil und der ESP32-P4-SDIO-WLAN-Treiber braucht diesen Freiraum.
+  // Match Web OTA's prepareDisplayForOtaInstall(): suspend the display, move
+  // draw buffers to PSRAM and pause MQTT. This preserves the internal memory
+  // headroom required by the ESP32-P4 SDIO Wi-Fi driver.
   displayManager.setInputEnabled(false);
   lv_refr_now(displayManager.getDisplay());
   BoardHAL::displayPowerSaveOn();
@@ -509,26 +497,21 @@ static void apply_fw_install() {
   Serial.printf("[Update] Failed: %s\n", err.c_str());
   webAdminServer.setGithubUpdateInstallFailed(err.c_str());
   settings_fw_install_failed(err.c_str());
-  // Der sichere Neustart unten hinterlaesst keinen Core-Dump. Damit der
-  // Fehlschlag trotzdem nachvollziehbar bleibt, wandern Fehlertext und die
-  // Range-/Speicher-Forensik aus install() in den Absturzbericht
-  // (/crashlog.txt, Web-Admin-Abschnitt "Absturzbericht").
+  // The controlled restart below produces no core dump. Save the error and
+  // install() range/memory diagnostics to /crashlog.txt for Web Admin download.
   CrashLog::appendOtaFailureReport(fw_install_tag, err,
                                    GithubUpdate::lastInstallDiag());
-  // Frisch gebootet klappt der Download zuverlaessig - also nach dem
-  // Neustart automatisch weiterprobieren (nur bei Transportfehlern; ein
-  // "device mismatch" o.ae. wuerde sonst eine Reboot-Schleife erzeugen).
+  // Retry after reboot only for transport failures. Retrying a permanent
+  // incompatibility such as device mismatch would create a reboot loop.
   if (GithubUpdate::lastInstallRetryable()) {
     arm_fw_install_auto_retry(fw_install_tag);
   } else {
     clear_fw_install_auto_retry();
   }
-  // Nach einem abgebrochenen grossen HTTPS-Transfer kann der ESP-Hosted-
-  // Coprozessor bereits festhaengen. Ein Wiederanlauf von WLAN/MQTT fuehrt
-  // dann nur zu wiederholten 5-Sekunden-RPC-Timeouts und blockiert die UI.
-  // Da das Image vollstaendig vor Update.begin() geladen wird (bzw. ein
-  // gestartetes Update bei Fehler abgebrochen wurde), ist ein Neustart sicher
-  // und bootet die unveraenderte aktive Firmware.
+  // A failed large HTTPS transfer can leave ESP-Hosted unresponsive. Restarting
+  // Wi-Fi/MQTT then causes repeated five-second RPC timeouts and blocks the UI.
+  // The image is staged before Update.begin(), or the failed update has been
+  // aborted, so a restart still boots the unchanged active firmware.
   Serial.println("[Update] Safe restart after failed install");
   BoardHAL::prepareForRestart();
   delay(500);
@@ -598,16 +581,12 @@ static void service_background_state_refresh(bool allow_now) {
   mark_background_state_refresh_sent();
 }
 
-// ---------------------------------------------------------------------------
-// Single-Owner MQTT Worker (Etappe 2)
+// Single-owner MQTT worker
 //
-// Dieser Task ist der EINZIGE, der das PubSubClient-Objekt anfasst
-// (connect/loop/publish/subscribe/setBufferSize) -- alle anderen Tasks reden
-// nur ueber die Outbound-Queue bzw. volatile Flags mit ihm (siehe
-// network_manager.h). Idle-Prioritaet, damit er den IDLE0-Task (Watchdog-
-// Futter) nie verdraengen kann; Stack liegt im PSRAM, um das knappe interne
-// RAM nicht zu belasten.
-// ---------------------------------------------------------------------------
+// Only this task accesses PubSubClient (connect/loop/publish/subscribe and
+// setBufferSize). Other tasks use outbound queues or volatile flags; see
+// network_manager.h. Idle priority lets IDLE0 service the watchdog, and a
+// PSRAM stack preserves scarce internal memory.
 static void mqtt_worker_task(void* param) {
   (void)param;
   for (;;) {
@@ -650,10 +629,8 @@ void setup() {
   log_memory_status("after-littlefs");
   Serial.flush();
 
-  // Nach einem Absturz: Reset-Grund + Core-Dump-Zusammenfassung an
-  // /crashlog.txt anhaengen (Web-Admin: Abschnitt "Absturzbericht").
-  // Bewusst frueh, damit der Eintrag auch dann geschrieben ist, wenn ein
-  // spaeterer Init-Schritt gleich wieder abstuerzen sollte.
+  // Append the reset reason and core-dump summary to /crashlog.txt for
+  // Web Admin download. Record this before later initialization can crash again.
   CrashLog::logBootDiagnostics();
 
   // SD Card (optional, for screenshots)
@@ -687,14 +664,11 @@ void setup() {
   boot_black_warmup("after-display");
 #endif
 
-  // NVS + Konfiguration (insbesondere die Display-Rotation) muessen VOR dem
-  // ersten sichtbaren Splash-Frame geladen sein. displayManager.init() setzt
-  // die Rotation nur auf Device::kRotationDefault; die tatsaechlich vom
-  // Nutzer gespeicherte Rotation kommt erst aus configManager.load(). Frueher
-  // liefen NVS-Init/Config-Load erst NACH dem Splash-Wake -- wessen Rotation
-  // vom Default abweicht (z.B. 180°-geflippt), sah den Splash kurz falsch
-  // gedreht ("verdreht"), weil dessen Frames schon mit der falschen Rotation
-  // geflusht wurden und nie neu gezeichnet werden, bevor er wieder verschwindet.
+  // Load NVS and configuration before the first visible splash frame, especially
+  // the saved display rotation. displayManager.init() only sets the device default;
+  // configManager.load() supplies the user setting. Loading it after splash wake
+  // previously exposed incorrectly rotated frames that were never redrawn before
+  // the splash disappeared.
   Serial.println("[Setup] NVS init...");
   Serial.flush();
   init_nvs();
@@ -716,11 +690,9 @@ void setup() {
   log_memory_status("after-configs");
   Serial.flush();
 
-  // Ab hier gibt es einen aktiven LVGL-Screen -- kurz die Begruessung zeigen,
-  // waehrend der Rest bootet. Die grossen DSI/DPI-Panels zeigen den aktiven
-  // Framebuffer direkt; waere er waehrend der ersten Splash-Refreshes sichtbar,
-  // koennen die LVGL-Flush-Streifen fuer wenige Millisekunden als Treppen-Flash
-  // aufblitzen. Deshalb Panel dunkel, Splash fertig rendern, dann erst sichtbar.
+  // An LVGL screen now exists; show the splash while the remaining setup runs.
+  // Large DSI/DPI panels expose the live framebuffer, so initial strip flushes
+  // can appear as a stepped flash. Render the splash with the panel dark first.
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_X) || \
     defined(DEVICE_M5STACKS_TAB5) || \
     defined(DEVICE_GUITION_JC8012P4A1_FAMILY) || \
@@ -731,10 +703,8 @@ void setup() {
   BoardHAL::displayWaitDisplay();
 #endif
   BootSplash::show();
-  // Layout (Flex-Positionen, Bild-Skalierung/Pivot) VOR dem ersten Refresh
-  // fertigrechnen -- sonst kann der allererste Frame einen halbfertigen
-  // Zwischenzustand zeigen (verzerrt wirkendes Icon/Text), bevor sich beim
-  // naechsten Refresh die endgueltige Position einstellt.
+  // Resolve flex positions, image scaling and pivots before the first refresh.
+  // Otherwise that frame can show distorted intermediate geometry until redraw.
   lv_obj_update_layout(lv_screen_active());
 #if !defined(DEVICE_WAVESHARE_TOUCH_LCD_X) && \
     !defined(DEVICE_M5STACKS_TAB5) && \
@@ -775,14 +745,11 @@ void setup() {
   log_memory_status("after-power");
   Serial.flush();
 
-  // Sleep bis zu 60s nach dem Boot sperren, bis der erste frische Bridge-Sync
-  // (processMqttMessage() -> powerManager.allowSleep() bei erfolgreichem
-  // applyJson()) angekommen ist. Ohne das kann ein kurzes Auto-Sleep-Timeout
-  // das Geraet einschlafen lassen, bevor WLAN/MQTT/HA ueberhaupt die
-  // aktuellen Sensordaten geliefert haben -- reines Zeitverschieben (wie
-  // resetActivityTimer() unten) reicht dafuer nicht, weil die Sync-Dauer
-  // schwankt. Kommt gar kein Sync (Broker/HA nicht erreichbar), greift nach
-  // 60s automatisch wieder das normale Idle-Timeout als Fallback.
+  // Block sleep for up to 60 seconds until the first fresh Bridge configuration
+  // arrives: processMqttMessage() calls allowSleep() after successful applyJson().
+  // A short idle timeout could otherwise expire before Wi-Fi/MQTT/HA deliver
+  // current state. Resetting the activity timer alone cannot cover variable sync
+  // latency; normal idle handling resumes after 60 seconds if no sync arrives.
   powerManager.blockSleep(60000);
 
   // Waveshare 720×720: Square display, no rotation needed.
@@ -796,9 +763,8 @@ void setup() {
     const DeviceConfig& dcfg = configManager.getConfig();
     uint8_t boot_brightness = dcfg.display_brightness;
 #if defined(DEVICE_M5STACKS_TAB5)
-    // Brownout-Bootschleife durchbrechen: nach einem BOD-Reset wuerde das
-    // volle Backlight schon beim ersten WLAN-Verbinden den naechsten
-    // Brownout ausloesen (Helligkeit wird VOR dem Funk-Start gesetzt).
+    // Break brownout boot loops: restoring full backlight after a brownout reset
+    // can trigger the next brownout during the first Wi-Fi connection.
     if (esp_reset_reason() == ESP_RST_BROWNOUT &&
         boot_brightness > kTab5SafeBrightness) {
       boot_brightness = kTab5SafeBrightness;
@@ -812,13 +778,10 @@ void setup() {
   Serial.println("[Setup] Brightness OK");
   Serial.flush();
 
-  // Splash lang genug stehen lassen, dann komplett weg -- BEVOR die
-  // eigentliche UI gebaut wird, damit sich Splash und Kacheln nie denselben
-  // Screen teilen. Frueher lief das nach dem UI-Build mit einem Overlay-
-  // Trick (bringToFront), aber build_ui_task macht offenbar selbst
-  // zwischendurch sichtbare Refreshes, wodurch die Kacheln kurz durchblitzten,
-  // bevor der Splash sich wieder nach vorne draengte -- daher jetzt komplett
-  // sequenziell statt ueberlappend.
+  // Keep the splash visible long enough, then remove it before building the UI.
+  // Splash and tiles must not share a screen: the former overlay/bringToFront
+  // approach allowed intermediate UI refreshes to expose tiles. Build the two
+  // views sequentially to prevent that flash.
   {
     const uint32_t elapsed = millis() - boot_splash_shown_at;
     if (elapsed < kBootSplashMinVisibleMs) {
@@ -834,16 +797,11 @@ void setup() {
   if (!s3_atomic_boot) BoardHAL::displaySleep();
 #endif
   BootSplash::hide();
-  // Waehrend des kompletten UI-Aufbaus (inkl. Statusbar-Befuellung weiter
-  // unten) die Display-Invalidierung abschalten -- switchToTab(0) in
-  // buildUI() macht sonst selbst schon einen sichtbaren Zwischen-Refresh
-  // (Kacheln mit noch leerer Uhrzeit), bevor updateStatusbar() unten die
-  // echten Werte setzt. Zusammen mit dem Schwarzbild-Refresh, der hier vorher
-  // stand, ergab das ein "treppenartiges" Umschalten (schwarz -> Kacheln ohne
-  // Uhrzeit -> Kacheln mit Uhrzeit) statt eines einzigen sauberen Schnitts
-  // von Splash auf die fertige Oberflaeche. Gleiche Technik wie in
-  // tiles_reload_layout() (tab_tiles_unified.cpp) -- dort schon bewaehrt, um
-  // Kachel-Aufbau unsichtbar zu halten, bis alles fertig ist.
+  // Disable invalidation throughout UI construction and status-bar population.
+  // Otherwise buildUI()/switchToTab(0) exposes tiles with an empty clock before
+  // updateStatusbar() supplies current values. Re-enable it only when the whole
+  // screen is ready, as in tiles_reload_layout(), for one complete transition
+  // from splash to UI instead of black/partial/complete intermediate frames.
   if (lv_display_t* disp = displayManager.getDisplay()) {
     lv_display_enable_invalidation(disp, false);
   }
@@ -874,9 +832,8 @@ void setup() {
   Serial.println("[Setup] Statusbar updated");
   Serial.flush();
 
-  // Ab hier ist die Oberflaeche komplett fertig (Kacheln + Statusbar) --
-  // Invalidierung wieder einschalten, der folgende Wake-Refresh zeigt dann in
-  // einem Schritt die fertige Oberflaeche statt Zwischenstufen.
+  // Tiles and status bar are ready. Re-enable invalidation so the wake refresh
+  // presents the completed UI in one step.
   if (lv_display_t* disp = displayManager.getDisplay()) {
     lv_display_enable_invalidation(disp, true);
   }
@@ -935,9 +892,8 @@ void setup() {
   if (has_config) {
     Serial.println("[Setup] Network init...");
     Serial.flush();
-    // Vor init(): Media-Tiles in der Config verlangen den 24-KB-Empfangs-
-    // puffer ab der ersten Verbindung, sonst verwirft PubSubClient das
-    // retained Cover-Payload direkt nach dem Subscribe.
+    // Configured media tiles require the 24 KB receive buffer before init().
+    // Otherwise PubSubClient drops retained artwork immediately after subscribing.
     networkManager.setMqttMediaBufferNeeded(mqttAnyMediaTileConfigured());
     networkManager.init();
     if (networkTransport.isConnected()) uiManager.scheduleNtpSync(0);
@@ -955,9 +911,8 @@ void setup() {
                                         MALLOC_CAP_SPIRAM) == pdPASS) {
       Serial.printf("[Setup] MQTT worker started on core %d\n", (int)mqtt_worker_core);
     } else {
-      // Bewusst KEIN stiller Fallback auf den Loop-Task: Single-Owner ohne
-      // Worker ergibt keinen Sinn, und ein geteilter Client waere genau die
-      // Race-Quelle, die dieser Umbau beseitigt. Laut scheitern.
+      // Do not silently fall back to the loop task. Sharing the MQTT client would
+      // reintroduce the race this single-owner design prevents; fail explicitly.
       g_mqtt_worker_handle = nullptr;
       Serial.println("[Setup] ERROR: MQTT worker could not be started -- MQTT remains offline!");
     }
@@ -976,12 +931,10 @@ void setup() {
   Device::storageWriteEnd();
 #endif
 
-  // last_activity_time wurde schon ganz am Anfang in displayManager.init()
-  // gesetzt -- alles seitdem (Config-Load, Splash, UI-Build, bis zu 30s
-  // Timeout) zaehlte bisher schon gegen den Idle-/Sleep-Timer, obwohl der
-  // Nutzer das Geraet noch gar nicht sehen/bedienen konnte. Bei kurzem
-  // Auto-Sleep-Timeout schlief das Geraet dadurch faktisch sofort nach dem
-  // Boot ein. Timer hier neu starten, sobald die UI wirklich bedienbar ist.
+  // displayManager.init() starts the activity timer before configuration,
+  // splash and UI setup, which can take up to 30 seconds. Restart the timer now
+  // that the UI is usable; otherwise a short sleep timeout can expire during
+  // boot before the user has had a chance to interact.
   displayManager.resetActivityTimer();
 
   Serial.println("\n=== SETUP COMPLETE ===\n");
@@ -1029,8 +982,7 @@ void loop() {
     networkManager.requestMqttReconfigure();
   }
 
-  // Geplanten Auto-Retry aus dem NVS einmalig einloesen, sobald WLAN steht
-  // und das frisch gebootete System kurz zur Ruhe gekommen ist.
+  // Consume the saved OTA retry once Wi-Fi connects and the fresh boot settles.
   if (!fw_install_auto_retry_checked && millis() > 30000 &&
       networkManager.isNetworkConnected()) {
     fw_install_auto_retry_checked = true;
@@ -1106,10 +1058,8 @@ void loop() {
 
     GuitionS3Diagnostics::service();
     webConfigServer.handle();
-    // Ordner-Taps setzen nur ein Pending-Flag (tiles_switch_to_folder);
-    // konsumiert wird es ausschliesslich hier bzw. im normalen Loop-Pfad.
-    // Ohne diesen Aufruf war die Ordner-Navigation im AP-Betrieb tot und der
-    // aufgestaute Wechsel feuerte nach AP-Ende verspaetet nach.
+    // Folder taps only set a pending flag. Consume it in AP mode as well as the
+    // normal loop; otherwise navigation remains stuck until AP mode ends.
     tiles_process_reload_requests();
     settings_update_ap_mode(true);
     settings_update_wifi_status_ap(webConfigApSsid(), webConfigApPassword());
@@ -1117,10 +1067,9 @@ void loop() {
 
     if (webConfigServer.hasNewConfig()) {
       webConfigServer.resetConfigFlag();
-      // WLAN-Zugangsdaten sind schon gespeichert (siehe WebConfigServer::handleSave) -
-      // wie beim WLAN-Popup im Settings-Tab reicht ein Live-Reconnect, der ohnehin
-      // schon beim normalen "AP beenden" laeuft (apply_hotspot_mode(false) stoppt
-      // den AP und verbindet neu, siehe dort). Kein Neustart mehr noetig.
+      // WebConfigServer::handleSave() already persisted the Wi-Fi credentials.
+      // Leaving AP mode performs a live reconnect with them, just like the settings
+      // popup. No restart is needed.
       set_hotspot_mode(false);
     }
 
@@ -1129,10 +1078,8 @@ void loop() {
     }
 
 #if defined(DEVICE_M5STACKS_TAB5)
-    // Deckel im AP-Betrieb aktiv durchsetzen: der Helligkeits-Slider im
-    // Display-Popup bleibt hier erreichbar und wuerde den Brownout-Schutz
-    // sonst aushebeln. Der Config-Wert bleibt gespeichert und wird nach
-    // AP-Ende wiederhergestellt.
+    // Enforce the cap throughout AP mode because the display brightness slider
+    // remains usable. Preserve its configured value and restore it when AP ends.
     if (BoardHAL::getBrightness() > kTab5SafeBrightness) {
       BoardHAL::setBrightness(kTab5SafeBrightness);
       tab5_brightness_capped = true;
@@ -1151,8 +1098,8 @@ void loop() {
   }
 
 #if defined(DEVICE_M5STACKS_TAB5)
-  // Brownout-Deckel aufheben, sobald der Funk die kritische Phase hinter
-  // sich hat (verbunden) oder nichts mehr kommt (Timeout, z.B. Router weg).
+  // Lift the brownout cap after connection, or after the timeout if the radio
+  // cannot finish connecting (for example, when the router is unavailable).
   if (tab5_brightness_capped) {
     if (WiFi.status() == WL_CONNECTED ||
         (uint32_t)(now - tab5_brightness_cap_wait_since) > kTab5BrightnessRestoreTimeoutMs) {
@@ -1172,9 +1119,8 @@ void loop() {
   }
 #endif
 
-  // Ein sichtbarer/noch abbauender Kamerastream ist aktive Nutzung. So legen
-  // sich Screensaver und Display-Sleep nicht ueber die PPA-/JPEG-Pipeline;
-  // nach dem Schliessen beginnt das konfigurierte Idle-Intervall sauber neu.
+  // An open or stopping camera stream counts as activity. Keep screensaver and
+  // sleep away from the PPA/JPEG pipeline, then restart normal idle timing on close.
   if (camera_popup_is_busy()) {
     displayManager.resetActivityTimer();
   }
@@ -1191,13 +1137,9 @@ void loop() {
       Serial.println("[Loop] SLEEP MODE ACTIVE!");
       was_asleep = true;
     }
-    // first_run muss auch hier geloescht werden -- sonst druckt JEDE
-    // Sleep-Iteration den ganzen "if (first_run)"-Block am Loop-Anfang neu
-    // (Endlos-Spam), falls das Geraet schon in seiner allerersten
-    // Loop-Iteration schlaeft (z.B. Boot/UI-Build dauerte laenger als das
-    // konfigurierte Auto-Sleep-Timeout). Frueher unsichtbar, weil der alte
-    // touch_cb-Bug jeden lv_timer_handler()-Aufruf als Wake gewertet und den
-    // Sleep-Zweig so nie laenger als einen Tick am Stueck lief.
+    // Clear first_run here too. If boot exceeds the idle timeout, the first loop
+    // can enter sleep and otherwise print its startup diagnostics on every pass.
+    // The old touch callback masked this by treating each LVGL timer call as a wake.
     if (first_run) {
       Serial.println("[Loop] Sleep detected immediately after boot");
       Serial.flush();
@@ -1206,22 +1148,18 @@ void loop() {
     if (configManager.isConfigured()) {
       networkManager.update();
       if (webAdminServer.isRunning()) webAdminServer.handle();
-      // Der MQTT-Worker laeuft auch im Sleep weiter und reiht Empfangenes in
-      // die Inbound-Queue ein -- ohne Drain wuerde sie volllaufen (Drops).
-      // Post-Connect ebenfalls hier, damit ein Reconnect im Sleep wie frueher
-      // sofort wieder Subscribes/Discovery bekommt.
+      // The MQTT worker keeps receiving during sleep. Drain inbound messages to
+      // prevent queue drops, and run post-connect work so subscriptions/discovery
+      // resume after a sleeping reconnect too.
       mqttServicePostConnect();
       mqtt_process_inbound_queue();
       // Keep live tile state current during sleep. The paused refresh timer
       // prevents drawing to the sleeping display, so wake needs no catch-up.
       // Graph history remains on the active request/response path below.
       process_tile_update_queues<TileUpdateBudget::DrainAll>();
-      // Uhrzeit/WLAN-/Power-Status haben denselben Bug wie die Sensor-Queues
-      // oben: uiManager.updateStatusbar() & Co. liefen bisher nur alle 2s im
-      // AKTIVEN Loop-Pfad, nie im Sleep -- die Uhr blieb also auf dem Stand
-      // von vor dem Einschlafen stehen und sprang erst beim Aufwachen auf
-      // die aktuelle Zeit. Guenstig genug (liest nur Systemzeit/WiFi-Status,
-      // setzt Label-Text), um hier ebenfalls alle ~20ms mitzulaufen.
+      // Keep clock, Wi-Fi and power labels current during sleep. Servicing them
+      // only in the active loop left the clock stale until wake. These inexpensive
+      // status reads and label updates can also run at the sleep-loop cadence.
       settings_update_power_status();
       if (networkManager.isNetworkConnected()) {
         const DeviceConfig& sleep_cfg = configManager.getConfig();
@@ -1236,13 +1174,9 @@ void loop() {
         settings_update_wifi_status(false, nullptr, nullptr);
       }
       uiManager.updateStatusbar();
-      // Gleiches Muster nochmal, zwei weitere Stellen gefunden, die nur im
-      // aktiven Loop liefen: tiles_process_visible_cache_refresh() wendet
-      // Struktur-/Icon-Aenderungen (aus dem 60s-Bridge-Sync oben) auf
-      // sichtbare Kacheln an -- ohne das blieben Icon-Updates waehrend des
-      // Sleeps haengen. mqttServiceLocalSensors() aktualisiert die interne
-      // Batterie- und den externen OneWire-Temperatursensor (alle 500ms
-      // eigen-throttled) -- dieselbe Luecke wie bei den Statusbar-Werten.
+      // Apply pending structure/icon changes from the periodic Bridge sync during
+      // sleep as well. Service local battery and OneWire sensor state too; that
+      // service already limits itself to 500 ms intervals.
       tiles_process_visible_cache_refresh(true);
       mqttServiceLocalSensors();
       tiles_process_bridge_cache_refresh(true);
@@ -1250,13 +1184,10 @@ void loop() {
       process_energy_response_queue();
       energy_service_periodic();
     }
-    // Touch-Wake: abfragen ob Touch aktiv. Aufwecken ist NUR NOCH eine
-    // Display-Hardware-Aktion (Backlight/Panel an) -- keine Sonderbehandlung
-    // fuer Daten mehr (kein Extra-Request, kein Extra-Drain). Die Hintergrund-
-    // verarbeitung oben laeuft ohnehin durchgehend, gleiche Logik ob wach oder
-    // schlafend; das kurze delay(20) unten (statt vorher 150ms) haelt das
-    // Zeitfenster fuer "gerade eingetroffener Wert noch nicht verarbeitet"
-    // strukturell klein, ohne dass das Aufwachen selbst etwas anstossen muss.
+    // Touch wake only changes display hardware. Background state processing runs
+    // in both modes, so wake needs no extra request or queue drain. The 20 ms sleep
+    // loop delay keeps newly received state close to presentation without adding
+    // a separate wake-time data path.
     BoardHAL::TouchPoint tp;
     if (BoardHAL::getTouch(&tp)) {
       Serial.printf("[Power] Sleep-poll touch detected: x=%d y=%d\n", tp.x, tp.y);
@@ -1267,7 +1198,7 @@ void loop() {
     delay(20);
     return;
   }
-  // Zurück im aktiven Modus
+  // Resume active mode.
   was_asleep = false;
 
   // Diagnostic: bracket every major step between here and the lv_timer_handler()
@@ -1280,13 +1211,9 @@ void loop() {
   const uint32_t s3_loop_started_us = micros();
 #endif
 
-  // Kein Wake-getriggerter Extra-Request mehr hier (frueher: wake_bridge_
-  // request_pending -> publishBridgeRequest()/energy_request_day_for_tiles()).
-  // Beides laeuft schon unabhaengig vom Sleep/Wake-Zustand periodisch von
-  // alleine (service_background_state_refresh() alle 60s, energy_service_
-  // periodic() alle 60s, beide oben/unten unconditional aufgerufen) --
-  // Aufwachen soll keine Datenverarbeitung anstossen, die nicht ohnehin
-  // schon laeuft, nur das Display anschalten.
+  // Do not add wake-triggered Bridge or Energy requests. Both services already
+  // refresh every 60 seconds in active and sleep modes. Waking should enable
+  // the display, not introduce another data-processing path.
   uint32_t t_wake = millis();
 
   const bool camera_popup_busy = camera_popup_is_busy();
@@ -1308,9 +1235,8 @@ void loop() {
   uint32_t t_local_sensors = millis();
 
   if (first_run) Serial.println("[Loop] process_sensor_update_queue()...");
-  // Die Kamera verdeckt alle anderen Popups. Deren Daten bleiben in ihren
-  // zusammenfassenden Queues erhalten und werden direkt nach dem Schliessen
-  // verarbeitet; so unterbrechen z.B. Wetter-JSON und Graph-Aufbau kein Bild.
+  // The camera covers other popups. Keep their coalesced updates queued until
+  // it closes so weather parsing and graph construction do not interrupt frames.
   if (!camera_popup_busy) {
     process_sensor_popup_queue();
     process_weather_popup_queue();
@@ -1334,9 +1260,8 @@ void loop() {
     }
   }
   uint32_t t_update_queues = millis();
-  // Navigation/Layout/Style-Reloads bleiben als Pending-Flags erhalten. Hinter
-  // dem vollflächigen Kamera-Popup wären sie unsichtbar, könnten aber einen
-  // kompletten Frame kosten.
+  // Retain navigation/layout/style reload flags while the camera covers them;
+  // rebuilding invisible content could otherwise cost a complete camera frame.
   if (!camera_popup_busy) {
     tiles_process_reload_requests();
   }
@@ -1361,7 +1286,7 @@ void loop() {
   const uint32_t s3_pre_lvgl_us = micros() - s3_loop_started_us;
   const uint32_t s3_lvgl_started_us = micros();
 #endif
-  yield();  // Watchdog füttern
+  yield();  // Yield so the watchdog can be serviced.
   lv_timer_handler();
 #if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
   GuitionS3Diagnostics::noteUiLoop(
@@ -1369,13 +1294,13 @@ void loop() {
 #endif
   tiles_process_pending_folder_switch();
   GuitionS3Diagnostics::service();
-  yield();  // Watchdog füttern
+  yield();  // Yield so the watchdog can be serviced.
   if (first_run) {
     Serial.println("[Loop] lv_timer_handler() COMPLETE!");
     Serial.flush();
   }
 
-  // Nur 1ms Pause für maximale FPS
+  // Keep this pause at 1 ms for camera throughput.
   delay(1);
 
   if (first_run) Serial.println("[Loop] webAdminServer.handle()...");
@@ -1383,11 +1308,9 @@ void loop() {
 
   if (first_run) Serial.println("[Loop] Network check...");
   if (configManager.isConfigured()) {
-    // MQTT-Socket, Reconnects und Puffer-Housekeeping laufen komplett auf
-    // dem Worker-Task (mqtt_worker_task oben, Single-Owner). Auf dem
-    // Loop-Task bleiben nur die beiden Queue-Enden, weil beide Flash/LVGL
-    // anfassen: das Post-Connect-Hochfahren (Subscribes/Discovery) und das
-    // Verarbeiten eingegangener Nachrichten.
+    // The worker owns the MQTT socket, reconnects and buffer maintenance.
+    // Only the application-facing queue ends remain on the loop: post-connect
+    // subscriptions/discovery and incoming handlers that touch flash or LVGL.
     mqttServicePostConnect();
     // Keep S3 input service bounded when Home Assistant echoes a live slider
     // command or sends a retained-state burst. Eight messages per UI cycle
@@ -1421,9 +1344,8 @@ void loop() {
     log_memory_status("runtime-60s");
   }
 
-  // Neuen Heap-Tiefststand SOFORT melden (nicht erst im 60s-Raster): ein
-  // "Min seit Boot: 4 KB" ohne Zeitpunkt laesst sich keinem Verursacher
-  // zuordnen. Schwelle 8 KB haelt das Log frei von Normalbetriebs-Rauschen.
+  // Report new heap lows immediately instead of waiting for the 60-second log.
+  // The timestamp helps identify the cause; the 8 KB threshold suppresses normal noise.
   {
     static uint32_t last_reported_min_heap = 0xFFFFFFFF;
     const uint32_t min_heap = ESP.getMinFreeHeap();

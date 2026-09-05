@@ -2,12 +2,12 @@
 
 #include <Arduino.h>
 
-#include "src/network/ha_bridge_config.h"
-#include "src/tiles/mdi_icons.h"
-#include "src/tiles/tile_renderer_fonts.h"
-#include "src/tiles/tile_renderer_shared.h"
+#include "src/network/bridge/ha_bridge_config.h"
+#include "src/tiles/icons/mdi_icons.h"
+#include "src/tiles/runtime/tile_renderer_fonts.h"
+#include "src/tiles/runtime/tile_renderer_shared.h"
 #include "src/types/energy/energy_data.h"
-#include "src/ui/energy_popup.h"
+#include "src/ui/popups/energy/energy_popup.h"
 
 namespace {
 

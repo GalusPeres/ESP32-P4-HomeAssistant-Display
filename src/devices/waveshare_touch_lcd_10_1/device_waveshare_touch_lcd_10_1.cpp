@@ -22,7 +22,7 @@
 #include <driver/ppa.h>
 #include <hal/lcd_types.h>
 
-#include "src/core/dma2d_arbiter.h"
+#include "src/core/display/dma2d_arbiter.h"
 #include "src/devices/common/p4_dsi_camera_presenter.h"
 #include "src/devices/waveshare_touch_lcd_10_1/sdmmc.h"
 #include "src/devices/waveshare_touch_lcd_10_1/vendor/displays_config.h"

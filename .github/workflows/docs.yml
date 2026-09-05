@@ -8,8 +8,8 @@ on:
       - "mkdocs.yml"
       - ".github/workflows/docs.yml"
       - "release-helper/prepare-web-installer.mjs"
-      - "tools/test-installer-otadata.mjs"
-      - "tools/test-web-installer.mjs"
+      - "tools/tests/build/test-installer-otadata.mjs"
+      - "tools/tests/build/test-web-installer.mjs"
   workflow_dispatch:
 
 permissions:
@@ -31,8 +31,8 @@ jobs:
         with:
           python-version: "3.x"
       - run: pip install mkdocs-material ghp-import
-      - run: node tools/test-installer-otadata.mjs
-      - run: node tools/test-web-installer.mjs
+      - run: node tools/tests/build/test-installer-otadata.mjs
+      - run: node tools/tests/build/test-web-installer.mjs
       - run: mkdocs build --strict
       - name: Mirror latest release assets into the documentation origin
         env:

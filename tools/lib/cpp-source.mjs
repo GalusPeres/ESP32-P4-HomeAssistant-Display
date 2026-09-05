@@ -1,6 +1,6 @@
 // Preserve offsets while masking comments and literals for brace-based extraction.
 export function maskCpp(source) {
-  return source.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'/g,
+  return source.replace(/(?:u8|u|U|L)?R"([^ ()\\\t\r\n]{0,16})\([\s\S]*?\)\1"|\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'/g,
     (token) => token.replace(/[^\n]/g, ' '));
 }
 
@@ -38,6 +38,6 @@ export function cppFunctionDefinitions(source) {
 
 // Compare code tokens while allowing comment translation and whitespace changes.
 export function cppTokens(source) {
-  return source.match(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|\w+|[^\s]/g)
+  return source.match(/(?:u8|u|U|L)?R"([^ ()\\\t\r\n]{0,16})\([\s\S]*?\)\1"|\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|\w+|[^\s]/g)
     ?.filter((token) => !token.startsWith('//') && !token.startsWith('/*')) ?? [];
 }

@@ -4,10 +4,10 @@
 #include <algorithm>
 #include <vector>
 
-#include "src/core/config_manager.h"
-#include "src/core/i18n.h"
+#include "src/core/config/config_manager.h"
+#include "src/core/i18n/i18n.h"
 #include "src/devices/device.h"
-#include "src/web/web_admin_utils.h"
+#include "src/web/server/web_admin_utils.h"
 
 namespace {
 
@@ -24,7 +24,7 @@ bool ends_with_panim(const String& name) {
 }
 
 // Scans /animations and returns the .panim file names (basename only), sorted.
-// Mirrors the working file-browser pattern in web_admin_handlers.cpp: open the
+// Mirrors the working file-browser pattern in web_admin_files.cpp: open the
 // directory and iterate openNextFile() directly -- do NOT gate on the opened
 // dir's isDirectory(), which returns false on the custom WaveshareSDMMCFS.
 std::vector<String> list_animations() {

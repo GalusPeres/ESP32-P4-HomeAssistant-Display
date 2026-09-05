@@ -7,9 +7,9 @@
 #include <esp_cache.h>
 #include <freertos/task.h>
 
-#include "src/core/board_hal.h"
-#include "src/core/crash_log.h"
-#include "src/core/dma2d_arbiter.h"
+#include "src/core/hardware/board_hal.h"
+#include "src/core/diagnostics/crash_log.h"
+#include "src/core/display/dma2d_arbiter.h"
 
 namespace p4_dsi_camera_presenter {
 namespace {

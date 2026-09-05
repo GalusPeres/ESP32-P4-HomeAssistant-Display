@@ -1,12 +1,12 @@
 #include "src/types/clock/renderer.h"
 #include "src/types/clock/clock_format.h"
-#include "src/core/config_manager.h"
-#include "src/core/i18n.h"
-#include "src/tiles/tile_renderer_shared.h"
-#include "src/tiles/tile_renderer_fonts.h"
-#include "src/tiles/mdi_icons.h"
+#include "src/core/config/config_manager.h"
+#include "src/core/i18n/i18n.h"
+#include "src/tiles/runtime/tile_renderer_shared.h"
+#include "src/tiles/runtime/tile_renderer_fonts.h"
+#include "src/tiles/icons/mdi_icons.h"
 #include "src/fonts/ui_fonts.h"
-#include "src/ui/image_screensaver.h"
+#include "src/ui/screensaver/image_screensaver.h"
 #include <Arduino.h>
 #include <new>
 #include <time.h>
@@ -97,9 +97,9 @@ static lv_text_align_t clock_text_align(uint8_t raw) {
   }
 }
 
-// Bewaehrte weiche Variante aus der stabilen Screensaver-Version: neun sehr
-// schwache Kopien ergeben einen ruhigen Fake-Blur. Die spaetere Erweiterung
-// auf 21 Kopien wurde wegen der zusaetzlichen PPA-Last wieder verworfen.
+// Retain the soft shadow from the stable screensaver: nine faint copies
+// approximate a smooth blur. A later expansion to 21 copies was reverted
+// because of the additional PPA load.
 static constexpr uint8_t kClockShadowCopies = 9;
 
 struct ClockShadowSet {
@@ -127,8 +127,8 @@ struct ClockShadowSet {
     text_height = text_size.y > 0 ? text_size.y : font->line_height;
     if (fill_parent) return;
 
-    // Vor jeder Neuberechnung erst auf die echte Textbreite zuruecksetzen.
-    // Danach erhalten beide Uhrzeilen gemeinsam die Breite der laengeren.
+    // Reset to the actual text width before recalculating, then give both
+    // clock lines the width of the longer one.
     lv_obj_set_size(line, text_width, text_height);
     if (container) {
       if (main_label) lv_obj_set_size(main_label, text_width, text_height);
@@ -251,9 +251,9 @@ static void clock_timer_cb(lv_timer_t* timer) {
   update_clock_labels(data);
 }
 
-// Erzeugt eine Uhrzeile. Mit text_shadow liegen mehrere leicht versetzte
-// dunkle Duplikat-Labels hinter dem eigentlichen Text. Alles steckt in einem
-// layoutneutralen Container, den der Flex-Stack wie ein Label zentriert.
+// Create a clock line. With text_shadow, several slightly offset dark copies
+// sit behind the text. A layout-neutral container lets the flex stack center
+// the complete group like a single label.
 static lv_obj_t* create_clock_line(lv_obj_t* stack,
                                    const ClockWidgetConfig& config,
                                    uint8_t raw_font_size, uint8_t fallback,
@@ -327,7 +327,7 @@ static lv_obj_t* create_clock_line(lv_obj_t* stack,
     shadow_out->alignment = normalize_clock_alignment(alignment);
   }
   lv_obj_t* label = lv_label_create(line);
-  if (!label) return nullptr;  // line wird mit dem Stack aufgeraeumt
+  if (!label) return nullptr;  // The stack owns and cleans up line.
   set_label_style(label, lv_color_white(), font);
   lv_obj_set_style_text_align(label, clock_text_align(alignment), 0);
   if (config.fill_parent) lv_obj_set_width(label, LV_PCT(100));
@@ -371,7 +371,7 @@ lv_obj_t* create_clock_widget(lv_obj_t* parent,
                           &time_shadows);
   }
 
-  // Die Datumszeile traegt auch einen alleinstehenden Wochentag.
+  // The date line also holds a standalone weekday.
   lv_obj_t* date_label = nullptr;
   ClockShadowSet date_shadows;
   if (config.show_date || config.show_weekday) {
@@ -488,7 +488,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
                  has_header ? tile_layout::scale(18) : 0);
   }
 
-  // Jede Clock-Kachel oeffnet denselben global konfigurierten Screensaver.
+  // Every clock tile opens the same globally configured screensaver.
   lv_obj_add_event_cb(
       card,
       [](lv_event_t*) { show_image_screensaver(); },

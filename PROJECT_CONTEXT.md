@@ -29,7 +29,7 @@ Shared project state. `AGENTS.md` is the only rulebook; replace stale facts here
 - Recent stabilization work includes S3 update/display guards, MQTT packet
   validation, duplicate Light update coalescing, bounded S3 update work, and
   incremental Weather parsing (`e3de63c`, `631de57`, `8d5771c`, `33b4e06`).
-- All 65 host tests and the strict docs build pass. The maintenance refactoring
+- Host regression tests and the strict docs build pass. The maintenance refactoring
   still needs final Waveshare 8-inch and Guition S3 builds and hardware checks.
   Previously validated LCD-4 Rev 4.0 builds/packages remain separate evidence.
 - The experimental Guition S3 XIP/`-O2` performance path was reverted in
@@ -148,12 +148,12 @@ Issue: https://github.com/GalusPeres/HomeTiles/issues/30
   Date/Time, Select, Button, and related entities; track priority in live issues.
 
 ## Current maintenance refactoring
-
 - Local commits are authorized; no push or release is authorized for this work.
 - `ARCHITECTURE.md` maps ownership, reviewed risks and the remaining roadmap;
   `CONTRIBUTING.md` explains device/tile additions and generated-source workflows.
-- Host tooling shares one device catalog. HTTP endpoints have separate owners;
-  type-owned state, tile policies, queue service and settings codec have tests.
-- Admin source is split into 51 units with unchanged deployed JS/gzip bytes.
+- Subsystems and tests use domain folders; comments and technical logs are English.
+- Host tooling shares one device catalog; Admin source has 51 ordered source units.
+- HTTP ownership, type state/policies, queue service and settings codec have tests.
+- Regression fixes cover Media gesture cancellation and setup credential escaping.
 - Both requested application BINs must be no larger than their matching baseline;
   use `tools/compare-firmware-size.mjs`. Hardware speed/stability remain unmeasured.
