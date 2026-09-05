@@ -29,7 +29,7 @@ Shared project state. `AGENTS.md` is the only rulebook; replace stale facts here
 - Recent stabilization work includes S3 update/display guards, MQTT packet
   validation, duplicate Light update coalescing, bounded S3 update work, and
   incremental Weather parsing (`e3de63c`, `631de57`, `8d5771c`, `33b4e06`).
-- All 64 host tests and the strict docs build pass. The maintenance refactoring
+- All 65 host tests and the strict docs build pass. The maintenance refactoring
   still needs final Waveshare 8-inch and Guition S3 builds and hardware checks.
   Previously validated LCD-4 Rev 4.0 builds/packages remain separate evidence.
 - The experimental Guition S3 XIP/`-O2` performance path was reverted in
@@ -153,7 +153,7 @@ Issue: https://github.com/GalusPeres/HomeTiles/issues/30
 - `ARCHITECTURE.md` maps ownership, reviewed risks and the remaining roadmap;
   `CONTRIBUTING.md` explains device/tile additions and generated-source workflows.
 - Host tooling shares one device catalog. HTTP endpoints have separate owners;
-  tile policies, queue service and the settings access codec have focused tests.
+  type-owned state, tile policies, queue service and settings codec have tests.
 - Admin source is split into 51 units with unchanged deployed JS/gzip bytes.
 - Both requested application BINs must be no larger than their matching baseline;
   use `tools/compare-firmware-size.mjs`. Hardware speed/stability remain unmeasured.

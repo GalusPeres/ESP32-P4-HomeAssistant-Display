@@ -1,9 +1,8 @@
 # HomeTiles architecture and maintenance guide
 
 This contributor guide explains ownership boundaries and remaining maintenance
-work. It is not another agent rulebook: see [AGENTS.md](AGENTS.md) for rules,
-[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for current validation and
-[RELEASING.md](RELEASING.md) for build/release procedures.
+work. See [AGENTS.md](AGENTS.md) for rules, [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md)
+for current validation and [RELEASING.md](RELEASING.md) for build/release procedures.
 
 The priority is stable, responsive firmware; refactoring should clarify ownership and make behavior easier to test or extend.
 
@@ -120,6 +119,8 @@ The shared browser scope and load order remain dependencies between source units
 
 ### Tile identities, policies and state dispatch
 
+Each type owns its runtime records in `state.h` or `widgets.h`.
+`tile_renderer.h` preserves compatibility and owns the aggregate grid cache/API.
 `src/tiles/tile_type.h` owns stable numeric IDs, including retired values.
 `tile_type_policy.h` separates entity persistence, cached state, popup-mode,
 MQTT routing/subscription, icon-refresh and screensaver eligibility decisions.

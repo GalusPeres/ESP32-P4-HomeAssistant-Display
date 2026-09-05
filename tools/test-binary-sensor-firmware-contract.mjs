@@ -12,7 +12,7 @@ const tileConfigHeader = read('src/tiles/tile_config.h');
 const tileTypes = read('src/tiles/tile_type.h');
 const tilePolicy = read('src/tiles/tile_type_policy.h');
 const tileConfig = read('src/tiles/tile_config.cpp');
-const tileRendererHeader = read('src/tiles/tile_renderer.h');
+const binaryStateHeader = read('src/types/binary_sensor/state.h');
 const tileRenderer = read('src/tiles/tile_renderer.cpp');
 const binaryRenderer = read('src/types/binary_sensor/renderer.cpp');
 const registry = read('src/types/types_registry.cpp');
@@ -57,7 +57,7 @@ for (const marker of [
   'char icon_name[40] = {};',
   'BINARY_SENSOR_PAYLOAD_MAX = 512'
 ]) {
-  assert.ok(tileRendererHeader.includes(marker),
+  assert.ok(binaryStateHeader.includes(marker),
             `Bounded Binary Sensor state field is missing: ${marker}`);
 }
 

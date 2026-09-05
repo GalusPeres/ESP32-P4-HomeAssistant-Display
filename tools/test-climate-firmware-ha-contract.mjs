@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 
 const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
-const tileHeader = read('../src/tiles/tile_renderer.h');
+const climateStateHeader = read('../src/types/climate/state.h');
 const tileRenderer = read('../src/tiles/tile_renderer.cpp');
 const climateHeader = read('../src/ui/climate_popup.h');
 const climatePopup = read('../src/ui/climate_popup.cpp');
@@ -22,7 +22,7 @@ for (const marker of [
   }
 }
 
-for (const source of [tileHeader, climateHeader]) {
+for (const source of [climateStateHeader, climateHeader]) {
   if (!source.includes('float target_humidity_step = 1.0f;')) {
     throw new Error('target_humidity_step is missing from a Climate state hop');
   }

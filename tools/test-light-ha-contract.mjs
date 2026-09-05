@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 
 const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
-const tileHeader = read('../src/tiles/tile_renderer.h');
+const switchStateHeader = read('../src/types/switch/state.h');
 const tileRenderer = read('../src/tiles/tile_renderer.cpp');
 const lightHeader = read('../src/ui/light_popup.h');
 const lightPopup = read('../src/ui/light_popup.cpp');
 const switchRenderer = read('../src/types/switch/renderer.cpp');
 
-if (!/struct SwitchState \{\s*bool available = true;/s.test(tileHeader) ||
+if (!/struct SwitchState \{\s*bool available = true;/s.test(switchStateHeader) ||
     !lightHeader.includes('bool available = true;')) {
   throw new Error('Light availability is missing from a runtime state hop');
 }

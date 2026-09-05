@@ -13,6 +13,7 @@ facts live in [BOARD_SETTINGS.md](BOARD_SETTINGS.md) and the device READMEs.
 | Board wiring, panel initialization, touch or storage hardware | `src/devices/<exact-device>/` |
 | Build/release/installer identity | `tools/device-profiles.json` and `sketch.yaml` |
 | Tile rendering, HTTP fields and translations exported to the browser | `src/types/<type>/` |
+| Runtime state, widget records and type-specific inline helpers | The type's `state.h` or `widgets.h`; `tile_renderer.h` remains the compatibility entry point |
 | Stable tile IDs and shared eligibility rules | `src/tiles/tile_type.h`, `tile_type_policy.h` |
 | Active/sleep queue service order and budgets | `src/tiles/tile_update_service.h` |
 | Folder snapshots and cached state application | `src/ui/tab_tiles_unified.cpp` |
@@ -102,7 +103,8 @@ responsibilities.
 4. Define every saved field's reset, validation, copy/import/export and
    migration semantics. `PackedTileV7` remains a binary contract; a new field
    requires explicit design for its storage and any sidecar lifecycle.
-5. Implement bounded runtime state and a clear widget/reset owner. Register
+5. Put bounded runtime state and widget records in the type's own header,
+   with a clear reset owner and explicit header dependencies. Register
    queue service in `tile_update_service.h`; connect state dispatch and cached
    restoration with the same semantics. Keep LVGL work on its existing owner.
 6. Check folders, unavailable states, repeated popup open/close, sleep/wake,

@@ -3,6 +3,13 @@
 
 #include <lvgl.h>
 #include "src/tiles/tile_config.h"
+#include "src/types/sensor/widgets.h"
+#include "src/types/switch/state.h"
+#include "src/types/cover/state.h"
+#include "src/types/binary_sensor/state.h"
+#include "src/types/climate/state.h"
+#include "src/types/weather/widgets.h"
+#include "src/types/media/widgets.h"
 
 // Forward declarations
 typedef void (*scene_publish_cb_t)(const char* scene_alias);
@@ -12,356 +19,6 @@ enum class GridType : uint8_t {
   TAB1 = 1,
   TAB2 = 2,
   SCREENSAVER = 3
-};
-
-struct SensorTileWidgets {
-  lv_obj_t* value_label = nullptr;
-  lv_obj_t* unit_label = nullptr;
-  lv_obj_t* gauge = nullptr;
-  int32_t gauge_min = 0;
-  int32_t gauge_max = 100;
-  lv_obj_t* chart = nullptr;
-  lv_chart_series_t* series = nullptr;
-};
-
-struct SwitchTileWidgets {
-  lv_obj_t* icon_label = nullptr;
-  lv_obj_t* title_label = nullptr;
-  lv_obj_t* switch_obj = nullptr;
-};
-
-enum CoverFeature : uint8_t {
-  COVER_FEATURE_OPEN = 1U << 0,
-  COVER_FEATURE_CLOSE = 1U << 1,
-  COVER_FEATURE_SET_POSITION = 1U << 2,
-  COVER_FEATURE_STOP = 1U << 3,
-  COVER_FEATURE_OPEN_TILT = 1U << 4,
-  COVER_FEATURE_CLOSE_TILT = 1U << 5,
-  COVER_FEATURE_STOP_TILT = 1U << 6,
-  COVER_FEATURE_SET_TILT_POSITION = 1U << 7
-};
-
-struct CoverState {
-  bool valid = false;
-  bool available = false;
-  bool assumed_state = false;
-  bool has_position = false;
-  bool has_tilt_position = false;
-  uint8_t position = 0;
-  uint8_t tilt_position = 0;
-  uint8_t supported_features = 0;
-  char state[12] = {};
-  char device_class[12] = {};
-};
-
-struct CoverTileWidgets {
-  lv_obj_t* icon_label = nullptr;
-  lv_obj_t* title_label = nullptr;
-  lv_obj_t* state_label = nullptr;
-  lv_obj_t* value_label = nullptr;
-  uint32_t last_payload_hash = 0;
-  bool dynamic_icon = true;
-};
-
-enum class BinarySensorValue : uint8_t {
-  Missing = 0,
-  Off,
-  On,
-  Unknown,
-  Unavailable
-};
-
-struct BinarySensorState {
-  bool valid = false;
-  bool available = false;
-  bool has_available = false;
-  bool has_device_class = false;
-  bool has_last_changed = false;
-  bool has_icon = false;
-  BinarySensorValue value = BinarySensorValue::Missing;
-  uint64_t last_changed = 0;
-  char device_class[24] = {};
-  char icon_name[40] = {};
-};
-
-static constexpr size_t BINARY_SENSOR_PAYLOAD_MAX = 512;
-
-struct BinarySensorTileWidgets {
-  lv_obj_t* icon_label = nullptr;
-  lv_obj_t* title_label = nullptr;
-  lv_obj_t* state_label = nullptr;
-  uint32_t last_payload_hash = 0;
-  bool dynamic_icon = true;
-};
-
-struct ClimateState {
-  bool valid = false;
-  bool available = true;
-  bool has_supported_features = false;
-  bool has_current_temperature = false;
-  bool has_current_humidity = false;
-  bool has_target_temperature = false;
-  bool has_target_humidity = false;
-  bool has_target_range = false;
-  float current_temperature = 0.0f;
-  float current_humidity = 0.0f;
-  float target_temperature = 20.0f;
-  float target_humidity = 50.0f;
-  float target_temp_low = 18.0f;
-  float target_temp_high = 24.0f;
-  float min_temp = 7.0f;
-  float max_temp = 35.0f;
-  float min_humidity = 30.0f;
-  float max_humidity = 99.0f;
-  float target_temp_step = 0.5f;
-  float target_humidity_step = 1.0f;
-  uint16_t supported_features = 0;
-  char hvac_mode[16] = {};
-  char hvac_action[16] = {};
-  char fan_mode[16] = {};
-  char swing_mode[16] = {};
-  char swing_horizontal_mode[16] = {};
-  char temperature_unit[8] = {};
-  uint8_t hvac_modes_mask = 0;
-  uint8_t preset_mode_id = 0xFF;
-  uint8_t preset_modes_mask = 0;
-  uint16_t fan_modes_mask = 0;
-  uint8_t swing_modes_mask = 0;
-  uint8_t swing_horizontal_modes_mask = 0;
-};
-
-enum ClimateHvacModeMask : uint8_t {
-  CLIMATE_MODE_OFF = 1U << 0,
-  CLIMATE_MODE_HEAT = 1U << 1,
-  CLIMATE_MODE_COOL = 1U << 2,
-  CLIMATE_MODE_HEAT_COOL = 1U << 3,
-  CLIMATE_MODE_AUTO = 1U << 4,
-  CLIMATE_MODE_DRY = 1U << 5,
-  CLIMATE_MODE_FAN_ONLY = 1U << 6
-};
-
-inline String climateHvacModesCsv(uint8_t mask) {
-  String modes;
-  auto append = [&](uint8_t bit, const char* name) {
-    if ((mask & bit) == 0) return;
-    if (modes.length()) modes += ',';
-    modes += name;
-  };
-  append(CLIMATE_MODE_OFF, "off");
-  append(CLIMATE_MODE_HEAT, "heat");
-  append(CLIMATE_MODE_COOL, "cool");
-  append(CLIMATE_MODE_HEAT_COOL, "heat_cool");
-  append(CLIMATE_MODE_AUTO, "auto");
-  append(CLIMATE_MODE_DRY, "dry");
-  append(CLIMATE_MODE_FAN_ONLY, "fan_only");
-  return modes;
-}
-
-enum ClimatePresetMask : uint8_t {
-  CLIMATE_PRESET_NONE = 1U << 0,
-  CLIMATE_PRESET_ECO = 1U << 1,
-  CLIMATE_PRESET_AWAY = 1U << 2,
-  CLIMATE_PRESET_BOOST = 1U << 3,
-  CLIMATE_PRESET_COMFORT = 1U << 4,
-  CLIMATE_PRESET_HOME = 1U << 5,
-  CLIMATE_PRESET_SLEEP = 1U << 6,
-  CLIMATE_PRESET_ACTIVITY = 1U << 7
-};
-
-inline const char* climatePresetName(uint8_t id) {
-  static const char* const names[] = {
-      "none", "eco", "away", "boost", "comfort", "home", "sleep", "activity"};
-  return id < 8 ? names[id] : "";
-}
-
-inline String climatePresetModesCsv(uint8_t mask) {
-  String modes;
-  for (uint8_t id = 0; id < 8; ++id) {
-    if ((mask & (1U << id)) == 0) continue;
-    if (modes.length()) modes += ',';
-    modes += climatePresetName(id);
-  }
-  return modes;
-}
-
-enum ClimateFanModeMask : uint16_t {
-  CLIMATE_FAN_AUTO = 1U << 0,
-  CLIMATE_FAN_LOW = 1U << 1,
-  CLIMATE_FAN_MEDIUM = 1U << 2,
-  CLIMATE_FAN_HIGH = 1U << 3,
-  CLIMATE_FAN_ON = 1U << 4,
-  CLIMATE_FAN_OFF = 1U << 5,
-  CLIMATE_FAN_TOP = 1U << 6,
-  CLIMATE_FAN_MIDDLE = 1U << 7,
-  CLIMATE_FAN_FOCUS = 1U << 8,
-  CLIMATE_FAN_DIFFUSE = 1U << 9
-};
-
-inline String climateFanModesCsv(uint16_t mask) {
-  static const char* const names[] = {
-      "auto", "low", "medium", "high", "on",
-      "off", "top", "middle", "focus", "diffuse"};
-  String modes;
-  for (uint8_t id = 0; id < 10; ++id) {
-    if ((mask & (1U << id)) == 0) continue;
-    if (modes.length()) modes += ',';
-    modes += names[id];
-  }
-  return modes;
-}
-
-enum ClimateSwingModeMask : uint8_t {
-  CLIMATE_SWING_OFF = 1U << 0,
-  CLIMATE_SWING_ON = 1U << 1,
-  CLIMATE_SWING_VERTICAL = 1U << 2,
-  CLIMATE_SWING_HORIZONTAL = 1U << 3,
-  CLIMATE_SWING_BOTH = 1U << 4
-};
-
-inline String climateSwingModesCsv(uint8_t mask) {
-  static const char* const names[] = {
-      "off", "on", "vertical", "horizontal", "both"};
-  String modes;
-  for (uint8_t id = 0; id < 5; ++id) {
-    if ((mask & (1U << id)) == 0) continue;
-    if (modes.length()) modes += ',';
-    modes += names[id];
-  }
-  return modes;
-}
-
-enum ClimateHorizontalSwingModeMask : uint8_t {
-  CLIMATE_SWING_H_OFF = 1U << 0,
-  CLIMATE_SWING_H_ON = 1U << 1,
-  CLIMATE_SWING_H_LEFT = 1U << 2,
-  CLIMATE_SWING_H_CENTER = 1U << 3,
-  CLIMATE_SWING_H_RIGHT = 1U << 4,
-  CLIMATE_SWING_H_SWING = 1U << 5,
-  CLIMATE_SWING_H_WIDE = 1U << 6
-};
-
-inline String climateHorizontalSwingModesCsv(uint8_t mask) {
-  static const char* const names[] = {
-      "off", "on", "left", "center", "right", "swing", "wide"};
-  String modes;
-  for (uint8_t id = 0; id < 7; ++id) {
-    if ((mask & (1U << id)) == 0) continue;
-    if (modes.length()) modes += ',';
-    modes += names[id];
-  }
-  return modes;
-}
-
-struct ClimateTileWidgets {
-  lv_obj_t* icon_label = nullptr;
-  lv_obj_t* value_label = nullptr;
-  static constexpr uint8_t kMaxSlots = 6;
-  lv_obj_t* slot_roots[kMaxSlots] = {};
-  uint8_t slot_kinds[kMaxSlots] = {};
-  uint8_t slot_layouts[kMaxSlots] = {};
-  ClimateTileItemGeometry slot_geometry[kMaxSlots] = {};
-  uint8_t active_slot_count = 0;
-  bool dynamic_icon = true;
-  uint32_t last_payload_hash = 0;
-};
-
-struct WeatherForecastWidgets {
-  lv_obj_t* day_label = nullptr;
-  lv_obj_t* sep_label = nullptr;
-  lv_obj_t* icon_label = nullptr;
-  lv_obj_t* temp_label = nullptr;
-  lv_obj_t* temp_high_label = nullptr;
-  lv_obj_t* temp_high_unit_label = nullptr;
-  lv_obj_t* temp_low_label = nullptr;
-  lv_obj_t* temp_low_unit_label = nullptr;
-};
-
-static constexpr uint8_t WEATHER_FORECAST_MAX = 8;
-#if defined(DEVICE_LAYOUT_1024X600)
-static constexpr lv_coord_t WEATHER_FORECAST_COL_W = 125;
-#elif defined(DEVICE_LAYOUT_480X480)
-static constexpr lv_coord_t WEATHER_FORECAST_COL_W = 100;
-#else
-static constexpr lv_coord_t WEATHER_FORECAST_COL_W = 150;
-#endif
-
-// Map tile width (span_w) to number of forecast days shown
-inline uint8_t weather_forecast_count(uint8_t span_w) {
-  switch (span_w) {
-    case 1: return 1;
-    case 2: return 2;
-    case 3: return 4;
-    case 4: return 5;
-    case 5: return 6;
-    case 6: return 8;
-    default: return span_w >= 6 ? 8 : span_w;
-  }
-}
-
-struct WeatherTileWidgets {
-  lv_obj_t* icon_label = nullptr;
-  lv_obj_t* temp_label = nullptr;
-  lv_obj_t* condition_label = nullptr;
-  lv_obj_t* condition_sep_label = nullptr;
-  lv_obj_t* location_label = nullptr;
-  WeatherForecastWidgets forecast[WEATHER_FORECAST_MAX];
-  uint32_t last_payload_hash = 0;
-};
-
-struct MediaCoverRef {
-  lv_image_dsc_t* dsc = nullptr;
-  lv_image_dsc_t* popup_dsc = nullptr;
-  String source_url;
-  uint32_t url_hash = 0;
-  uint32_t requested_url_hash = 0;
-  uint32_t failed_url_hash = 0;
-  uint32_t failed_at_ms = 0;
-};
-
-struct MediaTileWidgets {
-  lv_obj_t* cover_clip = nullptr;
-  lv_obj_t* cover_image = nullptr;
-  MediaCoverRef* cover_ref = nullptr;
-  lv_obj_t* icon_label = nullptr;
-  lv_obj_t* previous_label = nullptr;
-  lv_obj_t* play_pause_label = nullptr;
-  lv_obj_t* next_label = nullptr;
-  lv_obj_t* title_label = nullptr;
-  lv_obj_t* media_title_label = nullptr;
-  lv_obj_t* media_subtitle_label = nullptr;
-  lv_obj_t* state_label = nullptr;
-  uint32_t last_payload_hash = 0;
-  uint32_t last_media_text_hash = 0;
-  bool has_media_position = false;
-  float media_position = 0.0f;
-  float media_duration = 0.0f;
-  uint32_t media_position_received_ms = 0;
-  bool has_media_volume = false;
-  float media_volume_level = 0.0f;
-  bool media_is_muted = false;
-  bool dynamic_icon = true;
-};
-
-struct SwitchState {
-  bool available = true;
-  bool has_state = false;
-  bool is_on = false;
-  bool has_color = false;
-  uint32_t color = 0;
-  bool has_hs = false;
-  float hs_h = 0.0f;
-  float hs_s = 0.0f;
-  bool has_brightness = false;
-  uint8_t brightness_pct = 100;
-  bool has_color_temp = false;
-  uint16_t color_temp_kelvin = 4000;
-  uint16_t min_color_temp_kelvin = 2000;
-  uint16_t max_color_temp_kelvin = 6535;
-  bool supports_color = false;
-  bool supports_brightness = false;
-  bool supports_temperature = false;
-  bool supported_modes_known = false;
-  bool supported_onoff_only = false;
 };
 
 struct TileWidgetCache {
@@ -389,7 +46,7 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
 // Renders one tile according to its type and returns the created object.
 lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type, scene_publish_cb_t scene_cb);
 
-// Typ-spezifische Render-Funktionen
+// Type-specific render functions
 lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type);
 lv_obj_t* render_scene_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, scene_publish_cb_t scene_cb);
 lv_obj_t* render_key_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type);
@@ -409,9 +66,9 @@ void reset_sensor_widgets(GridType grid_type);
 
 // Thread-safe sensor update queue (MQTT callback -> main loop).
 void queue_sensor_tile_update(GridType grid_type, uint8_t grid_index, const char* value, const char* unit = nullptr);
-void process_sensor_update_queue(uint8_t max_updates = 0);  // 0 = Queue komplett leeren
+void process_sensor_update_queue(uint8_t max_updates = 0);  // 0 drains the queue
 
-// Update-Funktionen (fuer Switches)
+// Switch widget reset functions
 void reset_switch_widget(GridType grid_type, uint8_t grid_index);
 void reset_switch_widgets(GridType grid_type);
 
@@ -458,17 +115,17 @@ void reset_weather_widget(GridType grid_type, uint8_t grid_index);
 void reset_weather_widgets(GridType grid_type);
 void tile_renderer_invalidate_weather_payload(GridType grid_type);
 void queue_weather_tile_update(GridType grid_type, uint8_t grid_index, const char* payload);
-void process_weather_update_queue(uint8_t max_updates = 0);  // 0 = Queue komplett leeren
+void process_weather_update_queue(uint8_t max_updates = 0);  // 0 drains the queue
 
 void reset_media_widget(GridType grid_type, uint8_t grid_index);
 void reset_media_widgets(GridType grid_type);
 void queue_media_tile_update(GridType grid_type, uint8_t grid_index, const char* payload);
-void process_media_update_queue(uint8_t max_updates = 0);  // 0 = Queue komplett leeren
+void process_media_update_queue(uint8_t max_updates = 0);  // 0 drains the queue
 
-// THREAD-SAFE: Queue fuer Tile-Graph-History (MQTT Callback -> Main Loop)
+// Thread-safe tile graph history queue (MQTT callback -> main loop).
 void queue_tile_graph_history(const char* entity_id, const char* payload, size_t len);
-void process_tile_graph_queue();  // Im Main Loop VOR lv_timer_handler() aufrufen!
-void request_tile_graph_history(const char* entity_id);  // Fordert History fuer entity an
+void process_tile_graph_queue();  // Call from the main loop before lv_timer_handler().
+void request_tile_graph_history(const char* entity_id);  // Request history for an entity.
 
 void tile_renderer_snapshot_tab0(TileWidgetCache* out);
 void tile_renderer_restore_tab0(const TileWidgetCache* in);
