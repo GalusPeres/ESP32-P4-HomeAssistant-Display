@@ -131,12 +131,20 @@ lives under `src/web/admin/`; type-specific behavior lives beside its type under
 and the syntax of each unit and the assembled result. There is no browser module
 loader, additional network request or runtime dependency introduced by this split.
 
-The initial extraction preserved the deployed bytes. Subsequent edits can change
-them without changing runtime behavior: updating a source-path comment added
-7 bytes to the raw script and 4 bytes to gzip. Current artifacts therefore need
-their own checks and size measurements. `tools/generate-web-assets.mjs` writes
-only changed output, preserving build caches. Shared browser scope and load order
-remain dependencies between source units.
+The readable assembly remains checked in. For delivery, the host tooling uses
+pinned Terser 5.51.2 with `compress: false` and `mangle: false` to remove ordinary
+comments and excess whitespace, retaining selected license/preserve comments.
+Identifier names are preserved and optimizer passes remain disabled.
+An independent Acorn syntax-tree comparison rejects changes except lexical
+locations/raw spelling and equivalent ordinary data-property shorthand. The
+formatted output is then gzipped for the firmware; it is not byte-identical to
+the readable assembly.
+
+Run `npm ci --ignore-scripts` before host tests or asset generation. These tools
+run only on the build computer; firmware and browser need no npm packages.
+`tools/generate-web-assets.mjs` writes only changed output, preserving build
+caches. Shared browser scope and load order remain dependencies between source
+units. Final BIN measurements remain separate from asset-size checks.
 
 ### Tile identities, policies and state dispatch
 
@@ -181,8 +189,10 @@ MQTT/Bridge, status, restart and border handlers. Endpoint families now live in
 and the existing `web_admin_hardware_io.cpp`. OTA handlers and their state now
 live together in `web_admin_ota.cpp`.
 `src/web/server/web_admin.cpp` retains server lifecycle and route registration.
-Small shared helpers live in `web_admin_handler_utils.h` and
-`web_admin_tile_helpers.h`.
+JSON escaping, JSON errors and case-insensitive suffix checks have one compiled
+owner in `web_admin_handler_utils.cpp`, avoiding a copy in each endpoint module.
+The private `web_admin_handler_utils.h` retains tiny inline device/storage and
+restart wrappers; `web_admin_tile_helpers.h` owns tile-specific shared helpers.
 Request fields, response behavior and persistence ordering remain the contract.
 
 ## Extending the project
@@ -238,6 +248,7 @@ camera buffer protections remain necessary; removing them would undo prior fixes
 ## Validation and performance acceptance
 
 Host tests establish contracts, not display or network behavior on real hardware.
+Install the pinned host dependencies with `npm ci --ignore-scripts` first.
 `node tools/run-tests.mjs` recursively discovers `tools/tests/<area>/test-*.mjs`;
 optional name fragments select domains or topics without a separate CI test list.
 The codec fixtures execute production C++ with platform shims; queue and cached

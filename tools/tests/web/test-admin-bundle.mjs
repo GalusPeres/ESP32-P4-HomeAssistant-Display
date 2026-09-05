@@ -1,28 +1,32 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { gunzipSync } from 'node:zlib';
 import { readAdminBundle } from '../../lib/admin-bundle.mjs';
+import { formatAdminDelivery } from '../../lib/admin-delivery.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const actual = readAdminBundle(repoRoot);
 const read = file => fs.readFileSync(path.join(repoRoot, file), 'utf8').replace(/\r\n?/g, '\n');
 assert.equal(actual.source, read('src/web/assets/admin.js'),
-  'Browser tests and firmware must consume the current assembled source');
+  'The readable assembled source must match its owning source units');
 const gzipBytes = Buffer.from([...read('src/web/generated/admin_js_gzip.inc')
   .matchAll(/0x([0-9a-f]{2})/g)].map(match => Number.parseInt(match[1], 16)));
-assert.equal(gunzipSync(gzipBytes).toString('utf8'), actual.source,
-  'The compressed firmware asset must match the source units exactly');
+assert.equal(gunzipSync(gzipBytes).toString('utf8'), await formatAdminDelivery(actual.source),
+  'The compressed firmware asset must match the verified delivery formatter');
 for (const type of ['sensor', 'binary_sensor', 'energy', 'weather', 'scene',
   'navigate', 'switch', 'cover', 'media', 'climate', 'camera', 'pixelanim', 'clock', 'text']) {
   assert.ok(actual.files.some(file => file.startsWith(`src/types/${type}/admin`)),
     `${type} browser behavior must live with its type module`);
 }
 
-const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'hometiles-admin-bundle-'));
+// Keep the isolated generator beneath the repository so Node resolves the
+// pinned host dependencies without a second install or a directory junction.
+const fixtureParent = path.join(repoRoot, 'build');
+fs.mkdirSync(fixtureParent, {recursive: true});
+const fixture = fs.mkdtempSync(path.join(fixtureParent, 'hometiles-admin-bundle-'));
 const write = (file, text) => {
   const target = path.join(fixture, file);
   fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -54,6 +58,7 @@ try {
   write('src/web/assets/admin.css', 'body { color: red; }\n');
   write('tools/generate-web-assets.mjs', read('tools/generate-web-assets.mjs'));
   write('tools/lib/admin-bundle.mjs', read('tools/lib/admin-bundle.mjs'));
+  write('tools/lib/admin-delivery.mjs', read('tools/lib/admin-delivery.mjs'));
   const generate = (...args) => spawnSync(process.execPath,
     [path.join(fixture, 'tools/generate-web-assets.mjs'), ...args], { encoding: 'utf8' });
   const generated = generate();
@@ -76,7 +81,7 @@ try {
   assert.equal(generate('--check').status, 0);
 } finally {
   const resolved = path.resolve(fixture);
-  assert.equal(path.dirname(resolved), path.resolve(os.tmpdir()));
+  assert.equal(path.dirname(resolved), path.resolve(fixtureParent));
   assert.ok(path.basename(resolved).startsWith('hometiles-admin-bundle-'));
   fs.rmSync(resolved, { recursive: true });
 }

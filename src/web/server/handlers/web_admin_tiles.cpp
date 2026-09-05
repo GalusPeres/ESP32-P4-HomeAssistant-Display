@@ -19,6 +19,8 @@
 #include <new>
 #include "src/web/server/handlers/web_admin_handler_utils.h"
 
+using namespace web_admin_handlers;
+
 namespace {
 
 static String dynamicMqttEntityForTile(const Tile& tile) {

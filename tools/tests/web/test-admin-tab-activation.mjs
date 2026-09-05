@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 
 import {
-  adminSource, extractFunction, inlineScriptSafe, readRepoFile
+  adminSource, extractDeliveredFunction, inlineScriptSafe, readRepoFile
 } from '../../lib/admin-source.mjs';
 import {runDomHarness} from '../../lib/headless-dom.mjs';
 
@@ -43,7 +43,7 @@ const harness = `<!doctype html><html><body>
   <pre id="result">running</pre>
   <script>
   (() => {
-    ${inlineScriptSafe(extractFunction('setActiveTabButton'))}
+    ${inlineScriptSafe(extractDeliveredFunction('setActiveTabButton'))}
     function activate(tabName) {
       document.querySelectorAll('.tab-content')
         .forEach(tab => tab.classList.remove('active'));

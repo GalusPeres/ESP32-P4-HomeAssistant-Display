@@ -1,10 +1,11 @@
-// Shared access to the Admin sources for the browser contract tests. The DOM
-// harnesses must run the real production functions, so every test cuts them
-// out of admin.js instead of re-implementing them.
+// Structural assertions inspect the readable source. Runtime harnesses execute
+// the actual gzip delivery asset, including its host-side formatting step.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {gunzipSync} from 'node:zlib';
+import {parse} from 'acorn';
 
 export const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -15,8 +16,28 @@ export function readRepoFile(...segments) {
 
 export const adminSource = readRepoFile('src', 'web', 'assets', 'admin.js');
 
+export function readAdminDeliverySource() {
+  const include = readRepoFile('src', 'web', 'generated', 'admin_js_gzip.inc');
+  const bytes = Buffer.from([...include.matchAll(/0x([0-9a-f]{2})/g)]
+    .map(match => Number.parseInt(match[1], 16)));
+  return gunzipSync(bytes).toString('utf8');
+}
+
+let deliveredFunctions;
+export function extractDeliveredFunction(name) {
+  if (!deliveredFunctions) {
+    const source = readAdminDeliverySource();
+    const ast = parse(source, {ecmaVersion: 'latest', sourceType: 'script'});
+    deliveredFunctions = new Map(ast.body
+      .filter(node => node.type === 'FunctionDeclaration')
+      .map(node => [node.id.name, source.slice(node.start, node.end)]));
+  }
+  assert.ok(deliveredFunctions.has(name), `${name} must exist in the delivered Admin asset`);
+  return deliveredFunctions.get(name);
+}
+
 // Returns the complete declaration of a top-level admin.js function, including
-// an `async` prefix, so the harness executes the shipped code path.
+// an `async` prefix, for assertions about the readable source contract.
 export function extractFunction(name, source = adminSource) {
   const marker = `function ${name}(`;
   const start = source.indexOf(marker);

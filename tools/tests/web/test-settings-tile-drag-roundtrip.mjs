@@ -1,10 +1,10 @@
-import {extractFunction, inlineScriptSafe} from '../../lib/admin-source.mjs';
+import {extractDeliveredFunction, inlineScriptSafe} from '../../lib/admin-source.mjs';
 import {runDomHarness} from '../../lib/headless-dom.mjs';
 
 const productionFunctions = [
-  extractFunction('restoreCurrentTileSelectionUi'),
-  extractFunction('enableTileDrag'),
-  extractFunction('enableSettingsHiddenSlot')
+  extractDeliveredFunction('restoreCurrentTileSelectionUi'),
+  extractDeliveredFunction('enableTileDrag'),
+  extractDeliveredFunction('enableSettingsHiddenSlot')
 ].join('\n\n');
 
 const harness = `<!doctype html>

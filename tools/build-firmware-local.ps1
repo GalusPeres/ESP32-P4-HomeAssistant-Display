@@ -45,7 +45,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 & $node.Source (Join-Path $PSScriptRoot 'generate-web-assets.mjs') --check
 if ($LASTEXITCODE -ne 0) {
-    throw 'Generated WebUI assets are stale. Run tools/generate-web-assets.mjs.'
+    throw 'WebUI asset verification failed. Install host dependencies with npm ci --ignore-scripts, then run node tools/generate-web-assets.mjs.'
 }
 & $node.Source (Join-Path $PSScriptRoot 'run-tests.mjs')
 if ($LASTEXITCODE -ne 0) {

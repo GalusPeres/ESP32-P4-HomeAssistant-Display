@@ -5,6 +5,8 @@
 #include <vector>
 #include "src/web/server/handlers/web_admin_handler_utils.h"
 
+using namespace web_admin_handlers;
+
 void WebAdminServer::handleGetScreensaver() {
   webAdminMarkActivity();
   String json = screensaverConfig.toJson(true);

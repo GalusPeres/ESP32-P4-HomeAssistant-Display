@@ -3,21 +3,34 @@
 This directory owns the shared browser editor. Type-specific browser code
 lives beside its firmware module in `src/types/<type>/admin*.js`.
 
-`bundle.json` lists complete source units in execution order. The asset
-generator assembles them into `src/web/assets/admin.js`, then creates the
-compressed includes and content hashes used by firmware. Edit source units,
-not the assembled file.
+`bundle.json` lists 51 complete source units in execution order. The asset
+generator keeps a readable assembly at `src/web/assets/admin.js`. It separately
+formats a delivery copy and creates the compressed includes and content hashes
+used by firmware. Edit the source units, not the assembled or compressed files.
+
+With Node.js/npm installed, run from the repository root. Install the locked
+host dependencies before generation or tests, and again after lockfile changes:
 
 ```text
+npm ci --ignore-scripts
 node tools/generate-web-assets.mjs
+node tools/generate-web-assets.mjs --check
 node tools/tests/web/test-admin-bundle.mjs
 node tools/run-tests.mjs
 ```
 
-The browser still loads one classic script. These source units retain the
-existing shared scope and function names; they are not independently loaded
-ES modules. Assembly adds no wrappers, requests, runtime lookups or bytes.
-The extraction preserved the original normalized JavaScript and gzip bytes.
+The browser still loads one classic script with the existing shared scope,
+function names and execution order. No module loader, extra requests or runtime
+npm dependency are introduced.
+
+Delivery formatting uses pinned Terser 5.51.2 with `compress: false` and
+`mangle: false`: ordinary comments and excess whitespace are removed; selected
+license/preserve comments and identifier names stay intact. Optimizer passes
+remain disabled. An independent Acorn syntax-tree check permits only lexical
+metadata differences and equivalent ordinary data-property shorthand.
+The checked delivery output is gzipped;
+its bytes differ from the readable assembly. Asset savings do not establish
+the final firmware size or runtime performance.
 
 | Directory | Responsibility |
 | --- | --- |
@@ -39,9 +52,9 @@ The extraction preserved the original normalized JavaScript and gzip bytes.
 
 The generator parses each source unit and the complete bundle without
 executing browser code. Every source file is listed once; an unlisted file
-fails validation. DOM/browser tests continue to execute the generated
-production functions, and `test-admin-bundle.mjs` verifies that compressed
-firmware content matches the assembled source.
+fails validation. DOM/browser tests continue to execute production functions.
+Bundle checks cover the readable assembly; delivery checks compare syntax trees
+and verify the compressed firmware content and hashes.
 
 When adding a type, use its existing registry load/save/reset callbacks and
 central translations. New type code must still support both preview paths,

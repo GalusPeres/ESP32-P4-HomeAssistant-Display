@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 
 import {
-  adminSource, extractFunction, inlineScriptSafe
+  adminSource, extractDeliveredFunction, inlineScriptSafe
 } from '../../lib/admin-source.mjs';
 import {runDomHarness} from '../../lib/headless-dom.mjs';
 
@@ -43,7 +43,7 @@ const harness = `<!doctype html><html><body>
       if (frame) frame.callback();
     };
 
-    ${inlineScriptSafe(extractFunction('perFrame'))}
+    ${inlineScriptSafe(extractDeliveredFunction('perFrame'))}
     try {
       let calls = 0;
       const handler = perFrame(() => { calls++; });

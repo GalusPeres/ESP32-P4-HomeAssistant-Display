@@ -16,6 +16,8 @@
 #include <string.h>
 #include "src/web/server/handlers/web_admin_handler_utils.h"
 
+using namespace web_admin_handlers;
+
 void WebAdminServer::handleSaveMQTT() {
   const bool ajax_save =
       server.hasArg("_ajax") && server.arg("_ajax") == "1";

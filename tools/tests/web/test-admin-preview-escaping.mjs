@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 
 import {
-  adminSource, extractFunction, inlineScriptSafe, readRepoFile
+  adminSource, extractDeliveredFunction, inlineScriptSafe, readRepoFile
 } from '../../lib/admin-source.mjs';
 import {runDomHarness} from '../../lib/headless-dom.mjs';
 
@@ -50,7 +50,7 @@ const harness = `<!doctype html><html><body>
   <pre id="result">running</pre>
   <script>
   (() => {
-    ${inlineScriptSafe(extractFunction('escapeHtml'))}
+    ${inlineScriptSafe(extractDeliveredFunction('escapeHtml'))}
     try {
       const hostile = '<img src=x onerror="document.body.dataset.xss=1">';
       const tile = document.getElementById('tile');

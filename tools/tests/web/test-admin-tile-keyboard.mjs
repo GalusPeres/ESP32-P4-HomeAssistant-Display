@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 
 import {
-  adminSource, extractFunction, inlineScriptSafe, readRepoFile
+  adminSource, extractDeliveredFunction, inlineScriptSafe, readRepoFile
 } from '../../lib/admin-source.mjs';
 import {runDomHarness} from '../../lib/headless-dom.mjs';
 
@@ -50,10 +50,10 @@ for (const marker of [
 }
 
 const productionFunctions = [
-  extractFunction('enableTileKeys'),
-  extractFunction('applyTileAriaLabel'),
-  extractFunction('updateTilePreview'),
-  extractFunction('renderTileFromData')
+  extractDeliveredFunction('enableTileKeys'),
+  extractDeliveredFunction('applyTileAriaLabel'),
+  extractDeliveredFunction('updateTilePreview'),
+  extractDeliveredFunction('renderTileFromData')
 ].join('\n\n');
 
 const harness = `<!doctype html><html><body>

@@ -6,6 +6,23 @@ You never upload binaries by hand — you only bump the version and push a tag.
 
 ## Steps
 
+Before tagging, install the locked host dependencies and validate generated
+assets and tests from the repository root:
+
+```text
+npm ci --ignore-scripts
+node tools/generate-device-profiles.mjs --check
+node tools/generate-web-assets.mjs --check
+node tools/run-tests.mjs
+```
+
+Web asset delivery uses pinned Terser 5.51.2 with `compress: false` and
+`mangle: false`, an independent Acorn syntax-tree check, and deterministic gzip.
+The readable source and assembly remain available; npm packages are build tools
+and are not installed on the device or loaded by its browser UI. Commit any
+required regenerated assets before preparing the release. Final firmware size
+and hardware checks remain separate release requirements.
+
 ```bash
 # 1. Bump the version (only when the current state is actually ready to ship!)
 #    Edit version.txt:  #define FW_VERSION "vX.Y.Z"

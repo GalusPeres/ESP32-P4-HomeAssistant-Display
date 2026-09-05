@@ -26,6 +26,8 @@
 #endif
 #include "src/web/server/handlers/web_admin_handler_utils.h"
 
+using namespace web_admin_handlers;
+
 namespace {
 
 constexpr const char* kScreenshotPath = "/ui_screenshot.jpg";

@@ -455,10 +455,23 @@ latest GitHub release and installs it directly.
 
 ### Option 3: Build From Source
 
-1. Open [HomeTiles.ino](HomeTiles.ino) in the Arduino IDE.
-2. Select the target device in [src/devices/device_select.h](src/devices/device_select.h).
-3. Apply the correct board settings from [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
-4. Build and flash the firmware.
+1. Install Node.js/npm on the build computer. From the repository root, prepare
+   the locked host tools and generated web assets, then run the host tests:
+
+   ```text
+   npm ci --ignore-scripts
+   node tools/generate-web-assets.mjs
+   node tools/run-tests.mjs
+   ```
+
+2. Open [HomeTiles.ino](HomeTiles.ino) in the Arduino IDE.
+3. Select the target device in [src/devices/device_select.h](src/devices/device_select.h).
+4. Apply the correct board settings from [BOARD_SETTINGS.md](BOARD_SETTINGS.md).
+5. Build and flash the firmware.
+
+Node.js/npm is needed only on the build computer. The firmware serves its web
+assets directly; devices and browsers need no npm installation. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the local build helper and validation.
 
 ## First Setup
 
@@ -514,9 +527,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the device and tile extension
 workflows, generated-source commands, tests and firmware size checks.
 [ARCHITECTURE.md](ARCHITECTURE.md) maps subsystem ownership, runtime data flow
 and the next maintenance priorities. Browser source lives in `src/web/admin/`
-and beside each tile type; `src/web/assets/admin.js` is assembled from those
-sources. Build/release/installer identities come from
-`tools/device-profiles.json`, while exact hardware remains in its own driver.
+and beside each tile type; `src/web/assets/admin.js` remains a readable assembly.
+Pinned host tooling formats and validates a smaller delivery copy before gzip,
+without adding a browser loader or runtime dependency. Build/release/installer
+identities come from `tools/device-profiles.json`, while exact hardware remains
+in its own driver.
 
 ## Notes
 

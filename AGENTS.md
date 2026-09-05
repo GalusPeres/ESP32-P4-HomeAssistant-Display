@@ -246,6 +246,8 @@ mandatory.
 
 ## 9. Tests and verification before handoff
 
+- Install pinned host dependencies after checkout or lockfile changes with
+  `npm ci --ignore-scripts` before running tests or generating Web assets.
 - Add a focused regression test for every reproduced bug. Name it
   `tools/tests/<area>/test-<topic>.mjs`; the CI suite discovers them recursively.
 - Run the whole suite with `node tools/run-tests.mjs` (add name fragments to

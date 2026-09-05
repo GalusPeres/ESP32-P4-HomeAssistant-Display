@@ -10,6 +10,8 @@
 #include <lwip/sockets.h>
 #include "src/web/server/handlers/web_admin_handler_utils.h"
 
+using namespace web_admin_handlers;
+
 namespace {
 
 String joinPath(const String& dir, const String& name) {

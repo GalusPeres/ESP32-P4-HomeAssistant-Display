@@ -1,3 +1,4 @@
+import {readAdminDeliverySource} from '../../lib/admin-source.mjs';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
@@ -161,7 +162,7 @@ sandbox.window = sandbox;
 
 vm.createContext(sandbox);
 vm.runInContext(
-  readText(new URL('../../../src/web/assets/admin.js', import.meta.url)),
+  readAdminDeliverySource(),
   sandbox,
   { filename: 'admin.js' }
 );

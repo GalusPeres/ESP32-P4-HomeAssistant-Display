@@ -6,6 +6,8 @@ on:
     paths:
       - "docs/**"
       - "mkdocs.yml"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/docs.yml"
       - "release-helper/prepare-web-installer.mjs"
       - "tools/tests/build/test-installer-otadata.mjs"
@@ -27,6 +29,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+      - name: Install pinned host tooling
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"

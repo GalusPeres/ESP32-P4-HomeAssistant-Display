@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 
 import {
-  adminSource, extractFunction, inlineScriptSafe, readRepoFile
+  adminSource, extractDeliveredFunction, inlineScriptSafe, readRepoFile
 } from '../../lib/admin-source.mjs';
 import {runDomHarness} from '../../lib/headless-dom.mjs';
 
@@ -67,7 +67,7 @@ const harness = `<!doctype html><html><body>
       timer.fn();
     };
 
-    ${inlineScriptSafe(extractFunction('showNotification'))}
+    ${inlineScriptSafe(extractDeliveredFunction('showNotification'))}
     let notificationTimer = null;
 
     const toast = document.getElementById('notification');

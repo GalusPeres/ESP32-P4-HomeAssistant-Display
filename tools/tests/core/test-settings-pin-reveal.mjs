@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import {extractFunction, inlineScriptSafe, readRepoFile} from '../../lib/admin-source.mjs';
+import {extractDeliveredFunction, inlineScriptSafe, readRepoFile} from '../../lib/admin-source.mjs';
 import {runDomHarness} from '../../lib/headless-dom.mjs';
 
 const settingsHtml = readRepoFile('src', 'types', 'settings', 'web_html.cpp');
@@ -14,8 +14,8 @@ for (const marker of [
 }
 
 const productionFunctions = [
-  extractFunction('togglePasswordVisibility'),
-  extractFunction('saveSettingsAccess')
+  extractDeliveredFunction('togglePasswordVisibility'),
+  extractDeliveredFunction('saveSettingsAccess')
 ].join('\n\n');
 
 const harness = `<!doctype html><html><body>

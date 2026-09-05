@@ -1,9 +1,9 @@
-import {extractFunction, inlineScriptSafe} from '../../lib/admin-source.mjs';
+import {extractDeliveredFunction, inlineScriptSafe} from '../../lib/admin-source.mjs';
 import {runDomHarness} from '../../lib/headless-dom.mjs';
 
 const productionFunctions = [
-  extractFunction('togglePasswordVisibility'),
-  extractFunction('loadNavigateFields')
+  extractDeliveredFunction('togglePasswordVisibility'),
+  extractDeliveredFunction('loadNavigateFields')
 ].join('\n\n');
 
 const harness = `<!doctype html><html><body>

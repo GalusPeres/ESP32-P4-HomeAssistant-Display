@@ -45,9 +45,13 @@ support. The architecture map explains those boundaries.
 ## Browser source workflow
 
 `src/web/assets/admin.js` is now an assembled artifact. Edit the owning
-source unit listed in `src/web/admin/bundle.json`, then run:
+source unit listed in `src/web/admin/bundle.json`. Install Node.js/npm on the
+build computer, then run these commands from the repository root. Repeat the
+dependency installation after checkout or a lockfile change, before host tests
+or asset generation:
 
 ```text
+npm ci --ignore-scripts
 node tools/generate-web-assets.mjs
 node --check src/web/assets/admin.js
 node tools/generate-web-assets.mjs --check
@@ -62,9 +66,12 @@ once in the bundle manifest; missing, duplicate and invalid entries fail
 validation. Unchanged generation preserves file timestamps and compiler
 caches.
 
-Assembly is deterministic, but edits to source comments or paths can change raw
-and compressed asset sizes. Check generated output and measure the final firmware;
-do not infer byte identity merely because a change has no browser behavior effect.
+The readable assembly stays intact. Firmware delivery uses pinned Terser 5.51.2
+with `compress: false` and `mangle: false`, followed by gzip. An independent
+Acorn syntax-tree check permits only lexical metadata differences and equivalent
+ordinary data-property shorthand; other differences fail generation. The tools
+are host dependencies only. Check generated output and measure final BINs;
+readable and delivered JavaScript deliberately have different bytes.
 
 This is source modularity, not complete JavaScript scope isolation. Shared
 editor state still has a single owner in `tiles/state.js`; type modules use
@@ -134,7 +141,8 @@ contract and hardware-specific lifecycle checks remain in `AGENTS.md`.
 
 ## Verification and firmware size
 
-The normal verification entry points are:
+After installing host dependencies as above, the normal verification entry
+points are:
 
 ```text
 node tools/generate-device-profiles.mjs --check
@@ -149,10 +157,9 @@ The suite recursively discovers `tools/tests/<area>/test-*.mjs`. Use the existin
 runner, so a new test needs no manually maintained workflow entry. Run a subset
 with a path/name fragment, for example `node tools/run-tests.mjs network/ i18n`.
 Host C++ tests use the production policy/codec/service code with minimal
-platform shims. Browser
-tests execute production JavaScript paths. A test that reports `SKIP:` has
-not verified that behavior; install its optional tooling before relying on
-that coverage.
+platform shims. Browser tests execute production JavaScript paths. A test that
+reports `SKIP:` has not verified that behavior; install its optional tooling
+before relying on that coverage.
 
 The maintainer's two refactoring test profiles are `waveshare_8` and
 `guition_esp32_4848s040`:

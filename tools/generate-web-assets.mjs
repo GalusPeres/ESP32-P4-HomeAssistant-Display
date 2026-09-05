@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readAdminBundle } from './lib/admin-bundle.mjs';
+import { formatAdminDelivery } from './lib/admin-delivery.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const checkOnly = process.argv.includes('--check');
@@ -72,15 +73,19 @@ function writeOrCheck(relativePath, expected) {
 
 writeOrCheck('src/web/assets/admin.js', readAdminBundle(repoRoot).source);
 
-const generated = assets.map(asset => {
+const generated = await Promise.all(assets.map(async asset => {
   const source = normalizedSource(asset.source);
   const sourceBytes = Buffer.from(source, 'utf8');
-  const hash = createHash('sha256').update(sourceBytes).digest('hex');
-  const gzip = gzipDeterministic(sourceBytes);
+  const delivery = asset.key === 'Js' ? await formatAdminDelivery(source) : source;
+  const deliveryBytes = Buffer.from(delivery, 'utf8');
+  // Hash the decoded HTTP response, so a formatter update cannot reuse an
+  // immutable asset URL for different delivered bytes. ETags identify gzip.
+  const hash = createHash('sha256').update(deliveryBytes).digest('hex');
+  const gzip = gzipDeterministic(deliveryBytes);
   const gzipHash = createHash('sha256').update(gzip).digest('hex');
   writeOrCheck(asset.generated, byteInclude(gzip));
-  return { ...asset, hash, gzipHash, sourceBytes, gzip };
-});
+  return { ...asset, hash, gzipHash, sourceBytes, deliveryBytes, gzip };
+}));
 
 const metaLines = [
   '#ifndef WEB_ADMIN_ASSETS_META_H',
@@ -89,6 +94,8 @@ const metaLines = [
   '#include <stddef.h>',
   '',
   'namespace web_admin_assets_generated {',
+  '// SourceSize and the path hash describe decoded HTTP response bytes.',
+  '// The readable Admin JS bundle is formatted only during host generation.',
   ''
 ];
 
@@ -101,7 +108,7 @@ for (const asset of generated) {
     `    "\\\"${asset.gzipHash}\\\"";`,
     `inline constexpr char kAdmin${asset.key}ContentType[] =`,
     `    "${asset.contentType}";`,
-    `inline constexpr size_t kAdmin${asset.key}SourceSize = ${asset.sourceBytes.length};`,
+    `inline constexpr size_t kAdmin${asset.key}SourceSize = ${asset.deliveryBytes.length};`,
     `inline constexpr size_t kAdmin${asset.key}GzipSize = ${asset.gzip.length};`,
     ''
   );
@@ -120,5 +127,5 @@ writeOrCheck(
 const mode = checkOnly ? 'verified' : 'generated';
 for (const asset of generated) {
   console.log(
-    `${asset.source}: ${asset.sourceBytes.length} -> ${asset.gzip.length} bytes (${mode})`);
+    `${asset.source}: ${asset.sourceBytes.length} source -> ${asset.deliveryBytes.length} delivery -> ${asset.gzip.length} gzip bytes (${mode})`);
 }

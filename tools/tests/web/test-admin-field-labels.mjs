@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 
 import {
-  adminSource, extractFunction, inlineScriptSafe
+  adminSource, extractDeliveredFunction, inlineScriptSafe
 } from '../../lib/admin-source.mjs';
 import {runDomHarness} from '../../lib/headless-dom.mjs';
 
@@ -20,7 +20,7 @@ assert.match(adminSource, /^\s*associateFieldLabels\(\);$/m,
 const productionFunctions = [
   'const LABELABLE_CONTROLS = ' +
     /const LABELABLE_CONTROLS = ([^;]+);/.exec(adminSource)[1] + ';',
-  extractFunction('associateFieldLabels')
+  extractDeliveredFunction('associateFieldLabels')
 ].join('\n\n');
 
 // Every shape below is taken from the real generators: a plain label before a

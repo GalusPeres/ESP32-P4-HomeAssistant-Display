@@ -21,8 +21,8 @@ function findSourceFiles(repoRoot) {
   return files;
 }
 
-// The browser still receives one classic script. Keeping source order and
-// bytes intact preserves its shared scope, initialization order and gzip size.
+// Assemble one readable classic script without changing source order or scope.
+// The delivery formatter is a separate, syntax-tree-checked build step.
 export function readAdminBundle(repoRoot) {
   const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, manifestPath), 'utf8'));
   if (manifest.version !== 1 || !Array.isArray(manifest.sources) || !manifest.sources.length) {

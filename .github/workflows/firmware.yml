@@ -1,7 +1,6 @@
-# Release-Ablauf: FW_VERSION in version.txt erhoehen -> committen ->
-# "git tag vX.Y.Z" -> "git push --follow-tags". Der Release-Build startet
-# NUR beim Tag-Push; der Tag muss exakt FW_VERSION entsprechen (wird unten
-# geprueft). Details: RELEASING.md
+# Release workflow: update FW_VERSION in version.txt, commit, create the
+# matching vX.Y.Z tag, then push the tag. Release builds run only on tag pushes;
+# the tag must exactly match FW_VERSION, as checked below. See RELEASING.md.
 name: Firmware builds
 
 on:
@@ -34,6 +33,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
+
+      - name: Install pinned host tooling
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Verify generated device profiles
         run: node tools/generate-device-profiles.mjs --check

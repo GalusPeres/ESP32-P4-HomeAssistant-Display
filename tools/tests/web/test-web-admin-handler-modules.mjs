@@ -85,7 +85,15 @@ const common = read('web_admin_handler_utils.h');
 assert.doesNotMatch(maskCpp(common), /\bg_\w+\b|\bextern\b/,
   'Shared handler helpers must not own or expose mutable state');
 for (const definition of cppFunctionDefinitions(common)) {
-  assert.match(definition.source, /^inline /, 'Shared helpers retain internal inline linkage');
+  assert.match(definition.source, /^inline /, 'Small hardware accessors remain inline');
+}
+for (const name of ['endsWithIgnoreCase', 'appendJsonEscaped', 'sendJsonError']) {
+  assert.equal(cppFunctionDefinitions(common).filter(definition => definition.name === name).length, 0,
+    `${name} must not produce an internal copy in each caller`);
+  const definitions = [...sources].flatMap(([file, source]) =>
+    cppFunctionDefinitions(source).filter(definition => definition.name === name).map(() => file));
+  assert.deepEqual(definitions, ['web_admin_handler_utils.cpp'],
+    `${name} needs one compiled helper owner`);
 }
 
 // Exercise extraction against comments, literal braces and alternative

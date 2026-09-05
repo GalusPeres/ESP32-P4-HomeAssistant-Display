@@ -520,8 +520,20 @@ struct SensorUpdate {
 
 static const uint8_t QUEUE_SIZE = 32;
 static SensorUpdate g_update_queue[QUEUE_SIZE];
+
+// Keep byte-sized queue cursors together to avoid padding before each aligned
+// queue array. Array declarations and construction order remain unchanged.
 static volatile uint8_t g_queue_head = 0;
 static volatile uint8_t g_queue_tail = 0;
+static volatile uint8_t g_switch_head = 0;
+static volatile uint8_t g_switch_tail = 0;
+static volatile uint8_t g_climate_head = 0;
+static volatile uint8_t g_climate_tail = 0;
+static volatile uint8_t g_weather_head = 0;
+static volatile uint8_t g_weather_tail = 0;
+static volatile uint8_t g_media_head = 0;
+static volatile uint8_t g_media_tail = 0;
+
 static uint32_t g_queue_overflow_count = 0;
 
 static uint8_t get_sensor_decimals(GridType grid_type, uint8_t grid_index) {
@@ -673,8 +685,6 @@ static_assert(TILES_PER_GRID <= 64,
 
 static const uint8_t SWITCH_QUEUE_SIZE = 32;
 static SwitchUpdate g_switch_queue[SWITCH_QUEUE_SIZE];
-static volatile uint8_t g_switch_head = 0;
-static volatile uint8_t g_switch_tail = 0;
 static uint32_t g_switch_overflow_count = 0;
 
 static void invalidate_queued_switch_slot(GridType grid_type,
@@ -2458,8 +2468,6 @@ struct ClimateUpdate {
 
 static constexpr uint8_t CLIMATE_QUEUE_SIZE = 16;
 static ClimateUpdate g_climate_queue[CLIMATE_QUEUE_SIZE];
-static volatile uint8_t g_climate_head = 0;
-static volatile uint8_t g_climate_tail = 0;
 
 void queue_climate_tile_update(
     GridType grid_type, uint8_t grid_index, const char* payload) {
@@ -2513,8 +2521,6 @@ struct WeatherUpdate {
 
 static const uint8_t WEATHER_QUEUE_SIZE = 16;
 static WeatherUpdate g_weather_queue[WEATHER_QUEUE_SIZE];
-static volatile uint8_t g_weather_head = 0;
-static volatile uint8_t g_weather_tail = 0;
 static uint32_t g_weather_overflow_count = 0;
 
 static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, const char* payload) {
@@ -2873,8 +2879,6 @@ struct MediaUpdate {
 
 static const uint8_t MEDIA_QUEUE_SIZE = 24;
 static MediaUpdate g_media_queue[MEDIA_QUEUE_SIZE];
-static volatile uint8_t g_media_head = 0;
-static volatile uint8_t g_media_tail = 0;
 static uint32_t g_media_overflow_count = 0;
 
 static String media_first_non_empty(const String& a,
