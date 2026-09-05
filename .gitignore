@@ -1,21 +1,21 @@
-# Arduino Build-Artefakte
+# Arduino build artifacts
 *.bin
 *.elf
 *.hex
 *.map
 
-# IDE-Dateien
+# IDE files
 .vscode/
 .idea/
 .claude/
 
-# Lokale Design-Vorschau (Web-Admin-Snapshot), nicht Teil des Projekts
+# Local Web Admin design snapshot
 /webadmin-preview/
 
-# MkDocs-Build-Output (lokale Docs-Vorschau; GitHub Actions baut selbst)
+# Local MkDocs output; GitHub Actions builds its own copy
 /site/
 
-# Backup-Dateien
+# Backup files
 *.bak
 *~
 
@@ -24,22 +24,23 @@ node_modules/
 dist/
 out/
 build/
+!tools/tests/build/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# OS-spezifisch
+# OS files
 .DS_Store
 Thumbs.db
 
-# Lokale Hilfsordner
+# Local helper directories
 .tmp_fonts/
 libraries/
 
-# Lokale Medienquellen (die optimierten Web-Versionen liegen unter docs/)
+# Local media sources; optimized web versions live under docs/
 docs/images/IMG_4804.JPG.jpeg
 docs/videos/IMG_4807.MOV
 
-# SD-Karten-Inhalte (Animationen etc. bleiben lokal, nicht im Repo)
+# Local SD card content, including animations
 sd-card/

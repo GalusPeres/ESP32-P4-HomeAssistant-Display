@@ -2,6 +2,7 @@
 #include "src/web/server/web_admin_utils.h"
 #include "src/core/diagnostics/crash_log.h"
 #include "src/core/firmware/firmware_version.h"
+#include "src/devices/guition_esp32_4848s040/s3_diagnostics.h"
 #include <LittleFS.h>
 #include <esp_core_dump.h>
 #include <esp_partition.h>
