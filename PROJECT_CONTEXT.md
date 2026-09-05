@@ -28,8 +28,8 @@ Shared project state. `AGENTS.md` is the only rulebook; replace stale facts here
 - Recent stabilization work includes S3 update/display guards, MQTT packet
   validation, duplicate Light update coalescing, bounded S3 update work, and
   incremental Weather parsing (`e3de63c`, `631de57`, `8d5771c`, `33b4e06`).
-- All 72 host tests and the strict docs build pass. The maintenance refactoring
-  still needs final Waveshare 8-inch and Guition S3 builds and hardware checks.
+- Maintenance source `4b34ac2` passes 72 host tests, strict docs and both requested
+  builds. Hardware validation and runtime performance measurements remain pending.
 - The experimental Guition S3 XIP/`-O2` performance path was reverted in
   `5279456`. Do not reintroduce it as an assumed optimization. It increased
   risk and did not solve the measured interaction problem.
@@ -151,9 +151,9 @@ Issue: https://github.com/GalusPeres/HomeTiles/issues/30
 - `ARCHITECTURE.md` maps ownership, reviewed risks and the remaining roadmap;
   `CONTRIBUTING.md` explains device/tile additions and generated-source workflows.
 - Subsystems and tests use domain folders; comments and technical logs are English.
-- Host tooling shares one device catalog; Admin source has 51 ordered source units.
-  Pinned host formatting reduces delivered JS; run `npm ci --ignore-scripts` first.
+- One host device catalog; 51 Admin units; host tools need `npm ci --ignore-scripts`.
 - HTTP helpers compile once; type policies, queues and settings codecs have tests.
 - Regression tests cover Media gesture cancellation, setup escaping and delivered JS.
-- Both requested application BINs must be no larger than their matching baseline;
-  use `tools/compare-firmware-size.mjs`. Hardware speed/stability remain unmeasured.
+- `ebb7462` -> `4b34ac2` BINs: Waveshare 8 6,248,480 -> 6,233,120 bytes;
+  Guition S3 5,243,152 -> 5,228,896 bytes. Static RAM: P4 unchanged; S3 +8 padding.
+- Local test BINs and hashes: `build/maintenance-20260905/VERIFICATION.md`.

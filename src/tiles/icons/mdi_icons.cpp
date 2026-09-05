@@ -6,8 +6,8 @@
 // ============================================================
 // Format: {"icon-name", 0xF01C9},
 //
-// 🔴 PLATZHALTER: HIER LISTE EINFÜGEN! 🔴
-// Ersetze diesen Kommentar mit der kompletten Liste aus icons.txt
+// The sorted map below defines the supported Material Design Icons.
+// Keep icon names in lexical order for binary-search lookup.
 // ============================================================
 
 struct IconMapping {
@@ -7467,7 +7467,7 @@ static const IconMapping iconMap[] PROGMEM = {
 
 static const size_t ICON_COUNT = sizeof(iconMap) / sizeof(iconMap[0]);
 
-// Binary Search durch iconMap (sortiert nach Name)
+// Binary search over iconMap, sorted by name.
 static int32_t findIconIndex(const char* name) {
   if (!name || !*name) return -1;
 
@@ -7477,7 +7477,7 @@ static int32_t findIconIndex(const char* name) {
   while (left <= right) {
     int32_t mid = left + (right - left) / 2;
 
-    // Name aus PROGMEM lesen
+    // Read the name from PROGMEM.
     char buffer[64];
     strncpy_P(buffer, iconMap[mid].name, sizeof(buffer) - 1);
     buffer[sizeof(buffer) - 1] = '\0';
@@ -7489,7 +7489,7 @@ static int32_t findIconIndex(const char* name) {
     else left = mid + 1;
   }
 
-  return -1; // Nicht gefunden
+  return -1; // Not found.
 }
 
 static bool is_disabled_icon_name(const String& iconName) {
@@ -7520,7 +7520,7 @@ String normalizeMdiIconName(const String& iconName) {
   return name;
 }
 
-// Gibt den Codepoint für einen Icon-Namen zurück
+// Resolve an icon name to its Unicode codepoint.
 uint32_t getMdiCodepoint(const String& iconName) {
   if (iconName.length() == 0) {
     // Serial.println("[MDI] Icon name is empty");
@@ -7544,17 +7544,17 @@ uint32_t getMdiCodepoint(const String& iconName) {
     return codepoint;
   }
 
-  // Fallback: Fragezeichen-Icon
+  // Fall back to the question-mark icon.
   // Serial.printf("[MDI] Icon '%s' not found, using fallback\n", searchName.c_str());
   return 0xF02D8;
 }
 
-// Gibt ein String mit dem Unicode-Zeichen zurück (für lv_label_set_text)
+// Return the UTF-8 icon text for lv_label_set_text.
 String getMdiChar(const String& iconName) {
   uint32_t codepoint = getMdiCodepoint(iconName);
   if (codepoint == 0) return "";
 
-  // UTF-8 Encoding für Unicode Codepoint
+  // Encode the Unicode codepoint as UTF-8.
   String result = "";
 
   if (codepoint <= 0x7F) {
