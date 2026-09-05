@@ -148,7 +148,7 @@ Issue: https://github.com/GalusPeres/HomeTiles/issues/30
 
 ## Current maintenance refactoring
 
-- Local commits are authorized; no push or release is authorized for this work.
+- The user authorized pushing this maintenance work to main; no release was requested.
 - See `ARCHITECTURE.md` for ownership/risks and `CONTRIBUTING.md` for extension workflows.
 - Subsystems and tests use domain folders; comments and technical logs are English.
 - One host device catalog; 51 Admin units; host tools need `npm ci --ignore-scripts`.
