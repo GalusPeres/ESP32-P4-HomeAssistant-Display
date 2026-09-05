@@ -284,6 +284,14 @@ Everything visible on the dashboard is tile-based and managed from the built-in 
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-8](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | Supported |
 | [Guition JC8012P4A1C_I_W_Y](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | Supported V1 panel; no `V2` suffix on the rear material number |
 | [Guition ESP32-4848S040C_I](https://www.guition.com/esp32-display-module/4-inch-esp32s3-display-module) | Supported ESP32-S3 target; Camera tiles are unavailable |
+| [Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0](https://www.waveshare.com/wiki/ESP32-S3-Touch-LCD-4) | Community hardware test reported in [PR #35](https://github.com/GalusPeres/HomeTiles/pull/35); first release pending; Camera tiles and SD access are unavailable in this profile |
+
+For the Waveshare S3 LCD-4, contributor @verrat73 reported working display,
+backlight dimming, touch, Wi-Fi, Web Admin, MQTT, HomeTiles Bridge and Web OTA.
+Support covers **Rev 4.0 only**, with the CH32V003 helper at `0x24`; revisions
+1.0–3.0 are not supported. The similarly named LCD-4B uses a separate profile.
+The board has a microSD slot, but HomeTiles uses internal LittleFS on this
+profile. See the [device notes](src/devices/waveshare_s3_touch_lcd_4/README.md).
 
 ### Hardware validation notes
 
@@ -412,7 +420,12 @@ Download the files matching your device from the [latest release](https://github
 | Guition JC1060P470C_I_W_Y V1 | SD-card validation pending | `..._guition_jc1060p470c_factory.bin` | `..._guition_jc1060p470c.bin` |
 | Guition JC1060P470C V2 / New Panel | Hardware validation pending | `..._guition_jc1060p470c_v2_factory.bin` | `..._guition_jc1060p470c_v2.bin` |
 | Guition ESP32-4848S040C_I | Supported | `..._guition_esp32_4848s040_factory.bin` | `..._guition_esp32_4848s040.bin` |
+| Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0 | Community-tested; first release pending | `..._waveshare_s3_touch_lcd_4_factory.bin` | `..._waveshare_s3_touch_lcd_4.bin` |
 | Waveshare ESP32-S3-Touch-LCD-4B | Hardware validation pending; no microSD | `..._waveshare_s3_touch_lcd_4b_factory.bin` | `..._waveshare_s3_touch_lcd_4b.bin` |
+
+Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0 images are scheduled for the next
+release and are **not included in v0.6.9**. Until then, build the dedicated
+`waveshare_s3_touch_lcd_4` profile from source.
 
 Use:
 - `factory.bin` for a clean first flash (ESP Flash Download Tool at address `0x00000`)
@@ -491,8 +504,9 @@ Step-by-step instructions (broker, integration, display): [Home Assistant Setup 
 - Camera tiles are experimental and available only on ESP32-P4 targets. The
   Bridge transcodes video in Home Assistant, so CPU use increases with source
   resolution, requested frame rate and the number of simultaneously open panels.
-- The Guition ESP32-4848S040 and Waveshare ESP32-S3-Touch-LCD-4B targets do not
-  support Camera tiles; use the exact S3 factory or OTA image listed above.
+- The Guition ESP32-4848S040, Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0, and
+  Waveshare ESP32-S3-Touch-LCD-4B targets do not support Camera tiles; use the
+  exact S3 factory or OTA image listed above.
 
 ## Notes
 

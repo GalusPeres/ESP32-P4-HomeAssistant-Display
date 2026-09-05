@@ -40,7 +40,21 @@ Grab the file matching your device from the
 | Guition JC1060P470C_I_W_Y V1 | SD-card validation pending; exact suffix required | `hometiles_<version>_guition_jc1060p470c_factory.bin` |
 | Guition JC1060P470C V2 / New Panel | Hardware validation pending; use only for the marked V2 revision | `hometiles_<version>_guition_jc1060p470c_v2_factory.bin` |
 | Guition ESP32-4848S040C_I | Supported ESP32-S3 target | `hometiles_<version>_guition_esp32_4848s040_factory.bin` |
+| Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0 | Community-tested; first release pending | `hometiles_<version>_waveshare_s3_touch_lcd_4_factory.bin` |
 | Waveshare ESP32-S3-Touch-LCD-4B | Hardware validation pending; no microSD interface | `hometiles_<version>_waveshare_s3_touch_lcd_4b_factory.bin` |
+
+!!! note "Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0 availability"
+    This profile is scheduled for the next release and is **not included in
+    v0.6.9**. Until its first release, build `waveshare_s3_touch_lcd_4` from
+    source with the settings in [BOARD_SETTINGS.md](https://github.com/GalusPeres/HomeTiles/blob/main/BOARD_SETTINGS.md#waveshare-esp32-s3-touch-lcd-4-rev-40).
+    Contributor @verrat73 reported working display, backlight dimming, touch,
+    Wi-Fi, Web Admin, MQTT, HomeTiles Bridge and Web OTA in
+    [PR #35](https://github.com/GalusPeres/HomeTiles/pull/35).
+
+    Use it only for **Rev 4.0**, with the CH32V003 helper MCU at `0x24`.
+    Revisions 1.0–3.0 are not supported; the S3 LCD-4B uses a separate image.
+    The board has a microSD slot, but SD access and Camera tiles are not
+    implemented by this HomeTiles profile. Runtime files use LittleFS.
 
 !!! warning "Exact hardware images"
     Some targets have not yet completed the full physical-device checklist.
@@ -92,8 +106,9 @@ Grab the file matching your device from the
 Connect the device to your PC via USB, then in the **Flash Download Tool**:
 
 1. Select ChipType **ESP32-P4** for every P4 target. Select **ESP32-S3** only
-   for the Guition ESP32-4848S040C_I or Waveshare
-   ESP32-S3-Touch-LCD-4B. Use WorkMode **Develop** and LoadMode **UART** → OK.
+   for the Guition ESP32-4848S040C_I, Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0,
+   or Waveshare ESP32-S3-Touch-LCD-4B. Use WorkMode **Develop** and LoadMode
+   **UART** → OK.
 2. In the first file row: select the `factory.bin`, set the address to `0x0`,
    and tick the row's checkbox.
 3. **COM**: pick the device's serial port (if none appears, try another cable/port).
@@ -106,8 +121,9 @@ Connect the device to your PC via USB, then in the **Flash Download Tool**:
     esptool --chip <esp32p4-or-esp32s3> --port <PORT> write_flash 0x0 hometiles_<version>_<device>_factory.bin
     ```
     Replace the chip placeholder with `esp32p4`, or with `esp32s3` only for the
-    Guition ESP32-4848S040C_I or Waveshare ESP32-S3-Touch-LCD-4B. Replace
-    `<PORT>` with the serial port (for example `/dev/ttyACM0`).
+    Guition ESP32-4848S040C_I, Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0, or
+    Waveshare ESP32-S3-Touch-LCD-4B. Replace `<PORT>` with the serial port
+    (for example `/dev/ttyACM0`).
 
 ## Step 3: First Boot
 

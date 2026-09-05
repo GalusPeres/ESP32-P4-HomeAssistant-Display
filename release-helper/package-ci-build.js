@@ -24,6 +24,7 @@ const devices = new Map([
   ['guition_jc1060p470c', { key: 'guition_jc1060p470c', siliconVariant: 'pre_v3' }],
   ['guition_jc1060p470c_v2', { key: 'guition_jc1060p470c_v2', siliconVariant: 'pre_v3' }],
   ['guition_esp32_4848s040', { key: 'guition_esp32_4848s040', siliconVariant: 'default' }],
+  ['waveshare_s3_touch_lcd_4', { key: 'waveshare_s3_touch_lcd_4', siliconVariant: 'default' }],
   ['waveshare_s3_touch_lcd_4b', { key: 'waveshare_s3_touch_lcd_4b', siliconVariant: 'default' }],
 ]);
 

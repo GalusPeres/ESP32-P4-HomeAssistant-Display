@@ -53,7 +53,7 @@ for (const marker of [
   'silicon_variant: pre_v3',
   'rx_variant: repo-a8204',
   'node tools/run-tests.mjs',
-  '-eq 28',
+  '-eq 30',
 ]) {
   requireMarker(workflow, marker, 'firmware workflow');
 }
@@ -86,7 +86,7 @@ for (const [file, marker] of [
   ['docs/flashing.md', 'waveshare_touch_lcd_4_3_factory.bin'],
   ['docs/updating.md', 'waveshare_touch_lcd_4_3.bin'],
   ['docs/screensaver.md', '| Waveshare Touch LCD 4.3 inch | 800×480 |'],
-  ['RELEASING.md', '28 binaries'],
+  ['RELEASING.md', '30 binaries'],
 ]) {
   requireMarker(read(file), marker, `${file} release documentation`);
 }

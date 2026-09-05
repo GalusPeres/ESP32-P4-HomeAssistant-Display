@@ -366,6 +366,51 @@ Arduino IDE:
 - Upload Speed: `921600`
 - USB Mode: `Hardware CDC and JTAG`
 
+## Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0
+
+Used for:
+- `src/devices/waveshare_s3_touch_lcd_4`
+- build profile `waveshare_s3_touch_lcd_4`
+
+Important:
+- This profile is only for the Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0 with
+  the CH32V003 helper MCU. Revisions 1.0–3.0 use different hardware and are
+  not supported by this profile. The S3 LCD-4B uses a separate image.
+- Display, backlight dimming, touch, Wi-Fi, Web Admin, MQTT, HomeTiles Bridge,
+  and Web OTA were reported working by the contributor in
+  [PR #35](https://github.com/GalusPeres/HomeTiles/pull/35).
+- Factory and OTA release images are scheduled for the next release; this
+  profile is not included in `v0.6.9`.
+- ESP32-S3 with `16MB` flash and `8MB` octal PSRAM.
+- The panel is a `480x480` ST7701 RGB display using direct 3-wire SPI on GPIO 42
+  (CS), GPIO 2 (SCK), GPIO 1 (SDA), and 16-bit RGB bus on DE 40, VSYNC 39,
+  HSYNC 38, PCLK 41, R(46,3,8,18,17), G(14,13,12,11,10,9), B(5,45,48,47,21).
+- Capacitive touch is GT911 on SDA 15 / SCL 7.
+- Display power/reset and backlight PWM use the onboard CH32V003 helper MCU
+  at I2C address `0x24` on the same SDA 15 / SCL 7 bus.
+- The board has a microSD slot, but this HomeTiles profile does not implement
+  SD access. Runtime files use LittleFS. Camera tiles are also unavailable.
+- Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.
+- Exact hardware references and support scope are documented in the
+  [device README](src/devices/waveshare_s3_touch_lcd_4/README.md).
+
+Arduino IDE:
+- Board: `ESP32S3 Dev Module`
+- USB CDC On Boot: `Enabled`
+- CPU Frequency: `240MHz (WiFi)`
+- Core Debug Level: `None`
+- USB DFU On Boot: `Disabled`
+- Erase All Flash Before Sketch Upload: `Disabled`
+- Flash Mode: `QIO 80MHz`
+- Flash Size: `16MB (128Mb)`
+- JTAG Adapter: `Disabled`
+- USB Firmware MSC On Boot: `Disabled`
+- Partition Scheme: `Custom`
+- PSRAM: `OPI PSRAM`
+- Upload Mode: `UART0 / Hardware CDC`
+- Upload Speed: `921600`
+- USB Mode: `Hardware CDC and JTAG`
+
 ## Waveshare ESP32-S3-Touch-LCD-4B
 
 Used for:

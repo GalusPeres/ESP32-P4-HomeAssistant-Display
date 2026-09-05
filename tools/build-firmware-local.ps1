@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('tab5', 'waveshare_b4', 'waveshare_4_3', 'waveshare_7', 'waveshare_7b', 'waveshare_7b_rev3_1', 'waveshare_8', 'waveshare_10_1', 'waveshare_s3_touch_lcd_4b', 'layout_test_1024x600', 'layout_test_480x480', 'guition_jc8012p4a1', 'guition_jc8012p4a1_v2', 'guition_jc1060p470c', 'guition_jc1060p470c_v2', 'guition_esp32_4848s040')]
+    [ValidateSet('tab5', 'waveshare_b4', 'waveshare_4_3', 'waveshare_7', 'waveshare_7b', 'waveshare_7b_rev3_1', 'waveshare_8', 'waveshare_10_1', 'waveshare_s3_touch_lcd_4', 'waveshare_s3_touch_lcd_4b', 'layout_test_1024x600', 'layout_test_480x480', 'guition_jc8012p4a1', 'guition_jc8012p4a1_v2', 'guition_jc1060p470c', 'guition_jc1060p470c_v2', 'guition_esp32_4848s040')]
     [string]$Profile,
 
     [string]$OutputDirectory,
@@ -89,6 +89,10 @@ if ($LASTEXITCODE -ne 0) {
 if ($LASTEXITCODE -ne 0) {
     throw 'Waveshare ESP32-S3 Touch LCD 4B profile contract test failed.'
 }
+& $node.Source (Join-Path $PSScriptRoot 'test-waveshare-s3-4-profile.mjs')
+if ($LASTEXITCODE -ne 0) {
+    throw 'Waveshare ESP32-S3 Touch LCD 4 Rev 4.0 profile contract test failed.'
+}
 & $node.Source (Join-Path $PSScriptRoot 'test-waveshare-4-3-profile.mjs')
 if ($LASTEXITCODE -ne 0) {
     throw 'Waveshare Touch LCD 4.3 profile contract test failed.'
@@ -130,11 +134,13 @@ $defines = @{
     guition_jc1060p470c = 'DEVICE_GUITION_JC1060P470C'
     guition_jc1060p470c_v2 = 'DEVICE_GUITION_JC1060P470C_V2'
     guition_esp32_4848s040 = 'DEVICE_GUITION_ESP32_4848S040'
+    waveshare_s3_touch_lcd_4 = 'DEVICE_WAVESHARE_S3_TOUCH_LCD_4'
     waveshare_s3_touch_lcd_4b = 'DEVICE_WAVESHARE_S3_TOUCH_LCD_4B'
 }
 
 $nativeS3Profiles = @(
     'guition_esp32_4848s040',
+    'waveshare_s3_touch_lcd_4',
     'waveshare_s3_touch_lcd_4b'
 )
 $isNativeS3 = $Profile -in $nativeS3Profiles

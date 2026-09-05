@@ -76,7 +76,13 @@ Use the asset matching your device from the release page:
 | Guition JC1060P470C_I_W_Y V1 | SD-card validation pending; exact suffix required | `hometiles_<version>_guition_jc1060p470c.bin` |
 | Guition JC1060P470C V2 / New Panel | Hardware validation pending; use only for the marked V2 revision | `hometiles_<version>_guition_jc1060p470c_v2.bin` |
 | Guition ESP32-4848S040C_I | Supported | `hometiles_<version>_guition_esp32_4848s040.bin` |
+| Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0 | Community-tested; first release pending | `hometiles_<version>_waveshare_s3_touch_lcd_4.bin` |
 | Waveshare ESP32-S3-Touch-LCD-4B | Hardware validation pending; no microSD interface | `hometiles_<version>_waveshare_s3_touch_lcd_4b.bin` |
+
+The Waveshare S3 LCD-4 Rev 4.0 image joins with the next release and is not
+included in v0.6.9. Use it only for Rev 4.0 with the CH32V003 helper at `0x24`;
+revisions 1.0–3.0 and the S3 LCD-4B are not covered. Web OTA was reported
+working by the contributor in [PR #35](https://github.com/GalusPeres/HomeTiles/pull/35).
 
 Older devices still running v0.2.9 or earlier look for the previous
 `esp32-p4-homeassistant-display-<version>-<device>-update.bin` naming; the on-device

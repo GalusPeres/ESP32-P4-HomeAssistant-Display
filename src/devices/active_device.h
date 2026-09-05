@@ -20,6 +20,9 @@ namespace DeviceImpl = DeviceGuitionJC1060P470CV2;
 #elif defined(DEVICE_GUITION_ESP32_4848S040)
 #include "src/devices/guition_esp32_4848s040/device_guition_esp32_4848s040.h"
 namespace DeviceImpl = DeviceGuitionESP324848S040;
+#elif defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4)
+#include "src/devices/waveshare_s3_touch_lcd_4/device_waveshare_s3_touch_lcd_4.h"
+namespace DeviceImpl = DeviceWaveshareS3TouchLCD4;
 #elif defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)
 #include "src/devices/waveshare_s3_touch_lcd_4b/device_waveshare_s3_touch_lcd_4b.h"
 namespace DeviceImpl = DeviceWaveshareS3TouchLCD4B;

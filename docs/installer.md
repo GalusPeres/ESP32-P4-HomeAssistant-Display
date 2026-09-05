@@ -190,8 +190,9 @@ that image to v3.2 or newer hardware.
 4. Wait for **FINISH**, then restart the display.
 
 Use **ESP32-P4** for P4 displays. Use **ESP32-S3** only for the Guition
-ESP32-4848S040C_I and Waveshare ESP32-S3-Touch-LCD-4B. The plain `.bin` is an
-Update image and must not be written to `0x0`. The
+ESP32-4848S040C_I, Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0, and Waveshare
+ESP32-S3-Touch-LCD-4B. The plain `.bin` is an Update image and must not be
+written to `0x0`. The
 [manual flashing guide](flashing.md) contains the complete tool and command-line
 instructions.
 
@@ -212,9 +213,10 @@ instructions.
 The local test continues to use the unchanged, SHA-256-verified assets from the
 currently published GitHub release. With `--device`, the selected explicit
 profile's factory and OTA files are downloaded. Each Waveshare 7B profile also
-downloads only its own pair. Without that option, the published site contains
-28 files for 14 explicit installer/release profiles covering thirteen physical
-device profiles.
+downloads only its own pair. Without that option, the installer mirrors only
+profiles with assets present in the published release. For v0.6.9 this remains
+14 choices and 28 firmware files. The next release adds Waveshare S3 LCD-4
+Rev 4.0 for 15 choices and 30 files covering fourteen physical device profiles.
 
 1. Build the documentation:
    `python -m mkdocs build --strict`
@@ -234,10 +236,14 @@ The other valid `--device` values match the release file names:
 `waveshare_touch_lcd_4_3`,
 `waveshare_touch_lcd_7b`, `waveshare_touch_lcd_7b_rev3_1`,
 `waveshare_touch_lcd_8`,
-`waveshare_touch_lcd_10_1`, `waveshare_s3_touch_lcd_4b`,
+`waveshare_touch_lcd_10_1`, `waveshare_s3_touch_lcd_4`, `waveshare_s3_touch_lcd_4b`,
 `guition_jc8012p4a1`, `guition_jc8012p4a1_v2`,
 `guition_jc1060p470c`, `guition_jc1060p470c_v2`, and
 `guition_esp32_4848s040`.
+
+`waveshare_s3_touch_lcd_4` requires assets from its first release; it cannot
+download them from v0.6.9. This profile is only for the touch-equipped Rev 4.0
+board with CH32V003 at `0x24`, not revisions 1.0–3.0 or the S3 LCD-4B.
 
 Implementation references: [ESP Web Tools](https://esphome.github.io/esp-web-tools/),
 [esptool-js](https://github.com/espressif/esptool-js), and Espressif's

@@ -183,6 +183,12 @@ jobs:
             define: DEVICE_GUITION_ESP32_4848S040
             rx_variant: native-s3
             publish: true
+          - label: Waveshare ESP32-S3 Touch LCD 4 Rev 4.0
+            profile: waveshare_s3_touch_lcd_4
+            key: waveshare_s3_touch_lcd_4
+            define: DEVICE_WAVESHARE_S3_TOUCH_LCD_4
+            rx_variant: native-s3
+            publish: true
           - label: Waveshare ESP32-S3 Touch LCD 4B
             profile: waveshare_s3_touch_lcd_4b
             key: waveshare_s3_touch_lcd_4b
@@ -462,7 +468,7 @@ jobs:
         shell: bash
         run: |
           ls -la build/release-assets
-          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 28
+          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 30
 
       - name: Upload assets to GitHub release
         env:

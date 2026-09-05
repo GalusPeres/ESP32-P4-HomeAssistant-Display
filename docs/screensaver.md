@@ -8,6 +8,11 @@ the **Screensaver** tab of the web admin and runs on every supported display.
 
 ## Prepare the microSD Card
 
+The Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0 profile does not implement SD
+access despite the board's microSD slot; the S3 LCD-4B has no microSD
+interface. These profiles use the screensaver clock and tiles with a black
+background, without an SD image slideshow.
+
 1. Format a microSD card as FAT32 and insert it into the display.
 2. Create a folder named `images` in the root of the card, so its path is `/images`.
 3. Copy JPEG files (`.jpg` or `.jpeg`) into that folder. The web admin file manager
@@ -37,7 +42,8 @@ the **Screensaver** tab of the web admin and runs on every supported display.
 | Guition JC8012P4A1 V1 / V2 | 1280×800 |
 | Guition JC1060P470C V1 / V2 | 1024×600 |
 | Guition ESP32-4848S040C_I | 480×480 |
-| Waveshare ESP32-S3-Touch-LCD-4B | 480×480 |
+| Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0 | 480×480; no SD image slideshow |
+| Waveshare ESP32-S3-Touch-LCD-4B | 480×480; no SD image slideshow |
 
 If the display is deliberately rotated by 90 degrees, swap width and height.
 The screensaver crops the prepared image to the panel; **Zoom**, **Focus X**, and

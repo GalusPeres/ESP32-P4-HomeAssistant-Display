@@ -1,6 +1,6 @@
 # HomeTiles shared project context
 
-Last reviewed: 2026-09-03
+Last reviewed: 2026-09-05
 
 This is the concise cross-agent project state for Codex, Claude, and other
 tools. `AGENTS.md` is the only rulebook. Replace stale facts here instead of
@@ -25,15 +25,15 @@ adding model-specific handoffs or a chronological diary.
 - Firmware release `v0.6.9` adds Binary Sensor and categorical Sensor history,
   Waveshare 4.3-inch support, the Waveshare 8 thin-PPA-strip guard, B4 visible
   brightness calibration, and the stabilization work committed after `v0.6.8`.
-- The commits after `33b4e06` integrate PR #33 cleanup and accessibility work
-  plus the isolated JC8012 V1 startup change. They did not create a new tag or
-  release.
+- Main also integrates the JC8012 V1 SDIO RX fix and Waveshare S3 LCD-4 Rev 4.0
+  (PR #35), including local builds, 15 release profiles, and installer support.
+  Both additions remain unreleased; `v0.6.9` is still the firmware version.
 - Recent stabilization work includes S3 update/display guards, MQTT packet
   validation, duplicate Light update coalescing, bounded S3 update work, and
   incremental Weather parsing (`e3de63c`, `631de57`, `8d5771c`, `33b4e06`).
-- The `v0.6.9` source passes all 53 tests. Binary/Text-State Sensor UI paths
-  were exercised on Waveshare 4B, Waveshare 8-inch, and Guition ESP32-S3;
-  GitHub Actions remains responsible for the complete release build matrix.
+- All 55 tests and the strict docs build pass; LCD-4 Rev 4.0 builds and
+  packages locally. Binary/Text-State Sensor UI was exercised on Waveshare
+  4B, Waveshare 8-inch and Guition S3; the full release matrix remains in CI.
 - The experimental Guition S3 XIP/`-O2` performance path was reverted in
   `5279456`. Do not reintroduce it as an assumed optimization. It increased
   risk and did not solve the measured interaction problem.
@@ -47,8 +47,8 @@ adding model-specific handoffs or a chronological diary.
 - Similar P4 products share application code and sometimes base-board logic,
   but panel controller, initialization table, timing, touch controller, board
   revision, and firmware image remain exact-profile concerns.
-- The current supported/pending matrix already lives in `README.md`; do not
-  maintain a duplicate device plan.
+- LCD-4 Rev 4.0 has contributor-tested display/touch/Wi-Fi/MQTT/Web OTA;
+  older revisions and SD access are unsupported. See `README.md` for validation.
 
 ## Active problem: GitHub issue #30
 

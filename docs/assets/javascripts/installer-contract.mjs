@@ -214,6 +214,16 @@ export const DEVICE_PROFILES = Object.freeze([
     hardwareCheck: "The device is the JC1060P470C V2 / New Panel variant.",
   }),
   Object.freeze({
+    key: "waveshare_s3_touch_lcd_4",
+    buildProfile: "waveshare_s3_touch_lcd_4",
+    label: "Waveshare ESP32-S3 Touch LCD 4 (Rev 4.0)",
+    chipFamily: "ESP32-S3",
+    flashSize: MIB_16,
+    status: "supported",
+    hardwareCheck:
+      "The board is ESP32-S3-Touch-LCD-4 revision 4.0 with the CH32V003 helper MCU. Earlier revisions and LCD-4B use different hardware.",
+  }),
+  Object.freeze({
     key: "waveshare_s3_touch_lcd_4b",
     buildProfile: "waveshare_s3_touch_lcd_4b",
     label: "Waveshare ESP32-S3 Touch LCD 4B",

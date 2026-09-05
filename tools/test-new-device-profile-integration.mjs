@@ -56,6 +56,16 @@ const profiles = [
     status: 'validation-pending',
   },
   {
+    key: 'waveshare_s3_touch_lcd_4',
+    profile: 'waveshare_s3_touch_lcd_4',
+    define: 'DEVICE_WAVESHARE_S3_TOUCH_LCD_4',
+    chipFamily: 'ESP32-S3',
+    flashSize: 16 * 1024 * 1024,
+    activeMarker: 'waveshare_s3_touch_lcd_4/device_waveshare_s3_touch_lcd_4.h',
+    rxVariant: 'native-s3',
+    status: 'supported',
+  },
+  {
     key: 'waveshare_s3_touch_lcd_4b',
     profile: 'waveshare_s3_touch_lcd_4b',
     define: 'DEVICE_WAVESHARE_S3_TOUCH_LCD_4B',
@@ -68,6 +78,9 @@ const profiles = [
 ];
 
 for (const expected of profiles) {
+  const allowedLocalProfiles = sources.localBuild.match(/\[ValidateSet\(([^)]*)\)\]/)?.[1];
+  assert.ok(allowedLocalProfiles?.includes(`'${expected.profile}'`),
+    `${expected.key} must be accepted by the local build command`);
   requireMarker(sources.select, `defined(${expected.define})`, `${expected.key} selector`);
   requireMarker(sources.active, expected.activeMarker, `${expected.key} active driver`);
   requireMarker(sources.metadata, `"${expected.key}"`, `${expected.key} metadata`);
@@ -95,6 +108,11 @@ for (const expected of profiles) {
   assert.equal(installer.chipFamily, expected.chipFamily);
   assert.equal(installer.flashSize, expected.flashSize);
   assert.equal(installer.status, expected.status);
+  if (expected.chipFamily === 'ESP32-S3') {
+    const nativeProfiles = sources.localBuild.match(/\$nativeS3Profiles\s*=\s*@\(([^)]*)\)/)?.[1];
+    assert.ok(nativeProfiles?.includes(`'${expected.profile}'`),
+      `${expected.key} must use native S3 compilation and skip ESP-Hosted patching`);
+  }
 }
 
 assert.match(
@@ -107,6 +125,6 @@ requireMarker(
   "if: matrix.rx_variant != 'native-s3'",
   'native-S3 CI marker scope',
 );
-requireMarker(sources.workflow, '-eq 28', '14-build release asset count');
+requireMarker(sources.workflow, '-eq 30', '15-build release asset count');
 
 console.log('New device profile integration contract: PASS');

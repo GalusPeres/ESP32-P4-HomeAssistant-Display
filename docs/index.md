@@ -96,6 +96,7 @@ remains experimental and ESP32-P4-only.
 | [Waveshare ESP32-P4-WIFI6-Touch-LCD-8](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 8" 1280×800 | Supported |
 | [Guition JC8012P4A1C_I_W_Y](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | 10.1" 1280×800 | Supported V1 panel; no `V2` suffix |
 | [Guition ESP32-4848S040C_I](https://www.guition.com/esp32-display-module/4-inch-esp32s3-display-module) | 4" 480×480 | Supported ESP32-S3 target; no Camera tiles |
+| [Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0](https://www.waveshare.com/wiki/ESP32-S3-Touch-LCD-4) | 4" 480×480 | Community hardware test reported in [PR #35](https://github.com/GalusPeres/HomeTiles/pull/35); first release pending; Camera tiles and SD access unavailable in this profile |
 
 ### Hardware validation notes
 
@@ -110,10 +111,18 @@ remains experimental and ESP32-P4-only.
 | Guition JC1060P470C V2 / New Panel | 7" 1024×600 | Basic operation reported working; corrected orientation and full release/OTA validation tracked in [issue #27](https://github.com/GalusPeres/HomeTiles/issues/27) |
 | [Waveshare ESP32-S3-Touch-LCD-4B](https://www.waveshare.com/esp32-s3-touch-lcd-4b.htm) | 4" 480×480 | Separate ESP32-S3 profile without microSD; validation tracked in [issue #26](https://github.com/GalusPeres/HomeTiles/issues/26) |
 
-Every release provides factory and OTA images for 14 explicit installer/release
-profiles covering thirteen physical device profiles. The Waveshare 7B/7B-C has
-separate pre-v3 revisions 1–199 and exact-v3.1 entries, so the release contains
-14 builds and 28 firmware files. Other current P4 profiles use vendor-listed
+The release pipeline now covers 15 explicit installer/release profiles for
+fourteen physical device profiles, producing 15 builds and 30 firmware files
+for the next release. Published v0.6.9 still contains 14 profiles and 28 files;
+the browser installer mirrors only assets present in that release.
+
+The new Waveshare S3 LCD-4 profile covers **Rev 4.0 only**, with the CH32V003
+helper at `0x24`. Revisions 1.0–3.0 are unsupported, and the S3 LCD-4B uses a
+separate image. The board has a microSD slot, but HomeTiles uses LittleFS on
+this profile. See [flashing and availability](flashing.md).
+
+The Waveshare 7B/7B-C has separate pre-v3 revisions 1–199 and exact-v3.1
+entries. Other current P4 profiles use vendor-listed
 P4NRW32/pre-v3 modules and are also guarded to revisions 1–199. HomeTiles'
 browser, Web Admin, and OTA paths enforce these ranges; v3.2 or newer is not
 supported. The notes above identify profiles whose complete hardware checklist

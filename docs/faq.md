@@ -31,8 +31,9 @@ Then check:
 Direct video sources can reach up to 24 FPS. Snapshot-only cameras update at
 the source's actual refresh rate. Transcoding uses Home Assistant host CPU and
 each simultaneously open panel creates its own experimental stream session.
-Camera tiles are not available on either ESP32-S3 profile: Guition
-ESP32-4848S040C_I or Waveshare ESP32-S3-Touch-LCD-4B.
+Camera tiles are not available on ESP32-S3 profiles: Guition
+ESP32-4848S040C_I, Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0, or Waveshare
+ESP32-S3-Touch-LCD-4B.
 
 ## A local Hardware entity is missing in Home Assistant
 
@@ -48,8 +49,9 @@ Home Assistant may add its normal `_2` suffix to a colliding visible entity ID.
 
 ## The ESP32-S3 screen briefly goes black while saving
 
-This is expected on the Guition ESP32-4848S040 and Waveshare
-ESP32-S3-Touch-LCD-4B builds. The stock Arduino SDK cannot feed these RGB
+This is expected on the Guition ESP32-4848S040, Waveshare
+ESP32-S3-Touch-LCD-4 Rev 4.0, and Waveshare ESP32-S3-Touch-LCD-4B builds.
+The stock Arduino SDK cannot feed these RGB
 panels safely from PSRAM while internal flash is being written. HomeTiles
 briefly blanks the backlight, writes the data, restarts RGB DMA on VSYNC, and
 then restores the image. This avoids the permanently shifted picture seen by
