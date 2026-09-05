@@ -28,8 +28,9 @@ Shared project state. `AGENTS.md` is the only rulebook; replace stale facts here
 - Recent stabilization work includes S3 update/display guards, MQTT packet
   validation, duplicate Light update coalescing, bounded S3 update work, and
   incremental Weather parsing (`e3de63c`, `631de57`, `8d5771c`, `33b4e06`).
-- Maintenance source `4b34ac2` passes 72 host tests, strict docs and both requested
-  builds. Hardware validation and runtime performance measurements remain pending.
+- `4b34ac2`: 72 host tests, strict docs and both test-device builds pass.
+- Both test panels serve matching Admin assets; initial use reportedly stable.
+  Full hardware validation and runtime measurements remain pending.
 - The experimental Guition S3 XIP/`-O2` performance path was reverted in
   `5279456`. Do not reintroduce it as an assumed optimization. It increased
   risk and did not solve the measured interaction problem.
@@ -148,8 +149,7 @@ Issue: https://github.com/GalusPeres/HomeTiles/issues/30
 ## Current maintenance refactoring
 
 - Local commits are authorized; no push or release is authorized for this work.
-- `ARCHITECTURE.md` maps ownership, reviewed risks and the remaining roadmap;
-  `CONTRIBUTING.md` explains device/tile additions and generated-source workflows.
+- See `ARCHITECTURE.md` for ownership/risks and `CONTRIBUTING.md` for extension workflows.
 - Subsystems and tests use domain folders; comments and technical logs are English.
 - One host device catalog; 51 Admin units; host tools need `npm ci --ignore-scripts`.
 - HTTP helpers compile once; type policies, queues and settings codecs have tests.
