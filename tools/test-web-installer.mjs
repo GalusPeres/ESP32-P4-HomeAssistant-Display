@@ -1,3 +1,4 @@
+import { releaseProfiles } from './device-catalog.js';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -174,8 +175,7 @@ for (const target of releaseTargets.filter((candidate) => candidate.chipFamily =
 }
 
 const packageSource = read("release-helper/package-ci-build.js");
-const packagedDeviceKeys = [...packageSource.matchAll(/\['([a-z0-9_]+)',\s*\{\s*key:/g)]
-  .map((match) => match[1]);
+const packagedDeviceKeys = releaseProfiles.map((profile) => profile.key);
 assert.deepEqual(
   releaseTargets.map((target) => target.key).sort(),
   packagedDeviceKeys.sort(),

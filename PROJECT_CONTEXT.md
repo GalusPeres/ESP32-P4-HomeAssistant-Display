@@ -2,9 +2,7 @@
 
 Last reviewed: 2026-09-05
 
-This is the concise cross-agent project state for Codex, Claude, and other
-tools. `AGENTS.md` is the only rulebook. Replace stale facts here instead of
-adding model-specific handoffs or a chronological diary.
+Shared project state. `AGENTS.md` is the only rulebook; replace stale facts here.
 
 ## Sources of truth
 
@@ -31,9 +29,9 @@ adding model-specific handoffs or a chronological diary.
 - Recent stabilization work includes S3 update/display guards, MQTT packet
   validation, duplicate Light update coalescing, bounded S3 update work, and
   incremental Weather parsing (`e3de63c`, `631de57`, `8d5771c`, `33b4e06`).
-- All 55 tests and the strict docs build pass; LCD-4 Rev 4.0 builds and
-  packages locally. Binary/Text-State Sensor UI was exercised on Waveshare
-  4B, Waveshare 8-inch and Guition S3; the full release matrix remains in CI.
+- All 64 host tests and the strict docs build pass. The maintenance refactoring
+  still needs final Waveshare 8-inch and Guition S3 builds and hardware checks.
+  Previously validated LCD-4 Rev 4.0 builds/packages remain separate evidence.
 - The experimental Guition S3 XIP/`-O2` performance path was reverted in
   `5279456`. Do not reintroduce it as an assumed optimization. It increased
   risk and did not solve the measured interaction problem.
@@ -42,6 +40,7 @@ adding model-specific handoffs or a chronological diary.
 
 - The maintainer can directly test M5Stack Tab5, Waveshare 4B, Waveshare
   8-inch, and Guition ESP32-4848S040 S3 hardware.
+- v0.6.9 Binary/Text-State Sensor UI passed hardware tests on 4B, 8-inch and S3.
 - Other exact revisions depend on community testers. A successful compile does
   not promote an untested revision to supported status.
 - Similar P4 products share application code and sometimes base-board logic,
@@ -148,11 +147,13 @@ Issue: https://github.com/GalusPeres/HomeTiles/issues/30
 - Later work includes notifications/sounds, event-driven folder colors, Number,
   Date/Time, Select, Button, and related entities; track priority in live issues.
 
-## Maintenance rule for this file
+## Current maintenance refactoring
 
-- Update the review date and affected facts after a meaningful change.
-- Remove resolved tasks and obsolete experiments; keep only conclusions that
-  prevent repeated work.
-- Link to canonical technical documents instead of copying them.
-- Never paste raw serial logs, complete issue threads, temporary BIN lists, or
-  chat summaries here.
+- Local commits are authorized; no push or release is authorized for this work.
+- `ARCHITECTURE.md` maps ownership, reviewed risks and the remaining roadmap;
+  `CONTRIBUTING.md` explains device/tile additions and generated-source workflows.
+- Host tooling shares one device catalog. HTTP endpoints have separate owners;
+  tile policies, queue service and the settings access codec have focused tests.
+- Admin source is split into 51 units with unchanged deployed JS/gzip bytes.
+- Both requested application BINs must be no larger than their matching baseline;
+  use `tools/compare-firmware-size.mjs`. Hardware speed/stability remain unmeasured.

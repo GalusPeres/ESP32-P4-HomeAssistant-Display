@@ -508,10 +508,21 @@ Step-by-step instructions (broker, integration, display): [Home Assistant Setup 
   Waveshare ESP32-S3-Touch-LCD-4B targets do not support Camera tiles; use the
   exact S3 factory or OTA image listed above.
 
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the device and tile extension
+workflows, generated-source commands, tests and firmware size checks.
+[ARCHITECTURE.md](ARCHITECTURE.md) maps subsystem ownership, runtime data flow
+and the next maintenance priorities. Browser source lives in `src/web/admin/`
+and beside each tile type; `src/web/assets/admin.js` is assembled from those
+sources. Build/release/installer identities come from
+`tools/device-profiles.json`, while exact hardware remains in its own driver.
+
 ## Notes
 
 - A microSD card is not required for normal operation; it is only used for the web file manager and screenshot export.
 - Board selection and board settings must match the target device.
+
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE).

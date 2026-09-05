@@ -6,27 +6,9 @@ const projectName = 'HomeTiles.ino';
 const versionFilePath = path.join(repoRoot, 'version.txt');
 const otaSlotSize = 0x680000;
 
-const devices = new Map([
-  ['m5stacks_tab5', { key: 'm5stacks_tab5', siliconVariant: 'pre_v3' }],
-  ['waveshare_4b', { key: 'waveshare_4b', siliconVariant: 'pre_v3' }],
-  ['waveshare_touch_lcd_4_3', { key: 'waveshare_touch_lcd_4_3', siliconVariant: 'pre_v3' }],
-  ['waveshare_touch_lcd_7', { key: 'waveshare_touch_lcd_7', siliconVariant: 'pre_v3' }],
-  ['waveshare_touch_lcd_7b', { key: 'waveshare_touch_lcd_7b', siliconVariant: 'pre_v3' }],
-  ['waveshare_touch_lcd_7b_rev3_1', {
-    key: 'waveshare_touch_lcd_7b_rev3_1',
-    metadataDeviceKey: 'waveshare_touch_lcd_7b',
-    siliconVariant: 'rev3_1',
-  }],
-  ['waveshare_touch_lcd_8', { key: 'waveshare_touch_lcd_8', siliconVariant: 'pre_v3' }],
-  ['waveshare_touch_lcd_10_1', { key: 'waveshare_touch_lcd_10_1', siliconVariant: 'pre_v3' }],
-  ['guition_jc8012p4a1', { key: 'guition_jc8012p4a1', siliconVariant: 'pre_v3' }],
-  ['guition_jc8012p4a1_v2', { key: 'guition_jc8012p4a1_v2', siliconVariant: 'pre_v3' }],
-  ['guition_jc1060p470c', { key: 'guition_jc1060p470c', siliconVariant: 'pre_v3' }],
-  ['guition_jc1060p470c_v2', { key: 'guition_jc1060p470c_v2', siliconVariant: 'pre_v3' }],
-  ['guition_esp32_4848s040', { key: 'guition_esp32_4848s040', siliconVariant: 'default' }],
-  ['waveshare_s3_touch_lcd_4', { key: 'waveshare_s3_touch_lcd_4', siliconVariant: 'default' }],
-  ['waveshare_s3_touch_lcd_4b', { key: 'waveshare_s3_touch_lcd_4b', siliconVariant: 'default' }],
-]);
+const { releaseProfiles, releaseFileVersion } = require('../tools/device-catalog.js');
+const { parseFirmwareMetadata, assertReleaseMetadata } = require('./firmware-metadata.js');
+const devices = new Map(releaseProfiles.map((profile) => [profile.key, profile]));
 
 function readVersion() {
   const text = fs.readFileSync(versionFilePath, 'utf8');
@@ -101,69 +83,6 @@ function ensureCleanDeviceOutputs(outDir, deviceKey) {
   }
 }
 
-function readNullTerminatedString(buffer, offset, maxLength) {
-  const end = buffer.indexOf(0, offset);
-  const limit = Math.min(end === -1 ? buffer.length : end, offset + maxLength);
-  return buffer.subarray(offset, limit).toString('utf8');
-}
-
-function verifyDeviceDescriptor(imagePath, expectedDeviceKey) {
-  const image = fs.readFileSync(imagePath);
-  const descriptorOffset = 24 + 8 + 256;
-  const descriptorLength = 4 + 32 + 32 + 32;
-  const descriptorMagic = 0x44565034;
-
-  if (image.length < descriptorOffset + descriptorLength) {
-    throw new Error(`Firmware image is too small for metadata: ${imagePath}`);
-  }
-  if (image.readUInt32LE(descriptorOffset) !== descriptorMagic) {
-    throw new Error(`Firmware metadata magic is missing: ${imagePath}`);
-  }
-
-  const deviceKey = readNullTerminatedString(image, descriptorOffset + 4 + 32, 32);
-  if (deviceKey !== expectedDeviceKey) {
-    throw new Error(
-      `Firmware metadata device mismatch: expected ${expectedDeviceKey}, got ${deviceKey || '(empty)'}.`
-    );
-  }
-}
-
-function verifySiliconVariant(imagePath, expectedVariant) {
-  const image = fs.readFileSync(imagePath);
-  const descriptorOffset = 24 + 8 + 256;
-  const deviceDescriptorLength = 4 + 32 + 32 + 32;
-  const siliconOffset = descriptorOffset + deviceDescriptorLength;
-  const siliconMagic = 0x53525634;
-  const siliconVariantMaxLength = 16;
-
-  if (image.length < siliconOffset + 4 + 2 + 2 + siliconVariantMaxLength) {
-    throw new Error(`Firmware image is too small for silicon metadata: ${imagePath}`);
-  }
-  if (image.readUInt32LE(siliconOffset) !== siliconMagic) {
-    throw new Error(`Firmware silicon metadata magic is missing: ${imagePath}`);
-  }
-
-  const actualVariant = readNullTerminatedString(
-    image,
-    siliconOffset + 8,
-    siliconVariantMaxLength
-  );
-  if (actualVariant !== expectedVariant) {
-    throw new Error(
-      `Firmware silicon variant mismatch: expected ${expectedVariant}, got ${actualVariant || '(empty)'}.`
-    );
-  }
-
-  const minimumRevision = image.readUInt16LE(siliconOffset + 4);
-  const maximumRevision = image.readUInt16LE(siliconOffset + 6);
-  if (expectedVariant === 'pre_v3' && (minimumRevision !== 1 || maximumRevision !== 199)) {
-    throw new Error(`Pre-v3 firmware must use the exact revision range 1-199, got ${minimumRevision}-${maximumRevision}.`);
-  }
-  if (expectedVariant === 'rev3_1' && (minimumRevision !== 301 || maximumRevision !== 301)) {
-    throw new Error(`Rev3.1 firmware must use the exact revision range 301-301, got ${minimumRevision}-${maximumRevision}.`);
-  }
-}
-
 function main() {
   const args = readArgs(process.argv);
   const buildDirArg = args['build-dir'] || process.env.BUILD_DIR;
@@ -196,7 +115,7 @@ function main() {
     throw new Error(`Build directory not found: ${buildDir}`);
   }
 
-  const version = readVersion().replace(/[^A-Za-z0-9._-]/g, '-');
+  const version = releaseFileVersion(readVersion());
   const files = walkFiles(buildDir);
 
   const updatePath = selectSingleFile(
@@ -210,8 +129,8 @@ function main() {
     `${deviceKey} factory`
   );
 
-  verifyDeviceDescriptor(updatePath, metadataDeviceKey);
-  verifySiliconVariant(updatePath, siliconVariant);
+  assertReleaseMetadata(parseFirmwareMetadata(fs.readFileSync(updatePath)), device);
+  assertReleaseMetadata(parseFirmwareMetadata(fs.readFileSync(factoryPath), 0x10000), device);
   const updateSize = fs.statSync(updatePath).size;
   if (updateSize > otaSlotSize) {
     throw new Error(

@@ -9,6 +9,8 @@ const read = relativePath =>
     .replace(/\r\n?/g, '\n');
 
 const tileConfigHeader = read('src/tiles/tile_config.h');
+const tileTypes = read('src/tiles/tile_type.h');
+const tilePolicy = read('src/tiles/tile_type_policy.h');
 const tileConfig = read('src/tiles/tile_config.cpp');
 const tileRendererHeader = read('src/tiles/tile_renderer.h');
 const tileRenderer = read('src/tiles/tile_renderer.cpp');
@@ -21,8 +23,9 @@ const tiles = read('src/ui/tab_tiles_unified.cpp');
 const screensaver = read('src/ui/image_screensaver.cpp');
 const screensaverConfig = read('src/ui/screensaver_config.cpp');
 const sketch = read('HomeTiles.ino');
+const updateService = read('src/tiles/tile_update_service.h');
 
-assert.match(tileConfigHeader, /TILE_COVER = 19,\s*TILE_BINARY_SENSOR = 20/,
+assert.match(tileTypes, /TILE_COVER = 19,\s*TILE_BINARY_SENSOR = 20/,
              'Binary Sensor must append stable TileType ID 20');
 
 const packedV7 = tileConfig.match(/struct PackedTileV7 \{[\s\S]*?\n\};/)?.[0] ?? '';
@@ -31,16 +34,18 @@ assert.ok(packedV7.includes('char sensor_entity[ENTITY_MAX];'),
 assert.doesNotMatch(packedV7, /binary_sensor|device_class|last_changed/,
                     'PackedTileV7 layout must not grow for Binary Sensor');
 for (const marker of [
-  'type == TILE_BINARY_SENSOR',
-  'in.type == TILE_BINARY_SENSOR',
-  'out.type == TILE_BINARY_SENSOR'
+  'entityTileStoresSensorEntity(tile.type)',
+  'tileTypeStoresPopupMode(in.type)',
+  'tileTypeStoresPopupMode(out.type)'
 ]) {
   assert.ok(tileConfig.includes(marker),
             `Binary Sensor persistence path is missing: ${marker}`);
 }
 assert.match(tileConfigHeader,
-             /tile\.type != TILE_COVER && tile\.type != TILE_BINARY_SENSOR/,
+             /tileTypeStoresPopupModeDirectly\(tile\.type\)/,
              'Binary Sensor popup mode must survive Tile round trips');
+assert.match(tilePolicy, /type == TILE_BINARY_SENSOR/,
+             'Binary Sensor must participate in the shared tile policies');
 
 for (const marker of [
   'bool has_available = false;',
@@ -167,8 +172,12 @@ assert.match(binaryRenderer,
              /value_double < 18446744073709551616\.0/,
              'Floating timestamps must be bounded before conversion to uint64_t');
 
-for (const source of [mqtt, tiles, screensaverConfig]) {
-  assert.ok(source.includes('TILE_BINARY_SENSOR'),
+for (const [source, marker] of [
+  [mqtt, 'tileTypeSubscribesDynamicState(slot.type)'],
+  [tiles, 'tileTypeUsesCachedEntityState(tile.type)'],
+  [screensaverConfig, 'tileTypeAllowedInScreensaver(type)'],
+]) {
+  assert.ok(source.includes(marker),
             'A dynamic route, runtime cache, or screensaver allow-list is incomplete');
 }
 for (const marker of [
@@ -178,7 +187,7 @@ for (const marker of [
   'reset_binary_sensor_widget(',
   'reset_binary_sensor_widgets('
 ]) {
-  assert.ok((tiles + screensaver + sketch).includes(marker),
+  assert.ok((tiles + screensaver + sketch + updateService).includes(marker),
             `Binary Sensor runtime lifecycle hook is missing: ${marker}`);
 }
 for (const marker of [

@@ -5,6 +5,7 @@ import { gzipSync } from 'node:zlib';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readAdminBundle } from './lib/admin-bundle.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const checkOnly = process.argv.includes('--check');
@@ -51,22 +52,25 @@ function byteInclude(data) {
 
 function writeOrCheck(relativePath, expected) {
   const absolutePath = resolve(repoRoot, relativePath);
+  let current = null;
+  try {
+    current = readFileSync(absolutePath, 'utf8').replace(/\r\n?/g, '\n');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (current === expected) return;
   if (checkOnly) {
-    let current = '';
-    try {
-      current = readFileSync(absolutePath, 'utf8').replace(/\r\n?/g, '\n');
-    } catch {
+    if (current === null) {
       throw new Error(`Generated file is missing: ${relativePath}`);
     }
-    if (current !== expected) {
-      throw new Error(
-        `Generated file is stale: ${relativePath}\n` +
-        'Run: node tools/generate-web-assets.mjs');
-    }
-    return;
+    throw new Error(
+      `Generated file is stale: ${relativePath}\n` +
+      'Run: node tools/generate-web-assets.mjs');
   }
   writeFileSync(absolutePath, expected, 'utf8');
 }
+
+writeOrCheck('src/web/assets/admin.js', readAdminBundle(repoRoot).source);
 
 const generated = assets.map(asset => {
   const source = normalizedSource(asset.source);

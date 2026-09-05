@@ -1,6 +1,5 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('tab5', 'waveshare_b4', 'waveshare_4_3', 'waveshare_7', 'waveshare_7b', 'waveshare_7b_rev3_1', 'waveshare_8', 'waveshare_10_1', 'waveshare_s3_touch_lcd_4', 'waveshare_s3_touch_lcd_4b', 'layout_test_1024x600', 'layout_test_480x480', 'guition_jc8012p4a1', 'guition_jc8012p4a1_v2', 'guition_jc1060p470c', 'guition_jc1060p470c_v2', 'guition_esp32_4848s040')]
     [string]$Profile,
 
     [string]$OutputDirectory,
@@ -33,6 +32,17 @@ if (Test-Path -LiteralPath $hiddenSketchProfiles) {
 }
 
 $node = Get-Command node -ErrorAction Stop
+# Preserve the case-insensitive profile names accepted by PowerShell ValidateSet.
+$Profile = $Profile.ToLowerInvariant()
+$profileJson = & $node.Source (Join-Path $PSScriptRoot 'device-catalog.js') --profile $Profile
+if ($LASTEXITCODE -ne 0) {
+    throw "Unknown or invalid build profile: $Profile"
+}
+$buildProfile = $profileJson | ConvertFrom-Json
+& $node.Source (Join-Path $PSScriptRoot 'generate-device-profiles.mjs') --check
+if ($LASTEXITCODE -ne 0) {
+    throw 'Generated device profiles are stale. Run tools/generate-device-profiles.mjs.'
+}
 & $node.Source (Join-Path $PSScriptRoot 'generate-web-assets.mjs') --check
 if ($LASTEXITCODE -ne 0) {
     throw 'Generated WebUI assets are stale. Run tools/generate-web-assets.mjs.'
@@ -118,32 +128,7 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Arduino build importer contract test failed.'
 }
 
-$defines = @{
-    tab5 = 'DEVICE_M5STACKS_TAB5'
-    waveshare_b4 = 'DEVICE_WAVESHARE_4B'
-    waveshare_4_3 = 'DEVICE_WAVESHARE_TOUCH_LCD_4_3'
-    waveshare_7 = 'DEVICE_WAVESHARE_TOUCH_LCD_7'
-    waveshare_7b = 'DEVICE_WAVESHARE_TOUCH_LCD_7B'
-    waveshare_7b_rev3_1 = 'DEVICE_WAVESHARE_TOUCH_LCD_7B'
-    waveshare_8 = 'DEVICE_WAVESHARE_TOUCH_LCD_8'
-    waveshare_10_1 = 'DEVICE_WAVESHARE_TOUCH_LCD_10_1'
-    layout_test_1024x600 = 'DEVICE_LAYOUT_TEST_1024X600'
-    layout_test_480x480 = 'DEVICE_LAYOUT_TEST_480X480'
-    guition_jc8012p4a1 = 'DEVICE_GUITION_JC8012P4A1'
-    guition_jc8012p4a1_v2 = 'DEVICE_GUITION_JC8012P4A1_V2'
-    guition_jc1060p470c = 'DEVICE_GUITION_JC1060P470C'
-    guition_jc1060p470c_v2 = 'DEVICE_GUITION_JC1060P470C_V2'
-    guition_esp32_4848s040 = 'DEVICE_GUITION_ESP32_4848S040'
-    waveshare_s3_touch_lcd_4 = 'DEVICE_WAVESHARE_S3_TOUCH_LCD_4'
-    waveshare_s3_touch_lcd_4b = 'DEVICE_WAVESHARE_S3_TOUCH_LCD_4B'
-}
-
-$nativeS3Profiles = @(
-    'guition_esp32_4848s040',
-    'waveshare_s3_touch_lcd_4',
-    'waveshare_s3_touch_lcd_4b'
-)
-$isNativeS3 = $Profile -in $nativeS3Profiles
+$isNativeS3 = $buildProfile.chipFamily -eq 'ESP32-S3'
 
 $profileLines = Get-Content -LiteralPath $sketchProfiles
 $insideProfile = $false
@@ -171,10 +156,8 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 
 $resolvedEspHostedRxVariant = if ($EspHostedRxVariant -ne 'auto') {
     $EspHostedRxVariant
-} elseif ($Profile -eq 'guition_jc8012p4a1') {
-    'repo-guition-jc8012-rx-single-block'
 } else {
-    'repo-a8204'
+    $buildProfile.rxVariant
 }
 
 if ($resolvedEspHostedRxVariant -eq 'repo-guition-jc8012-rx-single-block' -and
@@ -198,13 +181,9 @@ foreach ($define in $ExtraDefine) {
     }
     $extraDefineFlags += "-D$define"
 }
-$cppFlags = "-DHOMETILES_CI_TARGET -D$($defines[$Profile]) $($extraDefineFlags -join ' ') $commonFlags"
+$cppFlags = "-DHOMETILES_CI_TARGET -D$($buildProfile.define) $($extraDefineFlags -join ' ') $commonFlags"
 $cFlags = $cppFlags
-$elfFlags = if ($Profile -eq 'guition_jc8012p4a1') {
-    '-Wl,--wrap=esp_hosted_get_default_sdio_config'
-} else {
-    ''
-}
+$elfFlags = $buildProfile.elfFlags
 
 Move-Item -LiteralPath $sketchProfiles -Destination $hiddenSketchProfiles
 try {

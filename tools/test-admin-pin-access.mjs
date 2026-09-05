@@ -14,7 +14,8 @@ const requireMarker = (source, marker, label) => {
 const html = read('src/web/web_admin_html.cpp');
 const settingsHtml = read('src/types/settings/web_html.cpp');
 const registry = read('src/types/types_registry.cpp');
-const handlers = read('src/web/web_admin_handlers.cpp');
+const handlers = read('src/web/web_admin_handlers.cpp') +
+  read('src/web/web_admin_tiles.cpp');
 const routes = read('src/web/web_admin.cpp');
 const navigateHtml = read('src/types/navigate/web_html.cpp');
 const navigateScripts = read('src/types/navigate/web_scripts.cpp');

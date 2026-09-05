@@ -1,3 +1,4 @@
+import { getBuildProfile, releaseProfiles } from './device-catalog.js';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -34,14 +35,11 @@ assert.match(wrapper, /config\.bus_width = 1;/);
 assert.match(wrapper, /__wrap_esp_hosted_get_default_sdio_config/);
 
 assert.match(localBuild, new RegExp(`'${variant.replaceAll('-', '\\-')}'`));
-assert.match(
-  localBuild,
-  /\$Profile -eq 'guition_jc8012p4a1'\) \{\s*'repo-guition-jc8012-rx-single-block'/,
-);
-assert.match(
-  localBuild,
-  /-Wl,--wrap=esp_hosted_get_default_sdio_config/,
-);
+assert.equal(getBuildProfile('guition_jc8012p4a1').rxVariant, variant);
+assert.equal(getBuildProfile('guition_jc8012p4a1').elfFlags, '-Wl,--wrap=esp_hosted_get_default_sdio_config');
+assert.deepEqual(releaseProfiles.filter((profile) => profile.rxVariant === variant).map((profile) => profile.key), ['guition_jc8012p4a1']);
+assert.match(localBuild, /\$buildProfile\.rxVariant/);
+assert.match(localBuild, /\$elfFlags = \$buildProfile\.elfFlags/);
 assert.match(localBuild, new RegExp(marker));
 assert.match(
   localBuild,

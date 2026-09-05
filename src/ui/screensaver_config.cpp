@@ -46,18 +46,8 @@ uint8_t normalize_font(int value, uint8_t fallback, uint8_t maximum = 96) {
 }
 
 TileType normalize_screensaver_type(int raw) {
-  switch (static_cast<TileType>(raw)) {
-    case TILE_SENSOR:
-    case TILE_ENERGY:
-    case TILE_SCENE:
-    case TILE_SWITCH:
-    case TILE_MEDIA:
-    case TILE_COVER:
-    case TILE_BINARY_SENSOR:
-      return static_cast<TileType>(raw);
-    default:
-      return TILE_EMPTY;
-  }
+  const TileType type = static_cast<TileType>(raw);
+  return tileTypeAllowedInScreensaver(type) ? type : TILE_EMPTY;
 }
 
 String safe_wallpaper_name(const String& raw) {

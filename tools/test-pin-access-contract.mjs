@@ -13,10 +13,12 @@ const pinHeader = read('src/core/pin_access.h');
 const pinSource = read('src/core/pin_access.cpp');
 const configHeader = read('src/core/config_manager.h');
 const configSource = read('src/core/config_manager.cpp');
+const settingsAccessRecord = read('src/core/settings_access_record.h');
 const batchedNvs = read('src/core/batched_nvs_write.h');
 const tileHeader = read('src/tiles/tile_config.h');
 const tileSource = read('src/tiles/tile_config.cpp');
-const handlers = read('src/web/web_admin_handlers.cpp');
+const handlers = read('src/web/web_admin_handlers.cpp') +
+  read('src/web/web_admin_tiles.cpp');
 const admin = read('src/web/assets/admin.js');
 
 for (const marker of [
@@ -79,7 +81,9 @@ for (const marker of [
   'prefs.putBytes(SETTINGS_ACCESS_KEY, &settings_access',
   'settings_access_written || !transaction_finished',
   'pin_access::isRecoveryPin(pin)',
-]) requireMarker(configSource, marker, 'ConfigManager PIN contract');
+]) requireMarker(configSource + settingsAccessRecord, marker, 'ConfigManager PIN contract');
+requireMarker(configSource, '#include "src/core/settings_access_record.h"',
+              'ConfigManager settings record codec dependency');
 requireMarker(
   configSource,
   'if (normalized.settings_tile_hidden) {\n    normalized.settings_swipe_enabled = true;',

@@ -41,7 +41,8 @@
 #include "src/ui/screensaver_config.h"
 #include "src/io/hardware_io.h"
 #include "src/tiles/tile_config.h"
-#include "src/tiles/tile_renderer.h"  // Für process_sensor_update_queue()
+#include "src/tiles/tile_renderer.h"
+#include "src/tiles/tile_update_service.h"
 #include "src/tiles/mdi_icons.h"      // MDI Icon Mapping
 
 // MDI Icons Font (48px, 4bpp) - definiert in src/fonts/mdi_icons_48.c
@@ -1211,23 +1212,10 @@ void loop() {
       // sofort wieder Subscribes/Discovery bekommt.
       mqttServicePostConnect();
       mqtt_process_inbound_queue();
-      // tiles_update_sensor_by_entity() queued Live-Werte jetzt auch waehrend
-      // echtem Sleep (frueher: nur gecacht, UI-Queues blieben leer -- das
-      // brauchte einen Wake-Sonder-Catchup, der z.B. Media-Tiles vergessen
-      // hat). Hier draenieren, damit die Kacheln laufend aktuell sind, nicht
-      // erst ab dem Aufwachen. Kein Rendering-Kosten: Refresh-Timer ist
-      // pausiert, ein aktualisiertes Label markiert nur seine eigene kleine
-      // Flaeche dirty, ohne dass auf den abgeschalteten Screen gezeichnet wird.
-      // process_tile_graph_queue() bewusst NICHT hier: Graph-Historie ist
-      // Request/Response (network round-trip), keine laufende Werte-Quelle
-      // wie die anderen vier -- bleibt beim bestehenden On-Demand-Pfad.
-      process_sensor_update_queue();
-      process_switch_update_queue();
-      process_climate_update_queue();
-      process_cover_update_queue();
-      process_binary_sensor_update_queue();
-      process_weather_update_queue();
-      process_media_update_queue();
+      // Keep live tile state current during sleep. The paused refresh timer
+      // prevents drawing to the sleeping display, so wake needs no catch-up.
+      // Graph history remains on the active request/response path below.
+      process_tile_update_queues<TileUpdateBudget::DrainAll>();
       // Uhrzeit/WLAN-/Power-Status haben denselben Bug wie die Sensor-Queues
       // oben: uiManager.updateStatusbar() & Co. liefen bisher nur alle 2s im
       // AKTIVEN Loop-Pfad, nie im Sleep -- die Uhr blieb also auf dem Stand
@@ -1332,26 +1320,14 @@ void loop() {
   process_camera_popup();
   uint32_t t_popup_queues = millis();
 
-  // Im Idle nur alle 2s tile/sensor Queues verarbeiten (spart CPU bei 10 FPS)
+  // In idle mode, process bounded tile batches once per two-second interval.
   if (!camera_popup_busy) {
     static uint32_t last_queue_ms = 0;
     bool idle = !powerManager.isHighPerformance();
     if (!idle || (millis() - last_queue_ms >= 2000)) {
-      // Im Idle-Fall koennen sich bis zu 32 Sensor-/Switch- bzw. 16 Wetter-Updates
-      // in den 2s angesammelt haben. Alle auf einmal synchron abzuarbeiten kann
-      // den Frame direkt vor lv_timer_handler() spuerbar verzoegern (sichtbares
-      // kurzes Hakeln z.B. bei laufenden Animation-Tiles). Wie beim Media-Limit
-      // (2) wird hier pro Loop-Durchlauf nur ein Haeppchen verarbeitet; der Rest
-      // folgt in den naechsten Iterationen, die im Idle-Fall ebenfalls durch
-      // dieses 2s-Fenster laufen -- bei normalem MQTT-Aufkommen bleibt die Queue
-      // dadurch praktisch nie lange gefuellt.
-      process_sensor_update_queue(6);  // WICHTIG: VOR lv_timer_handler()!
-      process_switch_update_queue(6);
-      process_climate_update_queue(4);
-      process_cover_update_queue(4);
-      process_binary_sensor_update_queue(4);
-      process_weather_update_queue(4);
-      process_media_update_queue(2);
+      // Apply each type's bounded batch before LVGL services the next frame.
+      // Remaining idle work waits for the next two-second interval.
+      process_tile_update_queues<TileUpdateBudget::Active>();
       process_tile_graph_queue();
       if (idle) energy_service_periodic();
       last_queue_ms = millis();

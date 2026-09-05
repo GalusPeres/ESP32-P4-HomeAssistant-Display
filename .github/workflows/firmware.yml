@@ -35,6 +35,9 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Verify generated device profiles
+        run: node tools/generate-device-profiles.mjs --check
+
       - name: Verify generated WebUI assets
         run: node tools/generate-web-assets.mjs --check
 
@@ -91,6 +94,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # BEGIN GENERATED DEVICE MATRIX
         include:
           - label: M5Stack Tab5
             profile: tab5
@@ -195,6 +199,7 @@ jobs:
             define: DEVICE_WAVESHARE_S3_TOUCH_LCD_4B
             rx_variant: native-s3
             publish: true
+        # END GENERATED DEVICE MATRIX
 
     steps:
       - name: Check out repository
@@ -457,6 +462,14 @@ jobs:
       contents: write
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
       - name: Download firmware artifacts
         uses: actions/download-artifact@v4
         with:
@@ -467,8 +480,7 @@ jobs:
       - name: Verify release assets
         shell: bash
         run: |
-          ls -la build/release-assets
-          test "$(find build/release-assets -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 30
+          node tools/device-catalog.js --verify-release-assets build/release-assets "$GITHUB_REF_NAME"
 
       - name: Upload assets to GitHub release
         env:

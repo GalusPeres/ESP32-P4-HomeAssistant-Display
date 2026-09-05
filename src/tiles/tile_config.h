@@ -6,6 +6,7 @@
 
 #include "src/devices/device.h"
 #include "src/core/pin_access.h"
+#include "src/tiles/tile_type_policy.h"
 
 static constexpr uint8_t GRID_COLS = Device::kGridCols;
 static constexpr uint8_t GRID_ROWS = Device::kGridRows;
@@ -15,35 +16,6 @@ static constexpr int GRID_GAP = Device::kGridGap;
 static constexpr int GRID_PAD = Device::kGridPad;
 static constexpr int GRID_CELL_W = Device::kGridCellW;
 static constexpr int GRID_CELL_H = Device::kGridCellH;
-
-enum TileType : uint8_t {
-  TILE_EMPTY = 0,
-  TILE_SENSOR = 1,
-  TILE_SCENE = 2,
-  TILE_KEY = 3,      // retired; numeric value kept for stored configurations
-  TILE_FOLDER = 4,
-  TILE_SWITCH = 5,
-  TILE_IMAGE = 6,    // retired; numeric value kept for stored configurations
-  TILE_SETTINGS = 7,
-  TILE_BACK = 8,
-  TILE_CLOCK = 9,
-  TILE_TEXT = 10,
-  TILE_COUNTER = 11, // retired; numeric value kept for stored configurations
-  TILE_WEATHER = 12,
-  TILE_RADAR = 13,   // retired; numeric value kept for stored configurations
-  TILE_ENERGY = 14,
-  TILE_MEDIA = 15,
-  TILE_PIXELANIM = 16,
-  TILE_CLIMATE = 17,
-  TILE_CAMERA = 18,
-  TILE_COVER = 19,
-  TILE_BINARY_SENSOR = 20
-};
-
-static inline bool isRetiredTileType(TileType type) {
-  return type == TILE_KEY || type == TILE_IMAGE ||
-         type == TILE_COUNTER || type == TILE_RADAR;
-}
 
 // A media tile renders its (often long) title as a horizontally scrolling band the
 // full width of the tile. On the 8-inch device every flush is PPA-rotated, and a
@@ -442,9 +414,7 @@ static inline uint8_t getTilePopupOpenMode(const Tile& tile) {
                ? TILE_POPUP_OPEN_LONG_PRESS
                : TILE_POPUP_OPEN_SHORT_PRESS;
   }
-  if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER &&
-      tile.type != TILE_ENERGY && tile.type != TILE_CLIMATE &&
-      tile.type != TILE_COVER && tile.type != TILE_BINARY_SENSOR) {
+  if (!tileTypeStoresPopupModeDirectly(tile.type)) {
     return TILE_POPUP_OPEN_LONG_PRESS;
   }
   return (tile.popup_open_mode == TILE_POPUP_OPEN_SHORT_PRESS)
@@ -468,9 +438,7 @@ static inline void setTilePopupOpenMode(Tile& tile, uint8_t mode) {
     tile.key_modifier = 0;
     return;
   }
-  if (tile.type != TILE_SENSOR && tile.type != TILE_WEATHER &&
-      tile.type != TILE_ENERGY && tile.type != TILE_CLIMATE &&
-      tile.type != TILE_COVER && tile.type != TILE_BINARY_SENSOR) return;
+  if (!tileTypeStoresPopupModeDirectly(tile.type)) return;
   tile.popup_open_mode = (mode == TILE_POPUP_OPEN_SHORT_PRESS)
                              ? TILE_POPUP_OPEN_SHORT_PRESS
                              : TILE_POPUP_OPEN_LONG_PRESS;

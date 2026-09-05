@@ -34,7 +34,7 @@ const hardwareIo = read(
   'src/devices/guition_jc1060p470c/hardware_io_profile.h');
 const device = read(
   'src/devices/guition_jc1060p470c/device_guition_jc1060p470c.cpp');
-const webDiagnostics = read('src/web/web_admin_handlers.cpp');
+const webDiagnostics = read('src/web/web_admin_diagnostics.cpp');
 
 for (const marker of [
   'static_assert(BOARD_SDMMC_POWER_CHANNEL == kSdLdoChannel',

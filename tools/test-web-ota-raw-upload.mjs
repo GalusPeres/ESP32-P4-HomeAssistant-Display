@@ -33,7 +33,7 @@ function functionBody(source, startMarker, endMarker) {
 }
 
 const server = read('src/web/web_admin.cpp');
-const handlers = read('src/web/web_admin_handlers.cpp');
+const handlers = read('src/web/web_admin_ota.cpp');
 const admin = read('src/web/assets/admin.js');
 const firmwareMetadata = read('src/core/firmware_metadata.cpp');
 
@@ -181,7 +181,7 @@ for (const marker of [
 const rawFinish = functionBody(
   handlers,
   'void finishRawOtaUpload',
-  'bool saveDrawBufferAsJpeg');
+  'void WebAdminServer::handlePrepareOtaUpload()');
 requireOrder(rawFinish, [
   'parser_total_bytes != g_ota_upload_state.upload_received_bytes',
   'if (hasOtaStagingBuffer())',

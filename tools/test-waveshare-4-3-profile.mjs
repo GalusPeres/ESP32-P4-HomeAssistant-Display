@@ -1,3 +1,4 @@
+import { getBuildProfile, getReleaseProfile } from './device-catalog.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { DEVICE_PROFILES } from '../docs/assets/javascripts/installer-contract.mjs';
@@ -20,10 +21,7 @@ const driver = read(`${base}/device_waveshare_touch_lcd_4_3.cpp`);
 const touch = read(`${base}/vendor/gt911.h`);
 const panel = read(`${base}/vendor/panel_init_cmds.c`);
 const sketch = read('sketch.yaml');
-const localBuild = read('tools/build-firmware-local.ps1');
 const workflow = read('.github/workflows/firmware.yml');
-const packager = read('release-helper/package-ci-build.js');
-const importer = read('release-helper/import-latest-arduino-build.js');
 
 requireMarker(select, 'defined(DEVICE_WAVESHARE_TOUCH_LCD_4_3)', 'device selector');
 requireMarker(active, `${base}/device_waveshare_touch_lcd_4_3.h`, 'active device');
@@ -44,7 +42,7 @@ requireMarker(touch, '#define EXAMPLE_PIN_NUM_TOUCH_INT       (GPIO_NUM_NC)', 't
 requireMarker(panel, 'kWaveshareSt7701Init4_3', 'Waveshare init table');
 requireMarker(sketch, '  waveshare_4_3:', 'build profile');
 requireMarker(sketch, 'ChipVariant=prev3', 'pre-v3 build selection');
-requireMarker(localBuild, "waveshare_4_3 = 'DEVICE_WAVESHARE_TOUCH_LCD_4_3'", 'local build profile');
+assert.equal(getBuildProfile('waveshare_4_3').define, 'DEVICE_WAVESHARE_TOUCH_LCD_4_3');
 for (const marker of [
   'label: Waveshare Touch LCD 4.3',
   'profile: waveshare_4_3',
@@ -53,23 +51,14 @@ for (const marker of [
   'silicon_variant: pre_v3',
   'rx_variant: repo-a8204',
   'node tools/run-tests.mjs',
-  '-eq 30',
+  '--verify-release-assets',
 ]) {
   requireMarker(workflow, marker, 'firmware workflow');
 }
-requireMarker(
-  packager,
-  "['waveshare_touch_lcd_4_3', { key: 'waveshare_touch_lcd_4_3', siliconVariant: 'pre_v3' }]",
-  'release packager',
-);
-for (const marker of [
-  "['DEVICE_WAVESHARE_TOUCH_LCD_4_3', {",
-  "key: 'waveshare_touch_lcd_4_3'",
-  "slug: 'waveshare-touch-lcd-4-3'",
-  "expectedSiliconVariant: 'pre_v3'",
-]) {
-  requireMarker(importer, marker, 'Arduino build importer');
-}
+const releaseProfile = getReleaseProfile('waveshare_touch_lcd_4_3');
+assert.equal(releaseProfile.siliconVariant, 'pre_v3');
+assert.equal(releaseProfile.legacySlug, 'waveshare-touch-lcd-4-3');
+assert.equal(releaseProfile.metadataDeviceKey, 'waveshare_touch_lcd_4_3');
 
 const installer = DEVICE_PROFILES.find(
   (candidate) => candidate.key === 'waveshare_touch_lcd_4_3',

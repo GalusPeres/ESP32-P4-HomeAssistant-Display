@@ -1,3 +1,5 @@
+import { getBuildProfile, getReleaseProfile } from './device-catalog.js';
+import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -59,9 +61,7 @@ const firmwareWorkflow = read('.github/workflows/firmware.yml');
 const firmwareMetadataHeader = read('src/core/firmware_metadata.h');
 const firmwareMetadataSource = read('src/core/firmware_metadata.cpp');
 const githubUpdate = read('src/core/github_update.cpp');
-const webOta = read('src/web/web_admin_handlers.cpp');
-const releasePackager = read('release-helper/package-ci-build.js');
-const localBuildHelper = read('tools/build-firmware-local.ps1');
+const webOta = read('src/web/web_admin_ota.cpp');
 
 for (const marker of [
   '"waveshare_touch_lcd_7b"',
@@ -272,17 +272,13 @@ for (const marker of [
 }
 requireMarker(webOta, 'imageMatchesCurrentSiliconVariant(',
               'Waveshare 7B manual Web OTA validation');
-for (const marker of [
-  "['waveshare_touch_lcd_7b', { key: 'waveshare_touch_lcd_7b', siliconVariant: 'pre_v3' }]",
-  "['waveshare_touch_lcd_7b_rev3_1', {",
-  "metadataDeviceKey: 'waveshare_touch_lcd_7b'",
-  "siliconVariant: 'rev3_1'",
-  "expectedVariant === 'rev3_1' && (minimumRevision !== 301 || maximumRevision !== 301)",
-  'verifySiliconVariant(updatePath, siliconVariant);',
-]) {
-  requireMarker(releasePackager, marker, 'Waveshare 7B release packaging');
-}
-requireMarker(localBuildHelper, "waveshare_7b_rev3_1 = 'DEVICE_WAVESHARE_TOUCH_LCD_7B'",
-              'Waveshare 7B rev3.1 local build profile');
+const preV3Release = getReleaseProfile('waveshare_touch_lcd_7b');
+const rev3Release = getReleaseProfile('waveshare_touch_lcd_7b_rev3_1');
+assert.equal(preV3Release.siliconVariant, 'pre_v3');
+assert.equal(rev3Release.metadataDeviceKey, 'waveshare_touch_lcd_7b');
+assert.equal(rev3Release.siliconVariant, 'rev3_1');
+assert.equal(rev3Release.minimumRevision, 301);
+assert.equal(rev3Release.maximumRevision, 301);
+assert.equal(getBuildProfile('waveshare_7b_rev3_1').define, 'DEVICE_WAVESHARE_TOUCH_LCD_7B');
 
 console.log('Waveshare Touch LCD 7B / 7B-C profile contract: PASS');

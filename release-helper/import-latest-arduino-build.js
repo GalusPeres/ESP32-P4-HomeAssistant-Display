@@ -9,92 +9,24 @@ const deviceSelectPath = path.join(repoRoot, 'src', 'devices', 'device_select.h'
 const versionFilePath = path.join(repoRoot, 'version.txt');
 const factoryAppOffset = 0x10000;
 
-const releaseTargets = new Map([
-  ['DEVICE_M5STACKS_TAB5', {
-    key: 'm5stacks_tab5',
-    slug: 'm5stacks-tab5',
-    expectedSiliconVariant: 'pre_v3',
-  }],
-  ['DEVICE_WAVESHARE_4B', {
-    key: 'waveshare_4b',
-    slug: 'waveshare-b4',
-    expectedSiliconVariant: 'pre_v3',
-  }],
-  ['DEVICE_WAVESHARE_TOUCH_LCD_4_3', {
-    key: 'waveshare_touch_lcd_4_3',
-    slug: 'waveshare-touch-lcd-4-3',
-    expectedSiliconVariant: 'pre_v3',
-  }],
-  ['DEVICE_WAVESHARE_TOUCH_LCD_7', {
-    key: 'waveshare_touch_lcd_7',
-    slug: 'waveshare-touch-lcd-7',
-    expectedSiliconVariant: 'pre_v3',
-  }],
-  ['DEVICE_WAVESHARE_TOUCH_LCD_7B', {
-    key: 'waveshare_touch_lcd_7b',
-    slug: 'waveshare-touch-lcd-7b',
-    siliconVariants: new Map([
-      ['pre_v3', {
-        key: 'waveshare_touch_lcd_7b',
-        slug: 'waveshare-touch-lcd-7b',
-      }],
-      ['rev3_1', {
-        key: 'waveshare_touch_lcd_7b_rev3_1',
-        slug: 'waveshare-touch-lcd-7b-rev3-1',
-      }],
-    ]),
-  }],
-  ['DEVICE_WAVESHARE_TOUCH_LCD_8', {
-    key: 'waveshare_touch_lcd_8',
-    slug: 'waveshare-touch-lcd-8',
-    expectedSiliconVariant: 'pre_v3',
-  }],
-  ['DEVICE_WAVESHARE_TOUCH_LCD_10_1', {
-    key: 'waveshare_touch_lcd_10_1',
-    slug: 'waveshare-touch-lcd-10-1',
-    expectedSiliconVariant: 'pre_v3',
-  }],
-  ['DEVICE_WAVESHARE_S3_TOUCH_LCD_4', {
-    key: 'waveshare_s3_touch_lcd_4',
-    slug: 'waveshare-s3-touch-lcd-4',
-    expectedSiliconVariant: 'default',
-  }],
-  ['DEVICE_WAVESHARE_S3_TOUCH_LCD_4B', {
-    key: 'waveshare_s3_touch_lcd_4b',
-    slug: 'waveshare-s3-touch-lcd-4b',
-    expectedSiliconVariant: 'default',
-  }],
-  ['DEVICE_GUITION_JC8012P4A1', {
-    key: 'guition_jc8012p4a1',
-    slug: 'guition-jc8012p4a1',
-    expectedSiliconVariant: 'pre_v3',
-  }],
-  ['DEVICE_GUITION_JC8012P4A1_V2', {
-    key: 'guition_jc8012p4a1_v2',
-    slug: 'guition-jc8012p4a1-v2',
-    expectedSiliconVariant: 'pre_v3',
-  }],
-  ['DEVICE_GUITION_JC1060P470C', {
-    key: 'guition_jc1060p470c',
-    slug: 'guition-jc1060p470c',
-    expectedSiliconVariant: 'pre_v3',
-  }],
-  ['DEVICE_GUITION_JC1060P470C_V2', {
-    key: 'guition_jc1060p470c_v2',
-    slug: 'guition-jc1060p470c-v2',
-    expectedSiliconVariant: 'pre_v3',
-  }],
-  ['DEVICE_GUITION_ESP32_4848S040', {
-    key: 'guition_esp32_4848s040',
-    slug: 'guition-esp32-4848s040',
-    expectedSiliconVariant: 'default',
-  }],
-]);
+const { profiles, releaseProfiles, releaseFileVersion } = require('../tools/device-catalog.js');
+const { parseFirmwareMetadata } = require('./firmware-metadata.js');
 
-const nonReleaseTargets = new Set([
-  'DEVICE_LAYOUT_TEST_1024X600',
-  'DEVICE_LAYOUT_TEST_480X480',
-]);
+const releaseTargets = new Map();
+for (const profile of releaseProfiles) {
+  if (releaseTargets.has(profile.define)) continue;
+  const variants = releaseProfiles.filter((candidate) => candidate.define === profile.define);
+  releaseTargets.set(profile.define, {
+    key: profile.metadataDeviceKey,
+    slug: profile.legacySlug,
+    ...(variants.length > 1 ? {
+      siliconVariants: new Map(variants.map((variant) => [variant.siliconVariant, {
+        key: variant.key, slug: variant.legacySlug,
+      }])),
+    } : { expectedSiliconVariant: profile.siliconVariant }),
+  });
+}
+const nonReleaseTargets = new Set(profiles.filter((profile) => !profile.publish).map((profile) => profile.define));
 
 function readVersion() {
   const text = fs.readFileSync(versionFilePath, 'utf8');
@@ -173,59 +105,6 @@ function readManualDeviceSelection(source) {
 
 function readDeviceInfo() {
   return readManualDeviceSelection(fs.readFileSync(deviceSelectPath, 'utf8'));
-}
-
-function readNullTerminatedString(buffer, offset, maxLength) {
-  const endLimit = Math.min(buffer.length, offset + maxLength);
-  let end = offset;
-  while (end < endLimit && buffer[end] !== 0) end += 1;
-  return buffer.subarray(offset, end).toString('utf8');
-}
-
-function parseFirmwareMetadata(image, appOffset = 0) {
-  const imageHeaderMagic = 0xe9;
-  const appDescriptorMagic = 0xabcd5432;
-  const deviceDescriptorMagic = 0x44565034;
-  const siliconDescriptorMagic = 0x53525634;
-  const deviceDescriptorOffset = appOffset + 24 + 8 + 256;
-  const deviceDescriptorLength = 4 + 32 + 32 + 32;
-  const siliconOffset = deviceDescriptorOffset + deviceDescriptorLength;
-  const siliconLength = 4 + 2 + 2 + 16;
-
-  if (image.length < deviceDescriptorOffset + deviceDescriptorLength) {
-    throw new Error('Firmware image is too small for HomeTiles device metadata.');
-  }
-  if (image[appOffset] !== imageHeaderMagic) {
-    throw new Error(`Firmware has no ESP image header at 0x${appOffset.toString(16)}.`);
-  }
-  if (image.readUInt32LE(appOffset + 24 + 8) !== appDescriptorMagic) {
-    throw new Error('Firmware has no ESP application descriptor.');
-  }
-  if (image.readUInt32LE(deviceDescriptorOffset) !== deviceDescriptorMagic) {
-    throw new Error('Firmware has no HomeTiles device descriptor.');
-  }
-
-  const metadata = {
-    deviceKey: readNullTerminatedString(image, deviceDescriptorOffset + 4 + 32, 32),
-    silicon: null,
-  };
-  if (
-    image.length >= siliconOffset + siliconLength &&
-    image.readUInt32LE(siliconOffset) === siliconDescriptorMagic
-  ) {
-    const silicon = {
-      minimumRevision: image.readUInt16LE(siliconOffset + 4),
-      maximumRevision: image.readUInt16LE(siliconOffset + 6),
-      variant: readNullTerminatedString(image, siliconOffset + 8, 16),
-    };
-    if (silicon.minimumRevision > silicon.maximumRevision) {
-      throw new Error(
-        `Firmware has an invalid silicon revision range: ${silicon.minimumRevision}-${silicon.maximumRevision}`
-      );
-    }
-    metadata.silicon = silicon;
-  }
-  return metadata;
 }
 
 function resolveReleaseDevice(selection, metadata) {
@@ -326,7 +205,7 @@ function findLatestSuccessfulBuild(sketchesPath) {
 }
 
 function main() {
-  const version = readVersion().replace(/[^A-Za-z0-9._-]/g, '-');
+  const version = releaseFileVersion(readVersion());
   const selection = readDeviceInfo();
   const sketchesPath = getArduinoSketchesPath();
   const build = findLatestSuccessfulBuild(sketchesPath);

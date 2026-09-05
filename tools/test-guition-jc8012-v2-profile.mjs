@@ -1,3 +1,5 @@
+import { getBuildProfile, getReleaseProfile } from './device-catalog.js';
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -101,25 +103,19 @@ requireMarker(metadata,
 requireMarker(webConfig, 'Guition_JC8012P4A1_V2_Config', 'V2 access point name');
 
 const sketchProfiles = read('sketch.yaml');
-const localBuild = read('tools/build-firmware-local.ps1');
 const workflow = read('.github/workflows/firmware.yml');
-const packager = read('release-helper/package-ci-build.js');
 requireMarker(sketchProfiles, '  guition_jc8012p4a1_v2:', 'Arduino profile');
-requireMarker(localBuild,
-  "guition_jc8012p4a1_v2 = 'DEVICE_GUITION_JC8012P4A1_V2'",
-  'Local build profile');
+assert.equal(getBuildProfile('guition_jc8012p4a1_v2').define, 'DEVICE_GUITION_JC8012P4A1_V2');
 for (const marker of [
   'profile: guition_jc8012p4a1_v2',
   'key: guition_jc8012p4a1_v2',
   'define: DEVICE_GUITION_JC8012P4A1_V2',
   'node tools/run-tests.mjs',
-  `-eq 30`,
+  '--verify-release-assets',
 ]) {
   requireMarker(workflow, marker, 'Firmware workflow');
 }
-requireMarker(packager,
-  "['guition_jc8012p4a1_v2', { key: 'guition_jc8012p4a1_v2', siliconVariant: 'pre_v3' }]",
-  'Release packager');
+assert.equal(getReleaseProfile('guition_jc8012p4a1_v2').siliconVariant, 'pre_v3');
 
 for (const [file, marker] of [
   ['README.md', '..._guition_jc8012p4a1_v2_factory.bin'],

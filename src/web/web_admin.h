@@ -10,36 +10,41 @@
 typedef GithubUpdate::CheckResult (*web_github_check_callback_t)();
 typedef void (*web_github_install_callback_t)(const char* tag);
 
-// Webinterface für MQTT-Konfiguration im normalen Netzwerk
-// Läuft wenn das Gerät bereits mit WiFi verbunden ist
+// Web interface for configuration on the connected local network.
 //
 // Refactored into modular structure:
 // - web_admin.cpp/h: Core server class (start/stop/handle)
 // - web_admin_utils.cpp/h: Utility functions (parsing, escaping, etc.)
-// - web_admin_handlers.cpp/h: HTTP request handlers
+// - web_admin_handlers.cpp: Settings, MQTT and Bridge handlers
+// - web_admin_tiles.cpp: Tiles, folders and entity state
+// - web_admin_screensaver.cpp: Screensaver configuration and wallpapers
+// - web_admin_files.cpp: Icons, file management and file upload state
+// - web_admin_ota.cpp: Firmware updates and OTA state
+// - web_admin_diagnostics.cpp: Screenshots and diagnostic downloads
+// - web_admin_hardware_io.cpp: Local hardware configuration
 // - web_admin_html.cpp/h: HTML page generation with tab navigation
 
 class WebAdminServer {
 public:
   WebAdminServer();
 
-  // Startet Webserver im normalen WiFi
+  // Start the server on the connected network.
   bool start();
 
-  // Stoppt Webserver
+  // Stop the server.
   void stop();
 
-  // Muss regelmäßig in loop() aufgerufen werden
+  // Call regularly from loop().
   void handle();
 
-  // Prüft ob Server läuft
+  // Report whether the server is running.
   bool isRunning() const { return running; }
 
   void setGithubUpdateCallbacks(web_github_check_callback_t check_cb,
                                 web_github_install_callback_t install_cb);
   void setGithubUpdateInstallFailed(const char* error);
 
-  // Request Handler (implemented in web_admin_handlers.cpp)
+  // Request handlers, implemented in the responsibility modules listed above.
   void handleRoot();
   void handleSaveMQTT();
   void handleSaveBridge();
@@ -88,7 +93,7 @@ public:
   void handleCrashLogDownload();
   void handleSdDiagnosticsDownload();
 
-  // HTML-Seiten (implemented in web_admin_html.cpp)
+  // HTML pages, implemented in web_admin_html.cpp.
   String getAdminPage();
   String getSuccessPage();
   String getBridgeSuccessPage();
@@ -108,7 +113,7 @@ private:
   String github_install_error;
 };
 
-// Globale Instanz
+// Shared server instance.
 extern WebAdminServer webAdminServer;
 bool webAdminOtaInProgress();
 void webAdminServiceOta();

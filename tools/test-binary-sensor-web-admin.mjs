@@ -436,7 +436,7 @@ if (!/screensaver_mode[\s\S]*?<option value=\\"20\\">[\s\S]*?i18n::binary_sensor
 }
 
 const handlers = readText(
-  new URL('../src/web/web_admin_handlers.cpp', import.meta.url));
+  new URL('../src/web/web_admin_tiles.cpp', import.meta.url));
 for (const marker of [
   'binary_sensor_values',
   'ha.binary_sensors_text',
@@ -446,7 +446,7 @@ for (const marker of [
     throw new Error(`Binary Sensor Web API contract is missing: ${marker}`);
   }
 }
-if (!/screensaver_grid[\s\S]*?type != TILE_COVER &&\s*type != TILE_BINARY_SENSOR\)/
+if (!/screensaver_grid && !tileTypeAllowedInScreensaver\(type\)/
   .test(handlers)) {
   throw new Error('Binary Sensor is missing from the screensaver save allow-list');
 }
