@@ -42,8 +42,8 @@ background, without an SD image slideshow.
 | Guition JC8012P4A1 V1 / V2 | 1280×800 |
 | Guition JC1060P470C V1 / V2 | 1024×600 |
 | Guition ESP32-4848S040C_I | 480×480 |
-| Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0 | 480×480; no SD image slideshow |
-| Waveshare ESP32-S3-Touch-LCD-4B | 480×480; no SD image slideshow |
+| Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0 | 480×480 |
+| Waveshare ESP32-S3-Touch-LCD-4B | 480×480 |
 
 If the display is deliberately rotated by 90 degrees, swap width and height.
 The screensaver crops the prepared image to the panel; **Zoom**, **Focus X**, and
