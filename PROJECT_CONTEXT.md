@@ -42,7 +42,7 @@ Last reviewed: 2026-09-06
   but panel controller, initialization table, timing, touch controller, board
   revision, and firmware image remain exact-profile concerns.
 - LCD-4 Rev 4.0 has contributor-tested display/touch/Wi-Fi/MQTT/Web OTA;
-  older revisions and SD access are unsupported. See `README.md` for validation.
+  older revisions and SD access are unsupported. See `docs/index.md` for validation.
 
 ## Active problem: GitHub issue #30
 
@@ -146,7 +146,8 @@ Issue: https://github.com/GalusPeres/HomeTiles/issues/30
 
 - Docs source: `docs/`, `mkdocs.yml`, `overrides/`; README stays short.
 - Root hosting: `GalusPeres/galusperes.github.io` deploys `HomeTiles/gh-pages`;
-  canonical URL: https://galusperes.github.io/. See `CONTRIBUTING.md`.
+  https://galusperes.github.io/ is live; desktop/mobile pages and all 14
+  published flasher profiles checked on 2026-09-06. See `CONTRIBUTING.md`.
 - The user authorized pushing this maintenance work to main; no release was requested.
 - See `ARCHITECTURE.md` for ownership/risks and `CONTRIBUTING.md` for extension workflows.
 - Subsystems and tests use domain folders; comments and technical logs are English.
