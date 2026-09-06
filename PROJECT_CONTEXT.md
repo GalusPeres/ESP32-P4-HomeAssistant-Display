@@ -1,16 +1,13 @@
 # HomeTiles shared project context
 
-Last reviewed: 2026-09-05
-
-Shared project state. `AGENTS.md` is the only rulebook; replace stale facts here.
+Last reviewed: 2026-09-06
 
 ## Sources of truth
 
 - Firmware version: `version.txt`
-- Current code state: `git status`, recent commits, and the checked-out branch
-- Device support and validation: `README.md` and `docs/flashing.md`
-- ESP32-P4/ESP-Hosted patch details:
-  `tools/esp-hosted-3.3.7-rx-fix/README.md`
+- Current code: `git status`, recent commits, checked-out branch
+- Device support and validation: `docs/index.md` (device status notes)
+- ESP32-P4/ESP-Hosted patches: `tools/esp-hosted-3.3.7-rx-fix/README.md`
 - Release procedure: `RELEASING.md`
 - Live bug status: the current GitHub issue and its newest comments; recheck
   online before changing an issue status
@@ -25,9 +22,8 @@ Shared project state. `AGENTS.md` is the only rulebook; replace stale facts here
 - Main also integrates the JC8012 V1 SDIO RX fix and Waveshare S3 LCD-4 Rev 4.0
   (PR #35), including local builds, 15 release profiles, and installer support.
   Both additions remain unreleased; `v0.6.9` is still the firmware version.
-- Recent stabilization work includes S3 update/display guards, MQTT packet
-  validation, duplicate Light update coalescing, bounded S3 update work, and
-  incremental Weather parsing (`e3de63c`, `631de57`, `8d5771c`, `33b4e06`).
+- Recent stabilization covers S3 update/display guards, MQTT validation,
+  Light coalescing and incremental Weather parsing (`e3de63c`–`33b4e06`).
 - `4b34ac2`: 72 host tests, strict docs and both test-device builds pass.
 - Both test panels serve matching Admin assets; initial use reportedly stable.
   Full hardware validation and runtime measurements remain pending.
@@ -148,6 +144,9 @@ Issue: https://github.com/GalusPeres/HomeTiles/issues/30
 
 ## Current maintenance refactoring
 
+- Docs source: `docs/`, `mkdocs.yml`, `overrides/`; README stays short.
+- Root hosting: `GalusPeres/galusperes.github.io` deploys `HomeTiles/gh-pages`;
+  canonical URL: https://galusperes.github.io/. See `CONTRIBUTING.md`.
 - The user authorized pushing this maintenance work to main; no release was requested.
 - See `ARCHITECTURE.md` for ownership/risks and `CONTRIBUTING.md` for extension workflows.
 - Subsystems and tests use domain folders; comments and technical logs are English.

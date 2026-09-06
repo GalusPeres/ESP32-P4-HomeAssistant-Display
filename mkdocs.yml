@@ -1,15 +1,13 @@
 site_name: HomeTiles
-site_description: Open-source ESP32-P4 touch dashboard firmware for Home Assistant, plus an experimental ESP32-S3 image, with a configurable tile UI and built-in web admin
-site_url: https://galusperes.github.io/HomeTiles/
+site_description: Home Assistant touch dashboards for ESP32-P4 and ESP32-S3 displays. Install HomeTiles, connect the Bridge, and configure your tiles.
+site_url: https://galusperes.github.io/
 repo_url: https://github.com/GalusPeres/HomeTiles
 repo_name: GalusPeres/HomeTiles
 
 theme:
   name: material
   custom_dir: overrides
-  font:
-    text: Inter
-    code: JetBrains Mono
+  font: false
   favicon: images/favicon.svg
   logo: images/logo.svg
   palette:
@@ -27,11 +25,11 @@ theme:
 
 nav:
   - Overview: index.md
-  - Setup:
-      - Flashing the Firmware: installer.md
-      - Home Assistant Setup: home-assistant-setup.md
+  - Installation:
+      - Flash firmware: installer.md
+      - Home Assistant: home-assistant-setup.md
       - Bridge Integration: bridge.md
-  - Using HomeTiles:
+  - Dashboard:
       - Web Admin Panel: web-admin.md
       - On-Device UI: device-ui.md
       - Tile Types: tiles.md
@@ -39,24 +37,14 @@ nav:
       - Local Hardware I/O: hardware-io.md
   - Help:
       - Firmware Updates: updating.md
-      - FAQ & Troubleshooting: faq.md
-      - Release Notes:
-          - v0.6.9: releases/v0.6.9.md
-          - v0.6.8: releases/v0.6.8.md
-          - v0.6.7: releases/v0.6.7.md
-          - v0.6.6: releases/v0.6.6.md
-          - v0.6.5: releases/v0.6.5.md
-          - v0.6.4: releases/v0.6.4.md
-          - v0.6.3: releases/v0.6.3.md
-          - v0.6.2: releases/v0.6.2.md
-          - v0.6.1: releases/v0.6.1.md
-          - v0.6.0: releases/v0.6.0.md
-          - v0.5.3: releases/v0.5.3.md
-          - v0.5.1: releases/v0.5.1.md
-          - v0.5.0: releases/v0.5.0.md
+      - Troubleshooting: faq.md
+      - Release Notes: releases/index.md
 
 extra_css:
   - stylesheets/extra.css?v=installer-ui-5
+  - stylesheets/readability.css?v=20260906-docs20
+
+  - stylesheets/device-status.css?v=2
 
 markdown_extensions:
   - admonition

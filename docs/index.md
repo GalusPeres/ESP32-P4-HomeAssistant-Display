@@ -1,144 +1,131 @@
 ---
-title: ESP32 Touch Dashboard for Home Assistant
-description: Open-source firmware for configurable Home Assistant touch dashboards on ESP32-P4 and ESP32-S3 displays, with built-in web admin and MQTT integration.
+title: HomeTiles
 ---
 
 # HomeTiles
 
-Tile-based firmware that turns ESP32-P4 and ESP32-S3 touch displays into Home
-Assistant control panels — configured entirely in the browser, updated over the
-air, connected via MQTT.
+HomeTiles is free, open-source firmware that turns a supported touch display into a Home Assistant control panel. Use tiles to switch lights, adjust heating, control music, and see sensor or energy data at a glance.
 
-<p align="center">
-  <a href="https://buymeacoffee.com/galusperes">
-    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="217" height="60">
-  </a>
-</p>
+## Get started
 
-<p align="center">
-  <img src="images/8in-home-new.png" alt="HomeTiles dashboard on the Waveshare 8 inch display" width="48%">
-  <img src="images/8in-screensaver.png" alt="HomeTiles screensaver with clock and sensor tiles" width="48%">
-</p>
+1. [Flash the firmware](installer.md) using the online flasher. Choose your exact device and installation mode.
+2. [Connect Home Assistant](home-assistant-setup.md) through the MQTT broker and HomeTiles Bridge.
+3. [Configure your dashboard](web-admin.md) in the display's Web Admin panel.
+4. [Use the display](device-ui.md) to control devices and view their data.
+
+## Features
+
+- **Controls:** lights, switches, covers, heating and media playback.
+- **Sensors & energy:** live values, state history, energy statistics and weather.
+- **Dashboard:** arrange tiles and folders in your browser with a live preview.
+- **Screensaver:** display a clock, photos and sensor tiles.
+- **Local hardware:** use supported GPIO outputs, relays and temperature sensors.
+- **Updates:** install firmware from the display or your browser.
+- **Camera:** experimental live video on ESP32-P4 displays.
+
+<figure class="ht-screenshot">
+<img src="images/8in-home-new.png" alt="HomeTiles dashboard" width="1308" height="828" loading="lazy">
+<figcaption>HomeTiles dashboard</figcaption>
+</figure>
+
+<figure class="ht-screenshot">
+<img src="images/8in-screensaver.png" alt="Clock and sensor screensaver" width="1308" height="828" loading="lazy">
+<figcaption>Screensaver with clock and sensor tiles</figcaption>
+</figure>
+
+[All tile types](tiles.md) and [screensaver configuration](screensaver.md).
 
 ## Demo
 
+<figure class="ht-screenshot">
 <video class="ht-demo" controls playsinline preload="metadata" poster="images/hometiles-demo-poster.jpg" aria-label="HomeTiles device demo">
-  <source src="videos/hometiles-demo.mp4" type="video/mp4">
+<source src="videos/hometiles-demo.mp4" type="video/mp4">
 </video>
-
-## New Here? Four Steps
-
-<div class="ht-steps" markdown>
-
-1.  **Flashing the Firmware**
-
-    Install or update HomeTiles directly here in the browser. Select the exact
-    device, then choose Update to keep its settings or First install / factory
-    reset for a clean installation.
-
-    [Flashing the Firmware :octicons-arrow-right-24:](installer.md)
-
-2.  **Connect everything**
-
-    Set up the MQTT broker, install the bridge integration, and pair the
-    display with Home Assistant.
-
-    [Home Assistant Setup :octicons-arrow-right-24:](home-assistant-setup.md)
-
-3.  **Build your dashboard**
-
-    Open the display's admin panel in your browser: click a cell, pick a tile
-    type, done. Drag & drop, folders, everything saves automatically.
-
-    [Web Admin Panel :octicons-arrow-right-24:](web-admin.md)
-
-4.  **Use the display**
-
-    Control lights with a color wheel, check sensor history, energy statistics,
-    weather, and media — all in touch popups on the device.
-
-    [On-Device UI :octicons-arrow-right-24:](device-ui.md)
-
-</div>
-
-Looking for something specific? [Tile Types](tiles.md) ·
-[Local Hardware I/O](hardware-io.md) · [Screensaver](screensaver.md) ·
-[Firmware Updates](updating.md) ·
-[FAQ & Troubleshooting](faq.md) ·
-[GitHub](https://github.com/GalusPeres/HomeTiles)
-
-## New In v0.6.9
-
-HomeTiles v0.6.9 adds dedicated Binary Sensor tiles with localized states,
-state-aware icons, live Web Admin previews, and 24-hour/7-day Activity history.
-Text-valued Sensor entities use the same categorical timeline while numeric
-Sensors retain their chart.
-
-The release adds Waveshare ESP32-P4 4.3-inch support, fixes a thin-redraw PPA
-timeout on the Waveshare 8-inch, and maps Waveshare 4B display, screensaver, and
-Home Assistant brightness to the complete visible `1–100 %` range. **HomeTiles
-Bridge v0.6.40** is recommended for the new history features. Camera support
-remains experimental and ESP32-P4-only.
-
-[Read the v0.6.9 release notes :octicons-arrow-right-24:](releases/v0.6.9.md)
+<figcaption>HomeTiles device demo</figcaption>
+</figure>
 
 ## Device Support
 
-![HomeTiles running on three ESP32-P4 displays](images/hometiles-supported-devices.png){ width="100%" .ht-hero }
+Match the exact hardware revision before flashing. [Open online flasher](installer.md#browser-installer).
 
-### Hardware-confirmed
+### ESP32-P4
 
-| Device | Display | Status |
-| --- | --- | --- |
-| [M5Stack Tab5](https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4) | 5" 1280×720 | Supported |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-4B](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm) | 4" 720×720 | Supported |
-| [Waveshare ESP32-P4-86-Panel-ETH-2RO](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-4B) | 4" 720×720 | Supported, native Ethernet; uses the 4B firmware |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-8](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 8" 1280×800 | Supported |
-| [Guition JC8012P4A1C_I_W_Y](https://www.guition.com/esp32p4-display-module/hmi-display-panel) | 10.1" 1280×800 | Supported V1 panel; no `V2` suffix |
-| [Guition ESP32-4848S040C_I](https://www.guition.com/esp32-display-module/4-inch-esp32s3-display-module) | 4" 480×480 | Supported ESP32-S3 target; no Camera tiles |
-| [Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0](https://www.waveshare.com/wiki/ESP32-S3-Touch-LCD-4) | 4" 480×480 | Community hardware test reported in [PR #35](https://github.com/GalusPeres/HomeTiles/pull/35); first release pending; Camera tiles and SD access unavailable in this profile |
+<div class="ht-device-table" markdown>
 
-### Hardware validation notes
+| Model | Display | Status | Link |
+| --- | --- | --- | --- |
+| M5Stack Tab5 | 5" / 1280×720 | <span class="ht-device-state">Tested <button type="button" class="ht-device-info" popovertarget="device-note-1" aria-controls="device-note-1" aria-expanded="false" aria-label="Support details for M5Stack Tab5"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://shop.m5stack.com/products/m5stack-tab5-iot-development-kit-esp32-p4) |
+| Waveshare LCD-4B (P4) | 4" / 720×720 | <span class="ht-device-state">Tested <button type="button" class="ht-device-info" popovertarget="device-note-2" aria-controls="device-note-2" aria-expanded="false" aria-label="Support details for Waveshare LCD-4B (P4)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4b.htm) |
+| Waveshare 86 Panel ETH-2RO | 4" / 720×720 | <span class="ht-device-state">Tested <button type="button" class="ht-device-info" popovertarget="device-note-3" aria-controls="device-note-3" aria-expanded="false" aria-label="Support details for Waveshare 86 Panel ETH-2RO"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.waveshare.net/shop/ESP32-P4-86-Panel-ETH-2RO.htm) |
+| Waveshare LCD-8 (P4) | 8" / 1280×800 | <span class="ht-device-state">Tested <button type="button" class="ht-device-info" popovertarget="device-note-4" aria-controls="device-note-4" aria-expanded="false" aria-label="Support details for Waveshare LCD-8 (P4)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) |
+| Guition JC8012P4A1 V1 | 10.1" / 1280×800 | <span class="ht-device-state">Fix pending <button type="button" class="ht-device-info" popovertarget="device-note-5" aria-controls="device-note-5" aria-expanded="false" aria-label="Support details for Guition JC8012P4A1 V1"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.guition.com/esp32p4-display-module/hmi-display-panel) |
+| Waveshare LCD-4.3 (P4) | 4.3" / 800×480 | <span class="ht-device-state">Partial <button type="button" class="ht-device-info" popovertarget="device-note-6" aria-controls="device-note-6" aria-expanded="false" aria-label="Support details for Waveshare LCD-4.3 (P4)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4.3.htm) |
+| Waveshare LCD-7 (P4) | 7" / 1280×720 | <span class="ht-device-state">Pending <button type="button" class="ht-device-info" popovertarget="device-note-7" aria-controls="device-note-7" aria-expanded="false" aria-label="Support details for Waveshare LCD-7 (P4)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) |
+| Waveshare 7B/7B-C (P4 pre-v3) | 7" / 1024×600 | <span class="ht-device-state">Pending <button type="button" class="ht-device-info" popovertarget="device-note-8" aria-controls="device-note-8" aria-expanded="false" aria-label="Support details for Waveshare 7B/7B-C (P4 pre-v3)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7B.htm) |
+| Waveshare 7B/7B-C (P4 v3.1) | 7" / 1024×600 | <span class="ht-device-state">Experimental <button type="button" class="ht-device-info" popovertarget="device-note-9" aria-controls="device-note-9" aria-expanded="false" aria-label="Support details for Waveshare 7B/7B-C (P4 v3.1)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7B.htm) |
+| Waveshare LCD-10.1 (P4) | 10.1" / 1280×800 | <span class="ht-device-state">Partial <button type="button" class="ht-device-info" popovertarget="device-note-10" aria-controls="device-note-10" aria-expanded="false" aria-label="Support details for Waveshare LCD-10.1 (P4)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) |
+| Guition JC8012P4A1 V2 | 10.1" / 1280×800 | <span class="ht-device-state">Partial <button type="button" class="ht-device-info" popovertarget="device-note-11" aria-controls="device-note-11" aria-expanded="false" aria-label="Support details for Guition JC8012P4A1 V2"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.guition.com/esp32p4-display-module/hmi-display-panel) |
+| Guition JC1060P470C V1 | 7" / 1024×600 | <span class="ht-device-state">Tested <button type="button" class="ht-device-info" popovertarget="device-note-12" aria-controls="device-note-12" aria-expanded="false" aria-label="Support details for Guition JC1060P470C V1"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) |
+| Guition JC1060P470C V2 | 7" / 1024×600 | <span class="ht-device-state">Partial <button type="button" class="ht-device-info" popovertarget="device-note-13" aria-controls="device-note-13" aria-expanded="false" aria-label="Support details for Guition JC1060P470C V2"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) |
 
-| Exact device | Display | Test status |
-| --- | --- | --- |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-4.3](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4.3.htm) | 4.3" 800×480 landscape | ESP32-P4 v1.3 hardware confirms display, touch, Wi-Fi, Web Admin, tile persistence, MQTT, Home Assistant discovery and Weather; microSD and OTA remain pending |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-7](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 7" 1280×720 | [Testing requested in #7](https://github.com/GalusPeres/HomeTiles/issues/7) |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-7B / 7B-C](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7B.htm) | 7" 1024×600 | Explicit pre-v3 revisions 1–199 and experimental exact-v3.1 EK79007 images; exact-v3.1 hardware is unverified and testing is requested in [#7](https://github.com/GalusPeres/HomeTiles/issues/7) |
-| [Waveshare ESP32-P4-WIFI6-Touch-LCD-10.1](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-7-8-10.1.htm) | 10.1" 1280×800 | Core display/touch/network/OTA reported working; corrected defaults, SD and Camera checks remain in [#7](https://github.com/GalusPeres/HomeTiles/issues/7) |
-| Guition JC8012P4A1 V2 (`SKU:10153002-V2`) | 10.1" 1280×800 | Separate V2 image; [release/OTA testing tracked in #18](https://github.com/GalusPeres/HomeTiles/issues/18) |
-| [Guition JC1060P470C_I_W_Y V1](https://www.guition.com/esp32p4-display-module/7-inch-esp32p4-display-module) | 7" 1024×600 | `_I_W_Y` only; [testing requested in #8](https://github.com/GalusPeres/HomeTiles/issues/8) |
-| Guition JC1060P470C V2 / New Panel | 7" 1024×600 | Basic operation reported working; corrected orientation and full release/OTA validation tracked in [issue #27](https://github.com/GalusPeres/HomeTiles/issues/27) |
-| [Waveshare ESP32-S3-Touch-LCD-4B](https://www.waveshare.com/esp32-s3-touch-lcd-4b.htm) | 4" 480×480 | Separate ESP32-S3 profile without microSD; validation tracked in [issue #26](https://github.com/GalusPeres/HomeTiles/issues/26) |
+</div>
 
-The release pipeline now covers 15 explicit installer/release profiles for
-fourteen physical device profiles, producing 15 builds and 30 firmware files
-for the next release. Published v0.6.9 still contains 14 profiles and 28 files;
-the browser installer mirrors only assets present in that release.
+### ESP32-S3
 
-The new Waveshare S3 LCD-4 profile covers **Rev 4.0 only**, with the CH32V003
-helper at `0x24`. Revisions 1.0–3.0 are unsupported, and the S3 LCD-4B uses a
-separate image. The board has a microSD slot, but HomeTiles uses LittleFS on
-this profile. See [flashing and availability](flashing.md).
+<div class="ht-device-table" markdown>
 
-The Waveshare 7B/7B-C has separate pre-v3 revisions 1–199 and exact-v3.1
-entries. Other current P4 profiles use vendor-listed
-P4NRW32/pre-v3 modules and are also guarded to revisions 1–199. HomeTiles'
-browser, Web Admin, and OTA paths enforce these ranges; v3.2 or newer is not
-supported. The notes above identify profiles whose complete hardware checklist
-still needs confirmation.
+| Model | Display | Status | Link |
+| --- | --- | --- | --- |
+| Guition ESP32-4848S040C_I | 4" / 480×480 | <span class="ht-device-state">Tested <button type="button" class="ht-device-info" popovertarget="device-note-14" aria-controls="device-note-14" aria-expanded="false" aria-label="Support details for Guition ESP32-4848S040C_I"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.guition.com/esp32-display-module/4-inch-esp32s3-display-module) |
+| Waveshare LCD-4 Rev 4.0 (S3) | 4" / 480×480 | <span class="ht-device-state">Unreleased <button type="button" class="ht-device-info" popovertarget="device-note-15" aria-controls="device-note-15" aria-expanded="false" aria-label="Support details for Waveshare LCD-4 Rev 4.0 (S3)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.waveshare.com/product/esp32-s3-touch-lcd-4.htm) |
+| Waveshare LCD-4B (S3) | 4" / 480×480 | <span class="ht-device-state">Pending <button type="button" class="ht-device-info" popovertarget="device-note-16" aria-controls="device-note-16" aria-expanded="false" aria-label="Support details for Waveshare LCD-4B (S3)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4"/><circle cx="8" cy="4.5" r=".7" fill="currentColor" stroke="none"/></svg></button></span> | [Link](https://www.waveshare.com/esp32-s3-touch-lcd-4b.htm) |
+
+</div>
+
+<div class="ht-device-note" id="device-note-1" popover="auto" role="dialog" aria-labelledby="device-note-1-title"><div class="ht-device-note-title" id="device-note-1-title">M5Stack Tab5</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Hardware-tested by the maintainer.</p></div>
+
+<div class="ht-device-note" id="device-note-2" popover="auto" role="dialog" aria-labelledby="device-note-2-title"><div class="ht-device-note-title" id="device-note-2-title">Waveshare LCD-4B (P4)</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Hardware-tested by the maintainer. A brief blue flash while saving or updating is a known display limitation.</p><p class="ht-device-note-links"><a href="faq/#the-display-briefly-flashes-blue-when-saving-or-updating-waveshare">Display note</a></p></div>
+
+<div class="ht-device-note" id="device-note-3" popover="auto" role="dialog" aria-labelledby="device-note-3-title"><div class="ht-device-note-title" id="device-note-3-title">Waveshare 86 Panel ETH-2RO</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Hardware operation and native Ethernet are confirmed. Uses the ESP32-P4 LCD-4B firmware.</p></div>
+
+<div class="ht-device-note" id="device-note-4" popover="auto" role="dialog" aria-labelledby="device-note-4-title"><div class="ht-device-note-title" id="device-note-4-title">Waveshare LCD-8 (P4)</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Hardware-tested by the maintainer. A brief blue flash while saving or updating is a known display limitation.</p><p class="ht-device-note-links"><a href="faq/#the-display-briefly-flashes-blue-when-saving-or-updating-waveshare">Display note</a></p></div>
+
+<div class="ht-device-note" id="device-note-5" popover="auto" role="dialog" aria-labelledby="device-note-5-title"><div class="ht-device-note-title" id="device-note-5-title">Guition JC8012P4A1 V1</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Camera crashes and Web OTA failures are fixed and hardware-confirmed in test build v0.6.9b1. The published v0.6.9 release does not contain this fix yet.</p><p class="ht-device-note-links"><a href="https://github.com/GalusPeres/HomeTiles/issues/30">Issue #30</a><a href="https://github.com/GalusPeres/HomeTiles/issues/30#issuecomment-5530898054">Test build</a></p></div>
+
+<div class="ht-device-note" id="device-note-6" popover="auto" role="dialog" aria-labelledby="device-note-6-title"><div class="ht-device-note-title" id="device-note-6-title">Waveshare LCD-4.3 (P4)</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Display, touch, Wi-Fi, MQTT, Home Assistant and Weather are verified. microSD and OTA checks are still pending.</p></div>
+
+<div class="ht-device-note" id="device-note-7" popover="auto" role="dialog" aria-labelledby="device-note-7-title"><div class="ht-device-note-title" id="device-note-7-title">Waveshare LCD-7 (P4)</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Firmware is available, but hardware validation is still requested. This 1280 × 720 model uses different firmware from LCD-7B.</p><p class="ht-device-note-links"><a href="https://github.com/GalusPeres/HomeTiles/issues/7">Issue #7</a></p></div>
+
+<div class="ht-device-note" id="device-note-8" popover="auto" role="dialog" aria-labelledby="device-note-8-title"><div class="ht-device-note-title" id="device-note-8-title">Waveshare 7B/7B-C (P4 pre-v3)</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>A 7B-C was reported working with v0.6.8, without an exact chip revision in the report. Confirmation for this pre-v3 profile is still needed.</p><p class="ht-device-note-links"><a href="https://github.com/GalusPeres/HomeTiles/issues/7">Issue #7</a><a href="https://github.com/GalusPeres/HomeTiles/issues/7#issuecomment-5398279624">Test report</a></p></div>
+
+<div class="ht-device-note" id="device-note-9" popover="auto" role="dialog" aria-labelledby="device-note-9-title"><div class="ht-device-note-title" id="device-note-9-title">Waveshare 7B/7B-C (P4 v3.1)</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Dedicated firmware for exact ESP32-P4 v3.1. Hardware validation for this revision is still pending; v3.2 and newer are unsupported.</p><p class="ht-device-note-links"><a href="https://github.com/GalusPeres/HomeTiles/issues/7">Issue #7</a></p></div>
+
+<div class="ht-device-note" id="device-note-10" popover="auto" role="dialog" aria-labelledby="device-note-10-title"><div class="ht-device-note-title" id="device-note-10-title">Waveshare LCD-10.1 (P4)</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Display, touch, Wi-Fi, MQTT and OTA were reported working. Corrected defaults, SD and Camera still need release validation.</p><p class="ht-device-note-links"><a href="https://github.com/GalusPeres/HomeTiles/issues/7">Issue #7</a></p></div>
+
+<div class="ht-device-note" id="device-note-11" popover="auto" role="dialog" aria-labelledby="device-note-11-title"><div class="ht-device-note-title" id="device-note-11-title">Guition JC8012P4A1 V2</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Display, touch, brightness and MQTT are confirmed. OTA reliability was improved in v0.6.6; microSD remains untested.</p><p class="ht-device-note-links"><a href="https://github.com/GalusPeres/HomeTiles/issues/18">Issue #18</a></p></div>
+
+<div class="ht-device-note" id="device-note-12" popover="auto" role="dialog" aria-labelledby="device-note-12-title"><div class="ht-device-note-title" id="device-note-12-title">Guition JC1060P470C V1</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Touch, brightness, SD, Wi-Fi/MQTT and OTA were confirmed working since v0.6.5. Requires the exact _I_W_Y model.</p><p class="ht-device-note-links"><a href="https://github.com/GalusPeres/HomeTiles/issues/8">Issue #8</a></p></div>
+
+<div class="ht-device-note" id="device-note-13" popover="auto" role="dialog" aria-labelledby="device-note-13-title"><div class="ht-device-note-title" id="device-note-13-title">Guition JC1060P470C V2</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Basic operation is confirmed. v0.6.8 includes the orientation correction; full release and OTA confirmation remain pending.</p><p class="ht-device-note-links"><a href="https://github.com/GalusPeres/HomeTiles/issues/27">Issue #27</a></p></div>
+
+<div class="ht-device-note" id="device-note-14" popover="auto" role="dialog" aria-labelledby="device-note-14-title"><div class="ht-device-note-title" id="device-note-14-title">Guition ESP32-4848S040C_I</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Hardware-tested by the maintainer. Camera tiles are unavailable; a brief black screen while saving is expected.</p></div>
+
+<div class="ht-device-note" id="device-note-15" popover="auto" role="dialog" aria-labelledby="device-note-15-title"><div class="ht-device-note-title" id="device-note-15-title">Waveshare LCD-4 Rev 4.0 (S3)</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Contributor-tested support is integrated, with its first release pending. Rev 4.0 only; Camera tiles and SD access are unavailable.</p><p class="ht-device-note-links"><a href="https://github.com/GalusPeres/HomeTiles/pull/35">PR #35</a></p></div>
+
+<div class="ht-device-note" id="device-note-16" popover="auto" role="dialog" aria-labelledby="device-note-16-title"><div class="ht-device-note-title" id="device-note-16-title">Waveshare LCD-4B (S3)</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Initial hardware testing was reported with PR #29. The adapted release profile still needs confirmation. No microSD or Camera tiles.</p><p class="ht-device-note-links"><a href="https://github.com/GalusPeres/HomeTiles/issues/26">Issue #26</a><a href="https://github.com/GalusPeres/HomeTiles/pull/29">PR #29</a></p></div>
+
+<script src="javascripts/device-status.js?v=2" defer></script>
+
+## New In v0.6.9
+
+- **Binary Sensor tiles:** localized states and 24-hour / 7-day activity history. Text-valued Sensors use the same timeline.
+- **Hardware:** Waveshare P4 4.3-inch support, a redraw fix for the Waveshare 8-inch, and the full brightness range on the Waveshare 4B.
+- **Bridge:** v0.6.40 is recommended for the new history features. Camera support remains experimental and ESP32-P4-only.
+
+[Read the v0.6.9 release notes](releases/v0.6.9.md)
 
 ## How It Works
 
-<div class="ht-flow">
-  <span class="ht-node">Display</span>
-  <span class="ht-link">←&thinsp;MQTT&thinsp;→</span>
-  <span class="ht-node">MQTT Broker</span>
-  <span class="ht-link">←&thinsp;MQTT&thinsp;→</span>
-  <span class="ht-node">Bridge Integration<small>Home Assistant</small></span>
-</div>
+The display exchanges states and commands with an MQTT broker. [HomeTiles Bridge](bridge.md) connects the broker to Home Assistant, publishes entity data and executes commands from the display.
 
-The display never talks to Home Assistant directly. The
-[bridge integration](bridge.md) pushes entity states, icons, weather, history,
-and energy data over MQTT — and executes the commands the display sends back.
-Firmware and bridge are MIT-licensed and developed together.
+Firmware and Bridge are MIT-licensed. [Support HomeTiles](https://buymeacoffee.com/galusperes).

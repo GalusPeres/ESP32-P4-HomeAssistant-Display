@@ -71,10 +71,10 @@ assert.equal(installer.siliconVariant, 'pre_v3');
 assert.equal(installer.status, 'validation-pending');
 
 for (const [file, marker] of [
-  ['README.md', '..._waveshare_touch_lcd_4_3_factory.bin'],
-  ['docs/flashing.md', 'waveshare_touch_lcd_4_3_factory.bin'],
-  ['docs/updating.md', 'waveshare_touch_lcd_4_3.bin'],
-  ['docs/screensaver.md', '| Waveshare Touch LCD 4.3 inch | 800×480 |'],
+  ['README.md', 'https://galusperes.github.io/#device-support'],
+  ['docs/index.md', '| Waveshare LCD-4.3 (P4) | 4.3" / 800×480 |'],
+  ['docs/index.md', 'Support details for Waveshare LCD-4.3 (P4)'],
+  ['docs/screensaver.md', '(index.md#device-support)'],
   ['RELEASING.md', '30 binaries'],
 ]) {
   requireMarker(read(file), marker, `${file} release documentation`);

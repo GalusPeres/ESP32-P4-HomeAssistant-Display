@@ -1,172 +1,166 @@
 # On-Device UI
 
-The display itself is touch-first: tap tiles to switch things, open folders, and
-bring up detail popups. Everything shown here is configured in the
-[web admin panel](web-admin.md) — the device is for using the dashboard, not
-building it.
+Tap tiles to control devices, open folders, or view details. Configure the layout in the [Web Admin](web-admin.md).
 
-![Home dashboard](images/8in-home.png){ width="70%" }
+<figure class="ht-screenshot">
+<img src="../images/8in-home.png" alt="Home dashboard" width="1308" height="828" loading="lazy">
+<figcaption>HomeTiles dashboard</figcaption>
+</figure>
 
-Folders open as full-screen sub-pages with their own grid; the back tile in the
-top-left corner returns to the previous page.
+Folders have their own grid. The back tile returns to the previous page.
 
-![Folder page with light tiles and scenes](images/8in-folder-lighting.png){ width="70%" }
+<figure class="ht-screenshot">
+<img src="../images/8in-folder-lighting.png" alt="Folder page with light tiles and scenes" width="1308" height="828" loading="lazy">
+<figcaption>Folder with light tiles and scenes</figcaption>
+</figure>
 
 ## Popups
 
-Data tiles open a detail popup — on a tap or a long press, configurable per tile
-in the web admin.
+For tiles with detail controls, choose a tap or long press as the popup trigger in the Web Admin.
 
 ### Light Control
 
-Switch tiles bound to a `light` entity get the full control set. The icon row at
-the bottom switches between the views; the power button toggles the light.
+Switch tiles assigned to a `light` entity open brightness, color, and color-temperature controls. The bottom icons switch views; the power button toggles the light. Only supported controls appear.
 
-![Brightness slider](images/8in-light-brightness.png){ width="32.8%" }
-![Color wheel](images/8in-light-color.png){ width="32.8%" }
-![Color temperature](images/8in-light-temperature.png){ width="32.8%" }
-
-Brightness is a drag slider, color is a full color wheel, and **K** selects the
-white color temperature. Views only appear if the light supports them.
+<figure class="ht-screenshot">
+<img src="../images/8in-light-brightness.png" alt="Brightness slider" width="1308" height="828" loading="lazy">
+<figcaption>Light brightness control</figcaption>
+</figure>
+<figure class="ht-screenshot">
+<img src="../images/8in-light-color.png" alt="Color wheel" width="1308" height="828" loading="lazy">
+<figcaption>Light color control</figcaption>
+</figure>
+<figure class="ht-screenshot">
+<img src="../images/8in-light-temperature.png" alt="Color temperature" width="1308" height="828" loading="lazy">
+<figcaption>Light color temperature control</figcaption>
+</figure>
 
 ### Cover Control
 
-Cover tiles open a popup with the same header, card and navigation conventions
-as Light controls. Position and tilt are independent vertical sliders, while a
-second mode exposes the supported open, close and stop actions. Unsupported or
-unavailable controls stay disabled.
+Use separate position and tilt sliders, or switch to open, close, and stop buttons. Controls depend on the cover's capabilities and availability.
 
-### Sensor And Binary Sensor History
+### Sensor And Binary Sensor History { data-toc-label="Sensor history" }
 
-Numeric Sensor tiles chart their history with a 24-hour and a 7-day view.
-Binary Sensor tiles and text-valued Sensor entities use a colored state timeline
-followed by a scrollable Activity list grouped by local date. State labels and
-icons follow the entity's Home Assistant device class and the selected HomeTiles
-language. History is fetched live through HomeTiles Bridge v0.6.40 or newer.
+Choose a **24-hour** or **7-day** view. Numeric sensors show a graph; binary and text-valued sensors show a state timeline and scrollable Activity list.
 
-![Sensor history, 7 day view](images/8in-sensor-popup-7d.png){ width="70%" }
+<figure class="ht-screenshot">
+<img src="../images/8in-sensor-popup-7d.png" alt="Sensor history, 7 day view" width="1308" height="828" loading="lazy">
+<figcaption>Sensor history over seven days</figcaption>
+</figure>
 
 ### Energy Statistics
 
-Energy tiles chart the Home Assistant Energy Dashboard statistics: hourly bars for
-the day view, daily bars for the week view.
+Energy popups show hourly bars for the day and daily bars for the week.
 
-![Energy day view](images/8in-energy-24h.png){ width="49.5%" }
-![Energy week view](images/8in-energy-7d.png){ width="49.5%" }
+<figure class="ht-screenshot">
+<img src="../images/8in-energy-24h.png" alt="Energy day view" width="1308" height="828" loading="lazy">
+<figcaption>Energy statistics over 24 hours</figcaption>
+</figure>
+<figure class="ht-screenshot">
+<img src="../images/8in-energy-7d.png" alt="Energy week view" width="1308" height="828" loading="lazy">
+<figcaption>Energy statistics over seven days</figcaption>
+</figure>
 
 ### Weather
 
-Current conditions plus the forecast ahead: daily min/max with an hourly
-temperature curve, precipitation, and rain probability. The arrows page through
-the coming weeks.
+View temperatures, precipitation, and rain probability. Use the arrows to browse the available forecast.
 
-![Weather popup](images/8in-weather-popup.png){ width="70%" }
+<figure class="ht-screenshot">
+<img src="../images/8in-weather-popup.png" alt="Weather popup" width="1308" height="828" loading="lazy">
+<figcaption>Weather forecast</figcaption>
+</figure>
 
 ### Media
 
-Media tiles show cover art and what's playing; the popup adds transport controls
-and a volume slider.
+The popup adds playback controls and a volume slider to the title and cover art.
 
-![Media popup](images/8in-media-popup.png){ width="70%" }
+<figure class="ht-screenshot">
+<img src="../images/8in-media-popup.png" alt="Media popup" width="1308" height="828" loading="lazy">
+<figcaption>Media playback controls</figcaption>
+</figure>
 
 ### Climate
 
-Climate tiles show the current room temperature and indicate whether the entity
-is actively heating, cooling, drying, or running its fan. Their configurable
-mini-tiles can also place humidity, heating/cooling targets, target humidity,
-and HVAC mode directly on the dashboard.
+Adjust the target temperature with the dial or plus/minus buttons. Available controls may include heating/cooling targets, humidity, mode, presets, fan, and swing. Scroll longer option lists.
 
-The popup provides a circular target-temperature control, plus/minus buttons,
-and only the controls supported by the selected Home Assistant entity. Depending
-on the device this includes low/high target ranges, target humidity, HVAC mode,
-presets, fan mode, vertical swing, and horizontal swing. Long option lists are
-touch-scrollable.
+These examples show a full air-conditioner control set and a simpler heating-only entity:
 
-The first example exposes the complete control set reported by an air conditioner.
-The second entity only supports heating, so the popup automatically stays compact:
+<figure class="ht-screenshot">
+<img src="../images/8in-climate-popup-1.png" alt="Full Climate popup with HVAC modes, target range, humidity, preset, fan, and swing controls" width="1308" height="828" loading="lazy">
+<figcaption>Climate popup with all supported controls</figcaption>
+</figure>
+<figure class="ht-screenshot">
+<img src="../images/8in-climate-popup-2.png" alt="Capability-aware heat-only Climate popup" width="1308" height="828" loading="lazy">
+<figcaption>Heat-only Climate popup</figcaption>
+</figure>
 
-![Full Climate popup with HVAC modes, target range, humidity, preset, fan, and swing controls](images/8in-climate-popup-1.png){ width="49.5%" }
-![Capability-aware heat-only Climate popup](images/8in-climate-popup-2.png){ width="49.5%" }
+### Camera (experimental) { data-toc-label="Camera" }
 
-### Camera (experimental)
-
-Camera tiles open a 16:9 video popup on ESP32-P4 targets. The stream is prepared
-by HomeTiles Bridge and sent over the local network. HomeTiles Bridge v0.6.28
-or newer is required; the popup reports this requirement directly when an
-older bridge does not provide the camera protocol.
-
-Direct camera streams can reach up to 24 FPS. Snapshot-only entities, including
-cameras that expose periodically refreshed still images, update at the source's
-actual image rate. See [Camera tiles](tiles.md#camera-experimental) for setup,
-network ports and host CPU considerations.
+Camera tiles open a 16:9 video popup on ESP32-P4. See [Camera tiles](tiles.md#camera-experimental) for setup and requirements.
 
 ## Settings
 
-The settings tile (gear icon) opens the on-device settings menu:
+The gear tile opens Settings.
 
-![Settings menu](images/8in-settings.png){ width="70%" }
+<figure class="ht-screenshot">
+<img src="../images/8in-settings.png" alt="Settings menu" width="1308" height="828" loading="lazy">
+<figcaption>Device settings menu</figcaption>
+</figure>
 
-If Settings protection is enabled in the Web Admin, opening the tile first
-shows a PIN keypad. The Settings tile can also be hidden; swipe inward from the
-configured screen edge to show the same keypad. Protected folders use the same
-popup. Entered digits are masked, and the public recovery PIN **466384537**
-works for both Settings and folders.
+If Settings is PIN-protected, enter the PIN to open it. If hidden, swipe inward from the configured edge. The recovery PIN **466384537** also unlocks protected folders; see [access control](web-admin.md#device-settings).
 
 ### Display
 
-Brightness, sleep timeout (up to *Never*), a separate screensaver timeout,
-separate screensaver brightness, and a rotate button that turns the whole UI by
-180° — for mounting the display upside down. Set the screensaver slider to
-*Never* to disable automatic activation. The screensaver brightness slider
-previews the dimmed level while dragging and restores normal brightness after
-release.
+Adjust brightness, sleep timeout, screensaver timeout, and screensaver brightness. **Never** disables the corresponding timeout. The rotate button turns the UI by 180°.
 
-![Display settings with screensaver timeout](images/8in-display-popup-screensaver.png){ width="70%" }
+<figure class="ht-screenshot">
+<img src="../images/8in-display-popup-screensaver.png" alt="Display settings with screensaver timeout" width="1308" height="828" loading="lazy">
+<figcaption>Display and screensaver settings</figcaption>
+</figure>
 
-You can also open the screensaver immediately by tapping any **Clock** tile. See
-the [Screensaver guide](screensaver.md) for microSD setup and layout configuration.
+Tap a **Clock** tile to open the screensaver immediately. See [Screensaver](screensaver.md) for its layout and images.
 
 ### WiFi
 
-The list shows found networks; the connected one is checked, and the status bar
-shows the current IP address — that's the address of the
-[web admin panel](web-admin.md).
+Select a network and enter its password. The connected network is checked, and its IP address opens the [Web Admin](web-admin.md).
 
-![WiFi popup](images/8in-wifi-popup.png){ width="70%" }
+<figure class="ht-screenshot">
+<img src="../images/8in-wifi-popup.png" alt="WiFi popup" width="1308" height="828" loading="lazy">
+<figcaption>WiFi settings</figcaption>
+</figure>
 
-- **Disconnect** drops the connection without deleting the saved credentials.
-  The device stays offline until you connect again or restart it.
-- **Enable AP** starts a hotspot with an on-screen QR code — connect to it and a
-  captive portal asks for your WiFi credentials. This is the way in when the
-  device isn't on your network yet.
-- **Manual** lets you type an SSID and password directly, with an on-screen
-  keyboard:
+- **Disconnect:** stay offline until you reconnect or restart; saved credentials remain.
+- **Enable AP:** connect through the display's hotspot and setup portal.
+- **Manual:** enter the SSID and password with the on-screen keyboard.
 
-![Manual WiFi entry with on-screen keyboard](images/8in-wifi-connect.png){ width="70%" }
+<figure class="ht-screenshot">
+<img src="../images/8in-wifi-connect.png" alt="Manual WiFi entry with on-screen keyboard" width="1308" height="828" loading="lazy">
+<figcaption>WiFi entry with the on-screen keyboard</figcaption>
+</figure>
 
 ### Localization
 
-Language (English/German), time zone, time and date format, and the on-screen
-keyboard layout. Everything follows the language automatically unless overridden —
-the whole UI switches, including the settings and all popups.
+Choose English or German, time zone, date/time formats, and keyboard layout. Tile titles also support Cyrillic characters.
 
-Tile titles also include modern Cyrillic glyphs. This extends user-provided
-names; it does not add a complete Russian interface translation.
-
-![Localization settings](images/8in-localization-popup.png){ width="49.5%" }
-![Settings menu in German](images/8in-settings-de.png){ width="49.5%" }
+<figure class="ht-screenshot">
+<img src="../images/8in-localization-popup.png" alt="Localization settings" width="1308" height="828" loading="lazy">
+<figcaption>Language and regional settings</figcaption>
+</figure>
+<figure class="ht-screenshot">
+<img src="../images/8in-settings-de.png" alt="Settings menu in German" width="1308" height="828" loading="lazy">
+<figcaption>Device settings in German</figcaption>
+</figure>
 
 ### System
 
-Firmware version, device name, and the maintenance actions:
+View the firmware version and device name, or use the maintenance actions:
 
-![System popup](images/8in-system-popup.png){ width="70%" }
+<figure class="ht-screenshot">
+<img src="../images/8in-system-popup.png" alt="System popup" width="1308" height="828" loading="lazy">
+<figcaption>System information and firmware update</figcaption>
+</figure>
 
-- **Check for updates** looks up the latest GitHub release and installs it
-  directly on the device — see [Firmware Updates](updating.md).
-- **Restart** reboots the device.
-- **Pairing** re-announces the device to Home Assistant: it reconnects MQTT and
-  republishes its discovery data. Use it if the device is missing in Home
-  Assistant — for example after you deleted it there — without touching any
-  settings.
-- **GitHub** shows a QR code linking to this project.
+- **Check for updates:** find and install a new release; see [Firmware Updates](updating.md).
+- **Restart:** reboot the display.
+- **Pairing:** reconnect MQTT and announce the display to Home Assistant again.
+- **GitHub:** show a QR code for the project.

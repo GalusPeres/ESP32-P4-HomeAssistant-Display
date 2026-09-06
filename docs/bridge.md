@@ -1,159 +1,85 @@
 # Bridge Integration
 
-The [HomeTiles Bridge](https://github.com/GalusPeres/HomeTiles-Bridge)
-is the Home Assistant side of the project: a custom integration that pushes entity
-states, icons, sensor history, weather forecasts, and energy data to the displays via
-MQTT, and executes the light/switch/media/scene commands coming back. Bridge
-v0.6.28 and newer provide the experimental local camera transport used by
-HomeTiles v0.6.3 and newer. Bridge v0.6.32 adds migration-safe entities for the
-local Hardware I/O announced by HomeTiles v0.6.4. Bridge v0.6.35 adds Cover
-entity state, metadata and validated commands for HomeTiles v0.6.5. Bridge
-v0.6.40 adds Binary Sensor metadata and bounded categorical history for Binary
-Sensor and text-valued Sensor tiles while remaining compatible with older
-firmware.
+The [HomeTiles Bridge](https://github.com/GalusPeres/HomeTiles-Bridge) connects your displays to Home Assistant over MQTT. It shares entity data and sends tile actions back to Home Assistant, with each display listed as its own device.
 
-Every display appears as its own device under the integration — with its base topic
-and status entities — no matter how many panels you run:
+<figure class="ht-screenshot">
+<img src="../images/bridge-devices.png" alt="Bridge integration with three panels" width="1328" height="918" loading="lazy">
+<figcaption>Displays in the HomeTiles Bridge integration</figcaption>
+</figure>
 
-![Bridge integration with three panels](images/bridge-devices.png){ width="88%" }
-
-## Requirements
-
-- Home Assistant 2025.11 or newer
-- An MQTT broker configured in Home Assistant (see the [setup guide](home-assistant-setup.md))
-- HomeTiles Bridge v0.6.28 or newer when Camera tiles are used
-- HomeTiles Bridge v0.6.32 or newer when panel-local Switch or temperature
-  assignments should appear as Home Assistant entities
-- HomeTiles Bridge v0.6.35 or newer when Cover tiles are used
-- HomeTiles Bridge v0.6.40 or newer when Binary Sensor or categorical Sensor
-  history is used
+<a id="requirements"></a>
 
 ## Installation
 
-### Via HACS (recommended)
+You need Home Assistant 2025.11 or newer, an MQTT broker, and HomeTiles Bridge v0.6.40 or newer for all documented tile features. Follow the [Home Assistant setup guide](home-assistant-setup.md) to install the Bridge and pair your first display.
 
-1. **HACS → Integrations → three-dot menu → Custom repositories**
-2. Repository: `https://github.com/GalusPeres/HomeTiles-Bridge`,
-   category **Integration**, click **Add**
-3. Search for **HomeTiles Bridge** in HACS and download it
-4. Restart Home Assistant
+<a id="via-hacs-recommended"></a>
+<a id="manual"></a>
+<a id="adding-a-panel"></a>
 
-Updates arrive through HACS like for any other custom integration.
-
-### Manual
-
-Copy the `custom_components/tab5_lvgl` folder from the repository into your
-Home Assistant `custom_components` directory and restart Home Assistant.
-
-## Adding A Panel
-
-Add the integration once via **Settings → Devices & Services → Add Integration**
-(search for **HomeTiles Bridge**):
-
-| Field | Meaning |
-| --- | --- |
-| Base topic | MQTT namespace of the panel — must match the display's **Device topic base** (web admin → Settings → MQTT). **Unique per panel.** |
-| HA prefix | Topic prefix for entity state publishing (default `ha/statestream`) — same on all panels and displays. |
-| Device name / manufacturer / model | Optional metadata shown in the device registry. |
-
-**Additional panels are discovered automatically:** every display announces itself over
-MQTT when it connects. The first announcement links up with your manually created entry;
-any further display gets its own integration entry without manual steps. A display that
-went missing (for example after being deleted in Home Assistant) can re-announce itself
-at any time via its on-device **Settings → System → Pairing** button.
+HACS provides Bridge updates. After an update, restart Home Assistant. For additional displays, follow [Multiple displays](home-assistant-setup.md#multiple-displays).
 
 ## Configuration
 
-Open the integration entry and click **Configure**. Three sections:
+Open **Settings → Devices & Services → HomeTiles Bridge → Configure**.
 
 ### Panel Settings
 
-Base topic, HA prefix, and device metadata — same fields as above.
+| Field | Setting |
+| --- | --- |
+| Base topic | Must match **Device topic base** in the display's MQTT settings. Each display needs a unique value. |
+| HA prefix | Default: `ha/statestream`. Use the same value on the Bridge and all displays. |
+| Device name / manufacturer / model | Optional details shown in Home Assistant. |
 
-### Entity Configuration
+### Entity Configuration { data-toc-label="Entities" }
 
-Select which entities the displays may use:
+Select the sensors, binary sensors, weather, lights, switches, covers, climate entities, media players, cameras, and scenes/scripts you want to use. Then assign them to tiles in the [Web Admin](web-admin.md).
 
-- **Sensors** — `sensor.*` entities for numeric or textual Sensor tiles
-- **Binary Sensors** — `binary_sensor.*` entities with device-class states and icons
-- **Weather** — `weather` entities for weather tiles/forecasts
-- **Lights / Switches / Covers / Climate / Media players** — controllable from the displays
-- **Cameras** — sources for the experimental ESP32-P4 Camera tile
-- **Scenes & scripts** — each selected entry gets an auto-generated **alias**
-  (used by scene tiles); you can also map aliases manually in the text box,
-  one `alias=entity_id` per line
-
-Entity selections are **shared across all panels** — every display can use every
-entity configured here.
-
-Panel-local Hardware I/O is different: it is announced by the firmware and
-belongs only to that panel's Home Assistant device. It does not need to be added
-to this shared entity selection.
-
-## Local Hardware Entities
-
-HomeTiles v0.6.4 can announce locally configured Switch outputs, onboard relays,
-and DS18B20 inputs. Bridge v0.6.32 creates these dynamically as `switch` or
-`sensor` entities on the correct display device.
-
-The firmware keeps a stable hidden channel ID for MQTT topics and Home Assistant
-unique IDs while advertising a readable entity ID based on the device and
-channel name. During an upgrade the Bridge migrates known automatically
-generated IDs, including numeric suffixes from identical panels. IDs manually
-renamed in Home Assistant remain untouched.
-
-Deleting an assignment removes its retained MQTT state and marks the old Home
-Assistant entity unavailable. Saving a new assignment causes the panel to
-re-announce its configuration; restarting Home Assistant is not required after
-the Bridge itself has already been installed and loaded.
+Selections are shared across all displays. Scene and script aliases are generated automatically; custom aliases use one `alias=entity_id` per line.
 
 ### Energy Dashboard
 
-Enable electricity, gas, and/or water. The displays' energy tiles pull their statistics
-from the Home Assistant [Energy Dashboard](https://my.home-assistant.io/redirect/energy/),
-so that must be configured first. These checkboxes are synchronized across all panel
-entries.
+Enable the electricity, gas, or water categories you need. Each requires the corresponding data in Home Assistant's [Energy Dashboard](https://my.home-assistant.io/redirect/energy/). These selections are also shared across displays.
 
-## MQTT Topics Reference
+## Local Hardware Entities { data-toc-label="Local I/O" }
 
-For debugging with an MQTT client (topic layout, `{id}` = panel device id):
+Configure GPIO switches, onboard relays, and DS18B20 inputs on the display's [I/O tab](hardware-io.md). The Bridge adds them to that display's Home Assistant device automatically; they do not belong in the shared entity selection.
 
-| Topic | Direction | Description |
-|---|---|---|
-| `<base>/stat/connected` | Display → HA | Connection status |
-| `tab5_lvgl/config/{id}/bridge` | Display → HA | Device announcement, including local Hardware I/O |
-| `tab5_lvgl/config/{id}/bridge/apply` | HA → Display | Full configuration push |
-| `tab5_lvgl/config/{id}/bridge/icons` | HA → Display | Lightweight icon updates |
-| `tab5_lvgl/config/{id}/history/*` | Both | Numeric, Binary Sensor, and categorical Sensor history request/response |
-| `tab5_lvgl/config/{id}/weather/*` | Both | Weather forecast request/response |
-| `tab5_lvgl/config/{id}/energy/*` | Both | Energy data request/response |
-| `<base>/cmnd/light` | Display → HA | Light control commands |
-| `<base>/cmnd/switch` | Display → HA | Switch control commands |
-| `<base>/cmnd/media` | Display → HA | Media player commands |
-| `<base>/cmnd/climate` | Display → HA | Climate temperature/range, humidity, mode, preset, fan, and swing controls |
-| `<base>/cmnd/cover` | Display → HA | Validated Cover position, tilt, open, close and stop commands |
-| `<base>/cmnd/scene` | Display → HA | Scene/script activation |
-| `<base>/cmnd/camera` | Display → HA | Open/close an experimental camera session |
-| `<base>/stat/camera` | HA → Display | Camera protocol, endpoint and status |
-| `<base>/cmnd/display_brightness` | HA → Display | Set normal display brightness (1-100%) |
-| `<base>/stat/display_brightness` | Display → HA | Current normal display brightness (1-100%) |
-| `<base>/cmnd/screensaver_brightness` | HA → Display | Set screensaver brightness (1-100%) |
-| `<base>/stat/screensaver_brightness` | Display → HA | Current screensaver brightness (1-100%) |
-| `<base>/cmnd/io/{channel_id}` | HA → Display | Local Switch command (`ON` / `OFF`) |
-| `<base>/stat/io/{channel_id}` | Display → HA | Retained local Switch or temperature state |
+Saving an assignment announces it again. Deleting it makes the old Home Assistant entity unavailable. Names you changed manually in Home Assistant are preserved.
 
-Entity states are published under `<HA prefix>/<entity>/...` by the bridge itself —
-Home Assistant's MQTT Statestream integration is **not** required.
+## Experimental Camera Transport { data-toc-label="Camera connection" }
 
-## Experimental Camera Transport
+Camera tiles are available on ESP32-P4. Allow the display to reach the Home Assistant host on TCP ports `8124`–`8131`. The Bridge sends display-sized JPEG frames directly over the local network; MQTT handles camera control.
 
-When a Camera tile opens, the bridge resolves the selected Home Assistant
-camera. Direct sources are transcoded with FFmpeg; snapshot-only cameras are
-re-fetched and converted at their actual refresh rate. The resulting
-display-sized JPEG frames use a local acknowledged TCP transport on the first
-available port from `8124` through `8131`. MQTT remains active for entity
-updates and camera control, but video bytes are not sent through MQTT.
+Each open display uses its own stream. Video conversion uses Home Assistant CPU time, while snapshot cameras are limited by their source refresh rate. See [Camera troubleshooting](faq.md#the-camera-tile-asks-for-a-newer-bridge-or-never-shows-video) if no video appears.
 
-Allow the display to reach that port on the Home Assistant host. CPU usage
-depends on the input codec/resolution, requested frame rate and number of
-simultaneously open panels. Camera support is currently experimental.
+## MQTT Topics Reference { data-toc-label="MQTT reference" }
+
+Entity states use `<HA prefix>/<entity>/...`. The Bridge publishes them itself; Home Assistant's MQTT Statestream integration is not required.
+
+??? info "Topic reference for debugging"
+    `{id}` is the panel device ID; `<base>` is its unique base topic.
+
+    | Topic | Direction | Purpose |
+    | --- | --- | --- |
+    | `<base>/stat/connected` | Display → HA | Connection status |
+    | `tab5_lvgl/config/{id}/bridge` | Display → HA | Device and local I/O announcement |
+    | `tab5_lvgl/config/{id}/bridge/apply` | HA → Display | Configuration |
+    | `tab5_lvgl/config/{id}/bridge/icons` | HA → Display | Icon updates |
+    | `tab5_lvgl/config/{id}/history/*` | Both | Sensor history |
+    | `tab5_lvgl/config/{id}/weather/*` | Both | Weather forecasts |
+    | `tab5_lvgl/config/{id}/energy/*` | Both | Energy data |
+    | `<base>/cmnd/light` | Display → HA | Light controls |
+    | `<base>/cmnd/switch` | Display → HA | Switch controls |
+    | `<base>/cmnd/media` | Display → HA | Media controls |
+    | `<base>/cmnd/climate` | Display → HA | Climate controls |
+    | `<base>/cmnd/cover` | Display → HA | Cover controls |
+    | `<base>/cmnd/scene` | Display → HA | Scene/script activation |
+    | `<base>/cmnd/camera` | Display → HA | Open/close a camera session |
+    | `<base>/stat/camera` | HA → Display | Camera connection and status |
+    | `<base>/cmnd/display_brightness` | HA → Display | Display brightness (1–100%) |
+    | `<base>/stat/display_brightness` | Display → HA | Current display brightness |
+    | `<base>/cmnd/screensaver_brightness` | HA → Display | Screensaver brightness (1–100%) |
+    | `<base>/stat/screensaver_brightness` | Display → HA | Current screensaver brightness |
+    | `<base>/cmnd/io/{channel_id}` | HA → Display | Local Switch command (`ON` / `OFF`) |
+    | `<base>/stat/io/{channel_id}` | Display → HA | Local Switch or temperature state |

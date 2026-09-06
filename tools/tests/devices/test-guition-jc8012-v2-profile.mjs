@@ -118,9 +118,9 @@ for (const marker of [
 assert.equal(getReleaseProfile('guition_jc8012p4a1_v2').siliconVariant, 'pre_v3');
 
 for (const [file, marker] of [
-  ['README.md', '..._guition_jc8012p4a1_v2_factory.bin'],
-  ['docs/flashing.md', 'guition_jc8012p4a1_v2_factory.bin'],
-  ['docs/updating.md', 'guition_jc8012p4a1_v2.bin'],
+  ['README.md', 'https://galusperes.github.io/#device-support'],
+  ['docs/index.md', '| Guition JC8012P4A1 V2 |'],
+  ['docs/index.md', 'Support details for Guition JC8012P4A1 V2'],
   ['RELEASING.md', '30 binaries'],
 ]) {
   requireMarker(read(file), marker, `${file} release documentation`);

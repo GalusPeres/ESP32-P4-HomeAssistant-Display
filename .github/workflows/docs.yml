@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+      - "overrides/**"
       - "mkdocs.yml"
       - "package.json"
       - "package-lock.json"
@@ -12,6 +13,8 @@ on:
       - "release-helper/prepare-web-installer.mjs"
       - "tools/tests/build/test-installer-otadata.mjs"
       - "tools/tests/build/test-web-installer.mjs"
+      - "tools/tests/web/test-docs-device-status.mjs"
+      - "tools/check-docs.py"
   workflow_dispatch:
 
 permissions:
@@ -37,11 +40,14 @@ jobs:
       - run: pip install mkdocs-material ghp-import
       - run: node tools/tests/build/test-installer-otadata.mjs
       - run: node tools/tests/build/test-web-installer.mjs
+      - run: node tools/tests/web/test-docs-device-status.mjs
       - run: mkdocs build --strict
       - name: Mirror latest release assets into the documentation origin
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node release-helper/prepare-web-installer.mjs --output site/firmware/latest
+      - name: Check documentation links and verified firmware assets
+        run: python tools/check-docs.py site
       - name: Publish an orphan gh-pages snapshot
         run: |
           git config user.name "GalusPeres"

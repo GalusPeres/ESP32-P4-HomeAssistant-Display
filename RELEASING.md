@@ -67,6 +67,12 @@ header required by browser flashing. The `gh-pages` deployment is an orphan
 snapshot so successive full-size factory images do not accumulate in the
 branch history.
 
+The canonical documentation URL is https://galusperes.github.io/. Its hosting
+repository deploys the same verified `HomeTiles/gh-pages` snapshot and checks
+for changes twice per hour. Run **Publish HomeTiles documentation** in
+`GalusPeres/galusperes.github.io` for immediate publication after a release,
+then check the live installer version and asset downloads.
+
 Keep the two browser operations distinct. **Factory** must erase the full chip
 and write the merged image at `0x0`. **Update** must never use that merged image
 or an install flow that can opt into a full erase; it verifies `partitions.csv`

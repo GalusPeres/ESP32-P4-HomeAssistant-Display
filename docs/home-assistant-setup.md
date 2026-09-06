@@ -1,12 +1,10 @@
 # Home Assistant Setup Guide
 
-This guide connects a HomeTiles display to Home Assistant, starting from scratch.
-No YAML editing is required.
+Connect your display to Home Assistant, then choose the entities for your dashboard. No YAML editing is required.
 
 !!! note "What you need"
-    - Home Assistant (any recent install type)
-    - A display with the [firmware flashed](flashing.md)
-    - 15 minutes
+    - Home Assistant 2025.11 or newer
+    - A display with [HomeTiles installed](installer.md)
 
 ## How It Works
 
@@ -18,170 +16,80 @@ No YAML editing is required.
   <span class="ht-node">Bridge Integration<small>Home Assistant</small></span>
 </div>
 
-The display never talks to Home Assistant directly. Everything goes through MQTT:
+The Bridge shares Home Assistant data with the display and handles commands from your tiles. Both connect to the same MQTT broker.
 
-- The **bridge integration** pushes entity states, icons, weather forecasts, sensor history,
-  and energy data to the display.
-- The display sends commands back (light/switch/media/scene control), which the bridge
-  executes in Home Assistant.
-- Experimental camera popups use MQTT only for setup and control; display-sized
-  JPEG frames travel directly over the local network.
+## Step 1: Set Up An MQTT Broker { data-toc-label="1. MQTT broker" }
 
-So you need three things: an **MQTT broker**, the **bridge integration**, and the
-**display firmware**. This guide covers all supported devices.
+If you already use MQTT in Home Assistant, continue with Step 2. On Home Assistant OS:
 
-## Step 1: Set Up An MQTT Broker
+1. Open **Settings → Apps → Install app** and install **Mosquitto broker**. Older Home Assistant versions call Apps **Add-ons**.
+2. Start it and enable **Start on boot** and **Watchdog**.
+3. Under **Settings → People → Users**, add a user such as `hometiles`, with a password. Mosquitto accepts these Home Assistant credentials.
+4. Open **Settings → Devices & Services** and confirm the discovered **MQTT** integration. If necessary, add it manually with broker address `core-mosquitto`.
 
-If you already have a working MQTT broker, skip to Step 2.
+For other installation types, connect Home Assistant to your existing or separately installed broker. See the [official MQTT setup](https://www.home-assistant.io/integrations/mqtt/#setting-up-a-broker).
 
-The easiest option on Home Assistant OS is the official Mosquitto add-on:
+## Step 2: Install The Bridge Integration { data-toc-label="2. Install bridge" }
 
-1. In Home Assistant, go to **Settings → Add-ons → Add-on Store**.
-2. Search for **Mosquitto broker**, install it, and start it.
-   Enable **Start on boot** and **Watchdog**.
-3. Create a Home Assistant user for the display:
-   **Settings → People → Users → Add user** (for example `display`, with a password of
-   your choice). The Mosquitto add-on accepts Home Assistant users as MQTT credentials.
-4. Set up the MQTT integration: after the add-on starts, Home Assistant usually discovers
-   it automatically — go to **Settings → Devices & Services**, look for the discovered
-   **MQTT** integration, and confirm it. If it is not discovered, add the **MQTT**
-   integration manually and use `core-mosquitto` as the broker address.
+<a id="via-hacs-recommended"></a>
 
-## Step 2: Install The Bridge Integration
+1. In **HACS**, open **Custom repositories** from the menu.
+2. Add `https://github.com/GalusPeres/HomeTiles-Bridge` as an **Integration**.
+3. Download **HomeTiles Bridge**, then restart Home Assistant.
 
-The bridge is a custom integration: [HomeTiles Bridge](https://github.com/GalusPeres/HomeTiles-Bridge)
+<a id="manual"></a>
 
-### Via HACS (recommended)
+Without HACS, copy `custom_components/tab5_lvgl` from the [Bridge repository](https://github.com/GalusPeres/HomeTiles-Bridge) into Home Assistant's `custom_components` directory and restart.
 
-1. **HACS → Integrations → three-dot menu → Custom repositories**
-2. Repository: `https://github.com/GalusPeres/HomeTiles-Bridge`,
-   category **Integration**, click **Add**.
-3. Search for **HomeTiles Bridge** in HACS and download it.
-4. Restart Home Assistant.
+## Step 3: Get The Display Online { #step-4-get-the-display-online data-toc-label="3. Connect WiFi" }
 
-### Manual
+On the display, open **Settings → WiFi**, select your network, and enter its password.
 
-1. Copy the `custom_components/tab5_lvgl` folder from the bridge repository into your
-   Home Assistant `custom_components` directory.
-2. Restart Home Assistant.
+Alternatively, tap **Enable AP**, connect to the hotspot using password `12345678`, and enter your WiFi details in the captive portal.
 
-## Step 3: Add The Integration
+## Step 4: Pair The Display { #step-5-pair-the-display data-toc-label="4. Pair display" }
 
-1. Go to **Settings → Devices & Services → Add Integration**.
-2. Search for **HomeTiles Bridge**.
-3. Keep the defaults unless you have a reason not to — the details (base topic,
-   HA prefix) are explained on the [bridge page](bridge.md).
+A display without saved MQTT credentials announces itself on the network.
 
-## Step 4: Get The Display Online
+1. Under **Settings → Devices & Services** in Home Assistant, open its discovered card.
+2. Check the proposed broker address and port, then enter the MQTT username and password from Step 1.
+3. Keep the suggested unique base topic and confirm. The Bridge sends these settings to the display.
 
-On the display, open **Settings → WiFi**. Either:
+<figure class="ht-screenshot">
+<img src="../images/bridge-devices.png" alt="Panels as devices in the bridge integration" width="1328" height="918" loading="lazy">
+<figcaption>Displays in the HomeTiles Bridge integration</figcaption>
+</figure>
 
-- pick your network from the scan list and enter the password with the on-screen
-  keyboard, or
-- tap **Enable AP**: the display starts a hotspot (password `12345678`, QR code shown
-  on screen) — connect to it and enter your WiFi credentials in the captive portal.
+<a id="step-3-add-the-integration"></a>
 
-## Step 5: Pair The Display
+??? info "Set up without discovery"
+    If no discovered card appears, use **Settings → Devices & Services → Add Integration → HomeTiles Bridge** to add the panel manually. Keep the default base topic and HA prefix for your first display.
 
-As long as the display has **no MQTT credentials configured yet**, it announces itself
-on the network automatically. In Home Assistant, a **discovered device** card appears
-under **Settings → Devices & Services** — confirm it, and the bridge pushes your MQTT
-broker's credentials to the display. No typing required.
+    Open `http://<display-ip>/` and go to **Settings → MQTT**. Find the IP in the display's WiFi settings.
 
-Afterwards the display shows up as a device under the bridge integration:
+    - **Host:** your broker's network IP address. With the Mosquitto app, use the Home Assistant machine's IP, not `core-mosquitto`.
+    - **Port:** `1883`, unless your broker uses another port.
+    - **Username / Password:** the broker credentials from Step 1.
+    - **Device topic base / Home Assistant prefix:** use the values from the Bridge entry.
 
-![Panels as devices in the bridge integration](images/bridge-devices.png){ width="88%" }
+    Select **Save**. The display reconnects to MQTT with the new settings.
 
-??? info "Manual alternative: enter MQTT settings yourself"
-    If you prefer manual setup (or discovery is blocked in your network), open the
-    display's web admin panel at `http://<display-ip>/` (the IP is shown in the
-    on-device WiFi settings) and enter under **Settings → MQTT**:
+## Step 5: Choose What The Display Can See { #step-6-choose-what-the-display-can-see data-toc-label="5. Select entities" }
 
-    - **Host**: the IP address of your Home Assistant machine (when using the
-      Mosquitto add-on, the broker runs there)
-    - **Port**: `1883`
-    - **Username / Password**: the Home Assistant user from Step 1
-    - Leave **Device topic base** and **Home Assistant prefix** at their defaults
-      unless you changed them in the bridge
+Open **HomeTiles Bridge → Configure → Entity Configuration** and select the entities you want to use. Selections are shared across all displays.
 
-    Save — the display restarts and connects to the broker.
+For Energy tiles, also enable the corresponding electricity, gas, or water category under **Energy Dashboard**. See [Bridge configuration](bridge.md#configuration) for the available options.
 
-!!! tip "Display missing in Home Assistant later?"
-    The on-device **Settings → System → Pairing** button re-announces the display at
-    any time — useful if you deleted the device in Home Assistant and want it back.
+## Step 6: Build Your Dashboard { #step-7-build-your-dashboard data-toc-label="6. Create dashboard" }
 
-## Step 6: Choose What The Display Can See
+Open the display's [Web Admin](web-admin.md), add tiles, and assign the selected entities. Changes appear on the display immediately.
 
-Open the integration entry and click **Configure**. There are three sections:
-
-- **Panel Settings** — base topic, HA prefix, and device metadata.
-- **Entity Configuration** — pick the sensors, binary sensors, weather entities,
-  lights, switches, media players, cameras, and scenes/scripts the display should have access to. Scene aliases are
-  generated automatically; you can also map them manually (one `alias=entity_id` per line).
-- **Energy Dashboard** — enable electricity, gas, and/or water. This requires the
-  Home Assistant [Energy Dashboard](https://my.home-assistant.io/redirect/energy/) to be
-  set up; the display's energy tile pulls its statistics from there.
-
-Entity selections are shared across all panels — every display can use every entity you
-pick here.
-
-## Step 7: Build Your Dashboard
-
-Open the display's [web admin panel](web-admin.md) and add tiles for the entities you
-exposed in Step 6 — sensors, lights, weather, energy, media, scenes, and so on.
-Changes appear on the display immediately.
-
-Binary Sensor and text-valued Sensor history requires HomeTiles Bridge v0.6.40
-or newer. Update it through HACS and restart Home Assistant before configuring
-the new tiles.
-
-For a Camera tile, install HomeTiles Bridge v0.6.28 or newer, select the camera
-in Step 6, and ensure the display can reach the Home Assistant host on TCP
-ports `8124`–`8131`. Camera support is experimental and available on ESP32-P4
-targets only.
-
-Optional local GPIO switches, onboard relays, and DS18B20 sensors are configured
-on each panel's web-admin **I/O** tab instead of the shared Bridge entity
-selection. They are immediately usable by tiles on that panel. HomeTiles Bridge
-v0.6.32 or newer also adds them automatically to the corresponding Home
-Assistant device; see [Local Hardware I/O](hardware-io.md).
+Optional GPIO switches, relays, and temperature inputs are configured separately on the panel's [I/O tab](hardware-io.md).
 
 ## Multiple Displays
 
-- Each display needs its **own base topic** (for example `hometiles`, `panel_kitchen`, ...) —
-  set in the display's MQTT settings, or handled automatically during pairing.
-- The **HA prefix stays the same** for all displays.
-- Additional displays are discovered automatically: once the first panel is set up, any new
-  display that connects gets its own integration entry without manual steps.
+Pair each additional display in the same way. Every panel needs a unique **Device topic base**; the **HA prefix** stays the same. Pairing handles this automatically. For manual configuration, see [Panel Settings](bridge.md#panel-settings).
 
 ## Troubleshooting
 
-**The display connects to WiFi but shows no data**
-
-- Check the MQTT settings on the display (host, port, credentials).
-- Make sure base topic and HA prefix match between the display and the integration entry.
-- Check **Settings → Devices & Services** — the panel should be listed under the bridge
-  integration. If not, tap **Settings → System → Pairing** on the display; it
-  re-announces itself.
-
-**No "discovered device" card appears**
-
-- Discovery only runs while the display has no MQTT credentials stored. If it had some
-  before, either use the manual setup above or factory-flash the device.
-- If the device existed in Home Assistant before, delete the old device entry first —
-  its ID survives a re-flash, and Home Assistant won't re-discover a known ID.
-
-**Lights/switches/sensors/binary sensors are missing on the display**
-
-- They must be selected in the bridge options first (Step 6), then assigned to a tile in
-  the web admin (Step 7).
-
-**The energy tile stays empty**
-
-- The Home Assistant Energy Dashboard must be configured, and the matching category
-  (electricity/gas/water) must be enabled in the bridge's Energy options.
-
-**MQTT login fails**
-
-- When using the Mosquitto add-on, the credentials are a regular Home Assistant user
-  (Step 1), not an add-on-specific account.
+If pairing fails or entities remain empty, follow the [connection and pairing checks](faq.md#connection-pairing). A previously paired display can announce itself again through **Settings → System → Pairing**.

@@ -622,43 +622,27 @@ assert.doesNotMatch(installerDocs, /<strong>Factory\s*\//);
 assert.doesNotMatch(installerDocs, /Lokaler|Veröffentlichung|Gerät auswählen|gültigen Werte/);
 assert.match(installerDocs, /Select the exact model printed on the device or rear label/);
 assert.doesNotMatch(installerDocs, /Choose the right mode|\| Mode \| Use it for \| Local data \|/);
-for (const heading of [
-  "## Browser installer",
-  "## Update HomeTiles",
-  "## First install or factory reset",
-  "## Manual flashing",
-  "## Troubleshooting",
-]) {
-  assert.match(installerDocs, new RegExp(`^${heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+for (const heading of ["Browser installer", "Manual flashing", "Troubleshooting"]) {
+  assert.ok(installerDocs.includes(`## ${heading}`), `Missing installer section ${heading}.`);
 }
-assert.match(installerDocs, /Under \*\*Firmware\*\*, use the published release/);
-assert.match(installerDocs, /Settings → System/);
-assert.match(installerDocs, /Update safety and partition details/);
-assert.match(installerDocs, /The installer writes and verifies only the inactive application slot/);
-assert.match(installerDocs, /Boot entry committed after app verification/);
-assert.match(installerDocs, /previously selected app remains available/);
-assert.match(installerDocs, /## Manual flashing/);
-assert.match(installerDocs, /manual flashing guide/);
-assert.match(installerDocs, /<details class="ht-installer-log ht-installer-doc-details" markdown="1">/);
-assert.doesNotMatch(installerDocs, /<details class="ht-installer-log ht-installer-doc-details"[^>]*\sopen(?:\s|>)/);
-assert.match(installerDocs, /Local test before publication/);
-assert.match(installerDocs, /--device guition_esp32_4848s040/);
-assert.match(installerDocs, /http:\/\/127\.0\.0\.1:8000\/installer\//);
-assert.match(installerDocs, /SHA-256-verified assets/);
+assert.match(installerDocs, /Device list\]\(index\.md#device-support\)/);
+assert.match(installerDocs, /write-flash --erase-all 0x0/);
+assert.match(installerDocs, /chip-id/);
+assert.match(installerDocs, /v3\.2 and newer are unsupported/);
+assert.doesNotMatch(installerDocs, /Local test before publication|Update safety and partition details/);
+assert.doesNotMatch(installerDocs, /manual flashing guide\]\(flashing\.md\)/);
 
 const overviewDocs = read("docs/index.md");
-assert.match(overviewDocs, /\*\*Flashing the Firmware\*\*/);
-assert.match(overviewDocs, /Install or update HomeTiles directly here in the browser/);
-assert.match(overviewDocs, /\[Flashing the Firmware :octicons-arrow-right-24:\]\(installer\.md\)/);
-assert.doesNotMatch(
-  overviewDocs,
-  /Open the Browser Installer|Every normal update after that|Manual flashing instructions/,
-);
+assert.match(overviewDocs, /\[Flash the firmware\]\(installer\.md\)/);
+assert.match(overviewDocs, /\[Open online flasher\]\(installer\.md#browser-installer\)/);
+assert.match(overviewDocs, /### ESP32-P4/);
+assert.match(overviewDocs, /### ESP32-S3/);
+assert.match(read("docs/home-assistant-setup.md"), /\(installer\.md(?:#browser-installer)?\)/);
+assert.doesNotMatch(read("docs/home-assistant-setup.md"), /\(flashing\.md(?:#[^)]*)?\)/);
 
 const updatingDocs = read("docs/updating.md");
-assert.match(updatingDocs, /only to the inactive application slot/);
-assert.match(updatingDocs, /committing a new redundant OTA selection entry/);
-assert.match(updatingDocs, /previously selected application remains untouched and bootable/);
+assert.match(updatingDocs, /inactive application slot/);
+assert.match(updatingDocs, /previously selected application bootable/);
 
 const installerStyles = read("docs/stylesheets/extra.css");
 const installerStyleStart = installerStyles.indexOf("Browser firmware installer");
@@ -677,16 +661,12 @@ assert.match(installerStylesOnly, /\.ht-installer-log-panel pre\s*\{[\s\S]*?max-
 
 const docsNavigation = read("mkdocs.yml");
 assert.equal(
-  [...docsNavigation.matchAll(/^\s+- Flashing the Firmware:\s*([^\r\n]+)$/gm)].length,
+  [...docsNavigation.matchAll(/^\s+- Flash firmware:\s*installer\.md\s*$/gm)].length,
   1,
   "The sidebar must contain one clear flashing entry.",
 );
-assert.match(docsNavigation, /- Flashing the Firmware: installer\.md/);
-assert.doesNotMatch(docsNavigation, /Browser Firmware Installer:/);
-assert.match(
-  docsNavigation,
-  /- Release Notes:[\s\S]*?\r?\n\s+- v0\.6\.7:\s*releases\/v0\.6\.7\.md[\s\S]*?\r?\n\s+- v0\.6\.6:/,
-);
+assert.doesNotMatch(docsNavigation, /Manual flashing:|Supported devices:|Browser Firmware Installer:/);
+assert.match(docsNavigation, /- Release Notes: releases\/index\.md/);
 assert.doesNotMatch(docsNavigation, /navigation\.expand/);
 for (const match of docsNavigation.matchAll(/^\s+- (?:[^:\r\n]+):\s+([^\s#]+\.md)\s*$/gm)) {
   assert.ok(fs.existsSync(path.join(repositoryRoot, "docs", match[1])), `Missing nav target ${match[1]}.`);
@@ -695,25 +675,7 @@ for (const match of docsNavigation.matchAll(/^\s+- (?:[^:\r\n]+):\s+([^\s#]+\.md
 const screensaverDocs = read("docs/screensaver.md");
 assert.match(screensaverDocs, /baseline \(non-progressive\) JPEG/);
 assert.match(screensaverDocs, /RGB\/sRGB/);
-assert.match(screensaverDocs, /longest edge at \*\*1920 pixels/);
-for (const [target, resolution] of [
-  ["M5Stack Tab5", "1280×720"],
-  ["Waveshare 4B / 86 Panel", "720×720"],
-  ["Waveshare Touch LCD 4.3 inch", "800×480"],
-  ["Waveshare Touch LCD 7 inch", "1280×720"],
-  ["Waveshare Touch LCD 7B / 7B-C", "1024×600"],
-  ["Waveshare Touch LCD 8 inch", "1280×800"],
-  ["Waveshare Touch LCD 10.1 inch", "1280×800"],
-  ["Guition JC8012P4A1 V1 / V2", "1280×800"],
-  ["Guition JC1060P470C V1 / V2", "1024×600"],
-  ["Guition ESP32-4848S040C_I", "480×480"],
-  ["Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0", "480×480"],
-  ["Waveshare ESP32-S3-Touch-LCD-4B", "480×480"],
-]) {
-  assert.ok(
-    screensaverDocs.includes(`| ${target} | ${resolution} |`),
-    `Missing screensaver image guidance for ${target}.`,
-  );
-}
+assert.match(screensaverDocs.replace(/\*\*/g, ""), /longest edge at 1920 pixels/);
+assert.match(screensaverDocs, /index\.md#device-support/);
 
 console.log("Browser installer contract tests passed.");

@@ -141,6 +141,24 @@ contract and hardware-specific lifecycle checks remain in `AGENTS.md`.
 
 ## Verification and firmware size
 
+### Documentation
+
+The documentation source is `docs/`, `mkdocs.yml`, and `overrides/`. Keep the
+README as a short introduction linking to https://galusperes.github.io/.
+Installation belongs on `docs/installer.md`; manual flashing is a short
+alternative on that page. Device status and issue links belong in the Overview
+device list, rather than repeated hardware tables throughout the guides.
+
+Build with `python -m mkdocs build --strict`. The docs workflow tests the
+installer, mirrors published release assets, checks links and SHA-256 digests,
+then publishes a `gh-pages` snapshot. The `GalusPeres/galusperes.github.io`
+repository deploys that snapshot at the root URL, checking for changes twice
+per hour. For immediate publication, run its **Publish HomeTiles documentation**
+workflow and verify the live site. Keep firmware assets on the same origin as
+the online flasher.
+
+### Firmware verification
+
 After installing host dependencies as above, the normal verification entry
 points are:
 

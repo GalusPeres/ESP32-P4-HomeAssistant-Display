@@ -1,6 +1,13 @@
 # Flashing the Firmware
 
+[Device list](index.md#device-support)
+
 ## Browser installer
+
+Use desktop Chrome or Edge and a USB data cable.
+
+<span id="update-hometiles"></span>
+<span id="first-install-or-factory-reset"></span>
 
 <div class="ht-installer" data-hometiles-installer>
   <div class="ht-installer-form">
@@ -95,158 +102,33 @@
 
 <script type="module" src="../assets/javascripts/installer.mjs?v=installer-ui-11"></script>
 
-## Update HomeTiles
-
-For a display that already runs HomeTiles:
-
-1. Under **Firmware**, use the published release or select a local HomeTiles
-   `.bin` test build.
-2. Select the exact **Device**.
-3. Choose **Update** and confirm the model label.
-4. Select **Connect and flash**, then choose the display's serial port.
-5. Keep the page and cable connected until **Complete** appears.
-
-Update preserves Wi-Fi, MQTT, tiles, NVS, and LittleFS. When the display is
-online, the on-device updater under **Settings → System** is the simplest
-alternative; the browser Update is useful for a local file or USB recovery.
-
-<details class="ht-installer-log ht-installer-doc-details" markdown="1">
-<summary>Update safety and partition details</summary>
-
-Before writing, the installer checks:
-
-- ESP32-P4 or ESP32-S3 and the flash size,
-- the embedded revision contract for every ESP32-P4 image,
-- the current HomeTiles partition layout and OTA selection,
-- the firmware's device ID and SHA-256 digest.
-
-For Waveshare 7B/7B-C, choose one of the two explicit device entries before
-connecting: **ESP32-P4 before v3.0 (revisions 1–199)** or **exact ESP32-P4 v3.1
-(experimental)**. The selected entry determines which firmware asset is used.
-After the serial connection opens, the installer reads the silicon revision as
-a safety check. It does not change the selected entry or asset, and stops before
-erase or write if they do not match. The v3.1 path has not been validated on
-exact hardware.
-
-The other current ESP32-P4 profiles use vendor-listed P4NRW32/pre-v3 modules and
-are restricted to revisions 1–199. ESP32-P4 v3.2 or newer is unsupported with
-Arduino-ESP32 3.3.7 / ESP-IDF 5.5.2 and is rejected. These images are not generic
-all-revision P4 firmware. The same exact ranges are enforced by Web Admin upload
-and the on-device OTA updater.
-
-The installer writes and verifies only the inactive application slot:
-
-| Partition or data | Offset | Update behavior |
-| --- | ---: | --- |
-| Currently selected app slot | `0x10000` or `0x690000` | Preserved |
-| Inactive app slot | `0x10000` or `0x690000` | Written and verified |
-| Redundant `otadata` | `0xE000` / `0xF000` | Boot entry committed after app verification |
-| `nvs` | `0x9000` | Not written |
-| `spiffs` / LittleFS | `0xD10000` | Not written |
-
-There is no full-chip erase. Wi-Fi, MQTT, tiles, NVS, and LittleFS remain in
-place. If a check fails, the installer stops before writing. The boot selection
-changes only after the inactive slot has been fully written and verified.
-
-**Keep power, USB, and the browser connected until completion.** If an Update
-is interrupted, the previously selected app remains available; restart to keep
-using it or reconnect and run Update again.
-
-**Hardware validation:** The installer validates files, chip family, flash
-size, and the HomeTiles partition contract. Physical display, touch, storage,
-and networking validation remains separate.
-
-</details>
-
-## First install or factory reset
-
-Use this only for a new device or an intentional clean start:
-
-1. Select the exact device and choose **First install / factory reset**.
-2. Confirm both the model and the erase warning.
-3. Connect the serial port and wait for **Complete**.
-
-This erases the entire flash and writes the matching `_factory.bin` at `0x0`.
-Export the configuration first if it may be needed again.
+After flashing, restart the display and follow [Home Assistant setup](home-assistant-setup.md).
 
 ## Manual flashing
 
-Manual flashing is the fallback for a first installation or complete reset.
-For a normal update, use **Update HomeTiles** above or the on-device updater;
-do not guess an OTA-slot address in a desktop tool.
+If the browser installer is unavailable, use [Espressif's Flash Download Tool](https://www.espressif.com/en/support/download/other-tools) or [esptool](https://docs.espressif.com/projects/esptool/en/latest/esp32/installation.html). This alternative is for a **first installation or full reset and erases all settings**. [Export your dashboard](web-admin.md#import-export) first if needed.
 
-For the experimental 7B v3.1 image, direct desktop-tool or `esptool` flashing
-must only be used when `esptool chip-id` reports exact v3.1. The Arduino
-`v3.00 or newer` option can leave the underlying ESP image header at revisions
-301–399, so a direct write can bypass HomeTiles' exact-v3.1 guard. Never write
-that image to v3.2 or newer hardware.
+1. Download the exact device's `_factory.bin` from the [latest release](https://github.com/GalusPeres/HomeTiles/releases/latest). Match the complete model and revision; V1/V2, LCD-7/LCD-7B and P4/S3 images are not interchangeable.
+2. In Flash Download Tool, select **ESP32-P4** or **ESP32-S3**, **UART**, and the USB port. Erase the flash, then write the factory file at **`0x0`**. Alternatively, with esptool installed:
 
-1. Download the exact `_factory.bin` for the device from the
-   [latest HomeTiles release](https://github.com/GalusPeres/HomeTiles/releases/latest).
-2. Open Espressif's [Flash Download Tool](https://www.espressif.com/en/support/download/other-tools),
-   select the correct chip family, and choose **UART**.
-3. Select the `_factory.bin`, set the address to **`0x0`**, choose the serial
-   port, and start flashing.
-4. Wait for **FINISH**, then restart the display.
+    ```text
+    python -m esptool --port COM3 chip-id
+    python -m esptool --port COM3 write-flash --erase-all 0x0 your_device_factory.bin
+    ```
 
-Use **ESP32-P4** for P4 displays. Use **ESP32-S3** only for the Guition
-ESP32-4848S040C_I, Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0, and Waveshare
-ESP32-S3-Touch-LCD-4B. The plain `.bin` is an Update image and must not be
-written to `0x0`. The
-[manual flashing guide](flashing.md) contains the complete tool and command-line
-instructions.
+    Replace `COM3` with your serial port (for example `/dev/ttyACM0` on Linux), and the filename with your downloaded factory image.
+
+3. Wait until verification finishes, then restart the display.
+
+**ESP32-P4 revision check:** standard P4 images require pre-v3 silicon (revisions 1–199). The experimental Waveshare 7B `_rev3_1` image is for **exact v3.1 only**. Check the `chip-id` output before a manual write; v3.2 and newer are unsupported. esptool does not enforce HomeTiles' narrower revision checks.
+
+Never write a plain update `.bin` at `0x0`. To preserve settings, use the browser's **Update** mode or [Firmware Updates](updating.md).
 
 ## Troubleshooting
 
-1. Make sure the cable carries data, not only power, and try another USB port.
-2. Close every serial monitor or flashing tool using the port.
-3. Select the port that appears when the display is connected.
-4. If automatic reset fails, hold the device's **BOOT** button while clicking
-   **Connect and flash**, then release it once the connection starts.
-5. Do not choose a "similar" P4 panel. The browser can reject P4/S3, flash-size,
-   and Waveshare 7B silicon-revision mismatches, but it cannot electrically
-   distinguish every P4 display model.
+- **No serial port:** use a data cable, try another USB port, and close other serial monitors or flashing tools.
+- **Cannot connect:** hold **BOOT** while connecting, then release it when the connection starts.
+- **Wrong chip or revision:** recheck the device label and selected model; do not bypass the check.
+- **Interrupted installation:** reconnect and repeat the selected operation. An interrupted Update keeps the previous app; an interrupted factory reset needs a complete factory installation.
 
-<details class="ht-installer-log ht-installer-doc-details" markdown="1">
-<summary>Local test before publication</summary>
-
-The local test continues to use the unchanged, SHA-256-verified assets from the
-currently published GitHub release. With `--device`, the selected explicit
-profile's factory and OTA files are downloaded. Each Waveshare 7B profile also
-downloads only its own pair. Without that option, the installer mirrors only
-profiles with assets present in the published release. For v0.6.9 this remains
-14 choices and 28 firmware files. The next release adds Waveshare S3 LCD-4
-Rev 4.0 for 15 choices and 30 files covering fourteen physical device profiles.
-
-1. Build the documentation:
-   `python -m mkdocs build --strict`
-2. Prepare the exact profile, for example the Guition ESP32-S3:
-   `node release-helper/prepare-web-installer.mjs --output site/firmware/latest --device guition_esp32_4848s040`
-3. Start a local server from the repository:
-   `python -m http.server 8000 --directory site`
-4. Open `http://127.0.0.1:8000/installer/` in desktop Chrome or Edge. Browsers
-   treat the loopback address as a secure context for Web Serial; opening the
-   generated HTML file directly does not work.
-5. Select the device, test **Update** first, confirm the exact hardware, and
-   choose **Connect and flash**. Test **Factory reset** only when erasing every
-   setting is intentional.
-
-The other valid `--device` values match the release file names:
-`m5stacks_tab5`, `waveshare_4b`, `waveshare_touch_lcd_7`,
-`waveshare_touch_lcd_4_3`,
-`waveshare_touch_lcd_7b`, `waveshare_touch_lcd_7b_rev3_1`,
-`waveshare_touch_lcd_8`,
-`waveshare_touch_lcd_10_1`, `waveshare_s3_touch_lcd_4`, `waveshare_s3_touch_lcd_4b`,
-`guition_jc8012p4a1`, `guition_jc8012p4a1_v2`,
-`guition_jc1060p470c`, `guition_jc1060p470c_v2`, and
-`guition_esp32_4848s040`.
-
-`waveshare_s3_touch_lcd_4` requires assets from its first release; it cannot
-download them from v0.6.9. This profile is only for the touch-equipped Rev 4.0
-board with CH32V003 at `0x24`, not revisions 1.0–3.0 or the S3 LCD-4B.
-
-Implementation references: [ESP Web Tools](https://esphome.github.io/esp-web-tools/),
-[esptool-js](https://github.com/espressif/esptool-js), and Espressif's
-[esptool documentation](https://docs.espressif.com/projects/esptool/en/latest/esp32/basic-commands.html).
-
-</details>
+For a blank display after flashing or connection problems after setup, see [Troubleshooting](faq.md).

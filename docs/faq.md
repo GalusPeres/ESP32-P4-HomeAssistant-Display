@@ -1,190 +1,116 @@
-# FAQ & Troubleshooting
+# Troubleshooting
 
-## Tiles show no data
+## Connection & pairing
 
-Work through this checklist:
+<a id="tiles-show-no-data"></a>
 
-1. Is the entity selected in the bridge integration options? (**Settings → Devices &
-   Services → HomeTiles Bridge → Configure → Entity Configuration**)
-2. Are the display's MQTT settings correct (host, port, credentials)? Check the web admin.
-3. Do the base topic and HA prefix match between the display and the integration entry?
-4. Is the panel listed as a device under the bridge integration? If not, tap
-   **Settings → System → Pairing** on the display — it re-announces itself.
+**No tile data**
 
-More details in the [Home Assistant Setup Guide](home-assistant-setup.md).
+1. Check the display's MQTT host, port, and credentials in the Web Admin.
+2. Match its **Device topic base** and **Home Assistant prefix** to the Bridge entry.
+3. Select the entity under **HomeTiles Bridge → Configure → Entity Configuration**, then assign it to a tile.
+4. Check that the panel appears under the Bridge in Home Assistant. If missing, tap **Settings → System → Pairing** on the display.
 
-## The Camera tile asks for a newer Bridge or never shows video
+See the [setup guide](home-assistant-setup.md) for first-time installation.
 
-Camera tiles require HomeTiles firmware v0.6.3 and HomeTiles Bridge v0.6.28 or
-newer. Update the bridge through HACS, restart Home Assistant, and verify the
-installed integration version before testing again.
+<a id="the-display-is-missing-in-home-assistant-i-deleted-it-there"></a>
 
-Then check:
+**Display not discovered**
 
-1. The camera is selected under **HomeTiles Bridge → Configure → Entity
-   Configuration**.
-2. The display can reach the Home Assistant host on TCP ports `8124`–`8131`;
-   these are local camera data ports, not MQTT ports.
-3. The camera itself works in Home Assistant.
-4. The Home Assistant log does not show an FFmpeg or camera-source error.
+Initial network discovery runs only before MQTT credentials are saved. Otherwise, enter the [MQTT settings manually](home-assistant-setup.md#step-5-pair-the-display), then use **Pairing** to announce the panel again. Home Assistant may already know the device, so check the existing Bridge entries first.
 
-Direct video sources can reach up to 24 FPS. Snapshot-only cameras update at
-the source's actual refresh rate. Transcoding uses Home Assistant host CPU and
-each simultaneously open panel creates its own experimental stream session.
-Camera tiles are not available on ESP32-S3 profiles: Guition
-ESP32-4848S040C_I, Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0, or Waveshare
-ESP32-S3-Touch-LCD-4B.
+<a id="ap-mode-basics"></a>
 
-## A local Hardware entity is missing in Home Assistant
+**AP mode**
 
-First verify that the assignment was saved in the panel's web-admin **I/O**
-tab. It should already be selectable by a tile on that same panel; this local
-path does not need Home Assistant.
+The hotspot password is `12345678`, also shown with a QR code. It switches off after 10 minutes without a saved configuration. MQTT and the Web Admin are unavailable while AP mode is active.
 
-Home Assistant discovery requires HomeTiles Bridge v0.6.32 or newer and an MQTT
-connection. After updating the Bridge, restart Home Assistant once, save the
-I/O page again or use **Settings → System → Pairing**, and check the entity
-list of that panel device. A second identical panel is still a separate device;
-Home Assistant may add its normal `_2` suffix to a colliding visible entity ID.
+<a id="what-happens-if-home-assistant-or-the-mqtt-broker-is-offline"></a>
 
-## The ESP32-S3 screen briefly goes black while saving
+**Home Assistant or MQTT is offline**
 
-This is expected on the Guition ESP32-4848S040, Waveshare
-ESP32-S3-Touch-LCD-4 Rev 4.0, and Waveshare ESP32-S3-Touch-LCD-4B builds.
-The stock Arduino SDK cannot feed these RGB
-panels safely from PSRAM while internal flash is being written. HomeTiles
-briefly blanks the backlight, writes the data, restarts RGB DMA on VSYNC, and
-then restores the image. This avoids the permanently shifted picture seen by
-early testers.
+The display keeps running and reconnects automatically when the broker returns. Entity states resync after reconnection.
 
-If the image does not recover immediately, report the repeatable failure with
-the exact model name and serial log. Guition reports are tracked in
-[issue #9](https://github.com/GalusPeres/HomeTiles/issues/9); Waveshare S3 4B
-validation is tracked in
-[issue #26](https://github.com/GalusPeres/HomeTiles/issues/26).
+## Tiles & camera
 
-## The display is missing in Home Assistant / I deleted it there
+<a id="the-camera-tile-asks-for-a-newer-bridge-or-never-shows-video"></a>
 
-Tap **Settings → System → Pairing** on the display: it reconnects MQTT and republishes
-its discovery data, and the device reappears under the bridge integration. If you
-deleted the device in Home Assistant, do that first — Home Assistant ignores discovery
-from device IDs it still knows.
+**No camera video**
 
-## The display briefly flashes blue when saving or updating (Waveshare)
+Camera tiles are experimental and require ESP32-P4, firmware v0.6.3 or newer, and Bridge v0.6.28 or newer.
 
-Cosmetic and harmless. The display panel is refreshed continuously from PSRAM; while the
-firmware writes to internal flash (saving tile edits, installing updates), that refresh
-briefly stalls and the panel shows a solid color. The underlying fix is an ESP-IDF build
-option (`CONFIG_SPIRAM_XIP_FROM_PSRAM`) that the precompiled Arduino core does not enable,
-so it currently cannot be fixed from this project's code.
+1. Update the Bridge through HACS and restart Home Assistant.
+2. Select the camera in the Bridge's **Entity Configuration** and verify it works in Home Assistant.
+3. Allow the display to reach the Home Assistant host on TCP ports `8124`–`8131`.
+4. Check the Home Assistant log for FFmpeg or camera-source errors.
 
-## The Tab5 dims itself when enabling AP mode or after a reboot
+Snapshot cameras follow their source refresh rate. For a model-specific limitation or test build, open the status information in the [device list](index.md#device-support).
 
-Intentional. Full backlight plus a WiFi radio burst can trip the Tab5's brownout detector
-(hard reset). Since v0.2.9 the firmware caps the backlight around these moments and
-restores your configured brightness automatically once WiFi is connected.
+<a id="a-local-hardware-entity-is-missing-in-home-assistant"></a>
 
-## Ghost images / shadows of previous content (Waveshare)
+**Missing local I/O entity**
 
-Temporary LCD image retention, typical for these panels: static high-contrast content
-(white text on dark tiles) leaves faint ghosts, most visible on grey surfaces and on a
-cold panel. It fades as the display warms up and is not permanent burn-in. A shorter
-display sleep timeout reduces it.
+Save the assignment in the panel's **I/O** tab. It should become selectable by tiles on that panel immediately. For Home Assistant, use Bridge v0.6.32 or newer and an MQTT connection; restart Home Assistant after updating the Bridge, then save the assignment again or use **Pairing**.
 
-## The display crashed or restarted by itself
+**Empty Energy tile**
 
-The firmware records crash diagnostics automatically: after a crash, the next boot
-appends the reset reason and a summary (crashed task, program counter, registers) to a
-crash log, and the full crash state is kept in flash as a core dump. Please report it —
-these files are exactly what's needed to find and fix the bug:
+Configure Home Assistant's Energy Dashboard and enable the matching electricity, gas, or water category in the [Bridge options](bridge.md#energy-dashboard).
 
-1. Open the web admin panel and go to **Screenshot & Diagnostics**.
-2. Click **Download crash log** to get `crashlog.txt`.
-3. If a stored core dump is shown, download it too and **pack the `.bin` into a
-   `.zip`** — GitHub does not accept raw `.bin` attachments.
-4. [Open an issue](https://github.com/GalusPeres/HomeTiles/issues) describing what the
-   display was doing when it crashed (which firmware version, which popup or action, how
-   often it happens), and attach both files by dragging them into the issue text box.
+## Display behavior
 
-!!! note "What's in a core dump?"
-    A snapshot of the firmware's working memory at the moment of the crash. It can
-    contain things currently on screen or in memory — tile titles, entity names, sensor
-    values. If you'd rather not share that, attach only the crash log; it already
-    narrows down the crash location.
+<a id="the-esp32-s3-screen-briefly-goes-black-while-saving"></a>
 
-## The screen goes black during a web admin OTA upload
+**ESP32-S3 briefly goes black while saving**
 
-Intentional — the display is suspended during the transfer to free memory. The device
-restarts when the installation finishes. The on-device updater (Settings → System) keeps
-the screen on and shows a progress bar instead.
+The backlight pauses during flash writes to prevent a shifted image. It should recover immediately. If it stays black, [report the failure](#the-display-crashed-or-restarted-by-itself) with the exact model and serial log.
 
-## The update check fails even though WiFi works
+<a id="the-display-briefly-flashes-blue-when-saving-or-updating-waveshare"></a>
 
-The HTTPS connection to GitHub needs a contiguous block of free working memory. After a
-long uptime the memory can be too fragmented for it, and the check fails with "check
-failed" while everything else keeps working. **Restarting the display fixes it** — use
-the restart button in the on-device System popup or in the web admin, then run the
-check again right after boot.
+**Waveshare briefly flashes blue while saving or updating**
 
-The firmware frees memory automatically before the check. If it still fails on a
-current version, please [report it](#the-display-crashed-or-restarted-by-itself).
+A brief blue flash is a known cosmetic limitation when flash writes interrupt display refresh.
 
-## WiFi or MQTT stops responding and the panel restarts
+<a id="the-tab5-dims-itself-when-enabling-ap-mode-or-after-a-reboot"></a>
 
-ESP32-P4 WiFi uses ESP-Hosted communication with the panel's ESP32-C6. A rare
-upstream RPC/SDIO driver wedge can leave the cached WiFi link looking connected
-after MQTT has already stopped. It has also occurred without OTA and without an
-open Camera popup, so Camera activity in the report is diagnostic context, not
-proof of the cause.
+**Tab5 dims during AP startup or reboot**
 
-v0.6.4 adds response routing, more SDIO recovery paths, persistent counters, and
-a safe restart which resets both chips if the driver no longer responds. This is
-a mitigation and diagnostic improvement, not a claim that the upstream fault is
-fully fixed. After a restart, open **Settings → System → Download crash log** in
-the web admin and include the exact device, firmware version, uptime, and report
-when opening a GitHub issue.
+Temporary dimming reduces the power demand during WiFi startup. Your configured brightness returns when WiFi connects.
 
-## The GitHub update download fails or the device restarts during it
+<a id="ghost-images-shadows-of-previous-content-waveshare"></a>
 
-ESP32-P4 displays use a separate ESP32-C6 WiFi coprocessor through ESP-Hosted/SDIO.
-After a long uptime, the large GitHub HTTPS/TLS download can occasionally stop with
-`connection lost` or an `esp-aes` allocation error. The exact interaction is still
-under investigation.
+**Faint images of previous content**
 
-Since v0.5.6 the device records the failure, safely restarts, and retries the
-update from a fresh boot. The display may therefore still restart instead of
-remaining permanently offline. When it has settled, open **Settings → System**
-and check whether the new version is shown. The separate WiFi/MQTT section above
-explains the additional v0.6.4 diagnostics.
+LCD image retention can follow static, high-contrast content, especially on a cold panel. It normally fades; use a shorter display sleep timeout to reduce it.
 
-If the automatic retry still fails, the user must download the matching plain OTA
-`.bin` from the [release page](https://github.com/GalusPeres/HomeTiles/releases) and
-upload it manually in the Web Admin Firmware section. Do not use the `_factory.bin`.
-This manual path avoids the large outbound GitHub TLS stream on the display. See
-[Firmware Updates](updating.md#troubleshooting-esp32-p4c6-github-downloads) for the
-complete steps.
+## Updates & crashes
 
-## The update check says "up to date" but I expected an update
+<a id="the-screen-goes-black-during-a-web-admin-ota-upload"></a>
+<a id="mqtt-disconnects-during-updates"></a>
 
-The device compares its own version (shown in Settings → System) against the latest
-GitHub release tag. If a release was just published, wait a moment and check again. If an
-install fails repeatedly, download the OTA file and use the web admin upload instead —
-see [Firmware Updates](updating.md).
+**Black screen or MQTT disconnect during an update**
 
-## MQTT disconnects during updates
+Expected: a Web Admin upload turns off the display, and installation temporarily disconnects MQTT. The device restarts and reconnects afterwards. Keep it powered until the update finishes.
 
-Intentional. Update installs temporarily disconnect MQTT and stop the web admin to free
-memory. Everything reconnects automatically afterwards; Home Assistant data resyncs on
-reconnect.
+<a id="the-update-check-fails-even-though-wifi-works"></a>
+<a id="the-update-check-says-up-to-date-but-i-expected-an-update"></a>
 
-## AP mode basics
+**Update check fails or shows no new version**
 
-- Password: `12345678` (shown with a QR code on the display)
-- The access point switches itself off after 10 minutes without a saved configuration
-- While AP mode is active, MQTT and the web admin are unavailable
+Restart the display and check again. Compare the version under **Settings → System** with the [latest release](https://github.com/GalusPeres/HomeTiles/releases/latest).
 
-## What happens if Home Assistant or the MQTT broker is offline?
+<a id="the-github-update-download-fails-or-the-device-restarts-during-it"></a>
 
-The display keeps running and retries the broker every few seconds in the background;
-the UI stays fully responsive. Once the broker is reachable again, it reconnects and
-resyncs all entity states automatically.
+**Update download repeatedly fails**
+
+Use the [Web Admin upload](updating.md#2-web-admin-ota-upload) with the matching plain `.bin`, not `_factory.bin`, or use the [online flasher](installer.md) in **Update** mode.
+
+<a id="wifi-or-mqtt-stops-responding-and-the-panel-restarts"></a>
+<a id="the-display-crashed-or-restarted-by-itself"></a>
+
+**Unexpected restart, crash, or network freeze**
+
+1. Open **Screenshot & Diagnostics** in the Web Admin and select **Download crash log**.
+2. If a core dump is available, download it and put the `.bin` in a `.zip` for GitHub.
+3. [Open an issue](https://github.com/GalusPeres/HomeTiles/issues) with the exact model, firmware version, action that triggered the problem, and logs.
+
+A core dump can contain tile names, entity data, and other working memory. Share only the crash log if you prefer. Check the [device status](index.md#device-support) for known issues and available fixes.

@@ -1,217 +1,111 @@
 # Tile Types
 
-Everything on the dashboard is a tile on a grid. Tiles are created, moved, resized, and
-configured in the [web admin panel](web-admin.md) — click a cell, pick a type from the
-dropdown, fill in its fields:
+Create and configure tiles in the [Web Admin](web-admin.md#creating-a-tile). Select Home Assistant entities in the [Bridge options](bridge.md#entity-configuration) first.
 
-![Tile type dropdown in the web admin](images/web-admin-tile-types.png){ width="340" }
+<a id="create-a-tile"></a>
 
-Tiles that show Home Assistant data need their entity to be exposed through the
-[bridge integration](bridge.md) first. Most data tiles open a detail popup — whether on
-a **tap** or a **long press** is configurable per tile in the web admin.
+**Home Assistant tiles** show entity data or control your devices. **Local tiles** provide clocks, text, folders, animations, and spacing.
+
+All tiles share title, icon, color, size, and position settings. For types with a popup, choose whether a tap or long press opens it. See [on-device controls](device-ui.md#popups) for screenshots.
 
 ## Home Assistant Tiles
 
 ### Sensor
 
-Shows the current value of a Home Assistant `sensor.*` entity, with icon,
-title, and unit.
+Shows a numeric or text-valued `sensor.*` entity. Configure the unit, decimals, value size, and an optional gauge with a minimum and maximum.
 
-It can also show a DS18B20 input configured on this panel's
-[I/O page](hardware-io.md). That value is sampled locally and remains
-available without Home Assistant; the panel does not request a Home Assistant
-history chart for a local input.
+**Popup:** 24-hour or 7-day history as a graph for numbers, or a timeline and Activity list for text states.
 
-**Config:** entity, unit, decimals, value size, and an optional display mode that turns
-the tile into a gauge (with min/max range).
-
-**Popup:** numeric entities use the established chart with a 24-hour and a
-7-day view. Text-valued entities use a categorical timeline and date-grouped
-Activity list instead. The data is fetched live from Home Assistant through
-HomeTiles Bridge v0.6.40 or newer.
-
-![Sensor history popup](images/8in-sensor-popup-7d.png){ width="65%" }
+A local [DS18B20 input](hardware-io.md) can also supply the value without Home Assistant; local inputs have no Home Assistant history popup.
 
 ### Binary Sensor
 
-Shows a Home Assistant `binary_sensor.*` entity. The displayed state and icon
-follow its Home Assistant device class, so a single on/off value can appear as
-Detected/Clear, Open/Closed, Motion/Clear, Wet/Dry, or another localized pair.
-Unknown and unavailable states remain distinct.
+Shows a `binary_sensor.*` entity with the matching state and icon, such as Open/Closed or Motion/Clear. Unknown and unavailable states are shown separately.
 
-**Config:** Binary Sensor entity and whether the popup opens on a short press
-or long press. Title, icon, color, size, and position use the normal shared tile
-settings. Changes update the preview, save automatically, and appear on the
-display like other tile types.
-
-**Popup:** a 24-hour or 7-day colored state timeline followed by a scrollable,
-date-grouped Activity list. HomeTiles Bridge v0.6.40 or newer supplies the
-bounded history data.
+**Popup:** a 24-hour or 7-day state timeline and Activity list.
 
 ### Energy
 
-Shows a value from the Home Assistant **Energy Dashboard** — solar yield, grid
-import/export, battery, gas, water, or cost/savings. Requires the matching energy
-category to be enabled in the [bridge options](bridge.md#energy-dashboard) and a
-configured Energy Dashboard in Home Assistant.
+Shows Home Assistant **Energy Dashboard** statistics for electricity, gas, water, or cost. Enable the matching [Bridge energy category](bridge.md#energy-dashboard).
 
-On the grid, energy tiles look exactly like sensor tiles — the difference is where the
-data comes from and what the popup shows. Here, the tiles at the top are **sensor**
-tiles (live power right now), the bottom row are **energy** tiles (statistics for the
-day so far):
+Configure the energy entity, unit, decimals, and value size. In this example, Sensor tiles show current power at the top; Energy tiles show today's totals at the bottom.
 
-![Sensor tiles on top, energy tiles at the bottom](images/8in-folder-pv.png){ width="75%" }
+<figure class="ht-screenshot">
+<img src="../images/8in-folder-pv.png" alt="Sensor tiles on top, energy tiles at the bottom" width="1308" height="828" loading="lazy">
+<figcaption>Solar dashboard with sensor and energy tiles</figcaption>
+</figure>
 
-**Config:** energy entity, unit, decimals, value size.
-
-**Popup:** bar charts from the energy statistics — hourly bars in the day view, daily
-bars in the week view:
-
-![Energy popup day view](images/8in-energy-24h.png){ width="49.5%" }
-![Energy popup week view](images/8in-energy-7d.png){ width="49.5%" }
+**Popup:** hourly bars for the day and daily bars for the week.
 
 ### Switch
 
-Toggles a `switch` or `light` entity with a tap; the tile reflects the current state.
+Toggles a `switch` or `light` entity and reflects its state. Choose the entity, tile style, and popup trigger.
 
-Switch outputs and supported onboard relays configured on this panel's
-[I/O page](hardware-io.md) appear in the same selector and toggle directly,
-without waiting for an MQTT round trip.
+Local [outputs and relays](hardware-io.md) appear in the same selector and work without Home Assistant.
 
-**Config:** entity, tile style, popup trigger.
-
-**Popup (lights):** the full light control set — brightness slider, color wheel, and
-color temperature. The icon row at the bottom switches between the views; views only
-appear if the light supports them.
-
-![Light popup brightness](images/8in-light-brightness.png){ width="32.8%" }
-![Light popup color wheel](images/8in-light-color.png){ width="32.8%" }
-![Light popup color temperature](images/8in-light-temperature.png){ width="32.8%" }
+**Popup for lights:** supported brightness, color, and color-temperature controls.
 
 ### Cover
 
-Controls a Home Assistant `cover` entity. The tile shows the localized state
-and, when available, the current position.
+Controls a `cover` entity and shows its state and position when available.
 
-**Config:** Cover entity and popup trigger.
-
-**Popup:** separate position and tilt sliders plus open, close and stop buttons.
-HomeTiles uses the entity's `supported_features` mask, so only controls actually
-provided by Home Assistant appear. Missing position or tilt values remain
-unknown instead of being displayed as zero.
+**Popup:** supported position and tilt sliders, plus open, close, and stop buttons.
 
 ### Scene
 
-Triggers a scene or script with a tap — no popup. The tile references the **scene
-alias** defined in the bridge integration (aliases are generated automatically when you
-select scenes/scripts in the bridge options, or mapped manually there as
-`alias=entity_id`). The scene tiles in the folder screenshot further down
-(*Bright*, *Reading*, *Warm*, ...) are typical examples.
+Runs a scene or script with a tap; there is no popup. Choose the alias generated for it in the [Bridge options](bridge.md#entity-configuration).
 
 ### Weather
 
 Shows current conditions from a `weather` entity.
 
-**Popup:** the forecast ahead — daily min/max with an hourly temperature curve,
-precipitation, and rain probability; the arrows page through the coming weeks:
-
-![Weather popup](images/8in-weather-popup.png){ width="65%" }
+**Popup:** temperatures, precipitation, and rain probability for the available forecast.
 
 ### Media
 
-Controls a `media_player` entity: cover art, current title, and playback controls
-directly on the tile.
+Shows cover art, title, and playback controls for a `media_player` entity.
 
-**Popup:** the full control set including previous/next and a volume slider:
-
-![Media popup](images/8in-media-popup.png){ width="65%" }
+**Popup:** playback controls and volume.
 
 ### Climate
 
-Controls a Home Assistant `climate` entity for heating, cooling, or air
-conditioning. The tile changes its icon and accent color when the device is
-actively heating, cooling, drying, or running its fan.
+Controls a `climate` entity. The icon and accent indicate active heating, cooling, drying, or fan operation.
 
-**Config:** climate entity, popup trigger, and a configurable grid of mini-tiles.
-Each mini-tile can show the current temperature, current humidity, target
-temperature, heating target, cooling target, target humidity, or HVAC mode.
-Choose **Automatic** to select suitable content from the entity's reported
-capabilities, or arrange the individual values yourself.
+Configure mini-tiles for temperatures, humidity, targets, and mode, or choose **Automatic**. Arrange them in the [Climate mini-tile editor](web-admin.md#editing-climate-mini-tiles).
 
-Mini-tiles can be selected and moved directly in the web preview. Resizing the
-parent Climate tile changes the available slot grid while preserving explicitly
-configured content wherever possible. Unsupported controls are not added by the
-automatic layout.
+<figure class="ht-screenshot">
+<img src="../images/8in-climate.png" alt="Climate tiles with several mini-tile layouts" width="1308" height="828" loading="lazy">
+<figcaption>Climate tiles with different mini-tile layouts</figcaption>
+</figure>
 
-![Climate tiles with several mini-tile layouts](images/8in-climate.png){ width="80%" }
+**Popup:** temperature controls and supported modes, presets, fan, swing, and humidity settings. Heating/cooling ranges have separate targets.
 
-**Popup:** a circular target-temperature control with plus/minus buttons and
-buttons for every control reported by the entity. Depending on its capabilities,
-this can include HVAC mode, presets, fan mode, vertical swing, horizontal swing,
-and target humidity. `heat_cool` entities expose a low/high target range with
-separate controls.
+### Camera (experimental) { data-toc-label="Camera" }
 
-![Full Climate popup](images/8in-climate-popup-1.png){ width="49.5%" }
-![Heat-only Climate popup](images/8in-climate-popup-2.png){ width="49.5%" }
+Opens a 16:9 video popup on ESP32-P4. Select the camera in the Bridge's **Entity Configuration**, then assign it to this tile.
 
-### Camera (experimental)
-
-Opens a 16:9 camera popup on supported ESP32-P4 displays. Select the `camera`
-entity in **HomeTiles Bridge → Configure → Entity Configuration** first, then
-assign it to a Camera tile in the web admin.
-
-Camera tiles require:
-
-- HomeTiles firmware v0.6.3 or newer
-- HomeTiles Bridge v0.6.28 or newer
-- Home Assistant's FFmpeg and camera integrations
-- local TCP access from the display to the Home Assistant host on one port in
-  the range `8124`–`8131`
-
-The bridge accepts either a direct stream source or a still-image camera. It
-transcodes the source into display-sized JPEG frames and sends only as quickly
-as the panel acknowledges them. Direct sources can reach up to 24 FPS; actual
-frame rate is limited by the camera source, Home Assistant host, network and
-display profile. Snapshot-only cameras update at their own image refresh rate.
-
-The feature is experimental. Video transcoding consumes CPU on the Home
-Assistant host, and opening camera popups on several panels starts several
-transcoding sessions. Camera tiles are intentionally unavailable on the
-ESP32-S3 Guition ESP32-4848S040C_I, Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0,
-and Waveshare ESP32-S3-Touch-LCD-4B targets.
+Allow local TCP access to the Home Assistant host on ports `8124`–`8131`. See [Camera connection](bridge.md#experimental-camera-transport) for requirements and performance notes. Camera tiles are unavailable on ESP32-S3.
 
 ## Local Tiles
 
-These tiles work without Home Assistant.
+These types work without Home Assistant.
 
 ### Clock
 
-Time and date. Follows the device's localization settings (language, time zone,
-12h/24h); per tile you can toggle time/date separately, set their sizes, and override
-the formats.
+Shows time and date using the device's localization settings. You can override the formats and sizes for each tile. Tap it to open the [screensaver](screensaver.md).
 
 ### Text
 
-A static text tile with selectable font size — useful for headings and labels on
-the grid.
+A static label with a selectable font size.
 
 ### Folder
 
-Opens a sub-page with its own tile grid; a back tile is placed there automatically.
-Use folders to group lights, rooms, or feature areas — like this lighting page with
-its light switches and scene tiles:
-
-![Folder page with light tiles and scenes](images/8in-folder-lighting.png){ width="75%" }
-
-Creating one is a single step — see [Folders](web-admin.md#folders) in the web
-admin guide.
+Opens a sub-page with its own grid and an automatic back tile. See [Folders](web-admin.md#folders) for setup and optional PIN protection.
 
 ### Animation
 
-Plays a low-res pixel-art animation from a `.panim` file in the `/animations` folder
-of the microSD card — a purely decorative element. Frame rate, fit, and zoom are
-configurable.
+Plays a `.panim` pixel animation from `/animations` on microSD. Configure frame rate, fit, and zoom.
 
 ### Empty
 
-A spacer tile for layout purposes.
+Leaves an empty cell for spacing.
