@@ -1,3 +1,4 @@
+#include "src/ui/navigation/view_navigation.h"
 
 #include <WiFi.h>
 #include <Wire.h>
@@ -1152,6 +1153,7 @@ void loop() {
       // prevent queue drops, and run post-connect work so subscriptions/discovery
       // resume after a sleeping reconnect too.
       mqttServicePostConnect();
+    viewNavigationService();
       mqtt_process_inbound_queue();
       // Keep live tile state current during sleep. The paused refresh timer
       // prevents drawing to the sleeping display, so wake needs no catch-up.
@@ -1312,6 +1314,7 @@ void loop() {
     // Only the application-facing queue ends remain on the loop: post-connect
     // subscriptions/discovery and incoming handlers that touch flash or LVGL.
     mqttServicePostConnect();
+    viewNavigationService();
     // Keep S3 input service bounded when Home Assistant echoes a live slider
     // command or sends a retained-state burst. Eight messages per UI cycle
     // still drains far more than normal traffic without starving the next

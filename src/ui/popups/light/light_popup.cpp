@@ -1,3 +1,5 @@
+#include "src/ui/popups/camera/camera_popup.h"
+#include "src/ui/navigation/view_navigation.h"
 #include "src/ui/popups/light/light_popup.h"
 #include "src/ui/popups/sensor/sensor_popup.h"
 #include "src/ui/popups/weather/weather_popup.h"
@@ -1585,7 +1587,7 @@ static void apply_init_to_context(LightPopupContext* ctx, const LightPopupInit& 
   update_popup_language(ctx);
   ctx->entity_id = init.entity_id;
   ctx->switch_drag_dirty = false;
-  ctx->available = !init.is_light || init.available;
+  ctx->available = init.available;
   if (!ctx->available) {
     ctx->user_dragging = false;
     cancel_pending_live_publish(ctx);
@@ -2019,6 +2021,7 @@ lv_color_t light_color_from_temperature_kelvin(uint16_t kelvin) {
 
 void show_light_popup(const LightPopupInit& init) {
   hide_pin_popup();
+  hide_camera_popup();
   if (!init.entity_id.length()) return;
   hide_cover_popup();
   hide_climate_popup();
@@ -2034,6 +2037,7 @@ void show_light_popup(const LightPopupInit& init) {
     // initially sits in front of this older overlay on lv_layer_top().
     // Bring the popup back to the foreground when it is actually opened.
     lv_obj_move_foreground(g_light_popup_ctx->overlay);
+    if (g_light_popup_ctx && g_light_popup_ctx->card) viewNavigationPopupShown(g_light_popup_ctx->card, init.entity_id.c_str());
     return;
   }
 
@@ -2191,6 +2195,7 @@ void show_light_popup(const LightPopupInit& init) {
   lv_obj_add_event_cb(overlay, on_overlay_click, LV_EVENT_CLICKED, ctx);
   lv_obj_add_event_cb(overlay, on_overlay_delete, LV_EVENT_DELETE, ctx);
   lv_obj_move_foreground(overlay);
+  if (g_light_popup_ctx && g_light_popup_ctx->card) viewNavigationPopupShown(g_light_popup_ctx->card, init.entity_id.c_str());
 }
 
 void update_light_popup(const LightPopupInit& init) {
@@ -2206,7 +2211,7 @@ void update_light_popup(const LightPopupInit& init) {
        g_light_popup_ctx->tile_index != init.tile_index)) {
     return;
   }
-  const bool next_available = !init.is_light || init.available;
+  const bool next_available = init.available;
   if (next_available != g_light_popup_ctx->available) {
     apply_init_to_context(g_light_popup_ctx, init);
     return;

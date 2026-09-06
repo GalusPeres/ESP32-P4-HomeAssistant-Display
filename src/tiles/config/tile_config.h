@@ -67,6 +67,8 @@ enum SwitchPopupOpenModeStorage : uint8_t {
 
 struct Tile {
   TileType type;
+  // Stable navigation identity, stored in the two unused V7 reserved bytes.
+  uint16_t view_id = 0;
   String title;
   String icon_name;
   uint32_t bg_color;
@@ -526,7 +528,8 @@ public:
   // is allowed from any task.
   bool getFolderEntitiesCached(uint16_t folder_id, FolderEntitySlotView* out, size_t count);
   void invalidateFolderEntityCache();
-  bool saveFolderGrid(uint16_t folder_id, const TileGridConfig& grid);
+  bool saveFolderGrid(uint16_t folder_id, TileGridConfig& grid);
+  uint32_t viewRevision() const { return view_revision_; }
   bool saveScreensaverGrid(const TileGridConfig& grid);
 
   bool setActiveFolder(uint16_t folder_id);
@@ -554,6 +557,7 @@ public:
       bool visible, int target_col = -1, int target_row = -1);
 
 private:
+  volatile uint32_t view_revision_ = 1;
   static constexpr uint16_t kRootFolderId = 0;
   static constexpr uint16_t kInvalidFolderId = 0xFFFF;
 

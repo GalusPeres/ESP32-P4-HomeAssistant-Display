@@ -1,3 +1,5 @@
+#include "src/ui/popups/camera/camera_popup.h"
+#include "src/ui/navigation/view_navigation.h"
 #include "src/ui/popups/climate/climate_popup.h"
 
 #include "src/core/config/config_manager.h"
@@ -2349,6 +2351,7 @@ void on_overlay_delete(lv_event_t* event) {
 
 void show_climate_popup(const ClimatePopupInit& init) {
   hide_pin_popup();
+  hide_camera_popup();
   if (!init.entity_id.length()) return;
   hide_cover_popup();
   hide_light_popup();
@@ -2366,6 +2369,7 @@ void show_climate_popup(const ClimatePopupInit& init) {
     lv_obj_add_flag(
         g_climate_popup->overlay, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_move_foreground(g_climate_popup->overlay);
+    if (g_climate_popup && g_climate_popup->card) viewNavigationPopupShown(g_climate_popup->card, init.entity_id.c_str());
     return;
   }
 
@@ -2855,6 +2859,7 @@ void show_climate_popup(const ClimatePopupInit& init) {
   lv_obj_move_foreground(close);
   apply_init(ctx, init);
   lv_obj_move_foreground(ctx->overlay);
+  if (g_climate_popup && g_climate_popup->card) viewNavigationPopupShown(g_climate_popup->card, init.entity_id.c_str());
 }
 
 void update_climate_popup(const ClimatePopupInit& init) {

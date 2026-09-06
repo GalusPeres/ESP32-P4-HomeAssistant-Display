@@ -1259,7 +1259,7 @@ static LightPopupInit build_popup_init_from_state(
   }
   init.icon_name = icon_name;
   init.is_light = is_light_entity_id(tile.sensor_entity);
-  init.available = !init.is_light || state.available;
+  init.available = state.available;
   init.keep_icon_white = is_switch_widget_style(tile);
   init.has_tile_ref = true;
   init.tile_grid = static_cast<uint8_t>(grid_type);
@@ -1784,10 +1784,9 @@ static void apply_switch_tile_state(GridType grid_type, uint8_t grid_index,
   static const uint32_t kSwitchOff = 0xFFFFFF;
   static const uint32_t kSwitchOn = 0x3B82F6;
 
-  const bool light_unavailable =
-      is_light_entity && !state.available;
+  const bool control_unavailable = !state.available;
   uint32_t icon_color = kIconOff;
-  if (!light_unavailable && (!state.has_state || state.is_on)) {
+  if (!control_unavailable && (!state.has_state || state.is_on)) {
     if (state.supports_temperature && !state.supports_color && state.has_color_temp) {
       // CCT-only lights have no true RGB capability. Their tiles use the same
       // Kelvin color as the popup instead of the fixed yellow default used
@@ -1801,7 +1800,7 @@ static void apply_switch_tile_state(GridType grid_type, uint8_t grid_index,
   }
 
   uint32_t label_color =
-      light_unavailable
+      control_unavailable
           ? kIconOff
           : (use_switch_widget ? kIconNeutral : icon_color);
   lv_color_t lv_color = lv_color_hex(label_color);
@@ -1812,7 +1811,7 @@ static void apply_switch_tile_state(GridType grid_type, uint8_t grid_index,
   }
 
   if (widgets.switch_obj) {
-    if (light_unavailable) {
+    if (control_unavailable) {
       lv_obj_remove_state(widgets.switch_obj, LV_STATE_CHECKED);
       lv_obj_add_state(widgets.switch_obj, LV_STATE_DISABLED);
     } else if (!state.has_state || state.is_on) {

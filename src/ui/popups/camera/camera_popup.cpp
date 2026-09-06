@@ -1,3 +1,4 @@
+#include "src/ui/navigation/view_navigation.h"
 #include "src/ui/popups/camera/camera_popup.h"
 
 #include <ArduinoJson.h>
@@ -303,6 +304,7 @@ static CameraPopupContext* create_popup() {
 
 void show_camera_popup(const CameraPopupInit& init) {
   hide_pin_popup();
+  hide_camera_popup();
   if (!init.entity_id.length()) return;
   hide_cover_popup();
   hide_sensor_popup();
@@ -351,6 +353,7 @@ void show_camera_popup(const CameraPopupInit& init) {
   lv_obj_move_foreground(g_camera_popup->overlay);
   displayManager.resetActivityTimer();
   mqttPublishCameraCommand(init.entity_id.c_str(), "open");
+  if (g_camera_popup && g_camera_popup->card) viewNavigationPopupShown(g_camera_popup->card, init.entity_id.c_str());
 }
 
 void hide_camera_popup() {

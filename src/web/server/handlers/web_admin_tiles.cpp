@@ -571,6 +571,7 @@ void WebAdminServer::handleSaveTiles() {
       !screensaver_grid && previous_tile.type == TILE_FOLDER && type != TILE_FOLDER;
 
   // Update tile data
+  if (tile.type != static_cast<TileType>(type)) tile.view_id = 0;
   tile.type = static_cast<TileType>(type);
   tile.title = server.hasArg("title") ? server.arg("title") : "";
   tile.icon_name = server.hasArg("icon_name") ? server.arg("icon_name") : "";

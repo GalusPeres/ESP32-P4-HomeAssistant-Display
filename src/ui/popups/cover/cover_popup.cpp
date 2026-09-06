@@ -1,3 +1,4 @@
+#include "src/ui/navigation/view_navigation.h"
 #include "src/ui/popups/cover/cover_popup.h"
 
 #include "src/core/config/config_manager.h"
@@ -1187,6 +1188,7 @@ void show_cover_popup(const CoverPopupInit& init) {
     lv_obj_clear_flag(g_ctx->card, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_move_foreground(g_ctx->overlay);
+    if (g_ctx && g_ctx->card) viewNavigationPopupShown(g_ctx->card, init.entity_id.c_str());
     return;
   }
 
@@ -1370,6 +1372,7 @@ void show_cover_popup(const CoverPopupInit& init) {
   lv_obj_move_foreground(ctx->title_label);
   lv_obj_move_foreground(close);
   lv_obj_move_foreground(ctx->overlay);
+  if (g_ctx && g_ctx->card) viewNavigationPopupShown(g_ctx->card, init.entity_id.c_str());
 }
 
 void update_cover_popup(const CoverPopupInit& init) {

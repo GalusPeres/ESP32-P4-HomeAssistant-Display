@@ -25,6 +25,7 @@ public:
   void refreshTabButton(uint8_t tab_index);
 
   // Switch tabs; public for navigation tiles.
+  uint8_t activeTab() const { return active_tab_index; }
   void switchToTab(uint8_t index);
   void switchToFolder(uint16_t folder_id);
   void requestSettingsAccess(const String& title = String(),

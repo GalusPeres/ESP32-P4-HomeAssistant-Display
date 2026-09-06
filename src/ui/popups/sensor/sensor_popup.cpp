@@ -1,3 +1,5 @@
+#include "src/ui/popups/camera/camera_popup.h"
+#include "src/ui/navigation/view_navigation.h"
 #include "src/ui/popups/sensor/sensor_popup.h"
 #include "src/ui/popups/light/light_popup.h"
 #include "src/ui/popups/climate/climate_popup.h"
@@ -2646,6 +2648,7 @@ bool sensor_popup_should_use_state_history(const String& value,
 
 void show_sensor_popup(const SensorPopupInit& init) {
   hide_pin_popup();
+  hide_camera_popup();
   hide_climate_popup();
   hide_cover_popup();
   if (!init.entity_id.length()) return;
@@ -2683,6 +2686,7 @@ void show_sensor_popup(const SensorPopupInit& init) {
   set_range_buttons_visible(g_sensor_popup_ctx,
                             g_sensor_popup_ctx->state_history_mode);
   request_history_for_context(g_sensor_popup_ctx);
+  if (g_sensor_popup_ctx && g_sensor_popup_ctx->card) viewNavigationPopupShown(g_sensor_popup_ctx->card, init.entity_id.c_str());
 }
 
 void preload_sensor_popup() {

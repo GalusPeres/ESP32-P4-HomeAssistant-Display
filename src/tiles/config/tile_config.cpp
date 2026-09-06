@@ -3,6 +3,8 @@
 #include "src/core/config/config_manager.h"
 #include "src/core/i18n/i18n.h"
 #include <Preferences.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <string.h>
 #include <vector>
 #include <algorithm>
@@ -916,6 +918,8 @@ static void packTile(const Tile& in, PackedTileV7& out) {
                             ? TILE_POPUP_OPEN_SHORT_PRESS
                             : TILE_POPUP_OPEN_LONG_PRESS;
   out.reserved[0] = in.background_opacity;
+  out.reserved[1] = static_cast<uint8_t>(in.view_id);
+  out.reserved[2] = static_cast<uint8_t>(in.view_id >> 8);
   copyString(in.title, out.title, sizeof(out.title));
   copyString(in.icon_name, out.icon_name, sizeof(out.icon_name));
   copyString(in.sensor_unit, out.sensor_unit, sizeof(out.sensor_unit));
@@ -1025,6 +1029,8 @@ static void unpackTileV7(const PackedTileV7& in, Tile& out) {
   out.type = type;
   out.bg_color = in.bg_color;
   out.background_opacity = in.reserved[0];
+  out.view_id = static_cast<uint16_t>(in.reserved[1]) |
+                (static_cast<uint16_t>(in.reserved[2]) << 8);
   out.col = (in.col < GRID_COLS) ? in.col : 0;
   out.row = (in.row < GRID_ROWS) ? in.row : 0;
   uint8_t span_w = (in.span_w < 1) ? 1 : in.span_w;
@@ -2519,8 +2525,41 @@ void TileConfig::invalidateFolderEntityCache() {
   folder_entity_cache_gen_ = folder_entity_cache_gen_ + 1;
 }
 
-bool TileConfig::saveFolderGrid(uint16_t folder_id, const TileGridConfig& grid) {
+// IDs are reserved durably before a grid write. A failed save may leave a gap,
+// but deletion, restart and slot reuse can never redirect an old target.
+static uint16_t reserveNavigationId(const char* key, uint16_t minimum = 1) {
+  static SemaphoreHandle_t mutex = xSemaphoreCreateMutex();
+  if (!mutex || xSemaphoreTake(mutex, pdMS_TO_TICKS(2000)) != pdTRUE) return 0;
+  ScopedStorageWriteDisplayGuard guard;
+  Preferences prefs;
+  if (!prefs.begin("ht_view_ids", false)) { xSemaphoreGive(mutex); return 0; }
+  const uint32_t next = std::max(prefs.getUInt(key, 1), uint32_t(minimum));
+  const bool valid = next < TileConfig::kScreensaverGridStorageId;
+  const bool saved = valid && prefs.putUInt(key, next + 1) == sizeof(uint32_t);
+  prefs.end();
+  xSemaphoreGive(mutex);
+  if (!saved) Serial.println("[View] Cannot reserve a persistent navigation ID");
+  return saved ? static_cast<uint16_t>(next) : 0;
+}
+
+static bool ensureNavigationIds(TileGridConfig& grid, bool& changed) {
+  for (auto& tile : grid.tiles) {
+    if (tile.type == TILE_EMPTY) {
+      if (tile.view_id) changed = true;
+      tile.view_id = 0;
+    } else if (!tile.view_id) {
+      tile.view_id = reserveNavigationId("tile_next");
+      if (!tile.view_id) return false;
+      changed = true;
+    }
+  }
+  return true;
+}
+
+bool TileConfig::saveFolderGrid(uint16_t folder_id, TileGridConfig& grid) {
   if (!folderExists(folder_id)) return false;
+  bool ids_changed = false;
+  if (!ensureNavigationIds(grid, ids_changed)) return false;
   bool ok = saveGrid(folder_id, grid);
   if (ok && folder_id == active_folder_id) {
     // Keep the runtime cache identical to the policy-normalized grid that was
@@ -2588,7 +2627,8 @@ uint16_t TileConfig::nextFolderId() const {
     if (entry.id > max_id) max_id = entry.id;
   }
   if (max_id == 0xFFFF) return kInvalidFolderId;
-  return static_cast<uint16_t>(max_id + 1);
+  const uint16_t id = reserveNavigationId("folder_next", static_cast<uint16_t>(max_id + 1));
+  return id ? id : kInvalidFolderId;
 }
 
 void TileConfig::ensureRootFolder() {
@@ -2936,7 +2976,9 @@ bool TileConfig::updateFolder(uint16_t folder_id, const String& name, const Stri
     safe_icon.trim();
     copyString(safe_name, entry.name, sizeof(entry.name));
     copyString(safe_icon, entry.icon_name, sizeof(entry.icon_name));
-    return saveFolders();
+    const bool saved = saveFolders();
+    if (saved) view_revision_ = view_revision_ + 1;
+    return saved;
   }
   return false;
 }
@@ -2963,6 +3005,7 @@ bool TileConfig::setFolderPin(uint16_t folder_id, const String& pin) {
       entry = original;
       return false;
     }
+    view_revision_ = view_revision_ + 1;
     return true;
   }
   return false;
@@ -2981,6 +3024,7 @@ bool TileConfig::clearFolderPin(uint16_t folder_id) {
       entry = original;
       return false;
     }
+    view_revision_ = view_revision_ + 1;
     return true;
   }
   return false;
@@ -3069,6 +3113,7 @@ SettingsTileVisibilityResult TileConfig::validateSettingsTileVisible(
 }
 
 bool TileConfig::deleteFolder(uint16_t folder_id) {
+  view_revision_ = view_revision_ + 1;
   if (folder_id == kRootFolderId) return false;
   if (!folderExists(folder_id)) return false;
   if (!storageReady()) {
@@ -3229,8 +3274,10 @@ bool TileConfig::loadGrid(uint16_t folder_id, TileGridConfig& grid,
     }
   }
 
+  if (folder_id != kScreensaverGridStorageId &&
+      !ensureNavigationIds(grid, changed)) return false;
   if (needs_migration_save || changed) {
-    saveGrid(folder_id, grid, ensure_navigation_tile);
+    if (!saveGrid(folder_id, grid, ensure_navigation_tile)) return false;
   }
   return true;
 }
@@ -3324,6 +3371,7 @@ bool TileConfig::saveGrid(uint16_t folder_id, const TileGridConfig& grid,
   // Invalidate AFTER the write completes. If the loop task concurrently builds
   // a cache entry from old data, its generation will differ and force a reload.
   invalidateFolderEntityCache();
+  view_revision_ = view_revision_ + 1;
 
   String legacy_v6 = tileGridFileLegacyV6(folder_id);
   if (storageFS().exists(legacy_v6)) {

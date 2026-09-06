@@ -118,8 +118,10 @@ const folderStart = tiles.indexOf('void tiles_switch_to_folder(');
 const folderEnd = tiles.indexOf('void tiles_cancel_folder_switch(', folderStart);
 assert.match(tiles.slice(reloadStart, reloadEnd), /hide_light_popup\(\);/,
              'A layout replacement must close a slot-bound light popup');
-assert.match(tiles.slice(folderStart, folderEnd), /hide_light_popup\(\);/,
+assert.match(tiles.slice(folderStart, folderEnd), /viewNavigationClosePopups\(\);/,
              'A folder switch must close a slot-bound light popup');
+assert.match(read('src/ui/navigation/view_navigation.cpp'), /hide_light_popup\(\);/,
+             'Shared popup teardown must include Light');
 
 const cacheBuildStart = tiles.indexOf('static void build_folder_cache_entry(');
 assert.ok(cacheBuildStart >= 0,

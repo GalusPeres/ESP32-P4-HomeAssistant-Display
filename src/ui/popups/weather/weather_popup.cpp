@@ -1,3 +1,5 @@
+#include "src/ui/popups/camera/camera_popup.h"
+#include "src/ui/navigation/view_navigation.h"
 #include "src/ui/popups/weather/weather_popup.h"
 #include "src/core/json_scan.h"
 #include "src/ui/popups/light/light_popup.h"
@@ -3958,6 +3960,7 @@ bool weather_popup_has_current_cached_payload(const char* entity_id) {
 
 void show_weather_popup(const WeatherPopupInit& init) {
   hide_pin_popup();
+  hide_camera_popup();
   hide_climate_popup();
   hide_cover_popup();
   if (!init.entity_id.length()) return;
@@ -4028,6 +4031,8 @@ void show_weather_popup(const WeatherPopupInit& init) {
       String cached;
       if (!tiles_get_cached_entity_payload(init.entity_id.c_str(), cached)) {
         request_weather_for_context(g_weather_popup_ctx);
+        if (g_weather_popup_ctx && g_weather_popup_ctx->card)
+          viewNavigationPopupShown(g_weather_popup_ctx->card, init.entity_id.c_str());
         return;
       }
       if (matching_refresh_pending) {
@@ -4047,6 +4052,7 @@ void show_weather_popup(const WeatherPopupInit& init) {
     // No cache — request fresh data via MQTT
     request_weather_for_context(g_weather_popup_ctx);
   }
+  if (g_weather_popup_ctx && g_weather_popup_ctx->card) viewNavigationPopupShown(g_weather_popup_ctx->card, init.entity_id.c_str());
 }
 
 void preload_weather_popup() {

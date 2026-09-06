@@ -1,3 +1,5 @@
+#include "src/ui/popups/camera/camera_popup.h"
+#include "src/ui/navigation/view_navigation.h"
 #include "src/ui/popups/media/media_popup.h"
 
 #include <esp_heap_caps.h>
@@ -584,6 +586,7 @@ static lv_obj_t* create_control_button(lv_obj_t* parent,
 
 void show_media_popup(const MediaPopupInit& init) {
   hide_pin_popup();
+  hide_camera_popup();
   hide_climate_popup();
   hide_cover_popup();
   if (!init.entity_id.length()) return;
@@ -596,6 +599,7 @@ void show_media_popup(const MediaPopupInit& init) {
     apply_init_to_context(g_media_popup_ctx, init);
     lv_obj_clear_flag(g_media_popup_ctx->card, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_media_popup_ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
+    if (g_media_popup_ctx && g_media_popup_ctx->card) viewNavigationPopupShown(g_media_popup_ctx->card, init.entity_id.c_str());
     return;
   }
 
@@ -815,6 +819,7 @@ void show_media_popup(const MediaPopupInit& init) {
   ctx->progress_timer = lv_timer_create(media_progress_timer_cb, 1000, ctx);
   lv_obj_add_event_cb(overlay, on_overlay_click, LV_EVENT_CLICKED, ctx);
   lv_obj_add_event_cb(overlay, on_overlay_delete, LV_EVENT_DELETE, ctx);
+  if (g_media_popup_ctx && g_media_popup_ctx->card) viewNavigationPopupShown(g_media_popup_ctx->card, init.entity_id.c_str());
 }
 
 void preload_media_popup() {

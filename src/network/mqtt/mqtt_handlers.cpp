@@ -1,8 +1,10 @@
+#include "src/ui/navigation/view_navigation.h"
 #include "src/network/mqtt/mqtt_handlers.h"
 #include "src/network/mqtt/mqtt_packet_safety.h"
 #include "src/network/mqtt/mqtt_topics.h"
 #include "src/network/network_manager.h"
 #include "src/network/bridge/ha_bridge_config.h"
+#include "src/network/bridge/control_contract.h"
 #include "src/ui/tabs/tiles/tab_tiles_unified.h"
 #include "src/ui/screensaver/screensaver_config.h"
 #include "src/ui/popups/sensor/sensor_popup.h"
@@ -36,15 +38,8 @@
 #define TAB5_HAS_ONEWIRE_DS18X20 0
 #endif
 
-#if defined(__has_include) && !defined(CONFIG_IDF_TARGET_ESP32P4)
-#if __has_include(<OneWire.h>) && __has_include(<DallasTemperature.h>)
-#undef TAB5_HAS_ONEWIRE_DS18X20
-#define TAB5_HAS_ONEWIRE_DS18X20 1
-#include <OneWire.h>
-#include <DallasTemperature.h>
-#endif
-#endif
-
+// External temperature channels are configured by hardwareIo. Library presence
+// is not a board capability and must never enable GPIO 1/50 auto-probing.
 // Cached values for outgoing snapshots
 static float g_outside_c = 21.7f;
 static float g_inside_c = 22.4f;
@@ -108,9 +103,8 @@ static void update_all_grids(const char* entity_id, const char* payload) {
 
 static bool is_external_temp_entity(const char* entity_id) {
   if (!entity_id || !*entity_id) return false;
-  String normalized(entity_id);
-  normalized.trim();
-  return normalized.equalsIgnoreCase(kEntityExternalTemperature);
+  // New firmware routes explicitly configured channels through hardwareIo.
+  return false;
 }
 
 static bool is_internal_tab5_entity(const char* entity_id) {
@@ -123,11 +117,8 @@ static bool is_internal_tab5_entity(const char* entity_id) {
   if (normalized.equalsIgnoreCase(kEntityScreensaverBrightness)) return true;
   if (normalized.equalsIgnoreCase(kEntityDisplayRotate)) return true;
   if (normalized.equalsIgnoreCase(kEntityDisplaySleep)) return true;
-  if (normalized.equalsIgnoreCase(kEntityExternalTemperature)) return true;
 
-  return normalized.startsWith("sensor.tab5_") ||
-         normalized.startsWith("switch.tab5_") ||
-         normalized.startsWith("light.tab5_");
+  return false;
 }
 
 static bool has_valid_local_time_for_history() {
@@ -815,7 +806,7 @@ static int readBatterySocPercent() {
 }
 
 static void sync_internal_battery_entity() {
-  if (batteryStateIsBatteryMissing()) {
+  if (!batteryStateSupportsMeasurement() || batteryStateIsBatteryMissing()) {
     return;
   }
   const int soc = readBatterySocPercent();
@@ -1168,7 +1159,8 @@ static void sync_local_device_entities(bool publish_mqtt) {
   update_all_grids(kEntityDisplayRotate, rotate_state);
   update_all_grids(kEntityDisplaySleep, sleep_state);
   sync_internal_battery_entity();
-  sync_external_temp_entity(publish_mqtt);
+  // Explicit local I/O owns all external temperature telemetry.
+  (void)publish_mqtt;
 }
 
 static bool resolve_toggle_action(const char* action, bool current, bool* desired) {
@@ -1714,6 +1706,7 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
   // while normal Bridge and camera messages retain the established router.
   if (hardwareIo.handleMqttMessage(topic, payload, length)) return;
 
+  if (viewNavigationHandleMessage(topic, reinterpret_cast<const char*>(payload), length)) return;
   const char* apply_topic = networkManager.getBridgeApplyTopic();
   if (apply_topic && strcmp(topic, apply_topic) == 0) {
     char* cfg_buf = mqttConfigBuffer();
@@ -1903,8 +1896,15 @@ void mqttPublishHomeSnapshot() {
   dtostrf(g_inside_c, 0, 1, buf);
   networkManager.mqttEnqueuePublish(mqttTopics.topic(TopicKey::SENSOR_IN), buf, true);
 
-  snprintf(buf, sizeof(buf), "%d", readBatterySocPercent());
-  networkManager.mqttEnqueuePublish(mqttTopics.topic(TopicKey::SENSOR_SOC), buf, true);
+  if (batteryStateSupportsMeasurement()) {
+    const int soc = readBatterySocPercent();
+    if (batteryStateHasDisplayPercent()) snprintf(buf, sizeof(buf), "%d", soc);
+    else snprintf(buf, sizeof(buf), "unavailable");
+    networkManager.mqttEnqueuePublish(mqttTopics.topic(TopicKey::SENSOR_SOC), buf, true);
+  } else {
+    // Remove the old retained synthetic zero rather than publishing false data.
+    networkManager.mqttEnqueuePublish(mqttTopics.topic(TopicKey::SENSOR_SOC), "", true);
+  }
 }
 
 // ========== Publish device settings ==========
@@ -1949,20 +1949,14 @@ void mqttServiceLocalSensors() {
   }
   last_run_ms = now_ms;
   sync_internal_battery_entity();
-#if !defined(CONFIG_IDF_TARGET_ESP32P4)
-  // Keep legacy GPIO 1/50 auto-probing only for existing non-P4 support.
-  // OneWire here was already disabled at compile time on P4; a permanent
-  // "unavailable" state would add a dead legacy entity beside the new
-  // explicitly assigned local I/O entities.
-  if (!hardwareIo.hasTemperatureChannels()) {
-    sync_external_temp_entity(true);
-  }
-#endif
+
 }
 
 // ========== Publish scene command ==========
 void mqttPublishScene(const char* scene_name) {
   if (!scene_name || !*scene_name) return;
+  const String entity = haBridgeConfig.findSceneEntity(scene_name);
+  if (entity.length() && !ha_control::supportsSceneTile(entity.c_str())) return;
 
   if (!networkManager.isMqttConnected()) {
     Serial.printf("Scene command skipped (MQTT offline): %s\n", scene_name);
@@ -1977,6 +1971,7 @@ void mqttPublishScene(const char* scene_name) {
 void mqttPublishSwitchCommand(const char* entity_id, const char* state) {
   if (!entity_id || !*entity_id) return;
   if (handle_local_switch_command(entity_id, state)) return;
+  if (!ha_control::supportsSwitchTile(entity_id)) return;
 
   if (!networkManager.isMqttConnected()) {
     Serial.printf("Switch command skipped (MQTT offline): %s\n", entity_id);
@@ -2684,6 +2679,7 @@ void mqttServiceDynamicSlotsReload() {
 void mqttServicePostConnect() {
   if (!networkManager.consumeMqttPostConnectPending()) return;
   Serial.println("[MQTT] Post-connect: subscriptions/discovery/settings (loop task)");
+  viewNavigationConnected();
   mqttSubscribeTopics();
   mqttPublishDiscovery();
   mqttPublishDeviceSettings();

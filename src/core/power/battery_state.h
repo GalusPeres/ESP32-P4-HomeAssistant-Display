@@ -16,6 +16,8 @@ struct BatteryTelemetry {
   bool charging = false;
 };
 
+// Capability is independent from whether a battery is temporarily absent.
+bool batteryStateSupportsMeasurement();
 void batteryStateUpdate();
 const BatteryTelemetry& batteryStateGet();
 bool batteryStateIsOnMains();

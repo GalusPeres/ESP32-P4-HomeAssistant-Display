@@ -1,3 +1,5 @@
+#include "src/ui/popups/camera/camera_popup.h"
+#include "src/ui/navigation/view_navigation.h"
 #include "src/ui/popups/energy/energy_popup.h"
 
 #include <math.h>
@@ -982,6 +984,7 @@ void build_popup_ui(EnergyPopupContext* ctx, const EnergyPopupInit& init) {
 
 void show_energy_popup(const EnergyPopupInit& init) {
   hide_pin_popup();
+  hide_camera_popup();
   hide_climate_popup();
   hide_cover_popup();
   if (!init.entity_id.length()) return;
@@ -1003,6 +1006,7 @@ void show_energy_popup(const EnergyPopupInit& init) {
 
   energy_request_period("day", true);
   refresh_from_cache(g_energy_popup_ctx);
+  if (g_energy_popup_ctx && g_energy_popup_ctx->card) viewNavigationPopupShown(g_energy_popup_ctx->card, init.entity_id.c_str());
 }
 
 void preload_energy_popup() {

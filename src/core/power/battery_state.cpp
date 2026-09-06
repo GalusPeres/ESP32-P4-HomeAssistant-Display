@@ -16,6 +16,8 @@ static BatteryTelemetry g_stub = {
   .charging = false,
 };
 
+bool batteryStateSupportsMeasurement() { return false; }
+
 void batteryStateUpdate() {
   // nothing to poll
 }

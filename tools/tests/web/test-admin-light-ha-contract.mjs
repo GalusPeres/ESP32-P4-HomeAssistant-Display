@@ -1,5 +1,6 @@
 import {readAdminDeliverySource} from '../../lib/admin-source.mjs';
 import fs from 'node:fs';
+import assert from 'node:assert/strict';
 import vm from 'node:vm';
 
 const noop = () => {};
@@ -153,6 +154,7 @@ const sandbox = {
   TILES_PER_GRID: 24,
   ADMIN_WEB_SESSION_TOKEN: 'test',
   TILE_TYPE_REGISTRY: {
+    2: {css: 'scene', fields: 'scene', preview: 'scene', load: 'loadSceneFields', save: 'saveSceneFields', reset: 'resetSceneFields'},
     5: {
       css: 'switch',
       fields: 'switch',
@@ -257,4 +259,44 @@ if (result.unavailableIconColor !== '#B0B0B0' ||
   throw new Error('Unavailable Light preview retained an active visual state');
 }
 
-console.log('Light Home Assistant WebUI contract tests passed.');
+elements.folder1_switch_popup_open_mode = new TestElement('1');
+elements.folder1_scene_alias = new TestElement('');
+for (const domain of ['switch', 'input_boolean', 'automation', 'fan', 'humidifier', 'remote', 'siren']) {
+  sandbox.testDomain = domain;
+  const result = await vm.runInContext(`(async () => {
+    const entity = testDomain + '.desk';
+    document.getElementById('folder1_tile_type').value = '5';
+    loadSwitchFields('folder1', {sensor_entity: entity, popup_open_mode: 0, switch_style: 1});
+    document.getElementById('folder1_tile_title').value = 'Desk ' + testDomain;
+    const payload = new FormData(); saveSwitchFields('folder1', payload);
+    const snapshot = buildTileSnapshotFromInputs('folder1');
+    sensorMetaCache.values[entity] = JSON.stringify({state:'on', available:true});
+    updateTilePreview('folder1'); await Promise.resolve(); await Promise.resolve();
+    const tile = document.getElementById('folder1-tile-3');
+    const active = tile.querySelector('.tile-switch').classList.contains('is-on');
+    sensorMetaCache.values[entity] = JSON.stringify({state:null,available:false});
+    updateSwitchValuePreview('folder1'); await Promise.resolve(); await Promise.resolve();
+    return {entity:payload.get('switch_entity'),mode:payload.get('popup_open_mode'), snapshot, active,
+      inactive:!tile.querySelector('.tile-switch').classList.contains('is-on')};
+  })()`, sandbox);
+  assert.equal(result.entity, `${domain}.desk`);
+  assert.equal(result.mode, '0');
+  assert.equal(result.snapshot.switch_entity, `${domain}.desk`);
+  assert.equal(result.snapshot.title, `Desk ${domain}`);
+  assert(result.active && result.inactive);
+}
+for (const alias of ['scene_desk', 'script_desk', 'button_desk', 'input_button_desk']) {
+  sandbox.testAlias = alias;
+  const result = vm.runInContext(`(() => {
+    document.getElementById('folder1_tile_type').value = '2';
+    loadSceneFields('folder1', {scene_alias:testAlias});
+    document.getElementById('folder1_tile_title').value = 'Press ' + testAlias;
+    const payload = new FormData();saveSceneFields('folder1',payload);
+    updateTilePreview('folder1');
+    return {alias:payload.get('scene_alias'),snapshot:buildTileSnapshotFromInputs('folder1'),html:document.getElementById('folder1-tile-3').innerHTML};
+  })()`, sandbox);
+  assert.equal(result.alias, alias);
+  assert.equal(result.snapshot.scene_alias, alias);
+  assert(result.html.includes(`Press ${alias}`));
+}
+console.log('Light and compatible Switch/Scene WebUI contract tests passed.');

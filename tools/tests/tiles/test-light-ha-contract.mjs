@@ -14,8 +14,8 @@ if (!/struct SwitchState \{\s*bool available = true;/s.test(switchStateHeader) |
 for (const marker of [
   'if (normalized_state == "unavailable")',
   'out.available = false;',
-  'init.available = !init.is_light || state.available;',
-  'const bool light_unavailable =',
+  'init.available = state.available;',
+  'const bool control_unavailable =',
   'lv_obj_add_state(widgets.switch_obj, LV_STATE_DISABLED);'
 ]) {
   if (!tileRenderer.includes(marker) && !switchRenderer.includes(marker)) {
@@ -27,17 +27,16 @@ const directToggle = switchRenderer.slice(
   switchRenderer.indexOf('static void toggle_switch_tile('),
   switchRenderer.indexOf('static LightPopupInit build_light_popup_init(')
 );
-if (!directToggle.includes('is_light_entity_id(data->entity_id)') ||
-    !directToggle.includes('if (!current.available) return;')) {
+if (!directToggle.includes('if (!current.available) return;')) {
   throw new Error('Unavailable Light still reaches the direct tile toggle path');
 }
 if (!switchRenderer.includes(
-      'init.available = !init.is_light || state.available;')) {
+      'init.available = state.available;')) {
   throw new Error('Light popup builder dropped availability');
 }
 
 for (const marker of [
-  'ctx->available = !init.is_light || init.available;',
+  'ctx->available = init.available;',
   'if (!ctx->available) {',
   'cancel_pending_live_publish(ctx);',
   'next_available != g_light_popup_ctx->available',

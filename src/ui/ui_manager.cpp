@@ -1,3 +1,4 @@
+#include "src/ui/navigation/view_navigation.h"
 #include "src/ui/ui_manager.h"
 
 #include "src/ui/tabs/tiles/tab_tiles_unified.h"
@@ -299,6 +300,7 @@ lv_obj_t* UIManager::createTabPanel(lv_obj_t *parent) {
 }
 
 void UIManager::switchToTab(uint8_t index) {
+  viewNavigationClosePopups();
   if (index >= TAB_COUNT) return;
   if (active_tab_index == index) return;
 

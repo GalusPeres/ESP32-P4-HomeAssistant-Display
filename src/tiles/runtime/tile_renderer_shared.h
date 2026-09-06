@@ -1,3 +1,4 @@
+#include "src/ui/navigation/view_navigation.h"
 #pragma once
 
 #include <lvgl.h>
@@ -94,6 +95,7 @@ static inline void finish_press_before_popup(lv_event_t* event) {
   if (!event) return;
   lv_obj_t* source = static_cast<lv_obj_t*>(lv_event_get_target(event));
   if (source) {
+    viewNavigationSource(source);
     lv_obj_clear_state(source, LV_STATE_PRESSED);
     lv_obj_invalidate(source);
   }
@@ -118,6 +120,7 @@ struct DeferredPopupAfterRefresh {
   void (*show)(const Init&) = nullptr;
   lv_display_t* registered_display = nullptr;
   bool pending = false;
+  uint32_t view_generation = 0;
 };
 
 template <typename Init>
@@ -139,7 +142,7 @@ static void deferred_popup_after_refresh_cb(lv_event_t* event) {
   state->pending = false;
   state->show = nullptr;
   state->init = Init{};
-  if (show) show(init);
+  if (show && viewNavigationDeferredPopupAllowed(state->view_generation)) show(init);
 }
 
 template <typename Init>
@@ -154,6 +157,7 @@ static inline void defer_popup_until_source_refreshed(
   lv_display_t* display = source ? lv_obj_get_display(source)
                                  : lv_display_get_default();
   if (source) {
+    viewNavigationSource(source);
     lv_obj_clear_state(source, LV_STATE_PRESSED);
     lv_obj_invalidate(source);
   }
@@ -172,6 +176,7 @@ static inline void defer_popup_until_source_refreshed(
   state.init = init;
   state.show = show;
   state.pending = true;
+  state.view_generation = viewNavigationPopupGeneration();
   if (!state.registered_display) {
     // Keep one callback for the static display instead of allocating and
     // freeing an LVGL event descriptor on every Weather click.

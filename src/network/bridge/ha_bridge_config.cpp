@@ -1,3 +1,4 @@
+#include "src/core/power/battery_state.h"
 #include "src/network/bridge/ha_bridge_config.h"
 
 #include <ArduinoJson.h>
@@ -316,6 +317,13 @@ String HaBridgeConfig::buildJsonPayload(const char* device_id,
   appendJsonEscaped(json, Device::profile().key);
   json += "\",\"sensors\":";
   appendSensorsJson(json, data.sensors_text);
+  if (data.has_configured_sensors) {
+    json += ",\"configured_sensors\":";
+    appendSensorsJson(json, data.configured_sensors_text);
+  }
+  json += ",\"capabilities\":{\"view_navigation\":true,\"battery_soc\":";
+  json += batteryStateSupportsMeasurement() ? "true" : "false";
+  json += ",\"legacy_external_temperature\":false}";
   json += ",\"binary_sensors\":";
   appendSensorsJson(json, data.binary_sensors_text);
 
@@ -523,6 +531,15 @@ bool HaBridgeConfig::applyJson(const char* json_payload, bool* out_reload, bool*
   int sensors_idx = json.indexOf("\"sensors\"");
   if (sensors_idx >= 0) {
     parseArraySection(json.substring(sensors_idx), merged.sensors_text);
+  }
+
+  int configured_sensors_idx = json.indexOf("\"configured_sensors\"");
+  if (configured_sensors_idx >= 0) {
+    parseArraySection(json.substring(configured_sensors_idx), merged.configured_sensors_text);
+    merged.has_configured_sensors = true;
+  } else if (sensors_idx >= 0) {
+    merged.has_configured_sensors = false;
+    merged.configured_sensors_text = "";
   }
 
   int binary_sensors_idx = json.indexOf("\"binary_sensors\"");

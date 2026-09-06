@@ -24,7 +24,6 @@ Last reviewed: 2026-09-06
   Both additions remain unreleased; `v0.6.9` is still the firmware version.
 - Recent stabilization covers S3 update/display guards, MQTT validation,
   Light coalescing and incremental Weather parsing (`e3de63c`–`33b4e06`).
-- `4b34ac2`: 72 host tests, strict docs and both test-device builds pass.
 - Both test panels serve matching Admin assets; initial use reportedly stable.
   Full hardware validation and runtime measurements remain pending.
 - The experimental Guition S3 XIP/`-O2` performance path was reverted in
@@ -136,24 +135,25 @@ Issue: https://github.com/GalusPeres/HomeTiles/issues/30
 - Bridge v0.6.40 (`581150b`) is released with complete bounded Recorder paging,
   categorical Sensor history, and explicit legacy-firmware compatibility.
 
-## Product direction still requested
-
-- Stability and exact-device validation come before broad new features.
-- Later work includes notifications/sounds, event-driven folder colors, Number,
-  Date/Time, Select, Button, and related entities; track priority in live issues.
+Number, Select and Date/Time are discussion only; implementation is not authorized. Notifications/sounds and folder colors remain deferred.
 
 ## Current maintenance refactoring
 
-- Docs source: `docs/`, `mkdocs.yml`, `overrides/`; README stays short.
-- Root hosting: `GalusPeres/galusperes.github.io` deploys `HomeTiles/gh-pages`;
-  https://galusperes.github.io/ is live; desktop/mobile pages and all 14
-  published flasher profiles checked on 2026-09-06. See `CONTRIBUTING.md`.
-- The user authorized pushing this maintenance work to main; no release was requested.
-- See `ARCHITECTURE.md` for ownership/risks and `CONTRIBUTING.md` for extension workflows.
-- Subsystems and tests use domain folders; comments and technical logs are English.
-- One host device catalog; 51 Admin units; host tools need `npm ci --ignore-scripts`.
-- HTTP helpers compile once; type policies, queues and settings codecs have tests.
-- Regression tests cover Media gesture cancellation, setup escaping and delivered JS.
-- `ebb7462` -> `4b34ac2` BINs: Waveshare 8 6,248,480 -> 6,233,120 bytes;
-  Guition S3 5,243,152 -> 5,228,896 bytes. Static RAM: P4 unchanged; S3 +8 padding.
-- Local test BINs and hashes: `build/maintenance-20260905/VERIFICATION.md`.
+- Architecture/workflows: `ARCHITECTURE.md`, `CONTRIBUTING.md`; host dependencies need `npm ci --ignore-scripts`.
+- Docs source: `docs/`, `mkdocs.yml`, `overrides/`; root hosting deploys `HomeTiles/gh-pages`.
+- https://galusperes.github.io/ desktop/mobile pages and all 14 published flasher profiles checked 2026-09-06.
+- Previous maintenance BINs and hashes: `build/maintenance-20260905/VERIFICATION.md`.
+
+## Current view control, telemetry and compatible controls
+
+- Unreleased firmware adds Home/folder/popup navigation through existing UI, PIN and camera teardown paths; commit/push to main is user-authorized.
+- Visible folders are reused for their popup/descendants; new/locked paths still require access checks (S3 Home detour fix).
+- Stable tile IDs use reserved PackedTileV7 bytes and durable counters; MQTT sessions/sequences/deadlines reject replay.
+- Bridge v0.6.42 (`5ac2c71`) is released for HACS; View/telemetry migration remains. Firmware documentation changes are local drafts until firmware release.
+- Switch adds input_boolean/automation/fan/humidifier/remote/siren; Scene adds button/input_button. Aliases stay stable.
+- Commands validate selected targets, availability and on/off features; retained commands are ignored.
+- Firmware battery is a stub on all profiles. Unsupported battery/probes are no longer auto-registered; explicit local I/O remains.
+- Bridge migration checks registry ownership/capabilities, cleans shared selections and preserves user entities.
+- 76 firmware host tests and 107 Bridge tests pass; both sequential incremental builds pass. BINs/hashes: `build/controls-verification/VERIFICATION.md`.
+- View control is user-reported working on Waveshare 8-inch/S3; the S3 detour fix and new controls still need hardware/HA checks.
+- Full HA migration/re-pairing, old firmware compatibility, PIN, stream cleanup and sleep/reconnect also remain pending.

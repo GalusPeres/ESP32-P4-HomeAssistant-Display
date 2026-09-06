@@ -1,3 +1,4 @@
+#include "src/ui/navigation/view_navigation.h"
 #include "src/ui/tabs/tiles/tab_tiles_unified.h"
 #include "src/core/display/display_manager.h"
 #include "src/core/power/power_manager.h"
@@ -1763,7 +1764,7 @@ void tiles_request_release_all() {
 }
 
 void tiles_switch_to_folder(uint16_t folder_id) {
-  hide_light_popup();
+  viewNavigationClosePopups();
   const uint8_t idx = static_cast<uint8_t>(GridType::TAB0);
   if (!g_tiles_roots[idx] || !tileConfig.folderExists(folder_id)) {
     uiManager.finishFolderSwitch(folder_id, false);
@@ -2354,4 +2355,38 @@ void tiles_update_weather_by_entity(GridType grid_type, const char* entity_id, c
       Serial.printf("[%s] Weather %s@%u queued\n", getGridName(grid_type), entity_id, i);
     }
   }
+}
+
+uint16_t tiles_view_id_for_object(lv_obj_t* object) {
+  while (object) {
+    for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+      if (g_tiles_objs[0][i] == object) return tileConfig.getActiveGrid().tiles[i].view_id;
+    }
+    object = lv_obj_get_parent(object);
+  }
+  return 0;
+}
+
+bool tiles_folder_switch_pending() { return g_folder_switch_pending; }
+
+bool tiles_open_view_popup(uint16_t view_id) {
+  if (!view_id || !g_tiles_loaded[0] || g_folder_switch_pending ||
+      g_tiles_reload_requested[0]) return false;
+  const auto& grid = tileConfig.getActiveGrid();
+  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+    const Tile& tile = grid.tiles[i];
+    if (tile.view_id != view_id || !g_tiles_objs[0][i]) continue;
+    lv_obj_t* object = g_tiles_objs[0][i];
+    const lv_event_code_t event =
+        tile.type == TILE_MEDIA || tile.type == TILE_CAMERA || tile.type == TILE_WEATHER ||
+        getTilePopupOpenMode(tile) == TILE_POPUP_OPEN_SHORT_PRESS
+            ? LV_EVENT_SHORT_CLICKED : LV_EVENT_LONG_PRESSED;
+    // Deliver the same popup-only release gesture as a local user. Switches
+    // register their toggle action on the other gesture, never on this one.
+    viewNavigationSource(object);
+    lv_obj_send_event(object, LV_EVENT_PRESSED, nullptr);
+    lv_obj_send_event(object, event, nullptr);
+    return true;
+  }
+  return false;
 }
